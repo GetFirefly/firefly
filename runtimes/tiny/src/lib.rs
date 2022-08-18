@@ -4,6 +4,7 @@
 #![feature(process_exitcode_internals)]
 #![feature(thread_local)]
 #![feature(let_else)]
+#![feature(iterator_try_collect)]
 
 extern crate liblumen_crt;
 

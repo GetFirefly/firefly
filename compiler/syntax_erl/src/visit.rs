@@ -1,3 +1,5 @@
+use core::ops::ControlFlow;
+
 use paste::paste;
 
 use crate::ast::*;
@@ -5,7 +7,7 @@ use crate::ast::*;
 macro_rules! visit_mut_trait_method {
     ($name:ident, $ty:ty) => {
         paste! {
-            fn [<visit_mut_ $name>](&mut self, [<_ $name>]: &mut $ty) -> anyhow::Result<()> {
+            fn [<visit_mut_ $name>](&mut self, [<_ $name>]: &mut $ty) -> ControlFlow<T> {
                 [<visit_mut_ $name>](self, [<_ $name>])
             }
         }
@@ -15,7 +17,7 @@ macro_rules! visit_mut_trait_method {
 macro_rules! visit_mut_trait_impl_method {
     ($name:ident, $ty:ty) => {
         paste! {
-            fn [<visit_mut_ $name>](&mut self, [<_ $name>]: &mut $ty) -> anyhow::Result<()> {
+            fn [<visit_mut_ $name>](&mut self, [<_ $name>]: &mut $ty) -> ControlFlow<T> {
                 (**self).[<visit_mut_ $name>]([<_ $name>])
             }
         }
@@ -25,8 +27,11 @@ macro_rules! visit_mut_trait_impl_method {
 macro_rules! visit_mut_impl_empty {
     ($name:ident, $ty:ty) => {
         paste! {
-            pub fn [<visit_mut_ $name>]<V: ?Sized + VisitMut>(_visitor: &mut V, [<_ $name>]: &mut $ty) -> anyhow::Result<()> {
-                Ok(())
+            pub fn [<visit_mut_ $name>]<V, T>(_visitor: &mut V, [<_ $name>]: &mut $ty) -> ControlFlow<T>
+            where
+                V: ?Sized + VisitMut<T>,
+            {
+                ControlFlow::Continue(())
             }
         }
     };
@@ -34,15 +39,15 @@ macro_rules! visit_mut_impl_empty {
 
 macro_rules! visitor {
     ($($name:ident => $ty:ty)*) => {
-        pub trait VisitMut {
+        pub trait VisitMut<T> {
             $(
                 visit_mut_trait_method!($name, $ty);
             )*
         }
 
-        impl<'a, V> VisitMut for &'a mut V
+        impl<'a, V, T> VisitMut<T> for &'a mut V
         where
-            V: ?Sized + VisitMut,
+            V: ?Sized + VisitMut<T>,
         {
             $(
 
@@ -102,10 +107,10 @@ visitor! {
 
 // Traversals
 
-pub fn visit_mut_module<V: ?Sized + VisitMut>(
-    visitor: &mut V,
-    module: &mut Module,
-) -> anyhow::Result<()> {
+pub fn visit_mut_module<V, T>(visitor: &mut V, module: &mut Module) -> ControlFlow<T>
+where
+    V: ?Sized + VisitMut<T>,
+{
     for attr in module.attributes.values_mut() {
         visitor.visit_mut_attribute(attr)?;
     }
@@ -118,66 +123,69 @@ pub fn visit_mut_module<V: ?Sized + VisitMut>(
         visitor.visit_mut_function(f)?;
     }
 
-    Ok(())
+    ControlFlow::Continue(())
 }
 
-pub fn visit_mut_function<V: ?Sized + VisitMut>(
-    visitor: &mut V,
-    fun: &mut Function,
-) -> anyhow::Result<()> {
+pub fn visit_mut_function<V, T>(visitor: &mut V, fun: &mut Function) -> ControlFlow<T>
+where
+    V: ?Sized + VisitMut<T>,
+{
     for (_, ref mut clause) in fun.clauses.iter_mut() {
         visitor.visit_mut_clause(clause)?;
     }
 
-    Ok(())
+    ControlFlow::Continue(())
 }
 
-pub fn visit_mut_fun<V: ?Sized + VisitMut>(visitor: &mut V, fun: &mut Fun) -> anyhow::Result<()> {
+pub fn visit_mut_fun<V, T>(visitor: &mut V, fun: &mut Fun) -> ControlFlow<T>
+where
+    V: ?Sized + VisitMut<T>,
+{
     match fun {
         Fun::Anonymous(ref mut f) => visitor.visit_mut_anonymous_fun(f),
         Fun::Recursive(ref mut f) => visitor.visit_mut_recursive_fun(f),
     }
 }
 
-pub fn visit_mut_recursive_fun<V: ?Sized + VisitMut>(
-    visitor: &mut V,
-    fun: &mut RecursiveFun,
-) -> anyhow::Result<()> {
+pub fn visit_mut_recursive_fun<V, T>(visitor: &mut V, fun: &mut RecursiveFun) -> ControlFlow<T>
+where
+    V: ?Sized + VisitMut<T>,
+{
     for (_, ref mut clause) in fun.clauses.iter_mut() {
         visitor.visit_mut_clause(clause)?;
     }
-    Ok(())
+    ControlFlow::Continue(())
 }
 
-pub fn visit_mut_anonymous_fun<V: ?Sized + VisitMut>(
-    visitor: &mut V,
-    fun: &mut AnonymousFun,
-) -> anyhow::Result<()> {
+pub fn visit_mut_anonymous_fun<V, T>(visitor: &mut V, fun: &mut AnonymousFun) -> ControlFlow<T>
+where
+    V: ?Sized + VisitMut<T>,
+{
     for clause in fun.clauses.iter_mut() {
         visitor.visit_mut_clause(clause)?;
     }
-    Ok(())
+    ControlFlow::Continue(())
 }
 
-pub fn visit_mut_guard<V: ?Sized + VisitMut>(
-    visitor: &mut V,
-    guard: &mut Guard,
-) -> anyhow::Result<()> {
+pub fn visit_mut_guard<V, T>(visitor: &mut V, guard: &mut Guard) -> ControlFlow<T>
+where
+    V: ?Sized + VisitMut<T>,
+{
     for expr in guard.conditions.iter_mut() {
         visitor.visit_mut_expr(expr)?;
     }
-    Ok(())
+    ControlFlow::Continue(())
 }
 
-pub fn visit_mut_expr<V: ?Sized + VisitMut>(
-    visitor: &mut V,
-    expr: &mut Expr,
-) -> anyhow::Result<()> {
+pub fn visit_mut_expr<V, T>(visitor: &mut V, expr: &mut Expr) -> ControlFlow<T>
+where
+    V: ?Sized + VisitMut<T>,
+{
     match expr {
         Expr::Var(ref mut var) => visitor.visit_mut_var(var),
         Expr::Literal(ref mut lit) => visitor.visit_mut_literal(lit),
         Expr::FunctionVar(ref mut var) => visitor.visit_mut_function_var(var),
-        Expr::DelayedSubstitution(_, _) => Ok(()),
+        Expr::DelayedSubstitution(_, _) => ControlFlow::Continue(()),
         Expr::Cons(ref mut cons) => visitor.visit_mut_cons(cons),
         Expr::Tuple(ref mut tuple) => visitor.visit_mut_tuple(tuple),
         Expr::Map(ref mut map) => visitor.visit_mut_map(map),
@@ -206,14 +214,14 @@ pub fn visit_mut_expr<V: ?Sized + VisitMut>(
     }
 }
 
-pub fn visit_mut_pattern<V: ?Sized + VisitMut>(
-    visitor: &mut V,
-    expr: &mut Expr,
-) -> anyhow::Result<()> {
+pub fn visit_mut_pattern<V, T>(visitor: &mut V, expr: &mut Expr) -> ControlFlow<T>
+where
+    V: ?Sized + VisitMut<T>,
+{
     match expr {
         Expr::Var(ref mut var) => visitor.visit_mut_var(var),
         Expr::Literal(ref mut lit) => visitor.visit_mut_literal(lit),
-        Expr::DelayedSubstitution(_, _) => Ok(()),
+        Expr::DelayedSubstitution(_, _) => ControlFlow::Continue(()),
         Expr::Cons(ref mut cons) => visitor.visit_mut_cons(cons),
         Expr::Tuple(ref mut tuple) => visitor.visit_mut_tuple(tuple),
         Expr::Map(ref mut map) => visitor.visit_mut_map_pattern(map),
@@ -227,35 +235,38 @@ pub fn visit_mut_pattern<V: ?Sized + VisitMut>(
     }
 }
 
-pub fn visit_mut_cons<V: ?Sized + VisitMut>(
-    visitor: &mut V,
-    cons: &mut Cons,
-) -> anyhow::Result<()> {
+pub fn visit_mut_cons<V, T>(visitor: &mut V, cons: &mut Cons) -> ControlFlow<T>
+where
+    V: ?Sized + VisitMut<T>,
+{
     visitor.visit_mut_expr(cons.head.as_mut())?;
     visitor.visit_mut_expr(cons.tail.as_mut())
 }
 
-pub fn visit_mut_tuple<V: ?Sized + VisitMut>(
-    visitor: &mut V,
-    tuple: &mut Tuple,
-) -> anyhow::Result<()> {
+pub fn visit_mut_tuple<V, T>(visitor: &mut V, tuple: &mut Tuple) -> ControlFlow<T>
+where
+    V: ?Sized + VisitMut<T>,
+{
     for element in tuple.elements.iter_mut() {
         visitor.visit_mut_expr(element)?;
     }
-    Ok(())
+    ControlFlow::Continue(())
 }
 
-pub fn visit_mut_map<V: ?Sized + VisitMut>(visitor: &mut V, map: &mut Map) -> anyhow::Result<()> {
+pub fn visit_mut_map<V, T>(visitor: &mut V, map: &mut Map) -> ControlFlow<T>
+where
+    V: ?Sized + VisitMut<T>,
+{
     for field in map.fields.iter_mut() {
         visitor.visit_mut_map_field(field)?;
     }
-    Ok(())
+    ControlFlow::Continue(())
 }
 
-pub fn visit_mut_map_pattern<V: ?Sized + VisitMut>(
-    visitor: &mut V,
-    map: &mut Map,
-) -> anyhow::Result<()> {
+pub fn visit_mut_map_pattern<V, T>(visitor: &mut V, map: &mut Map) -> ControlFlow<T>
+where
+    V: ?Sized + VisitMut<T>,
+{
     for field in map.fields.iter_mut() {
         match field {
             MapField::Exact {
@@ -269,24 +280,24 @@ pub fn visit_mut_map_pattern<V: ?Sized + VisitMut>(
             _ => unreachable!(),
         }
     }
-    Ok(())
+    ControlFlow::Continue(())
 }
 
-pub fn visit_mut_map_update<V: ?Sized + VisitMut>(
-    visitor: &mut V,
-    expr: &mut MapUpdate,
-) -> anyhow::Result<()> {
+pub fn visit_mut_map_update<V, T>(visitor: &mut V, expr: &mut MapUpdate) -> ControlFlow<T>
+where
+    V: ?Sized + VisitMut<T>,
+{
     visitor.visit_mut_expr(expr.map.as_mut())?;
     for field in expr.updates.iter_mut() {
         visitor.visit_mut_map_field(field)?;
     }
-    Ok(())
+    ControlFlow::Continue(())
 }
 
-pub fn visit_mut_map_field<V: ?Sized + VisitMut>(
-    visitor: &mut V,
-    field: &mut MapField,
-) -> anyhow::Result<()> {
+pub fn visit_mut_map_field<V, T>(visitor: &mut V, field: &mut MapField) -> ControlFlow<T>
+where
+    V: ?Sized + VisitMut<T>,
+{
     match field {
         MapField::Assoc {
             ref mut key,
@@ -307,197 +318,212 @@ pub fn visit_mut_map_field<V: ?Sized + VisitMut>(
     }
 }
 
-pub fn visit_mut_binary<V: ?Sized + VisitMut>(
-    visitor: &mut V,
-    binary: &mut Binary,
-) -> anyhow::Result<()> {
+pub fn visit_mut_binary<V, T>(visitor: &mut V, binary: &mut Binary) -> ControlFlow<T>
+where
+    V: ?Sized + VisitMut<T>,
+{
     for element in binary.elements.iter_mut() {
         visitor.visit_mut_binary_element(element)?;
     }
-    Ok(())
+    ControlFlow::Continue(())
 }
 
-pub fn visit_mut_binary_pattern<V: ?Sized + VisitMut>(
-    visitor: &mut V,
-    binary: &mut Binary,
-) -> anyhow::Result<()> {
+pub fn visit_mut_binary_pattern<V, T>(visitor: &mut V, binary: &mut Binary) -> ControlFlow<T>
+where
+    V: ?Sized + VisitMut<T>,
+{
     for element in binary.elements.iter_mut() {
         visitor.visit_mut_binary_element_pattern(element)?;
     }
-    Ok(())
+    ControlFlow::Continue(())
 }
 
-pub fn visit_mut_binary_element<V: ?Sized + VisitMut>(
+pub fn visit_mut_binary_element<V, T>(
     visitor: &mut V,
     element: &mut BinaryElement,
-) -> anyhow::Result<()> {
+) -> ControlFlow<T>
+where
+    V: ?Sized + VisitMut<T>,
+{
     visitor.visit_mut_expr(&mut element.bit_expr)?;
     if let Some(ref mut expr) = element.bit_size {
         visitor.visit_mut_expr(expr)?;
     }
-    Ok(())
+    ControlFlow::Continue(())
 }
 
-pub fn visit_mut_binary_element_pattern<V: ?Sized + VisitMut>(
+pub fn visit_mut_binary_element_pattern<V, T>(
     visitor: &mut V,
     element: &mut BinaryElement,
-) -> anyhow::Result<()> {
+) -> ControlFlow<T>
+where
+    V: ?Sized + VisitMut<T>,
+{
     visitor.visit_mut_pattern(&mut element.bit_expr)?;
     if let Some(ref mut expr) = element.bit_size {
         visitor.visit_mut_pattern(expr)?;
     }
-    Ok(())
+    ControlFlow::Continue(())
 }
 
-pub fn visit_mut_record<V: ?Sized + VisitMut>(
-    visitor: &mut V,
-    record: &mut Record,
-) -> anyhow::Result<()> {
+pub fn visit_mut_record<V, T>(visitor: &mut V, record: &mut Record) -> ControlFlow<T>
+where
+    V: ?Sized + VisitMut<T>,
+{
     for field in record.fields.iter_mut() {
         visitor.visit_mut_record_field(field)?;
     }
-    Ok(())
+    ControlFlow::Continue(())
 }
 
-pub fn visit_mut_record_access<V: ?Sized + VisitMut>(
-    visitor: &mut V,
-    expr: &mut RecordAccess,
-) -> anyhow::Result<()> {
+pub fn visit_mut_record_access<V, T>(visitor: &mut V, expr: &mut RecordAccess) -> ControlFlow<T>
+where
+    V: ?Sized + VisitMut<T>,
+{
     visitor.visit_mut_expr(expr.record.as_mut())
 }
 
-pub fn visit_mut_record_update<V: ?Sized + VisitMut>(
-    visitor: &mut V,
-    expr: &mut RecordUpdate,
-) -> anyhow::Result<()> {
+pub fn visit_mut_record_update<V, T>(visitor: &mut V, expr: &mut RecordUpdate) -> ControlFlow<T>
+where
+    V: ?Sized + VisitMut<T>,
+{
     visitor.visit_mut_expr(expr.record.as_mut())?;
     for field in expr.updates.iter_mut() {
         visitor.visit_mut_record_field(field)?;
     }
-    Ok(())
+    ControlFlow::Continue(())
 }
 
-pub fn visit_mut_record_field<V: ?Sized + VisitMut>(
-    visitor: &mut V,
-    field: &mut RecordField,
-) -> anyhow::Result<()> {
+pub fn visit_mut_record_field<V, T>(visitor: &mut V, field: &mut RecordField) -> ControlFlow<T>
+where
+    V: ?Sized + VisitMut<T>,
+{
     if let Some(ref mut expr) = field.value {
         visitor.visit_mut_expr(expr)?;
     }
-    Ok(())
+    ControlFlow::Continue(())
 }
 
-pub fn visit_mut_list_comprehension<V: ?Sized + VisitMut>(
+pub fn visit_mut_list_comprehension<V, T>(
     visitor: &mut V,
     comp: &mut ListComprehension,
-) -> anyhow::Result<()> {
+) -> ControlFlow<T>
+where
+    V: ?Sized + VisitMut<T>,
+{
     visitor.visit_mut_expr(comp.body.as_mut())?;
     for expr in comp.qualifiers.iter_mut() {
         visitor.visit_mut_expr(expr)?;
     }
-    Ok(())
+    ControlFlow::Continue(())
 }
 
-pub fn visit_mut_binary_comprehension<V: ?Sized + VisitMut>(
+pub fn visit_mut_binary_comprehension<V, T>(
     visitor: &mut V,
     comp: &mut BinaryComprehension,
-) -> anyhow::Result<()> {
+) -> ControlFlow<T>
+where
+    V: ?Sized + VisitMut<T>,
+{
     visitor.visit_mut_expr(comp.body.as_mut())?;
     for expr in comp.qualifiers.iter_mut() {
         visitor.visit_mut_expr(expr)?;
     }
-    Ok(())
+    ControlFlow::Continue(())
 }
 
-pub fn visit_mut_generator<V: ?Sized + VisitMut>(
-    visitor: &mut V,
-    gen: &mut Generator,
-) -> anyhow::Result<()> {
+pub fn visit_mut_generator<V, T>(visitor: &mut V, gen: &mut Generator) -> ControlFlow<T>
+where
+    V: ?Sized + VisitMut<T>,
+{
     visitor.visit_mut_expr(gen.pattern.as_mut())?;
     visitor.visit_mut_expr(gen.expr.as_mut())
 }
 
-pub fn visit_mut_begin<V: ?Sized + VisitMut>(
-    visitor: &mut V,
-    block: &mut Begin,
-) -> anyhow::Result<()> {
+pub fn visit_mut_begin<V, T>(visitor: &mut V, block: &mut Begin) -> ControlFlow<T>
+where
+    V: ?Sized + VisitMut<T>,
+{
     for expr in block.body.iter_mut() {
         visitor.visit_mut_expr(expr)?;
     }
-    Ok(())
+    ControlFlow::Continue(())
 }
 
-pub fn visit_mut_apply<V: ?Sized + VisitMut>(
-    visitor: &mut V,
-    apply: &mut Apply,
-) -> anyhow::Result<()> {
+pub fn visit_mut_apply<V, T>(visitor: &mut V, apply: &mut Apply) -> ControlFlow<T>
+where
+    V: ?Sized + VisitMut<T>,
+{
     visitor.visit_mut_expr(apply.callee.as_mut())?;
     for expr in apply.args.iter_mut() {
         visitor.visit_mut_expr(expr)?;
     }
-    Ok(())
+    ControlFlow::Continue(())
 }
 
-pub fn visit_mut_remote<V: ?Sized + VisitMut>(
-    visitor: &mut V,
-    remote: &mut Remote,
-) -> anyhow::Result<()> {
+pub fn visit_mut_remote<V, T>(visitor: &mut V, remote: &mut Remote) -> ControlFlow<T>
+where
+    V: ?Sized + VisitMut<T>,
+{
     visitor.visit_mut_expr(remote.module.as_mut())?;
     visitor.visit_mut_expr(remote.function.as_mut())
 }
 
-pub fn visit_mut_binary_expr<V: ?Sized + VisitMut>(
-    visitor: &mut V,
-    expr: &mut BinaryExpr,
-) -> anyhow::Result<()> {
+pub fn visit_mut_binary_expr<V, T>(visitor: &mut V, expr: &mut BinaryExpr) -> ControlFlow<T>
+where
+    V: ?Sized + VisitMut<T>,
+{
     visitor.visit_mut_expr(expr.lhs.as_mut())?;
     visitor.visit_mut_expr(expr.rhs.as_mut())
 }
 
-pub fn visit_mut_unary_expr<V: ?Sized + VisitMut>(
-    visitor: &mut V,
-    expr: &mut UnaryExpr,
-) -> anyhow::Result<()> {
+pub fn visit_mut_unary_expr<V, T>(visitor: &mut V, expr: &mut UnaryExpr) -> ControlFlow<T>
+where
+    V: ?Sized + VisitMut<T>,
+{
     visitor.visit_mut_expr(expr.operand.as_mut())
 }
 
-pub fn visit_mut_match<V: ?Sized + VisitMut>(
-    visitor: &mut V,
-    expr: &mut Match,
-) -> anyhow::Result<()> {
+pub fn visit_mut_match<V, T>(visitor: &mut V, expr: &mut Match) -> ControlFlow<T>
+where
+    V: ?Sized + VisitMut<T>,
+{
     visitor.visit_mut_pattern(expr.pattern.as_mut())?;
     visitor.visit_mut_expr(expr.expr.as_mut())
 }
 
-pub fn visit_mut_if<V: ?Sized + VisitMut>(visitor: &mut V, expr: &mut If) -> anyhow::Result<()> {
+pub fn visit_mut_if<V, T>(visitor: &mut V, expr: &mut If) -> ControlFlow<T>
+where
+    V: ?Sized + VisitMut<T>,
+{
     for clause in expr.clauses.iter_mut() {
         visitor.visit_mut_clause(clause)?;
     }
-    Ok(())
+    ControlFlow::Continue(())
 }
 
-pub fn visit_mut_catch<V: ?Sized + VisitMut>(
-    visitor: &mut V,
-    expr: &mut Catch,
-) -> anyhow::Result<()> {
+pub fn visit_mut_catch<V, T>(visitor: &mut V, expr: &mut Catch) -> ControlFlow<T>
+where
+    V: ?Sized + VisitMut<T>,
+{
     visitor.visit_mut_expr(expr.expr.as_mut())
 }
 
-pub fn visit_mut_case<V: ?Sized + VisitMut>(
-    visitor: &mut V,
-    case: &mut Case,
-) -> anyhow::Result<()> {
+pub fn visit_mut_case<V, T>(visitor: &mut V, case: &mut Case) -> ControlFlow<T>
+where
+    V: ?Sized + VisitMut<T>,
+{
     visitor.visit_mut_expr(case.expr.as_mut())?;
     for clause in case.clauses.iter_mut() {
         visitor.visit_mut_clause(clause)?;
     }
-    Ok(())
+    ControlFlow::Continue(())
 }
 
-pub fn visit_mut_receive<V: ?Sized + VisitMut>(
-    visitor: &mut V,
-    receive: &mut Receive,
-) -> anyhow::Result<()> {
+pub fn visit_mut_receive<V, T>(visitor: &mut V, receive: &mut Receive) -> ControlFlow<T>
+where
+    V: ?Sized + VisitMut<T>,
+{
     if let Some(clauses) = receive.clauses.as_mut() {
         for clause in clauses.iter_mut() {
             visitor.visit_mut_clause(clause)?;
@@ -506,13 +532,13 @@ pub fn visit_mut_receive<V: ?Sized + VisitMut>(
     if let Some(after) = receive.after.as_mut() {
         visitor.visit_mut_after(after)?;
     }
-    Ok(())
+    ControlFlow::Continue(())
 }
 
-pub fn visit_mut_try<V: ?Sized + VisitMut>(
-    visitor: &mut V,
-    try_expr: &mut Try,
-) -> anyhow::Result<()> {
+pub fn visit_mut_try<V, T>(visitor: &mut V, try_expr: &mut Try) -> ControlFlow<T>
+where
+    V: ?Sized + VisitMut<T>,
+{
     for expr in try_expr.exprs.iter_mut() {
         visitor.visit_mut_expr(expr)?;
     }
@@ -531,24 +557,24 @@ pub fn visit_mut_try<V: ?Sized + VisitMut>(
             visitor.visit_mut_expr(expr)?;
         }
     }
-    Ok(())
+    ControlFlow::Continue(())
 }
 
-pub fn visit_mut_after<V: ?Sized + VisitMut>(
-    visitor: &mut V,
-    after: &mut After,
-) -> anyhow::Result<()> {
+pub fn visit_mut_after<V, T>(visitor: &mut V, after: &mut After) -> ControlFlow<T>
+where
+    V: ?Sized + VisitMut<T>,
+{
     visitor.visit_mut_expr(after.timeout.as_mut())?;
     for expr in after.body.iter_mut() {
         visitor.visit_mut_expr(expr)?;
     }
-    Ok(())
+    ControlFlow::Continue(())
 }
 
-pub fn visit_mut_clause<V: ?Sized + VisitMut>(
-    visitor: &mut V,
-    clause: &mut Clause,
-) -> anyhow::Result<()> {
+pub fn visit_mut_clause<V, T>(visitor: &mut V, clause: &mut Clause) -> ControlFlow<T>
+where
+    V: ?Sized + VisitMut<T>,
+{
     for pat in clause.patterns.iter_mut() {
         visitor.visit_mut_pattern(pat)?;
     }
@@ -558,13 +584,13 @@ pub fn visit_mut_clause<V: ?Sized + VisitMut>(
     for expr in clause.body.iter_mut() {
         visitor.visit_mut_expr(expr)?;
     }
-    Ok(())
+    ControlFlow::Continue(())
 }
 
-pub fn visit_mut_protect<V: ?Sized + VisitMut>(
-    visitor: &mut V,
-    protect: &mut Protect,
-) -> anyhow::Result<()> {
+pub fn visit_mut_protect<V, T>(visitor: &mut V, protect: &mut Protect) -> ControlFlow<T>
+where
+    V: ?Sized + VisitMut<T>,
+{
     visitor.visit_mut_expr(protect.body.as_mut())
 }
 

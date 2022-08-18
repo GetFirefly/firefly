@@ -8,6 +8,7 @@ use super::{Node, Term};
 
 /// This struct abstracts over the locality of a process identifier
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[repr(u8)]
 pub enum Pid {
     Local { id: ProcessId },
     External { id: ProcessId, node: Arc<Node> },

@@ -85,493 +85,544 @@ pub const When: Symbol = Symbol::new(26);
 pub const Xor: Symbol = Symbol::new(27);
 
 #[allow(non_upper_case_globals)]
-pub const Behaviour: Symbol = Symbol::new(28);
+pub const Author: Symbol = Symbol::new(28);
 
 #[allow(non_upper_case_globals)]
-pub const Callback: Symbol = Symbol::new(29);
+pub const Behaviour: Symbol = Symbol::new(29);
 
 #[allow(non_upper_case_globals)]
-pub const Compile: Symbol = Symbol::new(30);
+pub const Callback: Symbol = Symbol::new(30);
 
 #[allow(non_upper_case_globals)]
-pub const Deprecated: Symbol = Symbol::new(31);
+pub const Compile: Symbol = Symbol::new(31);
 
 #[allow(non_upper_case_globals)]
-pub const Export: Symbol = Symbol::new(32);
+pub const Deprecated: Symbol = Symbol::new(32);
 
 #[allow(non_upper_case_globals)]
-pub const Import: Symbol = Symbol::new(33);
+pub const Export: Symbol = Symbol::new(33);
 
 #[allow(non_upper_case_globals)]
-pub const Module: Symbol = Symbol::new(34);
+pub const Import: Symbol = Symbol::new(34);
 
 #[allow(non_upper_case_globals)]
-pub const Nifs: Symbol = Symbol::new(35);
+pub const Module: Symbol = Symbol::new(35);
 
 #[allow(non_upper_case_globals)]
-pub const OnLoad: Symbol = Symbol::new(36);
+pub const Nifs: Symbol = Symbol::new(36);
 
 #[allow(non_upper_case_globals)]
-pub const Spec: Symbol = Symbol::new(37);
+pub const OnLoad: Symbol = Symbol::new(37);
 
 #[allow(non_upper_case_globals)]
-pub const Vsn: Symbol = Symbol::new(38);
+pub const Opaque: Symbol = Symbol::new(38);
 
 #[allow(non_upper_case_globals)]
-pub const Define: Symbol = Symbol::new(39);
+pub const Spec: Symbol = Symbol::new(39);
 
 #[allow(non_upper_case_globals)]
-pub const Elif: Symbol = Symbol::new(40);
+pub const Type: Symbol = Symbol::new(40);
 
 #[allow(non_upper_case_globals)]
-pub const Else: Symbol = Symbol::new(41);
+pub const Vsn: Symbol = Symbol::new(41);
 
 #[allow(non_upper_case_globals)]
-pub const Endif: Symbol = Symbol::new(42);
+pub const Define: Symbol = Symbol::new(42);
 
 #[allow(non_upper_case_globals)]
-pub const Error: Symbol = Symbol::new(43);
+pub const Elif: Symbol = Symbol::new(43);
 
 #[allow(non_upper_case_globals)]
-pub const File: Symbol = Symbol::new(44);
+pub const Else: Symbol = Symbol::new(44);
 
 #[allow(non_upper_case_globals)]
-pub const Ifdef: Symbol = Symbol::new(45);
+pub const Endif: Symbol = Symbol::new(45);
 
 #[allow(non_upper_case_globals)]
-pub const Ifndef: Symbol = Symbol::new(46);
+pub const Error: Symbol = Symbol::new(46);
 
 #[allow(non_upper_case_globals)]
-pub const Include: Symbol = Symbol::new(47);
+pub const File: Symbol = Symbol::new(47);
 
 #[allow(non_upper_case_globals)]
-pub const IncludeLib: Symbol = Symbol::new(48);
+pub const Ifdef: Symbol = Symbol::new(48);
 
 #[allow(non_upper_case_globals)]
-pub const Line: Symbol = Symbol::new(49);
+pub const Ifndef: Symbol = Symbol::new(49);
 
 #[allow(non_upper_case_globals)]
-pub const Undef: Symbol = Symbol::new(50);
+pub const Include: Symbol = Symbol::new(50);
 
 #[allow(non_upper_case_globals)]
-pub const Warning: Symbol = Symbol::new(51);
+pub const IncludeLib: Symbol = Symbol::new(51);
 
 #[allow(non_upper_case_globals)]
-pub const Bang: Symbol = Symbol::new(52);
+pub const Line: Symbol = Symbol::new(52);
 
 #[allow(non_upper_case_globals)]
-pub const Star: Symbol = Symbol::new(53);
+pub const Undef: Symbol = Symbol::new(53);
 
 #[allow(non_upper_case_globals)]
-pub const Plus: Symbol = Symbol::new(54);
+pub const Warning: Symbol = Symbol::new(54);
 
 #[allow(non_upper_case_globals)]
-pub const PlusPlus: Symbol = Symbol::new(55);
+pub const Bang: Symbol = Symbol::new(55);
 
 #[allow(non_upper_case_globals)]
-pub const Minus: Symbol = Symbol::new(56);
+pub const Star: Symbol = Symbol::new(56);
 
 #[allow(non_upper_case_globals)]
-pub const MinusMinus: Symbol = Symbol::new(57);
+pub const Plus: Symbol = Symbol::new(57);
 
 #[allow(non_upper_case_globals)]
-pub const Slash: Symbol = Symbol::new(58);
+pub const PlusPlus: Symbol = Symbol::new(58);
 
 #[allow(non_upper_case_globals)]
-pub const NotEqual: Symbol = Symbol::new(59);
+pub const Minus: Symbol = Symbol::new(59);
 
 #[allow(non_upper_case_globals)]
-pub const Lt: Symbol = Symbol::new(60);
+pub const MinusMinus: Symbol = Symbol::new(60);
 
 #[allow(non_upper_case_globals)]
-pub const NotEqualStrict: Symbol = Symbol::new(61);
+pub const Slash: Symbol = Symbol::new(61);
 
 #[allow(non_upper_case_globals)]
-pub const EqualStrict: Symbol = Symbol::new(62);
+pub const NotEqual: Symbol = Symbol::new(62);
 
 #[allow(non_upper_case_globals)]
-pub const Lte: Symbol = Symbol::new(63);
+pub const Lt: Symbol = Symbol::new(63);
 
 #[allow(non_upper_case_globals)]
-pub const Equal: Symbol = Symbol::new(64);
+pub const NotEqualStrict: Symbol = Symbol::new(64);
 
 #[allow(non_upper_case_globals)]
-pub const Gt: Symbol = Symbol::new(65);
+pub const EqualStrict: Symbol = Symbol::new(65);
 
 #[allow(non_upper_case_globals)]
-pub const Gte: Symbol = Symbol::new(66);
+pub const Lte: Symbol = Symbol::new(66);
 
 #[allow(non_upper_case_globals)]
-pub const Underscore: Symbol = Symbol::new(67);
+pub const Equal: Symbol = Symbol::new(67);
 
 #[allow(non_upper_case_globals)]
-pub const BadFilter: Symbol = Symbol::new(68);
+pub const Gt: Symbol = Symbol::new(68);
 
 #[allow(non_upper_case_globals)]
-pub const BadGenerator: Symbol = Symbol::new(69);
+pub const Gte: Symbol = Symbol::new(69);
 
 #[allow(non_upper_case_globals)]
-pub const BadSize: Symbol = Symbol::new(70);
+pub const Underscore: Symbol = Symbol::new(70);
 
 #[allow(non_upper_case_globals)]
-pub const BadValue: Symbol = Symbol::new(71);
+pub const BadFilter: Symbol = Symbol::new(71);
 
 #[allow(non_upper_case_globals)]
-pub const Badarg: Symbol = Symbol::new(72);
+pub const BadGenerator: Symbol = Symbol::new(72);
 
 #[allow(non_upper_case_globals)]
-pub const Badmap: Symbol = Symbol::new(73);
+pub const BadSize: Symbol = Symbol::new(73);
 
 #[allow(non_upper_case_globals)]
-pub const Badmatch: Symbol = Symbol::new(74);
+pub const BadValue: Symbol = Symbol::new(74);
 
 #[allow(non_upper_case_globals)]
-pub const Badrecord: Symbol = Symbol::new(75);
+pub const Badarg: Symbol = Symbol::new(75);
 
 #[allow(non_upper_case_globals)]
-pub const CaseClause: Symbol = Symbol::new(76);
+pub const Badmap: Symbol = Symbol::new(76);
 
 #[allow(non_upper_case_globals)]
-pub const FunctionClause: Symbol = Symbol::new(77);
+pub const Badmatch: Symbol = Symbol::new(77);
 
 #[allow(non_upper_case_globals)]
-pub const IfClause: Symbol = Symbol::new(78);
+pub const Badrecord: Symbol = Symbol::new(78);
 
 #[allow(non_upper_case_globals)]
-pub const NifError: Symbol = Symbol::new(79);
+pub const CaseClause: Symbol = Symbol::new(79);
 
 #[allow(non_upper_case_globals)]
-pub const TryClause: Symbol = Symbol::new(80);
+pub const FunctionClause: Symbol = Symbol::new(80);
 
 #[allow(non_upper_case_globals)]
-pub const IsAtom: Symbol = Symbol::new(81);
+pub const IfClause: Symbol = Symbol::new(81);
 
 #[allow(non_upper_case_globals)]
-pub const IsBinary: Symbol = Symbol::new(82);
+pub const NifError: Symbol = Symbol::new(82);
 
 #[allow(non_upper_case_globals)]
-pub const IsBitstring: Symbol = Symbol::new(83);
+pub const TryClause: Symbol = Symbol::new(83);
 
 #[allow(non_upper_case_globals)]
-pub const IsBoolean: Symbol = Symbol::new(84);
+pub const IsAtom: Symbol = Symbol::new(84);
 
 #[allow(non_upper_case_globals)]
-pub const IsFloat: Symbol = Symbol::new(85);
+pub const IsBinary: Symbol = Symbol::new(85);
 
 #[allow(non_upper_case_globals)]
-pub const IsFunction: Symbol = Symbol::new(86);
+pub const IsBitstring: Symbol = Symbol::new(86);
 
 #[allow(non_upper_case_globals)]
-pub const IsInteger: Symbol = Symbol::new(87);
+pub const IsBoolean: Symbol = Symbol::new(87);
 
 #[allow(non_upper_case_globals)]
-pub const IsList: Symbol = Symbol::new(88);
+pub const IsFloat: Symbol = Symbol::new(88);
 
 #[allow(non_upper_case_globals)]
-pub const IsMap: Symbol = Symbol::new(89);
+pub const IsFunction: Symbol = Symbol::new(89);
 
 #[allow(non_upper_case_globals)]
-pub const IsNumber: Symbol = Symbol::new(90);
+pub const IsInteger: Symbol = Symbol::new(90);
 
 #[allow(non_upper_case_globals)]
-pub const IsPid: Symbol = Symbol::new(91);
+pub const IsList: Symbol = Symbol::new(91);
 
 #[allow(non_upper_case_globals)]
-pub const IsPort: Symbol = Symbol::new(92);
+pub const IsMap: Symbol = Symbol::new(92);
 
 #[allow(non_upper_case_globals)]
-pub const IsRecord: Symbol = Symbol::new(93);
+pub const IsNumber: Symbol = Symbol::new(93);
 
 #[allow(non_upper_case_globals)]
-pub const IsReference: Symbol = Symbol::new(94);
+pub const IsPid: Symbol = Symbol::new(94);
 
 #[allow(non_upper_case_globals)]
-pub const IsTuple: Symbol = Symbol::new(95);
+pub const IsPort: Symbol = Symbol::new(95);
 
 #[allow(non_upper_case_globals)]
-pub const Abs: Symbol = Symbol::new(96);
+pub const IsRecord: Symbol = Symbol::new(96);
 
 #[allow(non_upper_case_globals)]
-pub const Apply: Symbol = Symbol::new(97);
+pub const IsReference: Symbol = Symbol::new(97);
 
 #[allow(non_upper_case_globals)]
-pub const BinaryPart: Symbol = Symbol::new(98);
+pub const IsTuple: Symbol = Symbol::new(98);
 
 #[allow(non_upper_case_globals)]
-pub const BitSize: Symbol = Symbol::new(99);
+pub const Abs: Symbol = Symbol::new(99);
 
 #[allow(non_upper_case_globals)]
-pub const BuildStacktrace: Symbol = Symbol::new(100);
+pub const Apply: Symbol = Symbol::new(100);
 
 #[allow(non_upper_case_globals)]
-pub const ByteSize: Symbol = Symbol::new(101);
+pub const BinaryPart: Symbol = Symbol::new(101);
 
 #[allow(non_upper_case_globals)]
-pub const Ceil: Symbol = Symbol::new(102);
+pub const BitSize: Symbol = Symbol::new(102);
 
 #[allow(non_upper_case_globals)]
-pub const Date: Symbol = Symbol::new(103);
+pub const BuildStacktrace: Symbol = Symbol::new(103);
 
 #[allow(non_upper_case_globals)]
-pub const Element: Symbol = Symbol::new(104);
+pub const ByteSize: Symbol = Symbol::new(104);
 
 #[allow(non_upper_case_globals)]
-pub const Float: Symbol = Symbol::new(105);
+pub const Ceil: Symbol = Symbol::new(105);
 
 #[allow(non_upper_case_globals)]
-pub const Floor: Symbol = Symbol::new(106);
+pub const Date: Symbol = Symbol::new(106);
 
 #[allow(non_upper_case_globals)]
-pub const Get: Symbol = Symbol::new(107);
+pub const Element: Symbol = Symbol::new(107);
 
 #[allow(non_upper_case_globals)]
-pub const GetCookie: Symbol = Symbol::new(108);
+pub const Float: Symbol = Symbol::new(108);
 
 #[allow(non_upper_case_globals)]
-pub const GetKeys: Symbol = Symbol::new(109);
+pub const Floor: Symbol = Symbol::new(109);
 
 #[allow(non_upper_case_globals)]
-pub const GroupLeader: Symbol = Symbol::new(110);
+pub const Get: Symbol = Symbol::new(110);
 
 #[allow(non_upper_case_globals)]
-pub const Hd: Symbol = Symbol::new(111);
+pub const GetCookie: Symbol = Symbol::new(111);
 
 #[allow(non_upper_case_globals)]
-pub const IsAlive: Symbol = Symbol::new(112);
+pub const GetKeys: Symbol = Symbol::new(112);
 
 #[allow(non_upper_case_globals)]
-pub const IsMapKey: Symbol = Symbol::new(113);
+pub const GroupLeader: Symbol = Symbol::new(113);
 
 #[allow(non_upper_case_globals)]
-pub const Length: Symbol = Symbol::new(114);
+pub const Hd: Symbol = Symbol::new(114);
 
 #[allow(non_upper_case_globals)]
-pub const MakeFun: Symbol = Symbol::new(115);
+pub const IsAlive: Symbol = Symbol::new(115);
 
 #[allow(non_upper_case_globals)]
-pub const MakeRef: Symbol = Symbol::new(116);
+pub const IsMapKey: Symbol = Symbol::new(116);
 
 #[allow(non_upper_case_globals)]
-pub const MapGet: Symbol = Symbol::new(117);
+pub const Length: Symbol = Symbol::new(117);
 
 #[allow(non_upper_case_globals)]
-pub const MapSize: Symbol = Symbol::new(118);
+pub const MakeFun: Symbol = Symbol::new(118);
 
 #[allow(non_upper_case_globals)]
-pub const MatchFail: Symbol = Symbol::new(119);
+pub const MakeRef: Symbol = Symbol::new(119);
 
 #[allow(non_upper_case_globals)]
-pub const Max: Symbol = Symbol::new(120);
+pub const MapGet: Symbol = Symbol::new(120);
 
 #[allow(non_upper_case_globals)]
-pub const Min: Symbol = Symbol::new(121);
+pub const MapSize: Symbol = Symbol::new(121);
 
 #[allow(non_upper_case_globals)]
-pub const Node: Symbol = Symbol::new(122);
+pub const MatchFail: Symbol = Symbol::new(122);
 
 #[allow(non_upper_case_globals)]
-pub const Nodes: Symbol = Symbol::new(123);
+pub const Max: Symbol = Symbol::new(123);
 
 #[allow(non_upper_case_globals)]
-pub const Ports: Symbol = Symbol::new(124);
+pub const Min: Symbol = Symbol::new(124);
 
 #[allow(non_upper_case_globals)]
-pub const PreLoaded: Symbol = Symbol::new(125);
+pub const Node: Symbol = Symbol::new(125);
 
 #[allow(non_upper_case_globals)]
-pub const Processes: Symbol = Symbol::new(126);
+pub const Nodes: Symbol = Symbol::new(126);
 
 #[allow(non_upper_case_globals)]
-pub const Raise: Symbol = Symbol::new(127);
+pub const Ports: Symbol = Symbol::new(127);
 
 #[allow(non_upper_case_globals)]
-pub const RawRaise: Symbol = Symbol::new(128);
+pub const PreLoaded: Symbol = Symbol::new(128);
 
 #[allow(non_upper_case_globals)]
-pub const RecvPeekMessage: Symbol = Symbol::new(129);
+pub const Processes: Symbol = Symbol::new(129);
 
 #[allow(non_upper_case_globals)]
-pub const RecvWaitTimeout: Symbol = Symbol::new(130);
+pub const Raise: Symbol = Symbol::new(130);
 
 #[allow(non_upper_case_globals)]
-pub const Registered: Symbol = Symbol::new(131);
+pub const RawRaise: Symbol = Symbol::new(131);
 
 #[allow(non_upper_case_globals)]
-pub const RemoveMessage: Symbol = Symbol::new(132);
+pub const RecvPeekMessage: Symbol = Symbol::new(132);
 
 #[allow(non_upper_case_globals)]
-pub const Round: Symbol = Symbol::new(133);
+pub const RecvWaitTimeout: Symbol = Symbol::new(133);
 
 #[allow(non_upper_case_globals)]
-pub const SELF: Symbol = Symbol::new(134);
+pub const Registered: Symbol = Symbol::new(134);
 
 #[allow(non_upper_case_globals)]
-pub const Setelement: Symbol = Symbol::new(135);
+pub const RemoveMessage: Symbol = Symbol::new(135);
 
 #[allow(non_upper_case_globals)]
-pub const Size: Symbol = Symbol::new(136);
+pub const Round: Symbol = Symbol::new(136);
 
 #[allow(non_upper_case_globals)]
-pub const TermToBinary: Symbol = Symbol::new(137);
+pub const SELF: Symbol = Symbol::new(137);
 
 #[allow(non_upper_case_globals)]
-pub const Throw: Symbol = Symbol::new(138);
+pub const Setelement: Symbol = Symbol::new(138);
 
 #[allow(non_upper_case_globals)]
-pub const Time: Symbol = Symbol::new(139);
+pub const Size: Symbol = Symbol::new(139);
 
 #[allow(non_upper_case_globals)]
-pub const Tl: Symbol = Symbol::new(140);
+pub const TermToBinary: Symbol = Symbol::new(140);
 
 #[allow(non_upper_case_globals)]
-pub const Trunc: Symbol = Symbol::new(141);
+pub const Throw: Symbol = Symbol::new(141);
 
 #[allow(non_upper_case_globals)]
-pub const TupleSize: Symbol = Symbol::new(142);
+pub const Time: Symbol = Symbol::new(142);
 
 #[allow(non_upper_case_globals)]
-pub const CompilerGenerated: Symbol = Symbol::new(143);
+pub const Tl: Symbol = Symbol::new(143);
 
 #[allow(non_upper_case_globals)]
-pub const Id: Symbol = Symbol::new(144);
+pub const Trunc: Symbol = Symbol::new(144);
 
 #[allow(non_upper_case_globals)]
-pub const EXIT: Symbol = Symbol::new(145);
+pub const TupleSize: Symbol = Symbol::new(145);
 
 #[allow(non_upper_case_globals)]
-pub const MODULE: Symbol = Symbol::new(146);
+pub const UnpackEnv: Symbol = Symbol::new(146);
 
 #[allow(non_upper_case_globals)]
-pub const MODULE_STRING: Symbol = Symbol::new(147);
+pub const Closure: Symbol = Symbol::new(147);
 
 #[allow(non_upper_case_globals)]
-pub const All: Symbol = Symbol::new(148);
+pub const CompilerGenerated: Symbol = Symbol::new(148);
 
 #[allow(non_upper_case_globals)]
-pub const Attributes: Symbol = Symbol::new(149);
+pub const Id: Symbol = Symbol::new(149);
 
 #[allow(non_upper_case_globals)]
-pub const BehaviourInfo: Symbol = Symbol::new(150);
+pub const RawStack: Symbol = Symbol::new(150);
 
 #[allow(non_upper_case_globals)]
-pub const Bits: Symbol = Symbol::new(151);
+pub const EXIT: Symbol = Symbol::new(151);
 
 #[allow(non_upper_case_globals)]
-pub const BitsCloseWritable: Symbol = Symbol::new(152);
+pub const MODULE: Symbol = Symbol::new(152);
 
 #[allow(non_upper_case_globals)]
-pub const BitsInitWritable: Symbol = Symbol::new(153);
+pub const MODULE_STRING: Symbol = Symbol::new(153);
 
 #[allow(non_upper_case_globals)]
-pub const Bitstring: Symbol = Symbol::new(154);
+pub const All: Symbol = Symbol::new(154);
 
 #[allow(non_upper_case_globals)]
-pub const Bytes: Symbol = Symbol::new(155);
+pub const Attributes: Symbol = Symbol::new(155);
 
 #[allow(non_upper_case_globals)]
-pub const Erlang: Symbol = Symbol::new(156);
+pub const BehaviourInfo: Symbol = Symbol::new(156);
 
 #[allow(non_upper_case_globals)]
-pub const Exit: Symbol = Symbol::new(157);
+pub const Bits: Symbol = Symbol::new(157);
 
 #[allow(non_upper_case_globals)]
-pub const Exports: Symbol = Symbol::new(158);
+pub const BitsCloseWritable: Symbol = Symbol::new(158);
 
 #[allow(non_upper_case_globals)]
-pub const Function: Symbol = Symbol::new(159);
+pub const BitsInitWritable: Symbol = Symbol::new(159);
 
 #[allow(non_upper_case_globals)]
-pub const Infinity: Symbol = Symbol::new(160);
+pub const Bitstring: Symbol = Symbol::new(160);
 
 #[allow(non_upper_case_globals)]
-pub const Inline: Symbol = Symbol::new(161);
+pub const Bytes: Symbol = Symbol::new(161);
 
 #[allow(non_upper_case_globals)]
-pub const Inlined: Symbol = Symbol::new(162);
+pub const Erlang: Symbol = Symbol::new(162);
 
 #[allow(non_upper_case_globals)]
-pub const Integer: Symbol = Symbol::new(163);
+pub const Exit: Symbol = Symbol::new(163);
 
 #[allow(non_upper_case_globals)]
-pub const LetrecGoto: Symbol = Symbol::new(164);
+pub const Exports: Symbol = Symbol::new(164);
 
 #[allow(non_upper_case_globals)]
-pub const LetrecName: Symbol = Symbol::new(165);
+pub const Function: Symbol = Symbol::new(165);
 
 #[allow(non_upper_case_globals)]
-pub const ListComprehension: Symbol = Symbol::new(166);
+pub const Infinity: Symbol = Symbol::new(166);
 
 #[allow(non_upper_case_globals)]
-pub const ModuleInfo: Symbol = Symbol::new(167);
+pub const Inline: Symbol = Symbol::new(167);
 
 #[allow(non_upper_case_globals)]
-pub const Native: Symbol = Symbol::new(168);
+pub const Inlined: Symbol = Symbol::new(168);
 
 #[allow(non_upper_case_globals)]
-pub const New: Symbol = Symbol::new(169);
+pub const Integer: Symbol = Symbol::new(169);
 
 #[allow(non_upper_case_globals)]
-pub const Nif: Symbol = Symbol::new(170);
+pub const LetrecGoto: Symbol = Symbol::new(170);
 
 #[allow(non_upper_case_globals)]
-pub const NifStart: Symbol = Symbol::new(171);
+pub const LetrecName: Symbol = Symbol::new(171);
 
 #[allow(non_upper_case_globals)]
-pub const NoInline: Symbol = Symbol::new(172);
+pub const ListComprehension: Symbol = Symbol::new(172);
 
 #[allow(non_upper_case_globals)]
-pub const Ok: Symbol = Symbol::new(173);
+pub const ModuleInfo: Symbol = Symbol::new(173);
 
 #[allow(non_upper_case_globals)]
-pub const Other: Symbol = Symbol::new(174);
+pub const Native: Symbol = Symbol::new(174);
 
 #[allow(non_upper_case_globals)]
-pub const ReceiveTimeout: Symbol = Symbol::new(175);
+pub const New: Symbol = Symbol::new(175);
 
 #[allow(non_upper_case_globals)]
-pub const RecordInfo: Symbol = Symbol::new(176);
+pub const Nif: Symbol = Symbol::new(176);
 
 #[allow(non_upper_case_globals)]
-pub const RecvNext: Symbol = Symbol::new(177);
+pub const NifStart: Symbol = Symbol::new(177);
 
 #[allow(non_upper_case_globals)]
-pub const RecvPeek: Symbol = Symbol::new(178);
+pub const NoInline: Symbol = Symbol::new(178);
 
 #[allow(non_upper_case_globals)]
-pub const RecvPop: Symbol = Symbol::new(179);
+pub const Ok: Symbol = Symbol::new(179);
 
 #[allow(non_upper_case_globals)]
-pub const RecvStart: Symbol = Symbol::new(180);
+pub const Other: Symbol = Symbol::new(180);
 
 #[allow(non_upper_case_globals)]
-pub const RecvWait: Symbol = Symbol::new(181);
+pub const ReceiveTimeout: Symbol = Symbol::new(181);
 
 #[allow(non_upper_case_globals)]
-pub const Send: Symbol = Symbol::new(182);
+pub const RecordInfo: Symbol = Symbol::new(182);
 
 #[allow(non_upper_case_globals)]
-pub const SingleUse: Symbol = Symbol::new(183);
+pub const RecvNext: Symbol = Symbol::new(183);
 
 #[allow(non_upper_case_globals)]
-pub const SkipClause: Symbol = Symbol::new(184);
+pub const RecvPeek: Symbol = Symbol::new(184);
 
 #[allow(non_upper_case_globals)]
-pub const Undefined: Symbol = Symbol::new(185);
+pub const RecvPop: Symbol = Symbol::new(185);
 
 #[allow(non_upper_case_globals)]
-pub const Unused: Symbol = Symbol::new(186);
+pub const RecvStart: Symbol = Symbol::new(186);
 
 #[allow(non_upper_case_globals)]
-pub const Used: Symbol = Symbol::new(187);
+pub const RecvWait: Symbol = Symbol::new(187);
 
 #[allow(non_upper_case_globals)]
-pub const Utf16: Symbol = Symbol::new(188);
+pub const Send: Symbol = Symbol::new(188);
 
 #[allow(non_upper_case_globals)]
-pub const Utf32: Symbol = Symbol::new(189);
+pub const SingleUse: Symbol = Symbol::new(189);
 
 #[allow(non_upper_case_globals)]
-pub const Utf8: Symbol = Symbol::new(190);
+pub const SkipClause: Symbol = Symbol::new(190);
+
+#[allow(non_upper_case_globals)]
+pub const Undefined: Symbol = Symbol::new(191);
+
+#[allow(non_upper_case_globals)]
+pub const Unused: Symbol = Symbol::new(192);
+
+#[allow(non_upper_case_globals)]
+pub const Used: Symbol = Symbol::new(193);
+
+#[allow(non_upper_case_globals)]
+pub const Utf16: Symbol = Symbol::new(194);
+
+#[allow(non_upper_case_globals)]
+pub const Utf32: Symbol = Symbol::new(195);
+
+#[allow(non_upper_case_globals)]
+pub const Utf8: Symbol = Symbol::new(196);
+
+#[allow(non_upper_case_globals)]
+pub const NifBsFinish: Symbol = Symbol::new(197);
+
+#[allow(non_upper_case_globals)]
+pub const NifBsInit: Symbol = Symbol::new(198);
+
+#[allow(non_upper_case_globals)]
+pub const NifBuildStacktrace: Symbol = Symbol::new(199);
+
+#[allow(non_upper_case_globals)]
+pub const NifMakeTuple: Symbol = Symbol::new(200);
+
+#[allow(non_upper_case_globals)]
+pub const NifMapEmpty: Symbol = Symbol::new(201);
+
+#[allow(non_upper_case_globals)]
+pub const NifMapFetch: Symbol = Symbol::new(202);
+
+#[allow(non_upper_case_globals)]
+pub const NifMapPut: Symbol = Symbol::new(203);
+
+#[allow(non_upper_case_globals)]
+pub const NifMapPutMut: Symbol = Symbol::new(204);
+
+#[allow(non_upper_case_globals)]
+pub const NifMapUpdate: Symbol = Symbol::new(205);
+
+#[allow(non_upper_case_globals)]
+pub const NifMapUpdateMut: Symbol = Symbol::new(206);
+
+#[allow(non_upper_case_globals)]
+pub const NifTupleSize: Symbol = Symbol::new(207);
 
 
 pub(crate) const __SYMBOLS: &'static [(Symbol, &'static str)] = &[
@@ -603,6 +654,7 @@ pub(crate) const __SYMBOLS: &'static [(Symbol, &'static str)] = &[
   (Try, "try"),
   (When, "when"),
   (Xor, "xor"),
+  (Author, "author"),
   (Behaviour, "behaviour"),
   (Callback, "callback"),
   (Compile, "compile"),
@@ -612,7 +664,9 @@ pub(crate) const __SYMBOLS: &'static [(Symbol, &'static str)] = &[
   (Module, "module"),
   (Nifs, "nifs"),
   (OnLoad, "on_load"),
+  (Opaque, "opaque"),
   (Spec, "spec"),
+  (Type, "type"),
   (Vsn, "vsn"),
   (Define, "define"),
   (Elif, "elif"),
@@ -718,8 +772,11 @@ pub(crate) const __SYMBOLS: &'static [(Symbol, &'static str)] = &[
   (Tl, "tl"),
   (Trunc, "trunc"),
   (TupleSize, "tuple_size"),
+  (UnpackEnv, "unpack_env"),
+  (Closure, "closure"),
   (CompilerGenerated, "compiler_generated"),
   (Id, "id"),
+  (RawStack, "raw_stack"),
   (EXIT, "EXIT"),
   (MODULE, "MODULE"),
   (MODULE_STRING, "MODULE_STRING"),
@@ -766,6 +823,17 @@ pub(crate) const __SYMBOLS: &'static [(Symbol, &'static str)] = &[
   (Utf16, "utf16"),
   (Utf32, "utf32"),
   (Utf8, "utf8"),
+  (NifBsFinish, "__lumen_bs_finish"),
+  (NifBsInit, "__lumen_bs_init"),
+  (NifBuildStacktrace, "__lumen_build_stacktrace"),
+  (NifMakeTuple, "__lumen_make_tuple"),
+  (NifMapEmpty, "__lumen_map_empty"),
+  (NifMapFetch, "__lumen_map_fetch"),
+  (NifMapPut, "__lumen_map_put"),
+  (NifMapPutMut, "__lumen_map_put_mut"),
+  (NifMapUpdate, "__lumen_map_update"),
+  (NifMapUpdateMut, "__lumen_map_update_mut"),
+  (NifTupleSize, "__lumen_tuple_size"),
 ];
 
 pub fn is_keyword(sym: Symbol) -> bool {
@@ -801,6 +869,7 @@ pub fn is_keyword(sym: Symbol) -> bool {
 
 pub fn is_reserved(sym: Symbol) -> bool {
     match sym {
+        self::Author => true,
         self::Behaviour => true,
         self::Callback => true,
         self::Compile => true,
@@ -810,7 +879,9 @@ pub fn is_reserved(sym: Symbol) -> bool {
         self::Module => true,
         self::Nifs => true,
         self::OnLoad => true,
+        self::Opaque => true,
         self::Spec => true,
+        self::Type => true,
         self::Vsn => true,
         self::Define => true,
         self::Elif => true,

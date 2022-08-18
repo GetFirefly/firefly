@@ -38,6 +38,11 @@ impl Value for ValueBase {
         *self
     }
 }
+impl Default for ValueBase {
+    fn default() -> ValueBase {
+        Self(std::ptr::null_mut::<usize>() as *mut MlirValue)
+    }
+}
 impl ValueBase {
     #[inline(always)]
     pub fn is_null(&self) -> bool {

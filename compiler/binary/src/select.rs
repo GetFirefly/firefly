@@ -171,6 +171,16 @@ impl<'a> Selection<'a> {
         }
     }
 
+    /// Creates a new selection covering all of the bits in the provided bitstring
+    pub fn from_bitstring(data: &'a dyn Bitstring) -> Self {
+        let bit_size = data.bit_size();
+        if bit_size == 0 {
+            return Self::Empty;
+        }
+        let bytes = unsafe { data.as_bytes_unchecked() };
+        Self::new(bytes, 0, data.bit_offset(), None, bit_size).unwrap()
+    }
+
     /// This function can be used to select `n` bits from `data`, taking into account both byte
     /// and bit offsets, as well as an optional bit length constraint on `data` (i.e. the buffer
     /// is 8 bytes, but we only want to treat it as if it was 7 1/2 bytes).

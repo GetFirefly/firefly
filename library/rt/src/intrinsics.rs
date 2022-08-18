@@ -1,3 +1,4 @@
+use crate::function::ErlangResult;
 use crate::term::{OpaqueTerm, Term, TermType};
 
 /// This is an intrinsic expected by the compiler to be defined as part of the runtime, and is used for runtime type checking
@@ -25,12 +26,12 @@ pub extern "C" fn is_list(value: OpaqueTerm) -> bool {
 }
 
 /// This is an intrinsic expected by the compiler to be defined as part of the runtime, and is used for runtime type checking
-#[allow(improper_ctypes_definitions)]
 #[export_name = "__lumen_builtin_is_tuple"]
-pub extern "C" fn is_tuple(value: OpaqueTerm) -> (bool, u32) {
+#[allow(improper_ctypes_definitions)]
+pub extern "C" fn is_tuple(value: OpaqueTerm) -> Result<u32, u32> {
     match value.into() {
-        Term::Tuple(tup) => (true, unsafe { tup.as_ref().len() as u32 }),
-        _ => (false, 0),
+        Term::Tuple(tup) => Ok(unsafe { tup.as_ref().len() as u32 }),
+        _ => Err(0),
     }
 }
 
@@ -38,4 +39,22 @@ pub extern "C" fn is_tuple(value: OpaqueTerm) -> (bool, u32) {
 #[export_name = "__lumen_builtin_size"]
 pub extern "C" fn size(value: OpaqueTerm) -> usize {
     value.size()
+}
+
+#[export_name = "erlang:is_atom/1"]
+#[allow(improper_ctypes_definitions)]
+pub extern "C" fn is_atom1(value: OpaqueTerm) -> ErlangResult {
+    Ok(value.is_atom().into())
+}
+
+#[export_name = "erlang:is_list/1"]
+#[allow(improper_ctypes_definitions)]
+pub extern "C" fn is_list1(value: OpaqueTerm) -> ErlangResult {
+    Ok(value.is_list().into())
+}
+
+#[export_name = "erlang:is_binary/1"]
+#[allow(improper_ctypes_definitions)]
+pub extern "C" fn is_binary1(value: OpaqueTerm) -> ErlangResult {
+    Ok((value.r#typeof() == TermType::Binary).into())
 }

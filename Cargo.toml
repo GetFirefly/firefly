@@ -13,6 +13,7 @@ default-members = [
 ]
 
 exclude = [
+  "library/macros",
   "liblumen_alloc",
   "liblumen_alloc_macros",
   "native_implemented/*",

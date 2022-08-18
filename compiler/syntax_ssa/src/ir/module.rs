@@ -1,11 +1,11 @@
 use std::cell::{Ref, RefCell};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::rc::Rc;
 
 use cranelift_entity::PrimaryMap;
 
 use liblumen_diagnostics::SourceSpan;
-use liblumen_intern::{Ident, Symbol};
+use liblumen_intern::{symbols, Ident, Symbol};
 use liblumen_syntax_base::*;
 use liblumen_util::emit::Emit;
 
@@ -29,8 +29,13 @@ pub struct Module {
     pub signatures: Rc<RefCell<PrimaryMap<FuncRef, Signature>>>,
     /// This map provides a quick way to look up function references given an MFA, useful when lowering
     pub callees: Rc<RefCell<BTreeMap<FunctionName, FuncRef>>>,
+    /// This map provides a quick way to look up function references for native functions which do not
+    /// use our naming convention
+    pub natives: Rc<RefCell<BTreeMap<Symbol, FuncRef>>>,
     /// This pool contains de-duplicated constant values/data used in the current module
     pub constants: Rc<RefCell<ConstantPool>>,
+    /// This set contains the local functions which are lifted closures (i.e. expect a closure env)
+    pub closures: BTreeSet<FunctionName>,
 }
 // UNSAFE: These is only safe because we make sure we don't actually use
 // a module in more than one thread
@@ -65,7 +70,9 @@ impl Module {
             functions: vec![],
             signatures: Rc::new(RefCell::new(PrimaryMap::new())),
             callees: Rc::new(RefCell::new(BTreeMap::new())),
+            natives: Rc::new(RefCell::new(BTreeMap::new())),
             constants: Rc::new(RefCell::new(ConstantPool::new())),
+            closures: BTreeSet::new(),
         }
     }
 
@@ -89,6 +96,10 @@ impl Module {
         } else {
             false
         }
+    }
+
+    pub fn is_closure(&self, name: &FunctionName) -> bool {
+        self.closures.contains(name)
     }
 
     /// If the given function was imported, return the fully resolved name
@@ -136,28 +147,71 @@ impl Module {
         f
     }
 
-    /// Registers a builtin function in the current module with the given signature.
+    pub fn get_native(&self, op: Symbol) -> Option<FuncRef> {
+        let natives = self.natives.borrow();
+        natives.get(&op).copied()
+    }
+
+    /// Registers a known primop/bif as a callee of this module.
     ///
-    /// Calling this function twice for the same MFA will return the signature that was
-    /// registered first.
-    pub fn register_builtin(&mut self, signature: Signature) -> FuncRef {
-        let mfa = signature.mfa();
-        assert!(mfa.module.is_some());
+    /// Rather than always insert every builtin in every module, we lazily do so
+    /// on demand.
+    ///
+    /// The given MFA must have a signature defined in syntax_base::bifs
+    pub fn get_or_register_builtin(&mut self, op: FunctionName) -> FuncRef {
+        assert_eq!(op.module, Some(symbols::Erlang));
+        assert!(op.is_primop() || op.is_bif());
 
         {
             let callees = self.callees.borrow();
-            if let Some(f) = callees.get(&mfa).copied() {
+            if let Some(f) = callees.get(&op).copied() {
                 return f;
             }
         }
+
+        let signature = bifs::fetch(&op).clone();
         // Create the function reference to the fully-qualified name
         let mut signatures = self.signatures.borrow_mut();
         let mut callees = self.callees.borrow_mut();
         let f = signatures.push(signature);
         // Register the fully-qualified name as a callee
-        callees.insert(mfa, f);
+        callees.insert(op, f);
         // Return the reference
         f
+    }
+
+    /// Registers a known native function as a callee of this module.
+    ///
+    /// The given name must have a signature defined in syntax_base::nifs to ensure
+    /// we have a canonical source of known native functions
+    ///
+    /// NOTE: Signatures of native functions must have a module symbol, but it is
+    /// ignored when lowered, you should prefer to use symbols::Empty when defining
+    /// signatures for these functions
+    pub fn get_or_register_native(&mut self, op: Symbol) -> FuncRef {
+        {
+            let natives = self.natives.borrow();
+            if let Some(f) = natives.get(&op).copied() {
+                return f;
+            }
+        }
+
+        let signature = nifs::fetch(&op).clone();
+        // Create the function reference to the fully-qualified name
+        let mut signatures = self.signatures.borrow_mut();
+        let mut natives = self.natives.borrow_mut();
+        let f = signatures.push(signature);
+        // Register the fully-qualified name as a callee
+        natives.insert(op, f);
+        // Return the reference
+        f
+    }
+
+    /// Same as `declare_function`, but marks the function as a known closure
+    pub fn declare_closure(&mut self, signature: Signature) -> FuncRef {
+        let local_mfa = signature.mfa().to_local();
+        self.closures.insert(local_mfa);
+        self.declare_function(signature)
     }
 
     /// Declares a function in the current module with the given signature, and creates the empty

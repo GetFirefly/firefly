@@ -91,16 +91,17 @@ Type CIRFunType::parse(AsmParser &parser) {
 }
 
 void CIRFunType::print(AsmPrinter &p) const {
-  p << "fun<";
   auto envTys = getEnvTypes();
   auto calleeTy = getCalleeType();
   if (envTys.size() == 0) {
     p << getCalleeType() << ">";
     return;
   }
-  p.printFunctionalType(getEnvTypes(), calleeTy.getInputs());
-  p.printArrowTypeList(calleeTy.getResults());
-  p << ">";
+  p << '[';
+  llvm::interleaveComma(getEnvTypes(), p,
+                        [&](Type envTy) { p.printType(envTy); });
+  p << ']';
+  p.printFunctionalType(calleeTy.getInputs(), calleeTy.getResults());
 }
 
 //===----------------------------------------------------------------------===//

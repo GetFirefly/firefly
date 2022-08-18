@@ -199,3 +199,11 @@ MlirType mlirCirBinaryBuilderTypeGet(MlirContext ctx) {
 bool mlirCirIsABinaryBuilderType(MlirType type) {
   return unwrap(type).isa<CIRBinaryBuilderType>();
 }
+
+MlirType mlirCirMatchContextTypeGet(MlirContext ctx) {
+  return wrap(CIRMatchContextType::get(unwrap(ctx)));
+}
+
+bool mlirCirIsAMatchContextType(MlirType type) {
+  return unwrap(type).isa<CIRMatchContextType>();
+}

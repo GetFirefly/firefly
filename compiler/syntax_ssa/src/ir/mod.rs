@@ -11,7 +11,7 @@ pub mod value;
 pub use self::block::{Block, BlockData};
 pub use self::builders::{InstBuilder, InstBuilderBase};
 pub use self::constants::{
-    Constant, ConstantData, ConstantItem, ConstantPool, Immediate, IntoBytes,
+    Constant, ConstantData, ConstantItem, ConstantPool, Immediate, ImmediateTerm, IntoBytes,
 };
 pub use self::dataflow::DataFlowGraph;
 pub use self::function::{FuncRef, Function};

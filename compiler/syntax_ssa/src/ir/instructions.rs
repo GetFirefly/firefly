@@ -53,7 +53,6 @@ intrusive_adapter!(pub InstAdapter = UnsafeRef<InstNode>: InstNode { link: Linke
 pub enum InstData {
     BinaryOp(BinaryOp),
     BinaryOpImm(BinaryOpImm),
-    BinaryOpConst(BinaryOpConst),
     UnaryOp(UnaryOp),
     UnaryOpImm(UnaryOpImm),
     UnaryOpConst(UnaryOpConst),
@@ -72,20 +71,17 @@ pub enum InstData {
     BitsPush(BitsPush),
     SetElement(SetElement),
     SetElementImm(SetElementImm),
-    SetElementConst(SetElementConst),
-    MapUpdate(MapUpdate),
 }
 impl InstData {
     pub fn opcode(&self) -> Opcode {
         match self {
             Self::BinaryOp(BinaryOp { ref op, .. })
             | Self::BinaryOpImm(BinaryOpImm { ref op, .. })
-            | Self::BinaryOpConst(BinaryOpConst { ref op, .. })
             | Self::UnaryOp(UnaryOp { ref op, .. })
             | Self::UnaryOpImm(UnaryOpImm { ref op, .. })
             | Self::UnaryOpConst(UnaryOpConst { ref op, .. }) => *op,
-            Self::Call(_) => Opcode::Call,
-            Self::CallIndirect(_) => Opcode::CallIndirect,
+            Self::Call(Call { ref op, .. }) => *op,
+            Self::CallIndirect(CallIndirect { ref op, .. }) => *op,
             Self::MakeFun(_) => Opcode::MakeFun,
             Self::Br(Br { ref op, .. }) => *op,
             Self::CondBr(_) => Opcode::CondBr,
@@ -96,9 +92,7 @@ impl InstData {
             Self::BitsMatch(_) => Opcode::BitsMatch,
             Self::BitsPush(_) => Opcode::BitsPush,
             Self::SetElement(SetElement { ref op, .. })
-            | Self::SetElementImm(SetElementImm { ref op, .. })
-            | Self::SetElementConst(SetElementConst { ref op, .. }) => *op,
-            Self::MapUpdate(MapUpdate { ref op, .. }) => *op,
+            | Self::SetElementImm(SetElementImm { ref op, .. }) => *op,
         }
     }
 
@@ -106,7 +100,6 @@ impl InstData {
         match self {
             Self::BinaryOp(BinaryOp { ref args, .. }) => args.as_slice(),
             Self::BinaryOpImm(BinaryOpImm { ref arg, .. }) => core::slice::from_ref(arg),
-            Self::BinaryOpConst(BinaryOpConst { ref arg, .. }) => core::slice::from_ref(arg),
             Self::UnaryOp(UnaryOp { ref arg, .. }) => core::slice::from_ref(arg),
             Self::UnaryOpImm(UnaryOpImm { .. }) => &[],
             Self::UnaryOpConst(UnaryOpConst { .. }) => &[],
@@ -125,8 +118,6 @@ impl InstData {
             Self::BitsPush(BitsPush { ref args, .. }) => args.as_slice(pool),
             Self::SetElement(SetElement { ref args, .. }) => args.as_slice(),
             Self::SetElementImm(SetElementImm { ref arg, .. }) => core::slice::from_ref(arg),
-            Self::SetElementConst(SetElementConst { ref arg, .. }) => core::slice::from_ref(arg),
-            Self::MapUpdate(MapUpdate { ref args, .. }) => args.as_slice(),
         }
     }
 
@@ -134,7 +125,6 @@ impl InstData {
         match self {
             Self::BinaryOp(BinaryOp { ref mut args, .. }) => args.as_mut_slice(),
             Self::BinaryOpImm(BinaryOpImm { ref mut arg, .. }) => core::slice::from_mut(arg),
-            Self::BinaryOpConst(BinaryOpConst { ref mut arg, .. }) => core::slice::from_mut(arg),
             Self::UnaryOp(UnaryOp { ref mut arg, .. }) => core::slice::from_mut(arg),
             Self::UnaryOpImm(UnaryOpImm { .. }) => &mut [],
             Self::UnaryOpConst(UnaryOpConst { .. }) => &mut [],
@@ -153,10 +143,6 @@ impl InstData {
             Self::BitsPush(BitsPush { ref mut args, .. }) => args.as_mut_slice(pool),
             Self::SetElement(SetElement { ref mut args, .. }) => args.as_mut_slice(),
             Self::SetElementImm(SetElementImm { ref mut arg, .. }) => core::slice::from_mut(arg),
-            Self::SetElementConst(SetElementConst { ref mut arg, .. }) => {
-                core::slice::from_mut(arg)
-            }
-            Self::MapUpdate(MapUpdate { ref mut args, .. }) => args.as_mut_slice(),
         }
     }
 
@@ -186,6 +172,18 @@ impl InstData {
                 JumpTable::new(then_dest.0, then_dest.1.as_slice(pool)),
                 JumpTable::new(else_dest.0, else_dest.1.as_slice(pool)),
             ]),
+            Self::Switch(Switch {
+                ref arms,
+                ref default,
+                ..
+            }) => {
+                let mut targets = arms
+                    .iter()
+                    .map(|(_, b)| JumpTable::new(*b, &[]))
+                    .collect::<Vec<_>>();
+                targets.push(JumpTable::new(*default, &[]));
+                BranchInfo::MultiDest(targets)
+            }
             _ => BranchInfo::NotABranch,
         }
     }
@@ -239,9 +237,6 @@ pub enum Opcode {
     ImmNull,
     ConstBigInt,
     ConstBinary,
-    ConstTuple,
-    ConstList,
-    ConstMap,
     IsNull,
     Cast,
     Trunc,
@@ -280,7 +275,9 @@ pub enum Opcode {
     Bsl,
     Bsr,
     Call,
+    Enter,
     CallIndirect,
+    EnterIndirect,
     CondBr,
     BrIf,
     BrUnless,
@@ -300,25 +297,15 @@ pub enum Opcode {
     GetElement,
     SetElement,
     SetElementMut,
-    // Map Operations
-    Map,
-    MapGet,
-    MapFetch,
-    MapPut,
-    MapPutMut,
-    MapUpdate,
-    MapUpdateMut,
     // Binary Operations
-    BitsStartMatch,
+    BitsMatchStart,
     BitsMatch,
-    BitsInitWritable,
     BitsPush,
-    BitsCloseWritable,
     BitsTestTail,
     // Closures
     MakeFun,
+    UnpackEnv,
     // Primops
-    MatchFail,
     RecvStart,
     RecvNext,
     RecvPeek,
@@ -328,7 +315,6 @@ pub enum Opcode {
     NifStart,
     // Errors
     Raise,
-    BuildStacktrace,
     ExceptionClass,
     ExceptionReason,
     ExceptionTrace,
@@ -336,9 +322,13 @@ pub enum Opcode {
 impl Opcode {
     pub fn is_terminator(&self) -> bool {
         match self {
-            Self::Br | Self::CondBr | Self::Switch | Self::Ret | Self::Raise | Self::MatchFail => {
-                true
-            }
+            Self::Br
+            | Self::CondBr
+            | Self::Switch
+            | Self::Ret
+            | Self::Raise
+            | Self::Enter
+            | Self::EnterIndirect => true,
             _ => false,
         }
     }
@@ -354,10 +344,7 @@ impl Opcode {
             | Self::ImmNone
             | Self::ImmNull
             | Self::ConstBigInt
-            | Self::ConstBinary
-            | Self::ConstTuple
-            | Self::ConstList
-            | Self::ConstMap => 0,
+            | Self::ConstBinary => 0,
             // Binary ops always have two
             Self::Add
             | Self::Sub
@@ -410,16 +397,12 @@ impl Opcode {
             Self::SetElement | Self::SetElementMut => 2,
             // Cons constructors/concat/subtract take two arguments, the head and tail elements/lists
             Self::Cons | Self::ListConcat | Self::ListSubtract => 2,
-            // Creating a map has no arguments
-            Self::Map => 0,
-            // Fetching from a map takes 2 arguments, map/key
-            Self::MapGet | Self::MapFetch => 2,
-            // Inserting/updating a map takes 3 arguments, map/key/value
-            Self::MapPut | Self::MapPutMut | Self::MapUpdate | Self::MapUpdateMut => 3,
             // Creating a fun only requires the callee, the environment is variable-sized
             Self::MakeFun => 0,
+            // Unpacking a closure environment requires the closure value
+            Self::UnpackEnv => 1,
             // Calls are entirely variable
-            Self::Call | Self::CallIndirect => 0,
+            Self::Call | Self::CallIndirect | Self::Enter | Self::EnterIndirect => 0,
             // Ifs have a single argument, the conditional
             Self::CondBr | Self::BrIf | Self::BrUnless => 1,
             // Unconditional branches have no fixed arguments
@@ -428,8 +411,6 @@ impl Opcode {
             Self::Switch => 1,
             // Returns require at least one argument
             Self::Ret => 1,
-            // The following primops expect no arguments
-            Self::BuildStacktrace => 0,
             // This receive intrinsic expects a timeout value as argument,
             Self::RecvStart => 1,
             // These receive intrinsics expect the receive context as argument
@@ -437,11 +418,11 @@ impl Opcode {
             // These exception primops expect the exception value
             Self::ExceptionClass | Self::ExceptionReason | Self::ExceptionTrace => 1,
             // These primops expect either no arguments, an immediate or a value, so the number is not fixed
-            Self::MatchFail | Self::BitsStartMatch | Self::BitsInitWritable | Self::NifStart => 0,
+            Self::BitsMatchStart | Self::NifStart => 0,
             // Raising errors requires the class, the error value, and the stacktrace
             Self::Raise => 3,
             // Bitstring ops
-            Self::BitsMatch | Self::BitsPush | Self::BitsCloseWritable => 1,
+            Self::BitsMatch | Self::BitsPush => 1,
             Self::BitsTestTail => 2,
         }
     }
@@ -458,9 +439,6 @@ impl fmt::Display for Opcode {
             Self::ImmNull => f.write_str("null"),
             Self::ConstBigInt => f.write_str("const.bigint"),
             Self::ConstBinary => f.write_str("const.binary"),
-            Self::ConstTuple => f.write_str("const.tuple"),
-            Self::ConstList => f.write_str("const.list"),
-            Self::ConstMap => f.write_str("const.map"),
             Self::IsNull => f.write_str("is_null"),
             Self::Cast => f.write_str("cast"),
             Self::Trunc => f.write_str("trunc"),
@@ -471,7 +449,9 @@ impl fmt::Display for Opcode {
             Self::BrUnless => f.write_str("br.unless"),
             Self::Switch => f.write_str("switch"),
             Self::Call => f.write_str("call"),
+            Self::Enter => f.write_str("tail call"),
             Self::CallIndirect => f.write_str("call.indirect"),
+            Self::EnterIndirect => f.write_str("tail call.indirect"),
             Self::Ret => f.write_str("ret"),
             Self::Add => f.write_str("add"),
             Self::Sub => f.write_str("sub"),
@@ -513,34 +493,24 @@ impl fmt::Display for Opcode {
             Self::ListConcat => f.write_str("list.concat"),
             Self::ListSubtract => f.write_str("list.subtract"),
             Self::Tuple => f.write_str("tuple"),
-            Self::Map => f.write_str("map"),
-            Self::MapGet => f.write_str("map.get"),
-            Self::MapFetch => f.write_str("map.fetch"),
-            Self::MapPut => f.write_str("map.put"),
-            Self::MapPutMut => f.write_str("map.put.mut"),
-            Self::MapUpdate => f.write_str("map.update"),
-            Self::MapUpdateMut => f.write_str("map.update.mut"),
             Self::IsTaggedTuple => f.write_str("tuple.is_tagged"),
             Self::GetElement => f.write_str("tuple.get"),
             Self::SetElement => f.write_str("tuple.set"),
             Self::SetElementMut => f.write_str("tuple.set.mut"),
             Self::MakeFun => f.write_str("fun.make"),
-            Self::MatchFail => f.write_str("match_fail"),
+            Self::UnpackEnv => f.write_str("fun.env.get"),
             Self::RecvStart => f.write_str("recv.start"),
             Self::RecvNext => f.write_str("recv.next"),
             Self::RecvPeek => f.write_str("recv.peek"),
             Self::RecvPop => f.write_str("recv.pop"),
             Self::RecvWait => f.write_str("recv.wait"),
             Self::RecvDone => f.write_str("recv.done"),
-            Self::BitsStartMatch => f.write_str("bs.match.start"),
+            Self::BitsMatchStart => f.write_str("bs.match.start"),
             Self::BitsMatch => f.write_str("bs.match"),
-            Self::BitsInitWritable => f.write_str("bs.init"),
             Self::BitsPush => f.write_str("bs.push"),
-            Self::BitsCloseWritable => f.write_str("bs.finish"),
             Self::BitsTestTail => f.write_str("bs.test.tail"),
             Self::Raise => f.write_str("raise"),
             Self::NifStart => f.write_str("nif.start"),
-            Self::BuildStacktrace => f.write_str("stacktrace.build"),
             Self::ExceptionClass => f.write_str("exception.class"),
             Self::ExceptionReason => f.write_str("exception.reason"),
             Self::ExceptionTrace => f.write_str("exception.trace"),
@@ -602,13 +572,6 @@ pub struct BinaryOpImm {
     pub imm: Immediate,
 }
 
-#[derive(Debug, Clone)]
-pub struct BinaryOpConst {
-    pub op: Opcode,
-    pub arg: Value,
-    pub imm: Constant,
-}
-
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum BinaryOpType {
     Add,
@@ -666,16 +629,16 @@ pub enum UnaryOpType {
 
 #[derive(Debug, Clone)]
 pub struct Call {
+    pub op: Opcode,
     pub callee: FuncRef,
     pub args: ValueList,
-    pub is_tail: bool,
 }
 
 #[derive(Debug, Clone)]
 pub struct CallIndirect {
+    pub op: Opcode,
     pub callee: Value,
     pub args: ValueList,
-    pub is_tail: bool,
 }
 
 /// Branch
@@ -771,20 +734,4 @@ pub struct SetElementImm {
     pub arg: Value,
     pub index: Immediate,
     pub value: Immediate,
-}
-
-/// SetElement, but with an immediate index and constant value
-#[derive(Debug, Clone)]
-pub struct SetElementConst {
-    pub op: Opcode,
-    pub arg: Value,
-    pub index: Immediate,
-    pub value: Constant,
-}
-
-/// Used for both map insertions and updates
-#[derive(Debug, Clone)]
-pub struct MapUpdate {
-    pub op: Opcode,
-    pub args: [Value; 3],
 }

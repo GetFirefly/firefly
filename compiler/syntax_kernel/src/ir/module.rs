@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::fmt;
 
 use liblumen_diagnostics::{SourceSpan, Span, Spanned};
@@ -16,10 +16,11 @@ pub struct Module {
     pub span: SourceSpan,
     pub annotations: Annotations,
     pub name: Ident,
-    pub functions: Vec<Function>,
+    pub compile: CompileOptions,
+    pub on_load: Option<Span<FunctionName>>,
     pub exports: HashSet<Span<FunctionName>>,
-    pub imports: HashMap<FunctionName, Span<Signature>>,
-    pub attributes: HashMap<Ident, Expr>,
+    pub nifs: HashSet<Span<FunctionName>>,
+    pub functions: Vec<Function>,
 }
 annotated!(Module);
 impl fmt::Display for Module {

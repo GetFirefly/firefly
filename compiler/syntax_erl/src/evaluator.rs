@@ -439,6 +439,7 @@ where
             endianness,
             unit,
         } => {
+            let unit = unit as usize;
             let size = size.unwrap_or(8);
             match value {
                 Expr::Literal(Literal::String(s)) => {
@@ -452,7 +453,7 @@ where
                 }
                 value => {
                     let integer = match value {
-                        Expr::Literal(Literal::Char(_, c)) => Integer::Small((c as u32) as i64),
+                        Expr::Literal(Literal::Char(_, c)) => Integer::new((c as u32) as i64),
                         Expr::Literal(Literal::Integer(_, i)) => i,
                         Expr::Literal(Literal::Float(_, f)) => f.to_integer(),
                         _ => return Err(()),
@@ -548,6 +549,7 @@ where
             }
         }
         BinaryEntrySpecifier::Binary { unit } => {
+            let unit = unit as usize;
             if let Some(size) = size {
                 // Use N * Unit bits of the value
                 let bitsize = size * unit;

@@ -182,7 +182,7 @@ pub(crate) extern "C" fn on_diagnostic(diag: Diagnostic, userdata: *const c_void
         ifd.with_primary_label(
             loc.line,
             loc.column,
-            Some("during codegen of this expression".to_owned()),
+            Some("during generation of mlir associated with this source code".to_owned()),
         );
     }
     for note in diag.notes() {

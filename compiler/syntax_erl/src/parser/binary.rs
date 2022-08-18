@@ -178,7 +178,11 @@ pub fn specifier_from_parsed(
             // Default is signed-big-unit:1
             let signed = signed.map(|(t, _)| t).unwrap_or(false);
             let endianness = endianness.map(|(t, _)| t).unwrap_or(Endianness::Big);
-            let unit = unit.map(|(t, _)| t).unwrap_or(1);
+            let unit = unit
+                .map(|(t, _)| t)
+                .unwrap_or(1)
+                .try_into()
+                .expect("invalid unit, too large");
 
             BinaryEntrySpecifier::Integer {
                 signed,
@@ -190,7 +194,11 @@ pub fn specifier_from_parsed(
             // Default is big-unit:1
             test_none!(signed, typ);
             let endianness = endianness.map(|(t, _)| t).unwrap_or(Endianness::Big);
-            let unit = unit.map(|(t, _)| t).unwrap_or(1);
+            let unit = unit
+                .map(|(t, _)| t)
+                .unwrap_or(1)
+                .try_into()
+                .expect("invalid unit, too large");
 
             BinaryEntrySpecifier::Float { endianness, unit }
         }
@@ -198,7 +206,11 @@ pub fn specifier_from_parsed(
             // Default is unit:8
             test_none!(signed, typ);
             test_none!(endianness, typ);
-            let unit = unit.map(|(t, _)| t).unwrap_or(8);
+            let unit = unit
+                .map(|(t, _)| t)
+                .unwrap_or(8)
+                .try_into()
+                .expect("invalid unit, too large");
 
             BinaryEntrySpecifier::Binary { unit }
         }
@@ -206,7 +218,11 @@ pub fn specifier_from_parsed(
             // Default is unit:1
             test_none!(signed, typ);
             test_none!(endianness, typ);
-            let unit = unit.map(|(t, _)| t).unwrap_or(1);
+            let unit = unit
+                .map(|(t, _)| t)
+                .unwrap_or(1)
+                .try_into()
+                .expect("invalid unit, too large");
 
             BinaryEntrySpecifier::Binary { unit }
         }

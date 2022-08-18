@@ -7,6 +7,7 @@ mod annotations;
 pub mod bifs;
 mod functions;
 mod literals;
+pub mod nifs;
 mod ops;
 pub mod printing;
 pub mod sets;

@@ -267,8 +267,7 @@ fn define_bif_internal(spec: BifSpec, is_guard: bool) -> TokenStream {
             cc: crate::CallConv::Erlang,
             module: #module,
             name: liblumen_intern::Symbol::intern(#name_lit),
-            params: vec![#params],
-            results: vec![crate::Type::Primitive(crate::PrimitiveType::I1), #result_ty],
+            ty: crate::FunctionType::new(vec![#params], vec![crate::Type::Primitive(crate::PrimitiveType::I1), #result_ty]),
         }
     };
     TokenStream::from(quoted)
@@ -313,6 +312,8 @@ fn erlang_type_to_core_type_enum(ident: Ident) -> Expr {
         "port" => core_enum_variant("Port", span),
         "reference" => core_enum_variant("Reference", span),
         "no_return" => core_special_variant("NoReturn", span),
+        "exception" => core_special_variant("Exception", span),
+        "trace" => core_special_variant("ExceptionTrace", span),
         "none" => core_special_variant("Invalid", span),
         "spawn_monitor" => core_enum_tuple_variant(Some(&["Pid", "Reference"]), span),
         "binary_split" => core_enum_tuple_variant(Some(&["Binary", "Binary"]), span),

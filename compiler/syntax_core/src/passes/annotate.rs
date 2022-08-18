@@ -624,18 +624,18 @@ impl AnnotateVariableUsage {
         RedBlackTreeSet<Ident>,
         RedBlackTreeSet<Ident>,
     )> {
-        let mut out = Vec::with_capacity(patterns.len());
-        let mut guard = Vec::<IExpr>::new();
-        let mut vars = RedBlackTreeSet::new();
-        let mut used = RedBlackTreeSet::new();
-        for pattern in patterns.drain(..) {
-            let (p1, mut pg, pv, pu) = self.upattern(pattern, known.clone())?;
-            out.push(p1);
-            guard.append(&mut pg);
-            vars = sets::union(pv, vars.clone());
-            used = sets::union(pu, used.clone());
+        if patterns.is_empty() {
+            return Ok((vec![], vec![], rbt_set![], rbt_set![]));
         }
-        Ok((out, guard, vars, used))
+
+        let pattern = patterns.remove(0);
+        let (p1, mut pg, pv, pu) = self.upattern(pattern, known.clone())?;
+        let (mut ps1, mut psg, psv, psu) = self.upattern_list(patterns, known.union(&pv))?;
+        ps1.insert(0, p1);
+        pg.append(&mut psg);
+        let vars = sets::union(pv, psv);
+        let used = sets::union(pu, psu);
+        Ok((ps1, pg, vars, used))
     }
 
     fn upattern(

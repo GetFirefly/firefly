@@ -58,7 +58,7 @@
 ///! let/set arguments are expressions
 ///! fun is not a safe
 use std::cell::UnsafeCell;
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::rc::Rc;
 
 use liblumen_binary::{BinaryEntrySpecifier, BitVec};
@@ -95,34 +95,49 @@ impl Pass for AstToCore {
     type Output<'a> = Module;
 
     fn run<'a>(&mut self, mut ast: Self::Input<'a>) -> anyhow::Result<Self::Output<'a>> {
+        let mut attributes: HashMap<Ident, Expr> = ast
+            .attributes
+            .drain()
+            .filter_map(|(k, v)| translate_attr(&self.reporter, k, v.value))
+            .collect();
+        if let Some(vsn) = ast.vsn {
+            if let Some((name, value)) =
+                translate_attr(&self.reporter, Ident::new(symbols::Vsn, ast.span), vsn)
+            {
+                attributes.insert(name, value);
+            }
+        }
+        if let Some(author) = ast.author {
+            if let Some((name, value)) = translate_attr(
+                &self.reporter,
+                Ident::new(symbols::Author, ast.span),
+                author,
+            ) {
+                attributes.insert(name, value);
+            }
+        }
         let mut module = Module {
             span: ast.span,
             annotations: Annotations::default(),
             name: ast.name,
-            vsn: None,    // TODO
-            author: None, // TODO
-            compile: ast.compile,
+            compile: ast.compile.unwrap_or_default(),
             on_load: ast.on_load,
-            imports: ast.imports,
+            nifs: ast.nifs,
             exports: ast.exports,
-            behaviours: ast.behaviours,
-            attributes: ast
-                .attributes
-                .drain()
-                .filter_map(|(k, v)| translate_attr(k, v.value))
-                .collect(),
+            attributes,
             functions: BTreeMap::new(),
         };
 
-        //let nifs = ast.nifs;
-
         while let Some((name, function)) = ast.functions.pop_first() {
             let span = function.span();
+            let spanned_name = Span::new(span, name);
+            let is_nif = module.nifs.contains(&spanned_name);
             let context = Rc::new(UnsafeCell::new(FunctionContext::new(
                 span,
                 name,
                 function.var_counter,
                 function.fun_counter,
+                is_nif,
             )));
 
             let mut pipeline = TranslateAst::new(self.reporter.clone(), Rc::clone(&context))
@@ -1120,12 +1135,7 @@ impl TranslateAst {
                         );
                         let badarg = iatom!(span, symbols::Badarg);
                         Ok((
-                            IExpr::Call(ICall::new(
-                                span,
-                                symbols::Erlang,
-                                symbols::Error,
-                                vec![badarg],
-                            )),
+                            IExpr::PrimOp(IPrimOp::new(span, symbols::Error, vec![badarg])),
                             pre,
                         ))
                     }
@@ -1311,9 +1321,8 @@ impl TranslateAst {
                         let module = iatom!(span, name.module.unwrap());
                         let function = iatom!(span, name.function);
                         let arity = iint!(span, name.arity);
-                        let call = IExpr::Call(ICall::new(
+                        let call = IExpr::PrimOp(IPrimOp::new(
                             span,
-                            symbols::Erlang,
                             symbols::MakeFun,
                             vec![module, function, arity],
                         ));
@@ -1377,8 +1386,7 @@ impl TranslateAst {
                         let function = function.into();
                         let arity = arity.into();
                         let (mfa, pre) = self.safe_list(vec![module, function, arity])?;
-                        let call =
-                            IExpr::Call(ICall::new(span, symbols::Erlang, symbols::MakeFun, mfa));
+                        let call = IExpr::PrimOp(IPrimOp::new(span, symbols::MakeFun, mfa));
                         Ok((call, pre))
                     }
                 }
@@ -1404,22 +1412,24 @@ impl TranslateAst {
                     let mut mf = args;
                     let function = mf.pop().unwrap();
                     let module = mf.pop().unwrap();
-                    let is_erlang_error = {
-                        matches!(
-                            &module,
-                            IExpr::Literal(Literal {
-                                value: Lit::Atom(symbols::Erlang),
-                                ..
-                            })
-                        ) && matches!(
-                            &function,
-                            IExpr::Literal(Literal {
-                                value: Lit::Atom(symbols::Error),
-                                ..
-                            })
-                        ) && argv.len() == 1
+                    let is_erlang = module.is_atom_value(symbols::Erlang);
+                    let maybe_bif = if is_erlang {
+                        match function.as_atom() {
+                            Some(sym) => match sym {
+                                symbols::Error
+                                | symbols::Exit
+                                | symbols::Throw
+                                | symbols::Raise => Some(sym),
+                                _ => None,
+                            },
+                            None => None,
+                        }
+                    } else {
+                        None
                     };
-                    if is_erlang_error {
+                    let is_possible_record_match_fail =
+                        is_erlang && maybe_bif == Some(symbols::Error) && argv.len() == 1;
+                    if is_possible_record_match_fail {
                         let arg = argv.pop().unwrap();
                         if let IExpr::Tuple(tuple) = arg {
                             if matches!(
@@ -1435,19 +1445,26 @@ impl TranslateAst {
                                     vec![IExpr::Tuple(tuple)],
                                 ));
                                 return Ok((fail, pre));
+                            } else {
+                                argv.push(IExpr::Tuple(tuple));
                             }
                         } else {
                             argv.push(arg);
                         }
                     }
-                    let call = IExpr::Call(ICall {
-                        span,
-                        annotations: Annotations::default(),
-                        module: Box::new(module),
-                        function: Box::new(function),
-                        args: argv,
-                    });
-                    Ok((call, pre))
+                    if let Some(op) = maybe_bif {
+                        let bif = IExpr::PrimOp(IPrimOp::new(span, op, argv));
+                        Ok((bif, pre))
+                    } else {
+                        let call = IExpr::Call(ICall {
+                            span,
+                            annotations: Annotations::default(),
+                            module: Box::new(module),
+                            function: Box::new(function),
+                            args: argv,
+                        });
+                        Ok((call, pre))
+                    }
                 }
                 ast::Expr::FunctionVar(name) => {
                     let nspan = name.span();
@@ -2877,16 +2894,15 @@ impl TranslateAst {
         let clauses = self.clauses(clauses)?;
         let clauses = try_build_stacktrace(clauses, tag.name);
         let span = clauses.get(0).map(|c| c.span).unwrap_or_default();
-        let evars = ituple!(
-            span,
+        let evars = vec![
             IExpr::Var(tag.clone()),
             IExpr::Var(value.clone()),
-            IExpr::Var(info.clone())
-        );
+            IExpr::Var(info.clone()),
+        ];
         let fail = Box::new(IClause {
             span,
             annotations: Annotations::default_compiler_generated(),
-            patterns: vec![evars.clone()],
+            patterns: evars.clone(),
             guards: vec![],
             body: vec![IExpr::PrimOp(IPrimOp::new(
                 span,
@@ -2897,7 +2913,7 @@ impl TranslateAst {
         let handler = IExpr::Case(ICase {
             span,
             annotations: Annotations::default(),
-            args: vec![evars],
+            args: evars,
             clauses,
             fail,
         });
@@ -3003,12 +3019,11 @@ impl TranslateAst {
             let info = context.next_var(Some(span));
             (tag, value, info)
         };
-        let evs = ituple!(
-            span,
+        let evs = vec![
             IExpr::Var(tag.clone()),
             IExpr::Var(value.clone()),
-            IExpr::Var(info.clone())
-        );
+            IExpr::Var(info.clone()),
+        ];
         after.push(IExpr::PrimOp(IPrimOp::new(
             span,
             symbols::Raise,
@@ -3017,12 +3032,12 @@ impl TranslateAst {
         let handler = IExpr::Case(ICase {
             span,
             annotations: Annotations::default(),
-            args: vec![evs.clone()],
+            args: evs.clone(),
             clauses: vec![],
             fail: Box::new(IClause {
                 span,
                 annotations: Annotations::default_compiler_generated(),
-                patterns: vec![evs],
+                patterns: evs,
                 guards: vec![],
                 body: after,
             }),
@@ -3068,13 +3083,7 @@ fn bad_generator(span: SourceSpan, patterns: Vec<IExpr>, generator: Var) -> Box<
         IExpr::Literal(lit_atom!(span, symbols::BadGenerator)),
         IExpr::Var(generator)
     );
-    let call = IExpr::Call(ICall {
-        span,
-        annotations: Annotations::default(),
-        module: Box::new(iatom!(span, symbols::Erlang)),
-        function: Box::new(iatom!(span, symbols::Error)),
-        args: vec![tuple],
-    });
+    let call = IExpr::PrimOp(IPrimOp::new(span, symbols::Error, vec![tuple]));
     Box::new(IClause {
         span,
         annotations: Annotations::default_compiler_generated(),
@@ -3360,19 +3369,24 @@ fn ta_sanitize_as(exprs: &mut Vec<ast::Expr>) {
 fn try_build_stacktrace(mut clauses: Vec<IClause>, raw_stack: Ident) -> Vec<IClause> {
     let mut output = Vec::with_capacity(clauses.len());
     for mut clause in clauses.drain(..) {
-        let IExpr::Tuple(ref mut tup) = clause.patterns.get_mut(0).unwrap() else { panic!("expected tuple pattern") };
-        let stk = tup.elements.pop().unwrap();
+        assert_eq!(
+            clause.patterns.len(),
+            3,
+            "unexpected number of catch clause patterns"
+        );
+        let mut stk = clause.patterns.pop().unwrap();
         match stk {
             IExpr::Var(Var { name, .. }) if name == symbols::Underscore => {
                 // Stacktrace variable is not used, nothing to do.
-                tup.elements.push(stk);
+                stk.annotations_mut().set(symbols::RawStack);
+                clause.patterns.push(stk);
                 output.push(clause);
             }
             IExpr::Var(var) => {
                 // Add code to build the stacktrace
                 let span = var.span();
                 let raw_stack = IExpr::Var(Var::new(raw_stack));
-                tup.elements.push(raw_stack.clone());
+                clause.patterns.push(raw_stack.clone());
                 let call = IExpr::PrimOp(IPrimOp::new(
                     span,
                     symbols::BuildStacktrace,
@@ -3820,9 +3834,33 @@ fn map_sort_key(key: &[IExpr], keymap: &BTreeMap<MapSortKey, Vec<IMapPair>>) -> 
     }
 }
 
-fn translate_attr(_name: Ident, _value: ast::Expr) -> Option<(Ident, Expr)> {
-    // TODO:
-    None
+fn translate_attr(reporter: &Reporter, name: Ident, value: ast::Expr) -> Option<(Ident, Expr)> {
+    match value {
+        ast::Expr::Literal(literal) => Some((name, Expr::Literal(literal.into()))),
+        ast::Expr::FunctionVar(ast::FunctionVar::PartiallyResolved(fun)) => {
+            let span = fun.span();
+            let fun = fun.item;
+            let value = Expr::Literal(Literal::tuple(
+                span,
+                vec![
+                    Literal::atom(span, fun.function),
+                    Literal::integer(span, fun.arity),
+                ],
+            ));
+            Some((name, value))
+        }
+        other => {
+            let msg = format!("invalid value for '-{}' attribute", &name);
+            reporter.show_error(
+                msg.as_str(),
+                &[(
+                    other.span(),
+                    "expression must be literal or Name/Arity value",
+                )],
+            );
+            None
+        }
+    }
 }
 
 fn force_safe(context: &mut FunctionContext, expr: IExpr) -> (IExpr, Vec<IExpr>) {

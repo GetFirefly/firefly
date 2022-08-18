@@ -45,7 +45,7 @@ impl Float {
     }
 
     pub fn to_integer(&self) -> Integer {
-        Integer::Small(self.0 as i64)
+        Integer::new(self.0 as i64)
     }
 
     /// Returns whether this float is more precise than an integer.

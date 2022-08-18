@@ -13,6 +13,7 @@ links = "mlir"
 anyhow = "1.0"
 thiserror = "1.0"
 liblumen_binary = { path = "../binary" }
+liblumen_number = { path = "../number" }
 liblumen_intern = { path = "../intern" }
 liblumen_llvm = { path = "../llvm" }
 liblumen_session = { path = "../session" }

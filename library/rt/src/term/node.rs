@@ -4,6 +4,7 @@ use core::sync::atomic::AtomicPtr;
 
 use super::{atom::AtomData, Atom};
 
+#[repr(C)]
 #[derive(Debug)]
 pub struct Node {
     id: usize,

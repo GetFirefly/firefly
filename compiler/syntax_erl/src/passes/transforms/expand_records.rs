@@ -1,3 +1,5 @@
+use core::ops::ControlFlow;
+
 use anyhow::anyhow;
 
 use liblumen_diagnostics::{SourceSpan, Span};
@@ -28,9 +30,13 @@ impl<'m> Pass for ExpandRecords<'m> {
 
     fn run<'a>(&mut self, f: Self::Input<'a>) -> anyhow::Result<Self::Output<'a>> {
         let mut visitor = ExpandRecordsVisitor::new(self.module, f);
-        visitor.visit_mut_function(f)?;
-        f.var_counter = visitor.var_counter;
-        Ok(f)
+        match visitor.visit_mut_function(f) {
+            ControlFlow::Continue(_) => {
+                f.var_counter = visitor.var_counter;
+                Ok(f)
+            }
+            ControlFlow::Break(err) => Err(err),
+        }
     }
 }
 
@@ -68,55 +74,57 @@ impl<'m> ExpandRecordsVisitor<'m> {
         }
     }
 }
-impl<'m> VisitMut for ExpandRecordsVisitor<'m> {
-    fn visit_mut_pattern(&mut self, pattern: &mut Expr) -> anyhow::Result<()> {
+impl<'m> VisitMut<anyhow::Error> for ExpandRecordsVisitor<'m> {
+    fn visit_mut_pattern(&mut self, pattern: &mut Expr) -> ControlFlow<anyhow::Error> {
         self.in_pattern = true;
         visit::visit_mut_pattern(self, pattern)?;
         self.in_pattern = false;
-        Ok(())
+        ControlFlow::Continue(())
     }
 
-    fn visit_mut_clause(&mut self, clause: &mut Clause) -> anyhow::Result<()> {
+    fn visit_mut_clause(&mut self, clause: &mut Clause) -> ControlFlow<anyhow::Error> {
         // TODO: Once the clause has been visited, convert any is_record calls
         // to pattern matches if possible, as these can be better optimized away
         // later to avoid redundant checks
         visit::visit_mut_clause(self, clause)
     }
 
-    fn visit_mut_guard(&mut self, guard: &mut Guard) -> anyhow::Result<()> {
+    fn visit_mut_guard(&mut self, guard: &mut Guard) -> ControlFlow<anyhow::Error> {
         self.in_guard = true;
         visit::visit_mut_guard(self, guard)?;
         self.in_guard = false;
-        Ok(())
+        ControlFlow::Continue(())
     }
 
-    fn visit_mut_expr(&mut self, expr: &mut Expr) -> anyhow::Result<()> {
+    fn visit_mut_expr(&mut self, expr: &mut Expr) -> ControlFlow<anyhow::Error> {
         match expr {
             // Expand calls to record_info/2 if not shadowed
             Expr::Apply(ref mut apply) if self.expand_record_info => {
-                visit::visit_mut_apply(self, apply)?;
+                self.visit_mut_apply(apply)?;
                 if let Some(callee) = apply.callee.as_ref().as_atom() {
                     if callee.name != symbols::RecordInfo || apply.args.len() != 2 {
-                        return Ok(());
+                        return ControlFlow::Continue(());
                     }
 
                     let prop = &apply.args[0];
                     let record_name = &apply.args[1];
-                    if let Ok(info) = self.try_expand_record_info(record_name, prop) {
+                    if let ControlFlow::Continue(info) =
+                        self.try_expand_record_info(record_name, prop)
+                    {
                         *expr = info;
                     }
                 }
-                Ok(())
+                ControlFlow::Continue(())
             }
             // Record creation, or pattern match
             Expr::Record(ref mut record) => {
                 // Work inside-out, so visit the record body first
-                visit::visit_mut_record(self, record)?;
+                self.visit_mut_record(record)?;
                 // Convert this record into a tuple expression
                 let tuple = self.expand_record(record)?;
                 // Replace the original expression
                 *expr = tuple;
-                Ok(())
+                ControlFlow::Continue(())
             }
             // Accessing a record field value, e.g. Expr#myrec.field1
             Expr::RecordAccess(ref mut access) => {
@@ -128,17 +136,17 @@ impl<'m> VisitMut for ExpandRecordsVisitor<'m> {
                 //   _0 ->
                 //     erlang:error({badrecord, _0})
                 // end
-                visit::visit_mut_record_access(self, access)?;
+                self.visit_mut_record_access(access)?;
                 let expanded = self.expand_access(access)?;
                 *expr = expanded;
-                Ok(())
+                ControlFlow::Continue(())
             }
             // Referencing a record fields index, e.g. #myrec.field1
             Expr::RecordIndex(ref record_index) => {
                 // Convert this to a literal
                 let literal = self.expand_index(record_index)?;
                 *expr = literal;
-                Ok(())
+                ControlFlow::Continue(())
             }
             // Update a record field value, e.g. Expr#myrec{field1=ValueExpr}
             Expr::RecordUpdate(ref mut update) => {
@@ -152,35 +160,45 @@ impl<'m> VisitMut for ExpandRecordsVisitor<'m> {
                 //   $0 ->
                 //     erlang:error({badrecord, $0})
                 // end
-                visit::visit_mut_record_update(self, update)?;
+                self.visit_mut_record_update(update)?;
                 let expanded = self.expand_update(update)?;
                 *expr = expanded;
-                Ok(())
+                ControlFlow::Continue(())
             }
             _ => visit::visit_mut_expr(self, expr),
         }
     }
 }
 impl<'m> ExpandRecordsVisitor<'m> {
-    fn try_expand_record_info(&self, record_name: &Expr, prop: &Expr) -> anyhow::Result<Expr> {
-        let record_name = record_name.as_atom().ok_or_else(|| {
-            anyhow!(
-                "expected atom name in call to record_info/2, got '{:?}'",
-                record_name
-            )
-        })?;
-        let prop = prop.as_atom().ok_or_else(|| {
-            anyhow!(
-                "expected the atom 'size' or 'fields' in call to record_info/2, got '{:?}'",
-                record_name
-            )
-        })?;
+    fn try_expand_record_info(
+        &self,
+        record_name: &Expr,
+        prop: &Expr,
+    ) -> ControlFlow<anyhow::Error, Expr> {
+        let record_name = record_name
+            .as_atom()
+            .map(ControlFlow::Continue)
+            .unwrap_or_else(|| {
+                ControlFlow::Break(anyhow!(
+                    "expected atom name in call to record_info/2, got '{:?}'",
+                    record_name
+                ))
+            })?;
+        let prop = prop
+            .as_atom()
+            .map(ControlFlow::Continue)
+            .unwrap_or_else(|| {
+                ControlFlow::Break(anyhow!(
+                    "expected the atom 'size' or 'fields' in call to record_info/2, got '{:?}'",
+                    record_name
+                ))
+            })?;
         let span = record_name.span;
 
         if let Some(definition) = self.module.record(record_name.name) {
             let prop_name = prop.as_str().get();
             match prop_name {
-                "size" => Ok(Expr::Literal(Literal::Integer(
+                "size" => ControlFlow::Continue(Expr::Literal(Literal::Integer(
                     span,
                     (1 + definition.fields.len()).into(),
                 ))),
@@ -196,28 +214,29 @@ impl<'m> ExpandRecordsVisitor<'m> {
                             })
                         },
                     );
-                    Ok(field_name_list)
+                    ControlFlow::Continue(field_name_list)
                 }
-                _ => Err(anyhow!(
+                _ => ControlFlow::Break(anyhow!(
                     "expected the atom 'size' or 'fields' in call to record_info/2, but got '{}'",
                     &prop_name
                 )),
             }
         } else {
-            Err(anyhow!(
+            ControlFlow::Break(anyhow!(
                 "unable to expand record info for '{}', no such record",
                 record_name
             ))
         }
     }
 
-    fn expand_record(&self, record: &Record) -> anyhow::Result<Expr> {
+    fn expand_record(&self, record: &Record) -> ControlFlow<anyhow::Error, Expr> {
         let name = record.name;
         let symbol = name.name;
         let definition = self
             .module
             .record(symbol)
-            .ok_or_else(|| anyhow!("use of undefined record '{}'", name))?;
+            .map(ControlFlow::Continue)
+            .unwrap_or_else(|| ControlFlow::Break(anyhow!("use of undefined record '{}'", name)))?;
         let span = record.span.clone();
         let mut elements = Vec::with_capacity(definition.fields.len());
         // The first element is the record name atom
@@ -252,35 +271,39 @@ impl<'m> ExpandRecordsVisitor<'m> {
             }
         }
 
-        Ok(Expr::Tuple(Tuple { span, elements }))
+        ControlFlow::Continue(Expr::Tuple(Tuple { span, elements }))
     }
 
-    fn expand_index(&self, record_index: &RecordIndex) -> anyhow::Result<Expr> {
+    fn expand_index(&self, record_index: &RecordIndex) -> ControlFlow<anyhow::Error, Expr> {
         let name = record_index.name;
         let field = record_index.field;
 
         let definition = self
             .module
             .record(name.name)
-            .ok_or_else(|| anyhow!("reference to undefined record '{}'", name))?;
+            .map(ControlFlow::Continue)
+            .unwrap_or_else(|| {
+                ControlFlow::Break(anyhow!("reference to undefined record '{}'", name))
+            })?;
         let index = definition
             .fields
             .iter()
             .position(|f| f.name == field)
-            .ok_or_else(|| {
-                anyhow!(
+            .map(ControlFlow::Continue)
+            .unwrap_or_else(|| {
+                ControlFlow::Break(anyhow!(
                     "reference to undefined field '{}' of record '{}'",
                     field,
                     name
-                )
+                ))
             })?;
-        Ok(Expr::Literal(Literal::Integer(
+        ControlFlow::Continue(Expr::Literal(Literal::Integer(
             record_index.span.clone(),
             (index + 1).into(),
         )))
     }
 
-    fn expand_access(&mut self, record_access: &RecordAccess) -> anyhow::Result<Expr> {
+    fn expand_access(&mut self, record_access: &RecordAccess) -> ControlFlow<anyhow::Error, Expr> {
         let name = record_access.name;
         let field_name = record_access.field;
         let span = record_access.span.clone();
@@ -288,17 +311,21 @@ impl<'m> ExpandRecordsVisitor<'m> {
         let definition = self
             .module
             .record(name.name)
-            .ok_or_else(|| anyhow!("reference to undefined record '{}'", name))?;
+            .map(ControlFlow::Continue)
+            .unwrap_or_else(|| {
+                ControlFlow::Break(anyhow!("reference to undefined record '{}'", name))
+            })?;
         let field = definition
             .fields
             .iter()
             .find(|f| f.name == field_name)
-            .ok_or_else(|| {
-                anyhow!(
+            .map(ControlFlow::Continue)
+            .unwrap_or_else(|| {
+                ControlFlow::Break(anyhow!(
                     "reference to undefined field '{}' of record '{}'",
                     field_name,
                     name
-                )
+                ))
             })?;
         let field_var = self.next_var(Some(field_name.span));
         let catch_all_var = self.next_var(Some(span));
@@ -333,7 +360,7 @@ impl<'m> ExpandRecordsVisitor<'m> {
         //   $1 ->
         //     erlang:error({badrecord, $1})
         // end
-        Ok(Expr::Case(Case {
+        ControlFlow::Continue(Expr::Case(Case {
             span: record_access.span.clone(),
             expr: record_access.record.clone(),
             clauses: vec![
@@ -359,20 +386,23 @@ impl<'m> ExpandRecordsVisitor<'m> {
         }))
     }
 
-    fn expand_update(&mut self, record_update: &RecordUpdate) -> anyhow::Result<Expr> {
+    fn expand_update(&mut self, record_update: &RecordUpdate) -> ControlFlow<anyhow::Error, Expr> {
         let name = record_update.name;
         let span = record_update.span.clone();
 
         let definition = self
             .module
             .record(name.name)
-            .ok_or_else(|| anyhow!("reference to undefined record '{}'", name))?;
+            .map(ControlFlow::Continue)
+            .unwrap_or_else(|| {
+                ControlFlow::Break(anyhow!("reference to undefined record '{}'", name))
+            })?;
 
         // Save a copy of the record expression as we'll need that
         let expr = record_update.record.as_ref().clone();
         // If there are no updates for some reason, treat this expression as transparent
         if record_update.updates.is_empty() {
-            return Ok(expr);
+            return ControlFlow::Continue(expr);
         }
         // Generate vars for use in the pattern match phase
         let bound_var = self.next_var(Some(span));
@@ -382,7 +412,7 @@ impl<'m> ExpandRecordsVisitor<'m> {
             .updates
             .iter()
             .rev()
-            .try_fold::<_, _, anyhow::Result<Expr>>(
+            .try_fold::<_, _, ControlFlow<anyhow::Error, Expr>>(
                 Expr::Var(bound_var.into()),
                 |acc, update| {
                     let field_name = update.name;
@@ -390,12 +420,13 @@ impl<'m> ExpandRecordsVisitor<'m> {
                         .fields
                         .iter()
                         .position(|f| f.name == field_name)
-                        .ok_or_else(|| {
-                            anyhow!(
+                        .map(ControlFlow::Continue)
+                        .unwrap_or_else(|| {
+                            ControlFlow::Break(anyhow!(
                                 "reference to undefined field '{}' of record '{}'",
                                 field_name,
                                 name
-                            )
+                            ))
                         })?;
 
                     let callee = Expr::FunctionVar(FunctionVar::Resolved(Span::new(
@@ -404,7 +435,7 @@ impl<'m> ExpandRecordsVisitor<'m> {
                     )));
                     let index = Expr::Literal(Literal::Integer(span, (position + 1).into()));
                     let value = update.value.as_ref().unwrap().clone();
-                    Ok(Expr::Apply(Apply {
+                    ControlFlow::Continue(Expr::Apply(Apply {
                         span,
                         callee: Box::new(callee),
                         args: vec![index, acc, value],
@@ -431,7 +462,7 @@ impl<'m> ExpandRecordsVisitor<'m> {
             ],
         });
 
-        Ok(Expr::Case(Case {
+        ControlFlow::Continue(Expr::Case(Case {
             span,
             expr: Box::new(expr),
             clauses: vec![

@@ -1,3 +1,5 @@
+use core::ops::ControlFlow;
+
 use crate::ast::*;
 
 use liblumen_diagnostics::*;
@@ -22,8 +24,10 @@ impl<'m> Pass for ExpandUnqualifiedCalls<'m> {
     type Output<'a> = &'a mut Function;
 
     fn run<'a>(&mut self, f: Self::Input<'a>) -> anyhow::Result<Self::Output<'a>> {
-        self.visit_mut_function(f)?;
-        Ok(f)
+        match self.visit_mut_function(f) {
+            ControlFlow::Continue(_) => Ok(f),
+            ControlFlow::Break(err) => Err(err),
+        }
     }
 }
 impl<'m> ExpandUnqualifiedCalls<'m> {
@@ -31,9 +35,9 @@ impl<'m> ExpandUnqualifiedCalls<'m> {
         Self { module }
     }
 }
-impl<'m> VisitMut for ExpandUnqualifiedCalls<'m> {
+impl<'m> VisitMut<anyhow::Error> for ExpandUnqualifiedCalls<'m> {
     // Need to expand apply with an atom callee
-    fn visit_mut_apply(&mut self, apply: &mut Apply) -> anyhow::Result<()> {
+    fn visit_mut_apply(&mut self, apply: &mut Apply) -> ControlFlow<anyhow::Error> {
         visit::visit_mut_apply(self, apply)?;
         let arity: u8 = apply.args.len().try_into().unwrap();
         let span = apply.callee.span();
@@ -47,25 +51,25 @@ impl<'m> VisitMut for ExpandUnqualifiedCalls<'m> {
                     FunctionVar::Resolved(Span::new(span, local.resolve(resolved.module)))
                 } else {
                     // This is an unresolvable function, but we catch that elsewhere
-                    return Ok(());
+                    return ControlFlow::Continue(());
                 }
             }
             Expr::Remote(remote) => {
                 if let Ok(name) = remote.try_eval(arity) {
                     FunctionVar::Resolved(Span::new(span, name))
                 } else {
-                    return Ok(());
+                    return ControlFlow::Continue(());
                 }
             }
-            _ => return Ok(()),
+            _ => return ControlFlow::Continue(()),
         };
 
         apply.callee = Box::new(Expr::FunctionVar(name));
 
-        Ok(())
+        ControlFlow::Continue(())
     }
 
-    fn visit_mut_function_var(&mut self, name: &mut FunctionVar) -> anyhow::Result<()> {
+    fn visit_mut_function_var(&mut self, name: &mut FunctionVar) -> ControlFlow<anyhow::Error> {
         // We only care about partially-resolved function names at this point
         if let Some(ref local) = name.partial_resolution() {
             if self.module.is_local(local) {
@@ -88,6 +92,6 @@ impl<'m> VisitMut for ExpandUnqualifiedCalls<'m> {
             }
         }
 
-        Ok(())
+        ControlFlow::Continue(())
     }
 }

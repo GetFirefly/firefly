@@ -1,4 +1,4 @@
-use alloc::alloc::{Allocator, Global, Layout};
+use alloc::alloc::{AllocError, Allocator, Global, Layout};
 use alloc::borrow::{self, Cow};
 use core::any::{Any, TypeId};
 use core::fmt::{self, Debug, Display};
@@ -27,6 +27,7 @@ use crate::WriteCloneIntoRaw;
 /// A weak reference can be converted into a new strong reference (i.e. as if the
 /// original `Rc<T>` had been cloned), and is usable in all the same ways as
 /// the actual `Rc<T>`, except no changes to the reference count are possible.
+#[repr(transparent)]
 pub struct Weak<T>
 where
     T: ?Sized + 'static,
@@ -170,6 +171,7 @@ where
 /// the lifetime of the `RcRef`. In practice what this means is that when decoding an
 /// opaque term which is an `Rc<T>`, we reify it as an `RcRef<T>` instead, only converting
 /// it to the owned type when called for. See the `RcRef<T>` docs for more.
+#[repr(transparent)]
 pub struct Rc<T>
 where
     T: ?Sized + 'static,
@@ -582,11 +584,15 @@ where
     T: ?Sized + 'static + Pointee<Metadata = usize>,
 {
     pub fn with_capacity(cap: usize) -> Self {
+        Self::with_capacity_in(cap, Global).unwrap()
+    }
+
+    pub fn with_capacity_in<A: Allocator>(cap: usize, alloc: A) -> Result<Self, AllocError> {
         let empty = ptr::from_raw_parts::<T>(ptr::null() as *const (), cap);
         let meta = Metadata::new::<T>(empty);
         let value_layout = unsafe { Layout::for_value_raw(empty) };
         let (layout, value_offset) = Layout::new::<Metadata>().extend(value_layout).unwrap();
-        let ptr: NonNull<u8> = Global.allocate(layout).unwrap().cast();
+        let ptr: NonNull<u8> = alloc.allocate(layout)?.cast();
         unsafe {
             let ptr = NonNull::new_unchecked(ptr.as_ptr().add(value_offset));
             let boxed = Self {
@@ -594,7 +600,7 @@ where
                 _marker: PhantomData,
             };
             ptr::write(header(boxed.ptr.as_ptr()), meta);
-            boxed
+            Ok(boxed)
         }
     }
 }
@@ -1211,6 +1217,7 @@ fn header(ptr: *mut u8) -> *mut Metadata {
 
 /// This metadata provides enough information to restore a fat pointer from a thin
 /// pointer, and to cast to and from Opaque
+#[repr(C)]
 pub struct Metadata {
     refc: AtomicUsize,
     ty: TypeId,
@@ -1288,6 +1295,7 @@ impl Metadata {
 assert_eq_size!(PtrMetadata, usize);
 
 #[derive(Copy, Clone)]
+#[repr(C)]
 pub union PtrMetadata {
     size: usize,
     dynamic: DynMetadata<dyn Any>,

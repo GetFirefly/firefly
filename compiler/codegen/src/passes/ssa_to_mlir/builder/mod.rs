@@ -13,7 +13,7 @@ use liblumen_mlir::llvm::LlvmBuilder;
 use liblumen_mlir::{Builder, OpBuilder, Operation, OwnedOpBuilder, Variadic};
 use liblumen_rt::function::FunctionSymbol;
 use liblumen_session::Options;
-use liblumen_syntax_base::Signature;
+use liblumen_syntax_base::{self as syntax_base, Signature};
 use liblumen_syntax_ssa as syntax_ssa;
 
 /// This builder holds the state necessary to build an MLIR module
@@ -112,14 +112,50 @@ impl<'m> ModuleBuilder<'m> {
     }
 
     pub fn get_or_declare_function(&self, name: &str) -> anyhow::Result<mlir::FuncOp> {
-        if let Some(found) = self.builder.get_func_by_symbol(name) {
+        if let Some(found) = self.mlir_module.get_func_by_name(name) {
             assert!(!found.base().is_null());
             return Ok(found);
         }
-        let function_name = name.parse().unwrap();
-        let callee = self.module.get_callee(function_name).unwrap();
+        let f = name.parse().unwrap();
+        let callee = self.module.get_callee(f).unwrap();
         let sig = self.module.call_signature(callee);
         self.declare_function(self.module.span(), &sig)
+    }
+
+    pub fn get_or_declare_builtin(&mut self, name: &str) -> anyhow::Result<mlir::FuncOp> {
+        if let Some(found) = self.mlir_module.get_func_by_name(name) {
+            assert!(!found.base().is_null());
+            return Ok(found);
+        }
+        let f = name.parse().unwrap();
+        match self.module.get_callee(f) {
+            Some(callee) => {
+                let sig = self.module.call_signature(callee);
+                self.declare_function(self.module.span(), &sig)
+            }
+            None => {
+                let sig = syntax_base::bifs::fetch(&f);
+                self.declare_function(self.module.span(), &sig)
+            }
+        }
+    }
+
+    pub fn get_or_declare_native(&self, name: Symbol) -> anyhow::Result<mlir::FuncOp> {
+        if let Some(found) = self.mlir_module.get_func_by_name(name.as_str().get()) {
+            assert!(!found.base().is_null());
+            return Ok(found);
+        }
+
+        match self.module.get_native(name) {
+            Some(callee) => {
+                let sig = self.module.call_signature(callee);
+                self.declare_function(self.module.span(), &sig)
+            }
+            None => {
+                let sig = syntax_base::nifs::fetch(&name);
+                self.declare_function(self.module.span(), &sig)
+            }
+        }
     }
 
     #[inline]

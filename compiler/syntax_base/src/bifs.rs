@@ -15,7 +15,8 @@ use lazy_static::lazy_static;
 use liblumen_compiler_macros::{bif, guard_bif};
 use liblumen_intern::symbols;
 
-use crate::{CallConv, FunctionName, PrimitiveType, Signature, TermType, Type, Visibility};
+use crate::{CallConv, FunctionName, Signature, Visibility};
+use crate::{FunctionType, PrimitiveType, TermType, Type};
 
 lazy_static! {
     static ref BIF_SIGNATURES: Vec<Signature> = {
@@ -82,11 +83,11 @@ lazy_static! {
             guard_bif!(pub erlang:element/2(non_neg_integer, tuple) -> term),
             bif!(pub erlang:erase/0() -> list),
             bif!(pub erlang:erase/1() -> term),
-            bif!(pub erlang:error/1(term) -> no_return),
-            bif!(pub erlang:error/2(term, term) -> no_return),
-            bif!(pub erlang:error/3(term, term, list) -> no_return),
-            bif!(pub erlang:exit/1(term) -> no_return),
-            bif!(pub erlang:exit/2(term, term) -> no_return),
+            bif!(pub erlang:error/1(term) -> term),
+            bif!(pub erlang:error/2(term, term) -> term),
+            bif!(pub erlang:error/3(term, term, list) -> term),
+            bif!(pub erlang:exit/1(term) -> term),
+            bif!(pub erlang:exit/2(term, term) -> term),
             guard_bif!(pub erlang:float/1(number) -> float),
             bif!(pub erlang:float_to_binary/1(float) -> binary),
             bif!(pub erlang:float_to_binary/2(float, list) -> binary),
@@ -145,9 +146,11 @@ lazy_static! {
             bif!(pub erlang:list_to_port/1(string) -> port),
             bif!(pub erlang:list_to_ref/1(string) -> reference),
             bif!(pub erlang:list_to_tuple/1(list) -> tuple),
+            bif!(pub erlang:load_nif/2(string, term) -> term),
             bif!(pub erlang:make_ref/0() -> reference),
             guard_bif!(pub erlang:map_get/2(any, map) -> any),
             guard_bif!(pub erlang:map_size/1(map) -> non_neg_integer),
+            guard_bif!(pub erlang:match_fail/2(atom, term) -> term),
             bif!(pub erlang:max/2(term, term) -> term),
             bif!(pub erlang:min/2(term, term) -> term),
             bif!(pub erlang:monitor/2(atom, term) -> reference),
@@ -173,6 +176,8 @@ lazy_static! {
             bif!(pub erlang:process_info/2(pid, term) -> term),
             bif!(pub erlang:processes/0() -> list),
             bif!(pub erlang:put/2(term, term) -> term),
+            bif!(pub erlang:raise/2(any, trace) -> term),
+            bif!(pub erlang:raise/3(atom, any, list) -> term),
             bif!(pub erlang:ref_to_list/1(reference) -> string),
             bif!(pub erlang:register/2(atom, term) -> boolean),
             bif!(pub erlang:registered/0() -> list),
@@ -209,7 +214,7 @@ lazy_static! {
             bif!(pub erlang:term_to_binary/2(term, list) -> binary),
             bif!(pub erlang:term_to_iovec/1(term) -> list),
             bif!(pub erlang:term_to_iovec/2(term, list) -> list),
-            bif!(pub erlang:throw/1(any) -> no_return),
+            bif!(pub erlang:throw/1(any) -> term),
             bif!(pub erlang:time/0() -> time),
             guard_bif!(pub erlang:tl/1(nonempty_maybe_improper_list) -> term),
             guard_bif!(pub erlang:trunc/1(number) -> integer),
@@ -218,22 +223,20 @@ lazy_static! {
             bif!(pub erlang:unlink/1(term) -> boolean),
             bif!(pub erlang:unregister/1(atom) -> boolean),
             bif!(pub erlang:whereis/1(atom) -> term),
-            // pub erlang:raise/2 -> *exception
-            Signature::new(Visibility::PUBLIC, CallConv::C, symbols::Erlang, symbols::Raise, &[Type::Term(TermType::Atom), Type::Term(TermType::Any)], &[Type::Exception]),
-            // pub erlang:raise/3 -> *exception
-            Signature::new(Visibility::PUBLIC, CallConv::C, symbols::Erlang, symbols::Raise, &[Type::Term(TermType::Atom), Type::Term(TermType::Any), Type::ExceptionTrace], &[Type::Exception]),
+            // pub erlang:make_fun/3(atom, atom, int) -> term
+            Signature::new(Visibility::PUBLIC | Visibility::EXTERNAL, CallConv::C, symbols::Erlang, symbols::MakeFun, FunctionType::new(vec![Type::Term(TermType::Atom), Type::Term(TermType::Atom), Type::Term(TermType::Integer)], vec![Type::Term(TermType::Any)])),
+            // pub erlang:build_stacktrace/1(exception_trace) -> term
+            Signature::new(Visibility::PUBLIC | Visibility::EXTERNAL, CallConv::C, symbols::Erlang, symbols::BuildStacktrace, FunctionType::new(vec![Type::ExceptionTrace], vec![Type::Term(TermType::Any)])),
             // pub erlang:nif_start/0
-            Signature::new(Visibility::PUBLIC, CallConv::C, symbols::Erlang, symbols::NifStart, &[], &[]),
-            // pub erlang:match_fail/1(term) -> *exception
-            Signature::new(Visibility::PUBLIC, CallConv::C, symbols::Erlang, symbols::MatchFail, &[Type::Term(TermType::Any)], &[Type::Exception]),
+            Signature::new(Visibility::PUBLIC | Visibility::EXTERNAL, CallConv::C, symbols::Erlang, symbols::NifStart, FunctionType::default()),
             // pub erlang:remove_message/0()
-            Signature::new(Visibility::PUBLIC, CallConv::C, symbols::Erlang, symbols::RemoveMessage, &[], &[]),
+            Signature::new(Visibility::PUBLIC | Visibility::EXTERNAL, CallConv::C, symbols::Erlang, symbols::RemoveMessage, FunctionType::default()),
             // pub erlang:recv_next/0()
-            Signature::new(Visibility::PUBLIC, CallConv::C, symbols::Erlang, symbols::RecvNext, &[], &[]),
+            Signature::new(Visibility::PUBLIC | Visibility::EXTERNAL, CallConv::C, symbols::Erlang, symbols::RecvNext, FunctionType::default()),
             // pub erlang:recv_peek_message/0() -> <peek_succeeded, message>
-            Signature::new(Visibility::PUBLIC, CallConv::C, symbols::Erlang, symbols::RecvPeekMessage, &[], &[Type::Term(TermType::Bool), Type::Term(TermType::Any)]),
+            Signature::new(Visibility::PUBLIC | Visibility::EXTERNAL, CallConv::C, symbols::Erlang, symbols::RecvPeekMessage, FunctionType::new(vec![], vec![Type::Term(TermType::Bool), Type::Term(TermType::Any)])),
             // pub erlang:recv_wait_timeout/1(timeout) -> <is_err, timeout_expired | *exception>
-            Signature::new(Visibility::PUBLIC, CallConv::C, symbols::Erlang, symbols::RecvWaitTimeout, &[Type::Term(TermType::Any)], &[Type::Primitive(PrimitiveType::I1), Type::Term(TermType::Any)]),
+            Signature::new(Visibility::PUBLIC | Visibility::EXTERNAL, CallConv::C, symbols::Erlang, symbols::RecvWaitTimeout, FunctionType::new(vec![Type::Term(TermType::Any)], vec![Type::Primitive(PrimitiveType::I1), Type::Term(TermType::Any)])),
         ]
     };
 }
@@ -252,6 +255,14 @@ lazy_static! {
 /// Get the Signature matching the provided module/function/arity
 pub fn get(mfa: &FunctionName) -> Option<&'static Signature> {
     BIF_MAP.get(mfa).copied()
+}
+
+/// Get the Signature matching the provided module/function/arity, or panic if unregistered
+pub fn fetch(mfa: &FunctionName) -> &'static Signature {
+    match BIF_MAP.get(mfa).copied() {
+        Some(sig) => sig,
+        None => panic!("unregistered builtin {}", mfa),
+    }
 }
 
 /// Get a slice containing the Signature of all built-in functions

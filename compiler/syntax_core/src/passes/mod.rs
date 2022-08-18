@@ -28,6 +28,7 @@ impl FunctionContext {
         name: FunctionName,
         var_counter: usize,
         fun_counter: usize,
+        is_nif: bool,
     ) -> Self {
         Self {
             span,
@@ -37,7 +38,7 @@ impl FunctionContext {
             name,
             wanted: true,
             in_guard: false,
-            is_nif: false,
+            is_nif,
         }
     }
 

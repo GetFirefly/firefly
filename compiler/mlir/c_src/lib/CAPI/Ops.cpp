@@ -241,6 +241,15 @@ MlirOperation mlirCirMakeFunOp(MlirOpBuilder bldr, MlirLocation location,
   return wrap(op);
 }
 
+MlirOperation mlirCirUnpackEnvOp(MlirOpBuilder bldr, MlirLocation location,
+                                 MlirValue fun, MlirAttribute indexAttr) {
+  OpBuilder *builder = unwrap(bldr);
+  auto index = unwrap(indexAttr).cast<IntegerAttr>();
+  Operation *op =
+      builder->create<cir::UnpackEnvOp>(unwrap(location), unwrap(fun), index);
+  return wrap(op);
+}
+
 MlirOperation mlirCirConsOp(MlirOpBuilder bldr, MlirLocation location,
                             MlirValue head, MlirValue tail) {
   OpBuilder *builder = unwrap(bldr);
@@ -263,49 +272,25 @@ MlirOperation mlirCirTailOp(MlirOpBuilder bldr, MlirLocation location,
   return wrap(op);
 }
 
-MlirOperation mlirCirTupleOp(MlirOpBuilder bldr, MlirLocation location,
-                             intptr_t arity) {
-  OpBuilder *builder = unwrap(bldr);
-  Type termTy = builder->getType<CIROpaqueTermType>();
-  SmallVector<Type, 2> elementTypes;
-  for (auto i = 0; i < arity; i++)
-    elementTypes.push_back(termTy);
-  Type tupleTy = builder->getTupleType(elementTypes);
-  Operation *op = builder->create<cir::TupleOp>(unwrap(location), tupleTy,
-                                                (uint32_t)(arity));
-  return wrap(op);
-}
-
 MlirOperation mlirCirSetElementOp(MlirOpBuilder bldr, MlirLocation location,
-                                  MlirValue tuple, MlirValue index,
-                                  MlirValue value) {
+                                  MlirValue tupleRaw, MlirAttribute indexAttr,
+                                  MlirValue value, bool inPlace) {
 
   OpBuilder *builder = unwrap(bldr);
-  Type termTy = builder->getType<CIROpaqueTermType>();
+  auto index = unwrap(indexAttr).cast<IntegerAttr>();
+  auto inPlaceAttr = builder->getBoolAttr(inPlace);
+  Value tuple = unwrap(tupleRaw);
+  Type tupleTy = tuple.getType();
   Operation *op = builder->create<cir::SetElementOp>(
-      unwrap(location), termTy, unwrap(tuple), unwrap(index), unwrap(value));
+      unwrap(location), tupleTy, tuple, index, unwrap(value), inPlaceAttr);
   return wrap(op);
 }
 
 MlirOperation mlirCirGetElementOp(MlirOpBuilder bldr, MlirLocation location,
-                                  MlirValue tuple, MlirValue index) {
+                                  MlirValue tuple, MlirAttribute index) {
   OpBuilder *builder = unwrap(bldr);
   Operation *op = builder->create<cir::GetElementOp>(
-      unwrap(location), unwrap(tuple), unwrap(index));
-  return wrap(op);
-}
-
-MlirOperation mlirCirMapOp(MlirOpBuilder bldr, MlirLocation location) {
-  OpBuilder *builder = unwrap(bldr);
-  Operation *op = builder->create<cir::MapOp>(unwrap(location));
-  return wrap(op);
-}
-
-MlirOperation mlirCirMapGetOp(MlirOpBuilder bldr, MlirLocation location,
-                              MlirValue map, MlirValue key) {
-  OpBuilder *builder = unwrap(bldr);
-  Operation *op = builder->create<cir::MapGetOp>(unwrap(location), unwrap(map),
-                                                 unwrap(key));
+      unwrap(location), unwrap(tuple), unwrap(index).cast<IntegerAttr>());
   return wrap(op);
 }
 
@@ -317,13 +302,6 @@ MlirOperation mlirCirRaiseOp(MlirOpBuilder bldr, MlirLocation location,
   Operation *op = builder->create<cir::RaiseOp>(
       unwrap(location), unwrap(exceptionClass), unwrap(exceptionReason),
       unwrap(exceptionTrace));
-  return wrap(op);
-}
-
-MlirOperation mlirCirBuildStacktraceOp(MlirOpBuilder bldr,
-                                       MlirLocation location) {
-  OpBuilder *builder = unwrap(bldr);
-  Operation *op = builder->create<cir::BuildStacktraceOp>(unwrap(location));
   return wrap(op);
 }
 
@@ -402,142 +380,44 @@ MlirOperation mlirCirRecvDoneOp(MlirOpBuilder bldr, MlirLocation location,
   return wrap(op);
 }
 
-MlirOperation mlirCirBinaryInitOp(MlirOpBuilder bldr, MlirLocation location) {
+MlirOperation mlirCirBinaryMatchStartOp(MlirOpBuilder bldr,
+                                        MlirLocation location, MlirValue bin) {
   OpBuilder *builder = unwrap(bldr);
-  Operation *op = builder->create<cir::BinaryInitOp>(unwrap(location));
+  Operation *op =
+      builder->create<cir::BinaryMatchStartOp>(unwrap(location), unwrap(bin));
   return wrap(op);
 }
 
-MlirOperation mlirCirBinaryFinishOp(MlirOpBuilder bldr, MlirLocation location,
-                                    MlirValue binBuilder) {
+MlirOperation mlirCirBinaryMatchOp(MlirOpBuilder bldr, MlirLocation location,
+                                   MlirValue ctx, BinaryEntrySpecifier spec,
+                                   MlirValue sizeOpt) {
   OpBuilder *builder = unwrap(bldr);
-  auto i1Ty = builder->getI1Type();
-  auto termTy = builder->getType<CIROpaqueTermType>();
-  Operation *op = builder->create<cir::BinaryFinishOp>(
-      unwrap(location), TypeRange({i1Ty, termTy}), unwrap(binBuilder));
+  Value size = unwrap(sizeOpt);
+  auto specAttr =
+      BinarySpecAttr::get(builder->getContext(), builder->getNoneType(), spec);
+  Operation *op = builder->create<cir::BinaryMatchOp>(
+      unwrap(location), unwrap(ctx), specAttr, size);
   return wrap(op);
 }
 
-MlirOperation mlirCirBinaryPushIntegerOp(MlirOpBuilder bldr,
-                                         MlirLocation location,
-                                         MlirValue binBuilder, MlirValue value,
-                                         MlirValue size, bool isSigned,
-                                         CirEndianness endianness,
-                                         unsigned unit) {
+MlirOperation mlirCirBinaryTestTailOp(MlirOpBuilder bldr, MlirLocation location,
+                                      MlirValue matchContext,
+                                      MlirAttribute size) {
   OpBuilder *builder = unwrap(bldr);
-  auto i1Ty = builder->getI1Type();
-  auto termTy = builder->getType<CIROpaqueTermType>();
-  auto endianAttr = EndiannessAttr::get(
-      builder->getContext(), builder->getI8Type(), unwrap(endianness));
-  Operation *op = builder->create<cir::BinaryPushIntegerOp>(
-      unwrap(location), TypeRange({i1Ty, termTy}), unwrap(binBuilder),
-      unwrap(value), unwrap(size), isSigned, endianAttr, (uint32_t)unit);
+  Operation *op = builder->create<cir::BinaryTestTailOp>(
+      unwrap(location), unwrap(matchContext), unwrap(size).cast<IntegerAttr>());
   return wrap(op);
 }
 
-MlirOperation mlirCirBinaryPushFloatOp(MlirOpBuilder bldr,
-                                       MlirLocation location,
-                                       MlirValue binBuilder, MlirValue value,
-                                       MlirValue size, CirEndianness endianness,
-                                       unsigned unit) {
+MlirOperation mlirCirBinaryPushOp(MlirOpBuilder bldr, MlirLocation location,
+                                  MlirValue ctx, BinaryEntrySpecifier spec,
+                                  MlirValue value, MlirValue sizeOpt) {
   OpBuilder *builder = unwrap(bldr);
-  auto i1Ty = builder->getI1Type();
-  auto termTy = builder->getType<CIROpaqueTermType>();
-  auto endianAttr = EndiannessAttr::get(
-      builder->getContext(), builder->getI8Type(), unwrap(endianness));
-  Operation *op = builder->create<cir::BinaryPushFloatOp>(
-      unwrap(location), TypeRange({i1Ty, termTy}), unwrap(binBuilder),
-      unwrap(value), unwrap(size), endianAttr, (uint32_t)unit);
-  return wrap(op);
-}
-
-MlirOperation mlirCirBinaryPushUtf8Op(MlirOpBuilder bldr, MlirLocation location,
-                                      MlirValue binBuilder, MlirValue value) {
-  OpBuilder *builder = unwrap(bldr);
-  auto i1Ty = builder->getI1Type();
-  auto termTy = builder->getType<CIROpaqueTermType>();
-  Operation *op = builder->create<cir::BinaryPushUtf8Op>(
-      unwrap(location), TypeRange({i1Ty, termTy}), unwrap(binBuilder),
-      unwrap(value));
-  return wrap(op);
-}
-
-MlirOperation mlirCirBinaryPushUtf16Op(MlirOpBuilder bldr,
-                                       MlirLocation location,
-                                       MlirValue binBuilder, MlirValue value,
-                                       CirEndianness endianness) {
-  OpBuilder *builder = unwrap(bldr);
-  auto i1Ty = builder->getI1Type();
-  auto termTy = builder->getType<CIROpaqueTermType>();
-  auto endianAttr = EndiannessAttr::get(
-      builder->getContext(), builder->getI8Type(), unwrap(endianness));
-  Operation *op = builder->create<cir::BinaryPushUtf16Op>(
-      unwrap(location), TypeRange({i1Ty, termTy}), unwrap(binBuilder),
-      unwrap(value), endianAttr);
-  return wrap(op);
-}
-
-MlirOperation mlirCirBinaryPushUtf32Op(MlirOpBuilder bldr,
-                                       MlirLocation location,
-                                       MlirValue binBuilder, MlirValue value,
-                                       CirEndianness endianness) {
-  OpBuilder *builder = unwrap(bldr);
-  auto i1Ty = builder->getI1Type();
-  auto termTy = builder->getType<CIROpaqueTermType>();
-  auto endianAttr = EndiannessAttr::get(
-      builder->getContext(), builder->getI8Type(), unwrap(endianness));
-  Operation *op = builder->create<cir::BinaryPushUtf32Op>(
-      unwrap(location), TypeRange({i1Ty, termTy}), unwrap(binBuilder),
-      unwrap(value), endianAttr);
-  return wrap(op);
-}
-
-MlirOperation mlirCirBinaryPushBitsAllOp(MlirOpBuilder bldr,
-                                         MlirLocation location,
-                                         MlirValue binBuilder,
-                                         MlirValue value) {
-  OpBuilder *builder = unwrap(bldr);
-  auto i1Ty = builder->getI1Type();
-  auto termTy = builder->getType<CIROpaqueTermType>();
-  Operation *op = builder->create<cir::BinaryPushBitsOp>(
-      unwrap(location), TypeRange({i1Ty, termTy}), unwrap(binBuilder),
-      unwrap(value), nullptr);
-  return wrap(op);
-}
-
-MlirOperation mlirCirBinaryPushBitsOp(MlirOpBuilder bldr, MlirLocation location,
-                                      MlirValue binBuilder, MlirValue value,
-                                      MlirValue size, unsigned unit) {
-  OpBuilder *builder = unwrap(bldr);
-  auto i1Ty = builder->getI1Type();
-  auto termTy = builder->getType<CIROpaqueTermType>();
-  Operation *op = builder->create<cir::BinaryPushBitsOp>(
-      unwrap(location), TypeRange({i1Ty, termTy}), unwrap(binBuilder),
-      unwrap(value), unwrap(size), (uint32_t)unit);
-  return wrap(op);
-}
-
-MlirOperation mlirCirBinaryPushAnyOp(MlirOpBuilder bldr, MlirLocation location,
-                                     MlirValue binBuilder, MlirValue value) {
-  OpBuilder *builder = unwrap(bldr);
-  auto i1Ty = builder->getI1Type();
-  auto termTy = builder->getType<CIROpaqueTermType>();
-  Operation *op = builder->create<cir::BinaryPushAnyOp>(
-      unwrap(location), TypeRange({i1Ty, termTy}), unwrap(binBuilder),
-      unwrap(value), nullptr);
-  return wrap(op);
-}
-
-MlirOperation mlirCirBinaryPushAnySizedOp(MlirOpBuilder bldr,
-                                          MlirLocation location,
-                                          MlirValue binBuilder, MlirValue value,
-                                          MlirValue size) {
-  OpBuilder *builder = unwrap(bldr);
-  auto i1Ty = builder->getI1Type();
-  auto termTy = builder->getType<CIROpaqueTermType>();
-  Operation *op = builder->create<cir::BinaryPushBitsOp>(
-      unwrap(location), TypeRange({i1Ty, termTy}), unwrap(binBuilder),
-      unwrap(value), unwrap(size));
+  Value size = unwrap(sizeOpt);
+  auto specAttr =
+      BinarySpecAttr::get(builder->getContext(), builder->getNoneType(), spec);
+  Operation *op = builder->create<cir::BinaryPushOp>(
+      unwrap(location), unwrap(ctx), specAttr, unwrap(value), size);
   return wrap(op);
 }
 
@@ -559,6 +439,42 @@ void mlirCirDispatchTableAppendEntry(MlirOperation dispatchTable,
                                      MlirOperation dispatchEntry) {
   auto table = cast<cir::DispatchTableOp>(unwrap(dispatchTable));
   table.appendTableEntry(unwrap(dispatchEntry));
+}
+
+MlirOperation mlirCirCallByOp(MlirOpBuilder bldr, MlirLocation location,
+                              MlirOperation op, intptr_t argc,
+                              MlirValue const *argv) {
+  auto callee = cast<FuncOp>(unwrap(op));
+  SmallVector<Value, 2> argStorage;
+  ValueRange args(unwrapList(argc, argv, argStorage));
+  return wrap(
+      unwrap(bldr)->create<cir::CallOp>(unwrap(location), callee, args));
+}
+
+MlirOperation mlirCirEnterByOp(MlirOpBuilder bldr, MlirLocation location,
+                               MlirOperation op, intptr_t argc,
+                               MlirValue const *argv) {
+  auto callee = cast<FuncOp>(unwrap(op));
+  SmallVector<Value, 2> argStorage;
+  ValueRange args(unwrapList(argc, argv, argStorage));
+  return wrap(
+      unwrap(bldr)->create<cir::EnterOp>(unwrap(location), callee, args));
+}
+
+MlirOperation mlirCirCallIndirect(MlirOpBuilder bldr, MlirLocation location,
+                                  MlirValue callee, intptr_t argc,
+                                  MlirValue const *argv) {
+  SmallVector<Value, 2> argStorage;
+  return wrap(unwrap(bldr)->create<cir::CallIndirectOp>(
+      unwrap(location), unwrap(callee), unwrapList(argc, argv, argStorage)));
+}
+
+MlirOperation mlirCirEnterIndirect(MlirOpBuilder bldr, MlirLocation location,
+                                   MlirValue callee, intptr_t argc,
+                                   MlirValue const *argv) {
+  SmallVector<Value, 2> argStorage;
+  return wrap(unwrap(bldr)->create<cir::EnterIndirectOp>(
+      unwrap(location), unwrap(callee), unwrapList(argc, argv, argStorage)));
 }
 
 bool mlirOperationIsAFuncOp(MlirOperation op) {
@@ -604,7 +520,7 @@ MlirOperation mlirFuncCallByOp(MlirOpBuilder bldr, MlirLocation location,
   SmallVector<Value, 2> argStorage;
   ValueRange args(unwrapList(argc, argv, argStorage));
   return wrap(
-      unwrap(bldr)->create<cir::CallOp>(unwrap(location), callee, args));
+      unwrap(bldr)->create<func::CallOp>(unwrap(location), callee, args));
 }
 
 MlirOperation mlirFuncCallBySymbol(MlirOpBuilder bldr, MlirLocation location,
@@ -616,8 +532,8 @@ MlirOperation mlirFuncCallBySymbol(MlirOpBuilder bldr, MlirLocation location,
   SmallVector<Type, 2> resultStorage;
   ValueRange args(unwrapList(argc, argv, argStorage));
   TypeRange results(unwrapList(resultsc, resultv, resultStorage));
-  return wrap(unwrap(bldr)->create<cir::CallOp>(unwrap(location), callee,
-                                                results, args));
+  return wrap(unwrap(bldr)->create<func::CallOp>(unwrap(location), callee,
+                                                 results, args));
 }
 
 MlirOperation mlirFuncCallByName(MlirOpBuilder bldr, MlirLocation location,
@@ -627,17 +543,9 @@ MlirOperation mlirFuncCallByName(MlirOpBuilder bldr, MlirLocation location,
   auto callee = unwrap(calleeRef);
   SmallVector<Type, 2> resultStorage;
   SmallVector<Value, 2> argStorage;
-  return wrap(unwrap(bldr)->create<cir::CallOp>(
+  return wrap(unwrap(bldr)->create<func::CallOp>(
       unwrap(location), callee, unwrapList(resultsc, resultsv, resultStorage),
       unwrapList(argc, argv, argStorage)));
-}
-
-MlirOperation mlirFuncCallIndirect(MlirOpBuilder bldr, MlirLocation location,
-                                   MlirValue callee, intptr_t argc,
-                                   MlirValue const *argv) {
-  SmallVector<Value, 2> argStorage;
-  return wrap(unwrap(bldr)->create<func::CallIndirectOp>(
-      unwrap(location), unwrap(callee), unwrapList(argc, argv, argStorage)));
 }
 
 MlirOperation mlirFuncReturn(MlirOpBuilder bldr, MlirLocation location,

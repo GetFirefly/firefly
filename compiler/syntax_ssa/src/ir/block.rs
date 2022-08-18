@@ -61,6 +61,10 @@ impl BlockData {
     pub fn last(&self) -> Option<Inst> {
         self.insts.back().get().map(|data| data.key)
     }
+
+    pub fn is_empty(&self) -> bool {
+        self.insts.is_empty()
+    }
 }
 
 struct Insts<'f> {

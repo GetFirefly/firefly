@@ -1,4 +1,48 @@
-use std::fmt;
+use std::fmt::{self, Write};
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
+pub struct FunctionType {
+    pub results: Vec<Type>,
+    pub params: Vec<Type>,
+}
+impl FunctionType {
+    pub fn new(params: Vec<Type>, results: Vec<Type>) -> Self {
+        Self { results, params }
+    }
+
+    pub fn arity(&self) -> usize {
+        self.params.len()
+    }
+
+    pub fn results(&self) -> &[Type] {
+        self.results.as_slice()
+    }
+
+    pub fn params(&self) -> &[Type] {
+        self.params.as_slice()
+    }
+}
+impl fmt::Display for FunctionType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_char('(')?;
+        for (i, ty) in self.params.iter().enumerate() {
+            if i > 0 {
+                write!(f, ", {}", ty)?;
+            } else {
+                write!(f, "{}", ty)?;
+            }
+        }
+        f.write_str(" -> (")?;
+        for (i, ty) in self.results.iter().enumerate() {
+            if i > 0 {
+                write!(f, ", {}", ty)?;
+            } else {
+                write!(f, "{}", ty)?;
+            }
+        }
+        f.write_char(')')
+    }
+}
 
 /// Types in this enumeration correspond to primitive LLVM types
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -99,8 +143,7 @@ pub enum TermType {
     Reference,
     Port,
     Pid,
-    // TODO: Store callee type, this is currently an opaque FuncRef
-    Fun(Option<u32>),
+    Fun(Option<Box<FunctionType>>),
 }
 impl TermType {
     pub fn is_opaque(&self) -> bool {
@@ -216,7 +259,7 @@ impl fmt::Display for TermType {
             Self::Port => f.write_str("port"),
             Self::Pid => f.write_str("pid"),
             Self::Fun(None) => f.write_str("fun"),
-            Self::Fun(Some(func_ref)) => write!(f, "fun({})", func_ref),
+            Self::Fun(Some(ty)) => write!(f, "fun{}", &ty),
         }
     }
 }
@@ -287,6 +330,8 @@ impl PartialOrd for TermType {
 /// internal runtime types which are used with primop instructions.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Type {
+    // This type is used to indicate that the type of an instruction is dynamic or unable to be typed
+    Unknown,
     // This type is used to indicate an instruction that produces no results, and thus has no type
     Invalid,
     // Primitive types are used for some instructions which are low-level and do not directly produce
@@ -295,6 +340,8 @@ pub enum Type {
     // Term types are associated with values which correspond to syntax-level operations and are expected
     // to be used with runtime BIFs (built-in functions)
     Term(TermType),
+    // Represents a function type that is calling-convention agnostic
+    Function(FunctionType),
     // This type is equivalent to Rust's Never/! type, i.e. it indicates that a function never returns
     NoReturn,
     // This type maps to ErlangException in liblumen_rt
@@ -309,6 +356,11 @@ pub enum Type {
     BinaryBuilder,
     // This type maps to a match context
     MatchContext,
+}
+impl Default for Type {
+    fn default() -> Type {
+        Self::Unknown
+    }
 }
 impl Type {
     pub fn tuple(arity: usize) -> Type {
@@ -327,6 +379,13 @@ impl Type {
     pub fn is_term(&self) -> bool {
         match self {
             Self::Term(_) => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_function(&self) -> bool {
+        match self {
+            Self::Function(_) | Self::Term(TermType::Fun(_)) => true,
             _ => false,
         }
     }
@@ -351,15 +410,23 @@ impl Type {
             _ => None,
         }
     }
+
+    pub fn is_unknown(&self) -> bool {
+        match self {
+            Self::Unknown => true,
+            _ => false,
+        }
+    }
 }
 impl fmt::Display for Type {
     /// Print this type for display using the provided module context
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        use std::fmt::Write;
         match self {
+            Self::Unknown => f.write_str("?"),
             Self::Invalid => f.write_str("invalid"),
             Self::Primitive(prim) => write!(f, "{}", &prim),
             Self::Term(ty) => write!(f, "{}", &ty),
+            Self::Function(ty) => write!(f, "{}", &ty),
             Self::NoReturn => f.write_char('!'),
             Self::Exception => f.write_str("exception"),
             Self::ExceptionTrace => f.write_str("trace"),

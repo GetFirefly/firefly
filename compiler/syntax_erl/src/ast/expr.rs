@@ -130,6 +130,12 @@ impl Expr {
         }
     }
 
+    /// Same as `as_atom`, but unwraps the inner Symbol
+    #[inline]
+    pub fn as_atom_symbol(&self) -> Option<Symbol> {
+        self.as_atom().map(|id| id.name)
+    }
+
     /// Returns `Some(bool)` if the expression represents a literal boolean, otherwise None
     pub fn as_boolean(&self) -> Option<bool> {
         match self {
@@ -1292,13 +1298,9 @@ impl Clause {
         body: Vec<Expr>,
     ) -> Self {
         let trace = trace.unwrap_or_else(|| Expr::Var(Var(Ident::from_str("_"))));
-        let pattern = Expr::Tuple(Tuple {
-            span,
-            elements: vec![kind, error, trace],
-        });
         Self {
             span,
-            patterns: vec![pattern],
+            patterns: vec![kind, error, trace],
             guards,
             body,
             compiler_generated: false,

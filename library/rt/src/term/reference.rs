@@ -10,6 +10,7 @@ use super::{Node, Pid, Term};
 
 /// This struct abstracts over the various types of reference payloads
 #[derive(Debug, Clone)]
+#[repr(u8)]
 pub enum Reference {
     Local { id: ReferenceId },
     Pid { id: ReferenceId, pid: Pid },

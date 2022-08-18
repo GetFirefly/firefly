@@ -129,16 +129,9 @@ fn write_operands(w: &mut dyn Write, dfg: &DataFlowGraph, inst: Inst) -> io::Res
     match dfg[inst].as_ref() {
         InstData::BinaryOp(BinaryOp { args, .. }) => write!(w, " {}, {}", args[0], args[1]),
         InstData::BinaryOpImm(BinaryOpImm { arg, imm, .. }) => write!(w, " {}, {}", arg, imm),
-        InstData::BinaryOpConst(BinaryOpConst { arg, imm, .. }) => {
-            write!(w, " {}, ", arg)?;
-            dfg.display_constant(w, *imm)
-        }
         InstData::UnaryOp(UnaryOp { arg, .. }) => write!(w, " {}", arg),
         InstData::UnaryOpImm(UnaryOpImm { imm, .. }) => write!(w, " {}", imm),
-        InstData::UnaryOpConst(UnaryOpConst { imm, .. }) => {
-            write!(w, " ")?;
-            dfg.display_constant(w, *imm)
-        }
+        InstData::UnaryOpConst(UnaryOpConst { imm, .. }) => write!(w, " {}", dfg.constant(*imm)),
         InstData::Ret(Ret { args, .. }) => write!(w, " {}", DisplayValues(args.as_slice())),
         InstData::RetImm(RetImm { arg, imm, .. }) => write!(w, " {}, {}", imm, arg),
         InstData::Call(Call { args, .. }) => {
@@ -154,7 +147,9 @@ fn write_operands(w: &mut dyn Write, dfg: &DataFlowGraph, inst: Inst) -> io::Res
             write!(w, " {:?}({})", &callee, DisplayValues(args.as_slice(pool)))
         }
         InstData::MakeFun(MakeFun { callee, env, .. }) => {
-            write!(w, " {}({})", &callee, DisplayValues(env.as_slice(pool)))
+            let sig = dfg.callee_signature(*callee);
+            let mfa = sig.mfa();
+            write!(w, " {}({})", &mfa, DisplayValues(env.as_slice(pool)))
         }
         InstData::CondBr(CondBr {
             cond,
@@ -184,12 +179,14 @@ fn write_operands(w: &mut dyn Write, dfg: &DataFlowGraph, inst: Inst) -> io::Res
             write!(w, " {}, {}", args[0], destination)?;
             write_block_args(w, &args[1..])
         }
-        InstData::Switch(Switch { arg, arms, .. }) => {
+        InstData::Switch(Switch {
+            arg, arms, default, ..
+        }) => {
             write!(w, " {}", arg)?;
             for (value, dest) in arms.iter() {
                 write!(w, ", {} => {}", value, dest)?;
             }
-            Ok(())
+            write!(w, ", {}", default)
         }
         InstData::PrimOp(PrimOp { args, .. }) => {
             write!(w, " {}", DisplayValues(args.as_slice(pool)))
@@ -278,12 +275,6 @@ fn write_operands(w: &mut dyn Write, dfg: &DataFlowGraph, inst: Inst) -> io::Res
         InstData::SetElementImm(SetElementImm {
             arg, index, value, ..
         }) => write!(w, " {}[{}], {}", arg, index, value),
-        InstData::SetElementConst(SetElementConst {
-            arg, index, value, ..
-        }) => write!(w, " {}[{}], {}", arg, index, value),
-        InstData::MapUpdate(MapUpdate { args, .. }) => {
-            write!(w, " {}[{}], {}", args[0], args[1], args[2])
-        }
     }
 }
 

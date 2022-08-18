@@ -36,22 +36,12 @@ impl fmt::Display for TryAtomFromTermError {
 #[derive(Debug, Copy, Clone)]
 #[repr(C, align(8))]
 pub struct AtomData {
-    size: usize,
-    ptr: *const u8,
+    pub(super) size: usize,
+    pub(super) ptr: *const u8,
 }
+unsafe impl Send for AtomData {}
+unsafe impl Sync for AtomData {}
 impl AtomData {
-    const FALSE_VALUE: &'static str = "false";
-    const TRUE_VALUE: &'static str = "true";
-
-    pub const FALSE: AtomData = AtomData {
-        size: Self::FALSE_VALUE.len(),
-        ptr: Self::FALSE_VALUE.as_ptr(),
-    };
-    pub const TRUE: AtomData = AtomData {
-        size: Self::TRUE_VALUE.len(),
-        ptr: Self::TRUE_VALUE.as_ptr(),
-    };
-
     #[inline]
     pub unsafe fn as_str(&self) -> Option<&'static str> {
         str::from_utf8(self.as_bytes()).ok()
@@ -137,7 +127,10 @@ unsafe impl Send for AtomTable {}
 unsafe impl Sync for AtomTable {}
 impl Default for AtomTable {
     fn default() -> Self {
-        Self::new(Self::DEFAULT_ATOMS)
+        Self {
+            ids: HashMap::with_capacity(100),
+            arena: DroplessArena::default(),
+        }
     }
 }
 impl fmt::Debug for AtomTable {
@@ -150,17 +143,6 @@ impl fmt::Debug for AtomTable {
     }
 }
 impl AtomTable {
-    const DEFAULT_ATOMS: &'static [AtomData] = &[AtomData::FALSE, AtomData::TRUE];
-
-    fn new(data: &'static [AtomData]) -> Self {
-        let mut table = Self {
-            ids: HashMap::with_capacity(100),
-            arena: DroplessArena::default(),
-        };
-        table.extend(data);
-        table
-    }
-
     fn extend(&mut self, data: &'static [AtomData]) {
         for atom in data {
             let ptr = unsafe { NonNull::new_unchecked(atom as *const AtomData as *mut AtomData) };

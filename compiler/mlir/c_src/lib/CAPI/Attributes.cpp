@@ -116,6 +116,23 @@ AtomRef mlirCirAtomAttrValueOf(MlirAttribute attr) {
 }
 
 //===----------------------------------------------------------------------===//
+/// BigIntAttr
+//===----------------------------------------------------------------------===//
+
+MlirAttribute mlirCirBigIntAttrGet(BigIntRef bigint, MlirType ty) {
+  Type type = unwrap(ty);
+  return wrap(BigIntAttr::get(type.getContext(), type, bigint));
+}
+
+bool mlirCirBigIntAttrIsA(MlirAttribute attr) {
+  return unwrap(attr).isa<BigIntAttr>();
+}
+
+BigIntRef mlirCirBigIntAttrValueOf(MlirAttribute attr) {
+  return unwrap(attr).cast<BigIntAttr>().getValue();
+}
+
+//===----------------------------------------------------------------------===//
 /// EndiannessAttr
 //===----------------------------------------------------------------------===//
 
@@ -123,7 +140,7 @@ MlirAttribute mlirCirEndiannessAttrGet(CirEndianness value, MlirContext ctx) {
   MLIRContext *context = unwrap(ctx);
 
   auto ty = IntegerType::get(context, 8);
-  return wrap(EndiannessAttr::get(context, ty, unwrap(value)));
+  return wrap(EndiannessAttr::get(context, ty, static_cast<Endianness>(value)));
 }
 
 bool mlirCirEndianessAttrIsA(MlirAttribute attr) {
@@ -131,5 +148,5 @@ bool mlirCirEndianessAttrIsA(MlirAttribute attr) {
 }
 
 CirEndianness mlirCirEndiannessAttrValueOf(MlirAttribute attr) {
-  return wrap(unwrap(attr).cast<EndiannessAttr>().getValue());
+  return static_cast<uint8_t>(unwrap(attr).cast<EndiannessAttr>().getValue());
 }

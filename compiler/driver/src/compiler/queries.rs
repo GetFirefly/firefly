@@ -76,6 +76,17 @@ where
     }
 
     let module = db.input_mlir(thread_id, input)?;
+
+    // Bail prior to lowering CIR dialect to LLVM dialect if we aren't
+    // going to generate LLVM IR
+    if !options.output_types.should_generate_llvm() {
+        return Ok(None);
+    }
+
+    debug!(
+        "converting cir dialect to llvm dialect for {:?} on {:?}",
+        input, thread_id
+    );
     let data_layout_str = data_layout.to_string();
     module.set_data_layout(data_layout_str.as_str());
     module.set_target_triple(target_machine.triple());
@@ -91,7 +102,8 @@ where
     //let mpm = pm.nest("builtin.module");
     //mpm.add(liblumen_mlir::conversions::ConvertCIRToLLVMPass::new());
     liblumen_mlir::conversions::ConvertCIRToLLVMPass::register();
-    pm.parse_pipeline("convert-cir-to-llvm").unwrap();
+    pm.parse_pipeline("convert-cir-to-llvm,reconcile-unrealized-casts")
+        .unwrap();
 
     // Lower to LLVM dialect
     let successful = pm.run(&module);
@@ -107,10 +119,6 @@ where
     }
     db.maybe_emit_file_with_opts(&options, input, &module)?;
 
-    // Convert to LLVM IR, or bail early if MLIR is all that was requested
-    if !options.output_types.should_generate_llvm() {
-        return Ok(None);
-    }
     debug!("generating llvm for {:?} on {:?}", input, thread_id);
     let mut translation =
         TranslateMLIRToLLVMIR::new(llvm_context.borrow(), source_name.to_string());
@@ -133,6 +141,11 @@ where
             module.emit_bc(outfile)
         },
     )?;
+
+    // Bail early if we don't plan to run the code generator
+    if !options.output_types.should_codegen() {
+        return Ok(None);
+    }
 
     // Emit textual assembly file
     db.maybe_emit_file_with_callback_and_opts(&options, input, OutputType::Assembly, |outfile| {

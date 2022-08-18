@@ -1,6 +1,5 @@
 use std::cell::{Ref, RefCell};
 use std::collections::BTreeMap;
-use std::io::{self, Write};
 use std::ops::{Index, IndexMut};
 use std::rc::Rc;
 
@@ -81,11 +80,6 @@ impl DataFlowGraph {
         constants.get(handle).ty()
     }
 
-    pub fn display_constant(&self, f: &mut dyn Write, handle: Constant) -> io::Result<()> {
-        let constants = self.constants.borrow();
-        constants.display(f, handle)
-    }
-
     pub fn make_value(&mut self, data: ValueData) -> Value {
         self.values.push(data)
     }
@@ -141,7 +135,13 @@ impl DataFlowGraph {
 
     pub fn make_inst_results(&mut self, inst: Inst, ty: Type) -> usize {
         self.results[inst].clear(&mut self.value_lists);
+        let opcode = self.insts[inst].opcode();
         if let Some(fdata) = self.call_signature(inst) {
+            // Tail calls are equivalent to return, they don't have results that are materialized as values
+            if opcode == Opcode::Enter || opcode == Opcode::EnterIndirect {
+                return 0;
+            }
+
             // Erlang functions use a multi-value return calling convention
             let mut num_results = 0;
             for ty in fdata.results() {
@@ -152,6 +152,8 @@ impl DataFlowGraph {
         } else {
             // Create result values corresponding to the opcode's constraints.
             match self.insts[inst].opcode() {
+                // Tail calls have no materialized results
+                Opcode::EnterIndirect => 0,
                 // An indirect call has no signature, but we know it must be Erlang
                 // convention, and thus multi-value return
                 Opcode::CallIndirect => {
@@ -160,7 +162,7 @@ impl DataFlowGraph {
                     2
                 }
                 // Initializing a binary match is a fallible operation that produces a match context when successful
-                Opcode::BitsStartMatch => {
+                Opcode::BitsMatchStart => {
                     self.append_result(inst, Type::Primitive(PrimitiveType::I1));
                     self.append_result(inst, Type::Term(TermType::Any));
                     2
@@ -173,7 +175,7 @@ impl DataFlowGraph {
                     3
                 }
                 // Binary construction produces two results, an error flag and the new binary value
-                Opcode::BitsInitWritable | Opcode::BitsPush | Opcode::BitsCloseWritable => {
+                Opcode::BitsPush => {
                     self.append_result(inst, Type::Primitive(PrimitiveType::I1));
                     // This value is either the none term or an exception, depending on the is_err flag
                     self.append_result(inst, Type::Term(TermType::Any));
@@ -192,10 +194,7 @@ impl DataFlowGraph {
                 | Opcode::ImmNone
                 | Opcode::ImmNull
                 | Opcode::ConstBigInt
-                | Opcode::ConstBinary
-                | Opcode::ConstTuple
-                | Opcode::ConstList
-                | Opcode::ConstMap => {
+                | Opcode::ConstBinary => {
                     self.append_result(inst, ty);
                     1
                 }
@@ -285,7 +284,7 @@ impl DataFlowGraph {
                     self.append_result(inst, Type::Term(TermType::List(None)));
                     1
                 }
-                Opcode::Head | Opcode::GetElement | Opcode::BuildStacktrace => {
+                Opcode::Head | Opcode::GetElement => {
                     self.append_result(inst, Type::Term(TermType::Any));
                     1
                 }
@@ -297,28 +296,14 @@ impl DataFlowGraph {
                     self.append_result(inst, Type::Term(TermType::Tuple(None)));
                     1
                 }
-                Opcode::MapGet => {
-                    self.append_result(inst, Type::Term(TermType::Any));
-                    1
-                }
-                Opcode::MapFetch => {
-                    self.append_result(inst, Type::Primitive(PrimitiveType::I1));
-                    self.append_result(inst, Type::Term(TermType::Any));
-                    2
-                }
-                Opcode::Map | Opcode::MapPut | Opcode::MapPutMut => {
-                    self.append_result(inst, Type::Term(TermType::Map));
-                    1
-                }
-                Opcode::MapUpdate | Opcode::MapUpdateMut => {
-                    self.append_result(inst, Type::Primitive(PrimitiveType::I1));
-                    self.append_result(inst, Type::Term(TermType::Any));
-                    2
-                }
                 Opcode::MakeFun => {
                     self.append_result(inst, Type::Primitive(PrimitiveType::I1));
                     self.append_result(inst, Type::Term(TermType::Any));
                     2
+                }
+                Opcode::UnpackEnv => {
+                    self.append_result(inst, ty);
+                    1
                 }
                 Opcode::RecvStart => {
                     // This primop returns a receive context
@@ -344,7 +329,7 @@ impl DataFlowGraph {
                     1
                 }
                 Opcode::ExceptionTrace => {
-                    self.append_result(inst, Type::Term(TermType::List(None)));
+                    self.append_result(inst, Type::ExceptionTrace);
                     1
                 }
                 _ => 0,
@@ -415,8 +400,16 @@ impl DataFlowGraph {
         self.blocks.contains(block)
     }
 
+    pub fn is_block_empty(&self, block: Block) -> bool {
+        self.blocks[block].is_empty()
+    }
+
     pub fn make_block(&mut self) -> Block {
         self.blocks.push(BlockData::new())
+    }
+
+    pub fn remove_block(&mut self, block: Block) {
+        self.blocks.remove(block);
     }
 
     pub fn num_block_params(&self, block: Block) -> usize {

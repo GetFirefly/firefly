@@ -7,6 +7,7 @@ use super::{Node, Term};
 
 /// This struct abstracts over the locality of a port identifier.
 #[derive(Debug, Clone)]
+#[repr(u8)]
 pub enum Port {
     Local {
         id: PortId,

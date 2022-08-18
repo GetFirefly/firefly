@@ -1,4 +1,5 @@
 use alloc::alloc::{AllocError, Allocator, Layout};
+use alloc::string::String;
 use core::any::TypeId;
 use core::fmt::{self, Debug, Display};
 use core::hash::{Hash, Hasher};
@@ -20,6 +21,7 @@ pub enum CharlistToBinaryError {
     AllocError,
 }
 
+#[repr(C)]
 #[derive(Copy, Clone)]
 pub struct Cons {
     head: OpaqueTerm,
@@ -118,6 +120,44 @@ impl Cons {
 
 // Charlists
 impl Cons {
+    /// Traverses this list and determines if every element is a valid latin1/utf8 character
+    pub fn is_charlist(&self) -> bool {
+        for result in self.iter() {
+            let Ok(Term::Int(i)) = result else { return false; };
+            let Ok(i) = i.try_into() else { return false; };
+            if char::from_u32(i).is_none() {
+                return false;
+            }
+        }
+
+        true
+    }
+
+    /// Traverses the list, constructing a String from each codepoint in the list
+    ///
+    /// If the list is improper, or any element is not a valid latin1/utf8 codepoint, this function returns None
+    pub fn to_string(&self) -> Option<String> {
+        let mut buffer = String::with_capacity(10);
+        for result in self.iter() {
+            let Ok(Term::Int(i)) = result else { return None; };
+            let Ok(i) = i.try_into() else { return None; };
+            match char::from_u32(i) {
+                Some(c) => buffer.push(c),
+                None => return None,
+            }
+        }
+        Some(buffer)
+    }
+
+    /// Constructs a charlist from the given string
+    pub fn from_bytes<H: Heap>(bytes: &[u8], heap: H) -> Result<Option<NonNull<Cons>>, AllocError> {
+        let mut builder = ListBuilder::new(&heap);
+        for byte in bytes.iter().rev().copied() {
+            builder.push(Term::Int(byte as i64))?;
+        }
+        Ok(builder.finish())
+    }
+
     /// Constructs a charlist from the given string
     pub fn charlist_from_str<H: Heap>(
         s: &str,

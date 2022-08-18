@@ -11,6 +11,7 @@ use anyhow::anyhow;
 
 use super::{OpaqueTerm, Term, TupleIndex};
 
+#[repr(C)]
 pub struct Tuple([OpaqueTerm]);
 impl Tuple {
     pub const TYPE_ID: TypeId = TypeId::of::<Tuple>();
@@ -88,7 +89,34 @@ impl Tuple {
 
     /// Sets the element at the given index
     #[inline]
-    pub fn set_element<I: TupleIndex, V: Into<OpaqueTerm>>(
+    pub fn set_element<A: Allocator, I: TupleIndex, V: Into<OpaqueTerm>>(
+        &self,
+        index: I,
+        value: V,
+        alloc: A,
+    ) -> Result<NonNull<Tuple>, AllocError> {
+        let index: usize = index.into();
+        if index >= self.len() {
+            panic!(
+                "invalid index {}, exceeds max length of {}",
+                index,
+                self.len()
+            );
+        }
+
+        let mut tuple = Self::new_in(self.len(), alloc)?;
+        let t = unsafe { tuple.as_mut() };
+        t.copy_from_slice(self.as_slice());
+
+        let element = t.0.get_mut(index).unwrap();
+        *element = value.into();
+
+        Ok(tuple)
+    }
+
+    /// Sets the element at the given index
+    #[inline]
+    pub fn set_element_mut<I: TupleIndex, V: Into<OpaqueTerm>>(
         &mut self,
         index: I,
         value: V,

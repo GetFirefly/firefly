@@ -27,18 +27,22 @@ impl<'b, 'a: 'b> PrettyPrinter<'b, 'a> {
         write!(self.writer, "\n  ]\n\n")?;
 
         for (_, function) in module.functions.iter() {
+            self.indent += 1;
+            self.indent()?;
             write!(
                 self.writer,
                 "{}/{} =\n",
                 function.fun.name,
                 function.fun.vars.len()
             )?;
-            self.indent += 2;
+            self.indent += 1;
+            self.indent()?;
             self.print_fun(&function.fun)?;
             self.indent -= 2;
+            self.writer.write_char('\n')?;
         }
 
-        write!(self.writer, "\n\nend")
+        write!(self.writer, "end")
     }
 
     pub fn print_fun(&mut self, fun: &Fun) -> fmt::Result {

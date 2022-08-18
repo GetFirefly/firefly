@@ -10,6 +10,7 @@ use core::ptr::{self, DynMetadata, NonNull, Pointee};
 
 use static_assertions::assert_eq_size;
 
+#[repr(transparent)]
 pub struct GcBox<T>
 where
     T: ?Sized + 'static,
@@ -711,6 +712,7 @@ impl ForwardingMarker {
 /// This metadata provides enough information to restore a fat pointer from a thin
 /// pointer, and to cast to and from Opaque
 #[derive(Copy, Clone)]
+#[repr(C)]
 pub struct Metadata {
     ty: TypeId,
     meta: PtrMetadata,
@@ -775,6 +777,7 @@ impl Metadata {
 }
 
 #[derive(Copy, Clone)]
+#[repr(C)]
 pub union PtrMetadata {
     #[allow(dead_code)]
     forwarded: *const (),

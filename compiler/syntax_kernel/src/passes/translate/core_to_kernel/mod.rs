@@ -94,13 +94,10 @@ impl Pass for CoreToKernel {
             span: cst.span,
             annotations: Annotations::default(),
             name: cst.name,
+            compile: cst.compile,
+            on_load: cst.on_load,
+            nifs: cst.nifs,
             exports: cst.exports,
-            imports: cst.imports,
-            attributes: cst
-                .attributes
-                .drain()
-                .filter_map(|(k, v)| translate_attr(k, v))
-                .collect(),
             functions: vec![],
         };
 
@@ -1117,15 +1114,16 @@ impl TranslateCore {
         &mut self,
         mut patterns: Vec<core::Expr>,
         isub: BiMap,
-        mut osub: BiMap,
+        osub: BiMap,
     ) -> Result<(Vec<Expr>, BiMap), ExprError> {
-        let mut out = Vec::with_capacity(patterns.len());
-        for pattern in patterns.drain(..) {
-            let (pattern, osub1) = self.pattern(pattern, isub.clone(), osub)?;
-            out.push(pattern);
-            osub = osub1;
-        }
-        Ok((out, osub))
+        let out = Vec::with_capacity(patterns.len());
+        patterns
+            .drain(..)
+            .try_fold((out, osub), |(mut out, osub0), pat| {
+                let (pattern, osub1) = self.pattern(pat, isub.clone(), osub0)?;
+                out.push(pattern);
+                Ok((out, osub1))
+            })
     }
 
     /// pattern(Cpat, Isub, Osub, State) -> {Kpat,Sub,State}.
@@ -1346,7 +1344,7 @@ impl TranslateCore {
                     value: Lit::Integer(Integer::Small(sz)),
                     ..
                 })) => {
-                    let size = (*sz as usize) * unit;
+                    let size = (*sz as usize) * unit as usize;
                     match &value {
                         Expr::Literal(Literal {
                             value: Lit::Integer(ref i),
@@ -1569,11 +1567,6 @@ fn integer_fits_and_is_expandable(i: &Integer, size: usize) -> bool {
     size as u64 >= i.bits()
 }
 
-fn translate_attr(_key: Ident, _value: core::Expr) -> Option<(Ident, Expr)> {
-    // TODO
-    None
-}
-
 #[derive(Copy, Clone, PartialEq, Eq)]
 enum CallType {
     Error,
@@ -1646,23 +1639,27 @@ fn flatten_seq(expr: Expr) -> Vec<Expr> {
 }
 
 fn pre_seq(mut pre: Vec<Expr>, body: Expr) -> Expr {
-    pre.drain(..).rfold(body, |body, p| match p {
+    if pre.is_empty() {
+        return body;
+    }
+    let expr = pre.remove(0);
+    match expr {
         Expr::Set(mut iset) => {
             assert_eq!(iset.body, None);
-            iset.body = Some(Box::new(body));
-            Expr::Set(iset)
+            iset.body = Some(Box::new(pre_seq(pre, body)));
+            return Expr::Set(iset);
         }
-        p => {
-            let span = p.span();
+        arg => {
+            let span = arg.span();
             Expr::Set(ISet {
                 span,
                 annotations: Annotations::default(),
                 vars: vec![],
-                arg: Box::new(p),
-                body: Some(Box::new(body)),
+                arg: Box::new(arg),
+                body: Some(Box::new(pre_seq(pre, body))),
             })
         }
-    })
+    }
 }
 
 fn validate_bin_element_size(
@@ -2318,7 +2315,7 @@ fn is_select_bin_int_possible(clauses: &[IClause]) -> bool {
                     },
                     _ => return false,
                 };
-                match_bits = (*unit) * match_size;
+                match_bits = (*unit as usize) * match_size;
                 match_signed = *signed;
                 match_endianness = *endianness;
                 match_value = i.clone();
@@ -2370,7 +2367,7 @@ fn is_select_bin_int_possible(clauses: &[IClause]) -> bool {
                     },
                     _ => return false,
                 };
-                let bits = (*unit) * size;
+                let bits = (*unit as usize) * size;
                 if bits != match_bits {
                     return false;
                 }
@@ -2508,6 +2505,12 @@ fn opt_single_valued(
         }
 
         let mut clause = clauses.pop().unwrap();
+        if clause.patterns.is_empty() {
+            clauses.push(clause);
+            tcs.push((t, clauses));
+            continue;
+        }
+
         if clause.patterns[0].is_literal() {
             // This is an atomic literal
             clauses.push(clause);
@@ -2515,15 +2518,14 @@ fn opt_single_valued(
             continue;
         }
 
-        let pattern = clause.patterns.remove(0);
-        match combine_lit_pat(pattern.clone()) {
+        let pattern = clause.patterns[0].clone();
+        match combine_lit_pat(pattern) {
             Ok(pattern) => {
-                clause.patterns.insert(0, pattern);
+                let _ = mem::replace(&mut clause.patterns[0], pattern);
                 lcs.push(clause);
             }
             Err(_) => {
                 // Not possible
-                clause.patterns.push(pattern);
                 clauses.push(clause);
                 tcs.push((t, clauses));
             }
@@ -3072,18 +3074,74 @@ impl TranslateCore {
             // nested letrecs.
             Ok(())
         } else {
-            for (name, fun) in lr.defs.drain(..) {
-                let arity = fun.vars.len();
-                let (body, _) = self.ubody(*fun.body, Brk::Return)?;
-                let arity = arity + free_vars.len();
-                let fname = FunctionName::new_local(name.name(), arity as u8);
-                let mut vars = fun.vars;
-                vars.extend(free_vars.iter().cloned());
-                let function = make_function(fun.span, fun.annotations, fname, vars, body);
+            // We perform a transformation here for funs that will help later during
+            // code generation, and forms the calling convention for closures (note
+            // that this does not apply to "empty" closures, i.e. those with no free
+            // variables). The transformation works like this:
+            //
+            // 1. Rewrite the function signature to expect a closure as an extra trailing argument
+            // 2. Inject the unpack_env primop in the function entry for each free variable to extract
+            // it from the closure argument
+            for (
+                name,
+                IFun {
+                    span,
+                    mut annotations,
+                    mut vars,
+                    box body,
+                },
+            ) in lr.defs.drain(..)
+            {
+                // Perform the usual rewrite, then wrap the body to contain the unpack_env instructions
+                let (body, _) = self.ubody(body, Brk::Return)?;
+                let (name, body) = if free_vars.is_empty() {
+                    let name = FunctionName::new_local(name.name(), vars.len() as u8);
+                    (name, body)
+                } else {
+                    let name = FunctionName::new_local(name.name(), (vars.len() + 1) as u8);
+                    let closure_var = self.context.next_var(Some(span));
+                    vars.push(closure_var.clone());
+                    annotations.set(symbols::Closure);
+                    (
+                        name,
+                        self.unpack_closure_body(span, body, closure_var, free_vars.clone()),
+                    )
+                };
+                let function = make_function(span, annotations, name, vars, body);
                 self.context.funs.push(function);
             }
             Ok(())
         }
+    }
+
+    fn unpack_closure_body(
+        &mut self,
+        span: SourceSpan,
+        body: Expr,
+        closure: Var,
+        mut free: Vec<Var>,
+    ) -> Expr {
+        assert_ne!(free.len(), 0);
+
+        // We create a chained series of calls to unpack_env/2, in reverse, with appropriate rets for each free variable
+        // This will result in the correct sequence of instructions when lowered
+        let env_arity = free.len();
+        let mut body = body;
+        for i in (0..env_arity).rev() {
+            let closure = Expr::Var(closure.clone());
+            let index = Expr::Literal(Literal::integer(span, i));
+            let unpack_env2 = FunctionName::new(symbols::Erlang, symbols::UnpackEnv, 2);
+            let mut bif = Bif::new(span, unpack_env2, vec![closure, index]);
+            bif.ret.push(Expr::Var(free.pop().unwrap()));
+            let seq = Expr::Seq(Seq {
+                span,
+                annotations: Annotations::default_compiler_generated(),
+                arg: Box::new(Expr::Bif(bif)),
+                body: Box::new(body),
+            });
+            body = seq;
+        }
+        body
     }
 
     /// uexpr(Expr, Break, State) -> {Expr,[UsedVar],State}.
@@ -3145,40 +3203,63 @@ impl TranslateCore {
                 ))
             }
             Expr::Call(mut call) if call.callee.is_local() => {
+                // This is a call to a local function
+                //
+                // If there are free variables, we need to construct a fun and use that
+                // as the callee; if there are no free variables, we can ignore the extra
+                // transformation
                 let mut callee = call.callee.as_local().unwrap();
+                let callee_span = call.callee.span();
                 let mut free = self.get_free(callee.function, callee.arity as usize);
-                let num_free: u8 = free.len().try_into().unwrap();
-                let mut args = Vec::with_capacity(num_free as usize + call.args.len());
-                args.append(&mut call.args);
-                // Free variables must be added last
-                args.append(&mut free);
-                let used = lit_list_vars(args.as_slice());
-                match brk {
-                    Brk::Break(rs) => {
-                        let callee_span = call.callee.span();
-                        callee.arity += num_free;
-                        let _ = mem::replace(
-                            call.callee.as_mut(),
-                            Expr::Local(Span::new(callee_span, callee)),
-                        );
-                        call.args = args;
-                        call.ret = rs;
-                        Ok((Expr::Call(call), used))
+                if !free.is_empty() {
+                    // Build bif invocation that creates the fun with the closure environment
+                    callee.arity += 1;
+                    let op = FunctionName::new(symbols::Erlang, symbols::MakeFun, 2);
+                    let mut mf_args = Vec::with_capacity(free.len() + 1);
+                    mf_args.push(Expr::Local(Span::new(callee_span, callee)));
+                    mf_args.append(&mut free);
+
+                    let fun = Expr::Bif(Bif {
+                        span: callee_span,
+                        annotations: Annotations::default_compiler_generated(),
+                        op,
+                        args: mf_args,
+                        ret: vec![],
+                    });
+                    let used = lit_list_vars(call.args.as_slice());
+                    match brk {
+                        Brk::Break(rs) => {
+                            let _ = mem::replace(call.callee.as_mut(), fun);
+                            call.ret = rs;
+                            Ok((Expr::Call(call), used))
+                        }
+                        Brk::Return => {
+                            let _ = mem::replace(call.callee.as_mut(), fun);
+                            let enter = Expr::Enter(Enter {
+                                span: call.span,
+                                annotations: call.annotations,
+                                callee: call.callee,
+                                args: call.args,
+                            });
+                            Ok((enter, used))
+                        }
                     }
-                    Brk::Return => {
-                        let callee_span = call.callee.span();
-                        callee.arity += num_free;
-                        let _ = mem::replace(
-                            call.callee.as_mut(),
-                            Expr::Local(Span::new(callee_span, callee)),
-                        );
-                        let enter = Expr::Enter(Enter {
-                            span: call.span,
-                            annotations: call.annotations,
-                            callee: call.callee,
-                            args,
-                        });
-                        Ok((enter, used))
+                } else {
+                    let used = lit_list_vars(call.args.as_slice());
+                    match brk {
+                        Brk::Break(rs) => {
+                            call.ret = rs;
+                            Ok((Expr::Call(call), used))
+                        }
+                        Brk::Return => {
+                            let enter = Expr::Enter(Enter {
+                                span: call.span,
+                                annotations: call.annotations,
+                                callee: call.callee,
+                                args: call.args,
+                            });
+                            Ok((enter, used))
+                        }
                     }
                 }
             }
@@ -3358,16 +3439,22 @@ impl TranslateCore {
                 mut vars,
                 box body,
             }) if brk.is_break() => {
+                // We do a transformation here which corresponds to the one in iletrec_funs.
+                // We must also ensure that calls to closures append the closure value as an
+                // extra argument, but that is done elsewhere.
                 let (b1, bu) = self.ubody(body, Brk::Return)?; // Return out of new function
                 let ns = vars.iter().map(|v| v.name).collect();
                 let free = sets::subtract(bu, ns); // Free variables in fun
-                let mut fvs = free
-                    .iter()
-                    .copied()
-                    .map(|id| Expr::Var(Var::new(id)))
-                    .collect::<Vec<_>>();
-                let env_arity = free.size();
-                let arity = vars.len() + env_arity;
+                let free_vars = free.iter().copied().map(Var::new).collect::<Vec<_>>();
+                let mut fvs = free_vars.iter().cloned().map(Expr::Var).collect::<Vec<_>>();
+                let closure_var = if free.is_empty() {
+                    None
+                } else {
+                    let closure_var = self.context.next_var(Some(span));
+                    vars.push(closure_var.clone());
+                    Some(closure_var)
+                };
+                let arity = vars.len();
                 let fname = match annotations.get(symbols::Id) {
                     Some(Annotation::Term(Literal {
                         value: Lit::Tuple(es),
@@ -3381,16 +3468,34 @@ impl TranslateCore {
                         self.context.new_fun_name(None)
                     }
                 };
-                vars.extend(free.iter().copied().map(|id| Var::new(id)));
                 // Create function definition
                 let fname = FunctionName::new_local(fname, arity as u8);
-                let function = make_function(span, annotations.clone(), fname, vars, b1);
+                let body = if free.is_empty() {
+                    b1
+                } else {
+                    self.unpack_closure_body(span, b1, closure_var.unwrap(), free_vars)
+                };
+                let function_annotations = if free.is_empty() {
+                    annotations.clone()
+                } else {
+                    annotations.insert(symbols::Closure, Annotation::Unit)
+                };
+                let function = make_function(span, function_annotations, fname, vars, body);
                 self.add_local_function(function);
                 // Build bif invocation that creates the fun with the closure environment
-                let op = FunctionName::new(symbols::Erlang, symbols::MakeFun, 3);
+                let op = FunctionName::new(symbols::Erlang, symbols::MakeFun, 2);
                 let mut args = Vec::with_capacity(fvs.len() + 1);
                 args.push(Expr::Local(Span::new(span, fname)));
                 args.append(&mut fvs);
+
+                // We know the value produced by this BIF is a function
+                let mut ret = brk.into_ret();
+                if !ret.is_empty() {
+                    ret[0].set_type(Type::Term(TermType::Fun(None)));
+                    if !free.is_empty() {
+                        ret[0].annotations_mut().set(symbols::Closure);
+                    }
+                }
 
                 Ok((
                     Expr::Bif(Bif {
@@ -3398,14 +3503,14 @@ impl TranslateCore {
                         annotations,
                         op,
                         args,
-                        ret: brk.into_ret(),
+                        ret,
                     }),
                     free,
                 ))
             }
             Expr::Local(name) if brk.is_break() => {
                 let span = name.span();
-                let arity = name.arity as usize;
+                let mut arity = name.arity as usize;
                 let free = self.get_free(name.function, arity);
                 let free = lit_list_vars(free.as_slice());
                 let fvs = free
@@ -3414,20 +3519,30 @@ impl TranslateCore {
                     .map(|id| Expr::Var(Var::new(id)))
                     .collect::<Vec<_>>();
                 let num_free = fvs.len();
-                let op = FunctionName::new(symbols::Erlang, symbols::MakeFun, 3);
-                let mut args = Vec::with_capacity(arity + num_free);
+                if num_free > 0 {
+                    arity += 1;
+                }
+                let op = FunctionName::new(symbols::Erlang, symbols::MakeFun, 2);
+                let mut args = Vec::with_capacity(num_free + 1);
                 args.push(Expr::Local(Span::new(
                     span,
-                    FunctionName::new_local(name.function, (arity + num_free) as u8),
+                    FunctionName::new_local(name.function, arity as u8),
                 )));
                 args.extend(fvs.iter().cloned());
+
+                // We know the value produced by this BIF is a function
+                let mut ret = brk.into_ret();
+                if !ret.is_empty() {
+                    ret[0].set_type(Type::Term(TermType::Fun(None)));
+                }
+
                 Ok((
                     Expr::Bif(Bif {
                         span,
                         annotations: Annotations::default(),
                         op,
                         args,
-                        ret: brk.into_ret(),
+                        ret,
                     }),
                     free,
                 ))

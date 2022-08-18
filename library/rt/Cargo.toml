@@ -18,6 +18,7 @@ liblumen_alloc = { path = "../alloc" }
 liblumen_arena = { path = "../arena" }
 liblumen_system = { path = "../system" }
 liblumen_binary = { path = "../../compiler/binary" }
+paste = "1.0"
 seq-macro = "0.3"
 static_assertions = "1.1"
 
@@ -41,3 +42,8 @@ features = ["i128"]
 [dependencies.rpds]
 version = "0.11"
 default-features = false
+
+
+[build-dependencies]
+toml = { version = "0.5", features = ["preserve_order"] }
+Inflector = "0.11"

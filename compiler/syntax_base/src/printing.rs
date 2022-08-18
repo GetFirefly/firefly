@@ -67,5 +67,6 @@ pub fn print_annotation(f: &mut fmt::Formatter, sym: &Symbol, value: &Annotation
             }
             write!(f, "]}}")
         }
+        Annotation::Type(ty) => write!(f, "{{type, {}}}", &ty),
     }
 }

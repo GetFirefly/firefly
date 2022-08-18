@@ -30,7 +30,7 @@ impl Name {
 /// to rename all references to a variable without having
 /// to scan through all of them, potentially causing compile
 /// times to explode
-#[derive(Clone, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct BiMap {
     // key => value
     map: RedBlackTreeMap<Name, Name>,

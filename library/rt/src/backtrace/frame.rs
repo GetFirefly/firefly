@@ -14,13 +14,13 @@ pub trait Frame {
 }
 
 #[cfg(feature = "std")]
-impl Frame for backtrace::BacktraceFrame {
+impl Frame for backtrace::Frame {
     fn resolve(&self) -> Option<Symbolication> {
         let mut result = None;
 
         backtrace::resolve_frame(self, |symbol| {
             let name = symbol.name();
-            let mfa = if let Some(name) = name.as_str() {
+            let mfa = if let Some(name) = name.and_then(|n| n.as_str()) {
                 name.parse().ok()
             } else {
                 None
@@ -88,8 +88,8 @@ impl From<Box<dyn Frame>> for TraceFrame {
     }
 }
 #[cfg(feature = "std")]
-impl From<backtrace::BacktraceFrame> for TraceFrame {
-    fn from(frame: backtrace::BacktraceFrame) -> Self {
+impl From<backtrace::Frame> for TraceFrame {
+    fn from(frame: backtrace::Frame) -> Self {
         Self {
             frame: Box::new(frame),
             symbol: UnsafeCell::new(None),

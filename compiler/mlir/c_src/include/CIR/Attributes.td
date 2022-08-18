@@ -44,6 +44,148 @@ def AtomAttr : CIR_Attr<"Atom"> {
   let typeBuilder = "CIRAtomType::get($_type.getContext())";
 }
 
+def BigIntRefParameter :
+    AttrOrTypeParameter<"::mlir::cir::BigIntRef", ""> {
+  let printer = [{
+    switch ($_self.sign) {
+    case SignMinus: {
+      $_printer << "sign = minus, ";
+      break;
+    }
+    case SignNoSign: {
+      break;
+    }
+    case SignPlus: {
+      $_printer << "sign = plus, ";
+      break;
+    }
+    }
+    $_printer << "digits = [";
+    llvm::interleaveComma($_self.data(), $_printer,
+                        [&](int32_t digit) { $_printer << (uint32_t)digit; });
+    $_printer << "]";
+  }];
+  let comparator = [{ $_lhs.sign == $_rhs.sign && $_lhs.data() == $_rhs.data() }];
+}
+
+def BigIntAttr : CIR_Attr<"BigInt"> {
+  let mnemonic = "bigint";
+  let summary = "An attribute that holds the data necessary to construct a BigInt";
+  let parameters = (ins AttributeSelfTypeParameter<"">:$type, BigIntRefParameter:$value);
+
+  let assemblyFormat = "`<` $value `:` $type `>`";
+
+  let builders = [
+    AttrBuilder<(ins "Type":$type, "::mlir::cir::BigIntRef":$value), [{
+      return $_get(type.getContext(), type, value);
+    }]>
+  ];
+  let extraClassDeclaration = [{
+    using ValueType = ::mlir::cir::BigIntRef;
+    Sign getSign() const { return getValue().sign; }
+    ::llvm::ArrayRef<int32_t> getDigits() const { return getValue().data(); }
+
+  }];
+  let skipDefaultBuilders = 1;
+  let typeBuilder = "CIRBigIntType::get($_type.getContext())";
+}
+
+def BinaryEntrySpecifierParameter :
+    AttrOrTypeParameter<"::mlir::cir::BinaryEntrySpecifier", ""> {
+  let printer = [{
+    auto ty = static_cast<::mlir::cir::BinaryEntrySpecifierType>($_self.tag);
+    ::mlir::cir::Endianness endianness;
+    uint8_t unit = 1;
+    bool showEndianness = true;
+    switch (ty) {
+    case ::mlir::cir::BinaryEntrySpecifierType::Integer: {
+      $_printer << "integer";
+      if ($_self.data.integer.isSigned) {
+        $_printer << ", signed";
+      }
+      unit = $_self.data.integer.unit;
+      endianness = static_cast<::mlir::cir::Endianness>($_self.data.integer.endianness);
+      break;
+    }
+    case ::mlir::cir::BinaryEntrySpecifierType::Float: {
+      $_printer << "float";
+      unit = $_self.data.flt.unit;
+      endianness = static_cast<::mlir::cir::Endianness>($_self.data.flt.endianness);
+      break;
+    }
+    case ::mlir::cir::BinaryEntrySpecifierType::Bytes: {
+      showEndianness = false;
+      if ($_self.data.bytes.unit == 8) {
+        unit = 0;
+        $_printer << "bytes";
+      } else {
+        unit = $_self.data.bytes.unit;
+        $_printer << "bits";
+      }
+      break;
+    }
+    case ::mlir::cir::BinaryEntrySpecifierType::Utf8: {
+      $_printer << "utf8";
+      showEndianness = false;
+      unit = 0;
+      break;
+    }
+    case ::mlir::cir::BinaryEntrySpecifierType::Utf16: {
+      $_printer << "utf16";
+      unit = 0;
+      endianness = static_cast<::mlir::cir::Endianness>($_self.data.utfWide.endianness);
+      break;
+    }
+    case ::mlir::cir::BinaryEntrySpecifierType::Utf32: {
+      $_printer << "utf32";
+      endianness = static_cast<::mlir::cir::Endianness>($_self.data.utfWide.endianness);
+      unit = 0;
+      break;
+    }
+    }
+    if (showEndianness) {
+      switch (endianness) {
+      case Endianness::Big: {
+        $_printer << ", big";
+        break;
+      }
+      case Endianness::Little: {
+        $_printer << ", little";
+        break;
+      }
+      case Endianness::Native: {
+        $_printer << ", native";
+        break;
+      }
+      }
+    }
+    if (unit > 0) {
+      $_printer << ", unit = ";
+      $_printer << (unsigned)unit;
+    }
+  }];
+  let comparator = [{ $_lhs.tag == $_rhs.tag && $_lhs.data.raw == $_rhs.data.raw }];
+}
+
+def BinarySpecAttr : CIR_Attr<"BinarySpec"> {
+  let mnemonic = "binary_spec";
+  let summary = "An attribute that holds details about a binary match specification";
+  let parameters = (ins AttributeSelfTypeParameter<"">:$type, BinaryEntrySpecifierParameter:$value);
+
+  let assemblyFormat = "`<` $value `:` $type `>`";
+
+  let builders = [
+    AttrBuilder<(ins "Type":$type, "::mlir::cir::BinaryEntrySpecifier":$value), [{
+      return $_get(type.getContext(), type, value);
+    }]>
+  ];
+  let extraClassDeclaration = [{
+    using ValueType = ::mlir::cir::BinaryEntrySpecifier;
+  }];
+  let skipDefaultBuilders = 1;
+  let typeBuilder = "NoneType::get($_type.getContext())";
+}
+
 def EndiannessParameter :
     AttrOrTypeParameter<"::mlir::cir::Endianness", ""> {
   let printer = [{

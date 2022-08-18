@@ -13,7 +13,7 @@ mod port;
 mod reference;
 mod tuple;
 
-pub use self::atom::{Atom, AtomData};
+pub use self::atom::{atoms, Atom, AtomData};
 pub use self::binary::*;
 pub use self::closure::Closure;
 pub use self::float::Float;
@@ -28,13 +28,14 @@ pub use self::port::{Port, PortId};
 pub use self::reference::{Reference, ReferenceId};
 pub use self::tuple::Tuple;
 
-use alloc::alloc::AllocError;
+use alloc::alloc::{AllocError, Layout};
 use alloc::format;
 use core::convert::AsRef;
 use core::fmt;
 use core::ptr::NonNull;
 
 use anyhow::anyhow;
+use liblumen_alloc::fragment::HeapFragment;
 use liblumen_alloc::gc::GcBox;
 use liblumen_alloc::heap::Heap;
 use liblumen_alloc::rc::{Rc, Weak};
@@ -86,6 +87,13 @@ pub enum Term {
     ConstantBinary(&'static BinaryData),
 }
 impl Term {
+    pub fn clone_to_fragment(self) -> Result<(Self, NonNull<HeapFragment>), AllocError> {
+        let layout = self.layout();
+        let frag = HeapFragment::new(layout, None)?;
+        let term = self.clone_to_heap(unsafe { frag.as_ref() })?;
+        Ok((term, frag))
+    }
+
     pub fn clone_to_heap<H: Heap>(self, heap: H) -> Result<Self, AllocError> {
         let cloned = match self {
             Self::None => Self::None,
@@ -285,6 +293,86 @@ impl Term {
             return false;
         }
         self.eq(other)
+    }
+
+    /// Returns a Layout which can be used to allocate sufficient memory to
+    /// hold this term and its associated data, including any references.
+    pub fn layout(&self) -> Layout {
+        match self {
+            Self::None
+            | Self::Nil
+            | Self::Bool(_)
+            | Self::Atom(_)
+            | Self::Int(_)
+            | Self::Float(_)
+            | Self::ConstantBinary(_) => Layout::new::<OpaqueTerm>(),
+            Self::BigInt(_) => {
+                let (base, _) = Layout::new::<GcBox<BigInteger>>()
+                    .extend(Layout::new::<BigInteger>())
+                    .unwrap();
+                base.pad_to_align()
+            }
+            Self::Cons(_) => Layout::new::<Cons>(),
+            Self::Tuple(t) => {
+                let tuple = unsafe { t.as_ref() };
+                let base = Layout::for_value(tuple);
+                tuple.iter().fold(base, |layout, element| {
+                    let (extended, _) = layout.extend(element.layout()).unwrap();
+                    extended.pad_to_align()
+                })
+            }
+            Self::Map(map) => {
+                let (base, _) = Layout::new::<GcBox<Map>>()
+                    .extend(Layout::new::<Map>())
+                    .unwrap();
+                map.iter().fold(base, |layout, (k, v)| {
+                    let (extended, _) = layout.extend(k.layout()).unwrap();
+                    let (extended, _) = extended.pad_to_align().extend(v.layout()).unwrap();
+                    extended.pad_to_align()
+                })
+            }
+            Self::Closure(fun) => {
+                let (base, _) = Layout::new::<GcBox<Closure>>()
+                    .extend(Layout::for_value(fun.as_ref()))
+                    .unwrap();
+                fun.env().iter().copied().fold(base, |layout, opaque| {
+                    let term: Term = opaque.into();
+                    let (extended, _) = layout.extend(term.layout()).unwrap();
+                    extended.pad_to_align()
+                })
+            }
+            Self::Pid(_) => {
+                let (base, _) = Layout::new::<GcBox<Pid>>()
+                    .extend(Layout::new::<Pid>())
+                    .unwrap();
+                base.pad_to_align()
+            }
+            Self::Port(_) => {
+                let (base, _) = Layout::new::<GcBox<Port>>()
+                    .extend(Layout::new::<Port>())
+                    .unwrap();
+                base.pad_to_align()
+            }
+            Self::Reference(_) => {
+                let (base, _) = Layout::new::<GcBox<Reference>>()
+                    .extend(Layout::new::<Reference>())
+                    .unwrap();
+                base.pad_to_align()
+            }
+            Self::HeapBinary(bin) => {
+                let (base, _) = Layout::new::<GcBox<BinaryData>>()
+                    .extend(Layout::for_value(bin.as_ref()))
+                    .unwrap();
+                base.pad_to_align()
+            }
+            Self::RcBinary(_) => Layout::new::<Weak<BinaryData>>(),
+            Self::RefBinary(_) => {
+                let (base, _) = Layout::new::<GcBox<BitSlice>>()
+                    .extend(Layout::new::<BitSlice>())
+                    .unwrap();
+                base.pad_to_align()
+            }
+        }
     }
 }
 impl From<bool> for Term {

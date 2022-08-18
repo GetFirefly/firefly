@@ -605,6 +605,14 @@ impl IMap {
             is_pattern: false,
         }
     }
+
+    pub fn is_literal(&self) -> bool {
+        self.arg.is_literal()
+            && self
+                .pairs
+                .iter()
+                .all(|p| p.key.len() == 1 && p.key[0].is_literal() && p.value.is_literal())
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

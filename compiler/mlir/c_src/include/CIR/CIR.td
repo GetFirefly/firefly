@@ -142,6 +142,137 @@ def CIR_CallOp : CIR_Op<"call",
   }];
 }
 
+def CIR_EnterOp : CIR_Op<"enter",
+    [CallOpInterface, DeclareOpInterfaceMethods<SymbolUserOpInterface>, ReturnLike, Terminator]> {
+  let summary = "tail call operation";
+  let description = [{
+    This operation is equivalent to `cir.call` except that it acts as a block terminator,
+    and it must always occur in tail position.
+
+    Example:
+
+    ```mlir
+    cir.enter @my_add(%0, %1) : (f32, f32) -> f32
+    ```
+  }];
+
+  let arguments = (ins FlatSymbolRefAttr:$callee, Variadic<AnyType>:$operands);
+  let results = (outs);
+
+  let builders = [
+    OpBuilder<(ins "FuncOp":$callee, CArg<"ValueRange", "{}">:$operands), [{
+      $_state.addOperands(operands);
+      $_state.addAttribute("callee", SymbolRefAttr::get(callee));
+    }]>
+  ];
+
+  let extraClassDeclaration = [{
+    FunctionType getCalleeType();
+
+    /// Get the argument operands to the called function.
+    operand_range getArgOperands() {
+      return {arg_operand_begin(), arg_operand_end()};
+    }
+
+    operand_iterator arg_operand_begin() { return operand_begin(); }
+    operand_iterator arg_operand_end() { return operand_end(); }
+
+    /// Return the callee of this operation.
+    CallInterfaceCallable getCallableForCallee() {
+      return (*this)->getAttrOfType<SymbolRefAttr>("callee");
+    }
+  }];
+
+  let assemblyFormat = [{
+    $callee `(` $operands `)` attr-dict `:` type($operands)
+  }];
+}
+
+def CIR_CallIndirectOp : CIR_Op<"call.indirect", [CallOpInterface]> {
+  let summary = "indirect call operation to a known fun";
+  let description = [{
+    This operation represents an indirect call to a value that we know is a valid
+    fun created by erlang:make_fun/3, allowing us to bypass the overhead of a full erlang:apply/3
+    invocation.
+
+    NOTE: The calling convention of the callee _must_ be Erlang, and this is encoded in
+    the result type of this operation.
+  }];
+
+  let arguments = (ins CIR_BoxOf<CIR_FunType>:$callee, Variadic<AnyType>:$callee_operands);
+  let results = (outs I1:$is_err, CIR_OpaqueTermType:$result);
+
+  let builders = [
+    OpBuilder<(ins "Value":$callee, CArg<"ValueRange", "{}">:$args), [{
+      $_state.operands.push_back(callee);
+      $_state.addOperands(args);
+      auto i1Ty = $_builder.getI1Type();
+      auto termTy = CIROpaqueTermType::get($_builder.getContext());
+      $_state.addTypes({i1Ty, termTy});
+    }]>,
+  ];
+  let skipDefaultBuilders = 1;
+
+  let extraClassDeclaration = [{
+    ValueRange operands() { return callee_operands(); }
+
+    /// Get the argument operands to the called function.
+    operand_range getArgOperands() {
+      return {arg_operand_begin(), arg_operand_end()};
+    }
+
+    operand_iterator arg_operand_begin() { return ++operand_begin(); }
+    operand_iterator arg_operand_end() { return operand_end(); }
+
+    /// Return the callee of this operation.
+    CallInterfaceCallable getCallableForCallee() { return callee(); }
+  }];
+
+  //let hasCanonicalizeMethod = 1;
+  let assemblyFormat = [{
+    $callee `(` $callee_operands `)` attr-dict `:` functional-type(operands, results)
+  }];
+}
+
+def CIR_EnterIndirectOp : CIR_Op<"enter.indirect", [CallOpInterface, ReturnLike, Terminator]> {
+  let summary = "indirect tail call operation to a known fun";
+  let description = [{
+    This operation is equivalent to `call.indirect`, except that it acts as a terminator, and must
+    occur in tail position.
+  }];
+
+  let arguments = (ins CIR_BoxOf<CIR_FunType>:$callee, Variadic<AnyType>:$callee_operands);
+  let results = (outs);
+
+  let builders = [
+    OpBuilder<(ins "Value":$callee, CArg<"ValueRange", "{}">:$args), [{
+      $_state.operands.push_back(callee);
+      $_state.addOperands(args);
+    }]>,
+  ];
+  let skipDefaultBuilders = 1;
+
+  let extraClassDeclaration = [{
+    ValueRange operands() { return callee_operands(); }
+
+    /// Get the argument operands to the called function.
+    operand_range getArgOperands() {
+      return {arg_operand_begin(), arg_operand_end()};
+    }
+
+    operand_iterator arg_operand_begin() { return ++operand_begin(); }
+    operand_iterator arg_operand_end() { return operand_end(); }
+
+    /// Return the callee of this operation.
+    CallInterfaceCallable getCallableForCallee() { return callee(); }
+  }];
+
+  //let hasCanonicalizeMethod = 1;
+  let assemblyFormat = [{
+    $callee `(` $callee_operands `)` attr-dict `:` type(operands)
+  }];
+}
+
 def CIR_CastOp : CIR_Op<"cast",
   [DeclareOpInterfaceMethods<CastOpInterface>, NoSideEffect]> {
   let summary = "Performs a type cast between the type of the input value and given output type";
@@ -337,7 +468,7 @@ def CIR_TypeOfOp : CIR_Op<"typeof", [MemoryEffects<[MemRead]>]> {
   }];
 
   let arguments = (ins CIR_AnyTerm:$value);
-  let results = (outs Index:$kind);
+  let results = (outs I32:$kind);
 
   let assemblyFormat = [{
     $value `:` type($value) attr-dict
@@ -551,7 +682,7 @@ def CIR_MallocOp : CIR_Op<"malloc", [DeclareOpInterfaceMethods<InferTypeOpInterf
   }];
 }
 
-def CIR_MakeFunOp : CIR_Op<"make_fun", [DeclareOpInterfaceMethods<InferTypeOpInterface, ["inferReturnTypes"]>, MemoryEffects<[MemAlloc, MemWrite]>]> {
+def CIR_MakeFunOp : CIR_Op<"fun.make", [DeclareOpInterfaceMethods<InferTypeOpInterface, ["inferReturnTypes"]>, MemoryEffects<[MemAlloc, MemWrite]>]> {
   let summary = "Creates a closure representing the given fun type.";
   let description = [{
     This operation creates a closure object representing the given fun type,
@@ -559,7 +690,7 @@ def CIR_MakeFunOp : CIR_Op<"make_fun", [DeclareOpInterfaceMethods<InferTypeOpInt
   }];
 
   let arguments = (ins FlatSymbolRefAttr:$callee, Variadic<CIR_AnyTerm>:$env);
-  let results = (outs CIR_BoxOf<CIR_FunType>);
+  let results = (outs I1:$is_err, CIR_BoxOf<CIR_FunType>:$result);
 
   let builders = [
     OpBuilder<(ins "FuncOp":$callee, CArg<"ValueRange", "{}">:$operands), [{
@@ -571,12 +702,27 @@ def CIR_MakeFunOp : CIR_Op<"make_fun", [DeclareOpInterfaceMethods<InferTypeOpInt
       $_state.addOperands(operands);
       $_state.addAttribute("callee", SymbolRefAttr::get(callee));
       $_state.addAttribute("funType", TypeAttr::get(funTy));
+      $_state.addTypes($_builder.getI1Type());
       $_state.addTypes(CIRBoxType::get(funTy));
     }]>,
   ];
 
   let assemblyFormat = [{
     $callee `(` operands `)` attr-dict `:` functional-type(operands, results)
+  }];
+}
+
+def CIR_UnpackEnvOp : CIR_Op<"fun.env.get", [MemoryEffects<[MemRead]>]> {
+  let summary = "A closure primitive used to read contents of the closure environment.";
+  let description = [{
+    This operation fetches an element in the given closure at the specified index
+  }];
+
+  let arguments = (ins CIR_OpaqueTermType:$fun, IndexAttr:$index);
+  let results = (outs CIR_OpaqueTermType:$result);
+
+  let assemblyFormat = [{
+    $fun `[` $index `]` attr-dict
   }];
 }
 
@@ -588,10 +734,10 @@ def CIR_ConsOp : CIR_Op<"cons", [MemoryEffects<[MemAlloc, MemWrite]>]> {
   }];
 
   let arguments = (ins CIR_AnyTerm:$head, CIR_AnyTerm:$tail);
-  let results = (outs CIR_ListType:$result);
+  let results = (outs CIR_BoxOf<CIR_ConsType>:$result);
 
   let assemblyFormat = [{
-    $head `,` $tail attr-dict `:` `(` type($head) `,` type($tail) `)` `->` type($result)
+    `[` $head `:` type($head) `,` $tail `:` type($tail) `]` attr-dict
   }];
 }
 
@@ -623,27 +769,14 @@ def CIR_TailOp : CIR_Op<"tl", [MemoryEffects<[MemRead]>]> {
   }];
 }
 
-def CIR_TupleOp : CIR_Op<"tuple", [MemoryEffects<[MemAlloc]>]> {
-  let summary = "A type constructor for tuples.";
-  let description = [{
-    This operation allocates a new tuple of the given arity on the process heap.
-  }];
-
-  let arguments = (ins I32Attr:$arity);
-  let results = (outs CIR_BoxOf<AnyTuple>:$result);
-
-  let assemblyFormat = [{
-    `(` $arity `)` attr-dict `:` type($result)
-  }];
-}
-
 def CIR_SetElementOp : CIR_Op<"setelement", [MemoryEffects<[MemWrite]>]> {
   let summary = "A tuple primitive used to mutate contents of the tuple.";
   let description = [{
     This operation inserts an element in the given tuple at the specified index
   }];
 
-  let arguments = (ins CIR_BoxOf<AnyTuple>:$tuple, Index:$index, CIR_AnyTerm:$value);
+  let arguments = (ins CIR_BoxOf<AnyTuple>:$tuple, IndexAttr:$index,
+                        CIR_AnyTerm:$value, BoolAttr:$in_place);
   let results = (outs CIR_BoxOf<AnyTuple>:$result);
 
   let assemblyFormat = [{
@@ -657,72 +790,13 @@ def CIR_GetElementOp : CIR_Op<"getelement", [MemoryEffects<[MemRead]>]> {
     This operation fetches an element in the given tuple at the specified index
   }];
 
-  let arguments = (ins CIR_BoxOf<AnyTuple>:$tuple, Index:$index);
+  let arguments = (ins CIR_BoxOf<AnyTuple>:$tuple, IndexAttr:$index);
   let results = (outs CIR_OpaqueTermType:$result);
 
   let assemblyFormat = [{
     $tuple `[` $index `]` attr-dict `:` `(` type($tuple) `)` `->` type($result)
   }];
 }
-
-def CIR_MapOp : CIR_Op<"map.empty", [MemoryEffects<[MemAlloc]>]> {
-  let summary = "A type constructor for maps.";
-  let description = [{
-    This operation allocates a new empty map.
-  }];
-
-  let results = (outs CIR_BoxOf<CIR_MapType>:$result);
-
-  let assemblyFormat = [{
-    attr-dict
-  }];
-}
-
-def CIR_MapGetOp : CIR_Op<"map.get", [MemoryEffects<[MemRead]>]> {
-  let summary = "A map primitive that fetches a value associated with a key from a map.";
-  let description = [{
-    This operation returns the term associated with the given key, otherwise None
-  }];
-
-  let arguments = (ins CIR_BoxOf<CIR_MapType>:$map, CIR_AnyTerm:$key);
-  let results = (outs CIR_OpaqueTermType:$result);
-
-  let assemblyFormat = [{
-    `(` $map `,` $key `:` type($key) `)` attr-dict
-  }];
-}
-
-/*
-def CIR_MapPutOp : CIR_Op<"map.put", [MemRead, MemWrite]> {
-  let summary = "A map primitive that inserts/updates a value in the map";
-  let description = [{
-    This operation puts the given value in a map at the provided key, overriding the existing value,
-    if present.
-  }];
-
-  let arguments = (ins CIR_BoxOf<CIR_Map>:$map, CIR_AnyTerm:$key, CIR_AnyTerm:$value);
-  let results = (outs CIR_BoxOf<CIR_Map>:$result);
-
-  let assemblyFormat = [{
-    $map `[` $key `]`, $value attr-dict `:` type($result)
-  }];
-}
-
-def CIR_MapUpdateOp : CIR_Op<"map.update", [MemRead, MemWrite]> {
-  let summary = "A map primitive that updates a value in the map";
-  let description = [{
-    This operation updates the given value in a map at the provided key, raising an exception,
-    if the key is not present in the map.
-  }];
-
-  let arguments = (ins CIR_BoxOf<CIR_Map>:$map, CIR_AnyTerm:$key, CIR_AnyTerm:$value);
-  let results = (outs CIR_BoxOf<CIR_Map>:$result);
-
-  let assemblyFormat = [{
-    $map `[` $key `]`, $value attr-dict `:` type($result)
-  }];
-}
-*/
 
 def CIR_RaiseOp : CIR_Op<"raise", [MemoryEffects<[MemRead, MemWrite]>, ReturnLike, Terminator]> {
   let summary = "An exception handling intrinsic that causes a new exception to be raised.";
@@ -735,20 +809,6 @@ def CIR_RaiseOp : CIR_Op<"raise", [MemoryEffects<[MemRead, MemWrite]>, ReturnLik
 
   let assemblyFormat = [{
     $exceptionClass `,` $exceptionReason `:` type($exceptionReason) `,` $exceptionTrace attr-dict
-  }];
-}
-
-def CIR_BuildStacktraceOp : CIR_Op<"stacktrace.build", [MemoryEffects<[MemRead, MemWrite]>]> {
-  let summary = "An exception handling intrinsic used to construct a stacktrace at the current program counter.";
-  let description = [{
-    Semantically, this operation constructs a handle to a trace which can later be reified to its Erlang term form upon request.
-  }];
-
-  let arguments = (ins);
-  let results = (outs CIR_TraceType:$result);
-
-  let assemblyFormat = [{
-    attr-dict
   }];
 }
 
@@ -794,7 +854,7 @@ def CIR_ExceptionTraceOp : CIR_Op<"exception.trace", [MemoryEffects<[MemRead]>]>
   }];
 
   let arguments = (ins PtrOf<CIR_ExceptionType>:$exception);
-  let results = (outs CIR_OpaqueTermType:$result);
+  let results = (outs PtrOf<CIR_TraceType>:$result);
 
   let assemblyFormat = [{
     $exception attr-dict
@@ -915,147 +975,66 @@ def CIR_RecvDoneOp : CIR_Op<"recv.done", [MemoryEffects<[MemRead, MemWrite]>]> {
   }];
 }
 
-def CIR_BinaryInitOp : CIR_Op<"binary.init", [MemoryEffects<[MemWrite]>]> {
-  let summary = "Creates a new binary builder";
+def CIR_BinaryMatchStartOp : CIR_Op<"bs.match.start", [MemoryEffects<[MemRead, MemWrite]>]> {
+  let summary = "Creates a new binary pattern matching context";
   let description = [{
-    This operation is used to initialize the state used to construct a binary
-    from scratch, similar to the kind of context used for receive.
+    This operation is used to initialize the state used to perform pattern
+    matching over bitstrings/binaries.
+
+    The input argument must be a binary term.
   }];
 
-  let arguments = (ins);
-  let results = (outs CIR_BinaryBuilderType:$builder);
+  let arguments = (ins CIR_AnyTerm:$bin);
+  let results = (outs I1:$is_err, CIR_OpaqueTermType:$result);
   let assemblyFormat = [{
-    attr-dict
+    $bin `:` type($bin) attr-dict
   }];
 }
 
-def CIR_BinaryFinishOp : CIR_Op<"binary.finish", [MemoryEffects<[MemRead, MemWrite]>]> {
-  let summary = "Completes construction of a new binary";
+def CIR_BinaryMatchOp : CIR_Op<"bs.match", [MemoryEffects<[MemRead, MemWrite]>]> {
+  let summary = "Extracts a matching value from the given match context";
   let description = [{
-    This operation is used to complete construction of a binary, returning the boxed value as a term.
+    This operation is used to extract a value matching the given specification/size
+    from a match context created by 'bs.match.start'.
 
-    This operation must always be called on all control flow edges exiting construction of a binary,
-    even if the result is discarded.
+    The first argument must be a match context value, the size argument is optional.
   }];
 
-  let arguments = (ins CIR_BinaryBuilderType:$builder);
-  let results = (outs I1:$is_err, CIR_AnyTerm:$bin);
+  let arguments = (ins PtrOf<CIR_MatchContextType>:$matchContext, BinarySpecAttr:$spec, Optional<CIR_AnyTerm>:$size);
+  let results = (outs I1:$is_err, CIR_OpaqueTermType:$extracted, PtrOf<CIR_MatchContextType>:$updatedMatchContext);
   let assemblyFormat = [{
-    `(` operands `)` attr-dict `:` functional-type(operands, results)
+    $spec `in` $matchContext (`sized` $size^ `:` type($size))? attr-dict
   }];
 }
 
-def CIR_BinaryPushIntegerOp : CIR_Op<"binary.push.int", [MemoryEffects<[MemRead, MemWrite]>]> {
-  let summary = "Appends an integer value on to the current binary";
+def CIR_BinaryTestTailOp : CIR_Op<"bs.test.tail", [MemoryEffects<[MemRead, MemWrite]>]> {
+  let summary = "Tests that the tail of a binary match context is of the expected size";
   let description = [{
-    This operation handles pushing a value of integer type on to the current binary builder, using the provided
-    bitsize/flags to determine how the value will be encoded in the resulting binary.
+    This operation is used to match the tail of a binary by size.
+
+    The first argument must be a match context value, the size argument must be an integer.
   }];
-  let arguments = (ins CIR_BinaryBuilderType:$builder,
-                       CIR_AnyTerm:$value,
-                       CIR_AnyTerm:$size,
-                       DefaultValuedAttr<BoolAttr, "false">:$isSigned,
-                       DefaultValuedAttr<EndiannessAttr, "::mlir::cir::Endianness::Big">:$endianness,
-                       DefaultValuedAttr<I32Attr, "1">:$unit);
-  let results = (outs I1:$is_err, CIR_ExceptionType:$err);
+
+  let arguments = (ins PtrOf<CIR_MatchContextType>:$matchContext, IndexAttr:$size);
+  let results = (outs I1:$result);
   let assemblyFormat = [{
-    `(` operands `)` attr-dict `:` functional-type(operands, results)
+    $matchContext `,` $size attr-dict
   }];
 }
 
-def CIR_BinaryPushFloatOp : CIR_Op<"binary.push.float", [MemoryEffects<[MemRead, MemWrite]>]> {
-  let summary = "Appends a float value on to the current binary";
+def CIR_BinaryPushOp : CIR_Op<"bs.push", [MemoryEffects<[MemRead, MemWrite]>]> {
+  let summary = "Pushes a value on to a bitstring buffer according to a spec and size";
   let description = [{
-    This operation handles pushing a value of float type on to the current binary builder, using the provided
-    bitsize/flags to determine how the value will be encoded in the resulting binary.
+    This operation is used to push a value on to an initialized bitstring buffer during
+    binary construction.
+
+    The first argument must be a binary builder value, and the size argument is optional.
   }];
-  let arguments = (ins CIR_BinaryBuilderType:$builder,
-                       CIR_AnyTerm:$value,
-                       CIR_AnyTerm:$size,
-                       DefaultValuedAttr<EndiannessAttr, "::mlir::cir::Endianness::Big">:$endianness,
-                       DefaultValuedAttr<I32Attr, "1">:$unit);
-  let results = (outs I1:$is_err, CIR_ExceptionType:$err);
+
+  let arguments = (ins PtrOf<CIR_BinaryBuilderType>:$bin, BinarySpecAttr:$spec, CIR_AnyTerm:$value, Optional<CIR_AnyTerm>:$size);
+  let results = (outs I1:$is_err, CIR_OpaqueTermType:$updated);
   let assemblyFormat = [{
-    `(` operands `)` attr-dict `:` functional-type(operands, results)
-  }];
-}
-
-def CIR_BinaryPushUtf8Op : CIR_Op<"binary.push.utf8", [MemoryEffects<[MemRead, MemWrite]>]> {
-  let summary = "Appends a utf-8 codepoint value on to the current binary";
-  let description = [{
-    This operation handles pushing a single utf-8 codepoint on to the current binary builder.
-  }];
-  let arguments = (ins CIR_BinaryBuilderType:$builder, CIR_AnyTerm:$value);
-  let results = (outs I1:$is_err, CIR_ExceptionType:$err);
-  let assemblyFormat = [{
-    `(` operands `)` attr-dict `:` functional-type(operands, results)
-  }];
-}
-
-def CIR_BinaryPushUtf16Op : CIR_Op<"binary.push.utf16", [MemoryEffects<[MemRead, MemWrite]>]> {
-  let summary = "Appends a utf-16 codepoint value on to the current binary";
-  let description = [{
-    This operation handles pushing a single utf-16 codepoint on to the current binary builder, using the
-    provided flags to determine how the value will be encoded in the resulting binary.
-  }];
-  let arguments = (ins CIR_BinaryBuilderType:$builder,
-                       CIR_AnyTerm:$value,
-                       DefaultValuedAttr<EndiannessAttr, "::mlir::cir::Endianness::Big">:$endianness);
-  let results = (outs I1:$is_err, CIR_ExceptionType:$err);
-  let assemblyFormat = [{
-    `(` operands `)` attr-dict `:` functional-type(operands, results)
-  }];
-}
-
-def CIR_BinaryPushUtf32Op : CIR_Op<"binary.push.utf32", [MemoryEffects<[MemRead, MemWrite]>]> {
-  let summary = "Appends a utf-32 codepoint value on to the current binary";
-  let description = [{
-    This operation handles pushing a single utf-32 codepoint on to the current binary builder, using the
-    provided flags to determine how the value will be encoded in the resulting binary.
-  }];
-  let arguments = (ins CIR_BinaryBuilderType:$builder,
-                       CIR_AnyTerm:$value,
-                       DefaultValuedAttr<EndiannessAttr, "::mlir::cir::Endianness::Big">:$endianness);
-  let results = (outs I1:$is_err, CIR_ExceptionType:$err);
-  let assemblyFormat = [{
-    `(` operands `)` attr-dict `:` functional-type(operands, results)
-  }];
-}
-
-def CIR_BinaryPushBitsOp : CIR_Op<"binary.push.bits", [MemoryEffects<[MemRead, MemWrite]>]> {
-  let summary = "Appends a binary/bitstring value on to the current binary";
-  let description = [{
-    This operation handles pushing some/all bits of a given binary/bitstring value on to the current binary builder,
-    depending on the provided size and unit.
-
-    If a size is given, then only `size * unit` bits will be pushed from the given value. If the size is
-    larger than the number of bits in the input value, an error will be raised. If no size is provided, then
-    the input is expected to uphold `total_size_in_bits % unit == 0`, otherwise an error will be raised.
-  }];
-
-  let arguments = (ins CIR_BinaryBuilderType:$builder,
-                       CIR_AnyTerm:$value,
-                       Optional<CIR_AnyTerm>:$size,
-                       DefaultValuedAttr<I32Attr, "8">:$unit);
-  let results = (outs I1:$is_err, CIR_ExceptionType:$err);
-  let assemblyFormat = [{
-    `(` operands `)` attr-dict `:` functional-type(operands, results)
-  }];
-}
-
-def CIR_BinaryPushAnyOp : CIR_Op<"binary.push.any", [MemoryEffects<[MemRead, MemWrite]>]> {
-  let summary = "Appends a term value on to the current binary";
-  let description = [{
-    This operation handles pushing an integer, float, or binary/string value using the default semantics
-    for those types, optionally with a specified size.
-  }];
-
-  let arguments = (ins CIR_BinaryBuilderType:$builder,
-                       CIR_AnyTerm:$value,
-                       Optional<CIR_AnyTerm>:$size);
-  let results = (outs I1:$is_err, CIR_ExceptionType:$err);
-  let assemblyFormat = [{
-    `(` operands `)` attr-dict `:` functional-type(operands, results)
+    $spec $value `:` type($value) `onto` $bin (`sized` $size^ `:` type($size))? attr-dict
   }];
 }
 

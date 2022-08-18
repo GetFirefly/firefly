@@ -1,12 +1,11 @@
 use std::collections::{BTreeMap, HashMap};
 use std::fmt;
 use std::hash::{Hash, Hasher};
-use std::io::{self, Write};
 
 use liblumen_binary::{BitVec, Bitstring};
 use liblumen_intern::{symbols, Symbol};
-use liblumen_number::{Float, Integer, Number};
-use liblumen_syntax_base::{TermType, Type};
+use liblumen_number::{Float, Integer};
+use liblumen_syntax_base::{PrimitiveType, TermType, Type};
 
 use cranelift_entity::entity_impl;
 
@@ -20,16 +19,17 @@ impl Constant {
     }
 }
 
+/// Represents the possible values encodable as immediate terms
 #[derive(Debug, Copy, Clone)]
-pub enum Immediate {
+pub enum ImmediateTerm {
     Bool(bool),
     Atom(Symbol),
     Integer(i64),
     Float(f64),
     Nil,
-    None, // Used for exceptions
+    None,
 }
-impl Immediate {
+impl ImmediateTerm {
     pub fn ty(&self) -> Type {
         match self {
             Self::Bool(_) => Type::Term(TermType::Bool),
@@ -41,7 +41,7 @@ impl Immediate {
         }
     }
 }
-impl fmt::Display for Immediate {
+impl fmt::Display for ImmediateTerm {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::Bool(b) => write!(f, "{}", b),
@@ -53,7 +53,7 @@ impl fmt::Display for Immediate {
         }
     }
 }
-impl Hash for Immediate {
+impl Hash for ImmediateTerm {
     fn hash<H: Hasher>(&self, state: &mut H) {
         let d = std::mem::discriminant(self);
         d.hash(state);
@@ -69,8 +69,8 @@ impl Hash for Immediate {
         }
     }
 }
-impl Eq for Immediate {}
-impl PartialEq for Immediate {
+impl Eq for ImmediateTerm {}
+impl PartialEq for ImmediateTerm {
     fn eq(&self, other: &Self) -> bool {
         match (*self, *other) {
             (Self::None, Self::None) => true,
@@ -103,7 +103,7 @@ impl PartialEq for Immediate {
         }
     }
 }
-impl PartialOrd for Immediate {
+impl PartialOrd for ImmediateTerm {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         use std::cmp::Ordering;
 
@@ -141,43 +141,220 @@ impl PartialOrd for Immediate {
         }
     }
 }
-impl From<bool> for Immediate {
-    fn from(b: bool) -> Self {
-        Self::Bool(b)
-    }
-}
-impl From<Symbol> for Immediate {
-    fn from(a: Symbol) -> Self {
-        Self::Atom(a)
-    }
-}
-impl From<Float> for Immediate {
-    fn from(f: Float) -> Self {
-        Self::Float(f.inner())
-    }
-}
-impl From<char> for Immediate {
-    fn from(c: char) -> Self {
-        Self::Integer((c as u32) as i64)
-    }
-}
-impl TryFrom<Number> for Immediate {
-    type Error = ();
 
-    fn try_from(n: Number) -> Result<Self, Self::Error> {
-        match n {
-            Number::Integer(i) => i.try_into(),
-            Number::Float(f) => Ok(Self::Float(f.inner())),
+#[derive(Debug, Copy, Clone)]
+pub enum Immediate {
+    Term(ImmediateTerm),
+    I1(bool),
+    I8(i8),
+    I16(i16),
+    I32(i32),
+    I64(i64),
+    Isize(isize),
+    F64(f64),
+}
+impl Immediate {
+    pub fn ty(&self) -> Type {
+        match self {
+            Self::Term(t) => t.ty(),
+            Self::I1(_) => Type::Primitive(PrimitiveType::I1),
+            Self::I8(_) => Type::Primitive(PrimitiveType::I8),
+            Self::I16(_) => Type::Primitive(PrimitiveType::I16),
+            Self::I32(_) => Type::Primitive(PrimitiveType::I32),
+            Self::I64(_) => Type::Primitive(PrimitiveType::I64),
+            Self::Isize(_) => Type::Primitive(PrimitiveType::Isize),
+            Self::F64(_) => Type::Primitive(PrimitiveType::F64),
+        }
+    }
+
+    pub fn is_primitive(&self) -> bool {
+        match self {
+            Self::Term(_) => false,
+            _ => true,
+        }
+    }
+
+    pub fn as_i64(&self) -> Option<i64> {
+        match self {
+            Self::Term(ImmediateTerm::Integer(i)) => Some(*i),
+            Self::Term(_) => None,
+            Self::I1(b) => Some(*b as i64),
+            Self::I8(i) => Some(*i as i64),
+            Self::I16(i) => Some(*i as i64),
+            Self::I32(i) => Some(*i as i64),
+            Self::I64(i) => Some(*i),
+            Self::Isize(i) => Some(*i as i64),
+            Self::F64(_) => None,
+        }
+    }
+
+    pub fn as_f64(&self) -> Option<f64> {
+        match self {
+            Self::Term(ImmediateTerm::Float(f)) | Self::F64(f) => Some(*f),
+            _ => None,
+        }
+    }
+
+    pub fn as_bool(&self) -> Option<bool> {
+        match self {
+            Self::Term(ImmediateTerm::Bool(b)) | Self::I1(b) => Some(*b),
+            _ => None,
+        }
+    }
+
+    pub fn rank(&self) -> u8 {
+        match self {
+            Self::Term(_) => 0,
+            Self::I1(_) => 1,
+            Self::I8(_) => 2,
+            Self::I16(_) => 3,
+            Self::I32(_) => 4,
+            Self::I64(_) => 5,
+            Self::Isize(_) => 6,
+            Self::F64(_) => 7,
         }
     }
 }
-impl TryFrom<Integer> for Immediate {
-    type Error = ();
+impl fmt::Display for Immediate {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::Term(t) => write!(f, "{}", t),
+            Self::I1(i) => write!(f, "{}", i),
+            Self::I8(i) => write!(f, "{}", i),
+            Self::I16(i) => write!(f, "{}", i),
+            Self::I32(i) => write!(f, "{}", i),
+            Self::I64(i) => write!(f, "{}", i),
+            Self::Isize(i) => write!(f, "{}", i),
+            Self::F64(n) => write!(f, "{}", n),
+        }
+    }
+}
+impl Hash for Immediate {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        let d = std::mem::discriminant(self);
+        d.hash(state);
+        match self {
+            Self::Term(t) => t.hash(state),
+            Self::I1(i) => i.hash(state),
+            Self::I8(i) => i.hash(state),
+            Self::I16(i) => i.hash(state),
+            Self::I32(i) => i.hash(state),
+            Self::I64(i) => i.hash(state),
+            Self::Isize(i) => i.hash(state),
+            Self::F64(f) => {
+                let bytes = f.to_be_bytes();
+                bytes.hash(state)
+            }
+        }
+    }
+}
+impl Eq for Immediate {}
+impl PartialEq for Immediate {
+    fn eq(&self, other: &Self) -> bool {
+        match (*self, *other) {
+            (Self::Term(x), Self::Term(y)) => x == y,
+            (Self::Term(_), _) => false,
+            (_, Self::Term(_)) => false,
+            (Self::I8(x), Self::I8(y)) => x == y,
+            (Self::I16(x), Self::I16(y)) => x == y,
+            (Self::I32(x), Self::I32(y)) => x == y,
+            (Self::I64(x), Self::I64(y)) => x == y,
+            (Self::Isize(x), Self::Isize(y)) => x == y,
+            (Self::F64(x), Self::F64(y)) => x == y,
+            _ => false,
+        }
+    }
+}
+impl PartialOrd for Immediate {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        use std::cmp::Ordering;
 
-    fn try_from(i: Integer) -> Result<Self, Self::Error> {
-        use liblumen_number::ToPrimitive;
-
-        i.to_i64().map(|int| Self::Integer(int)).ok_or(())
+        match (self, other) {
+            (Self::Term(x), Self::Term(y)) => x.partial_cmp(y),
+            (Self::F64(x), Self::F64(y)) => x.partial_cmp(y),
+            (Self::F64(x), y) => {
+                let y = y.as_i64().unwrap() as f64;
+                match x.total_cmp(&y) {
+                    Ordering::Equal => self.rank().partial_cmp(&other.rank()),
+                    ord => Some(ord),
+                }
+            }
+            (x, Self::F64(y)) => {
+                let x = x.as_i64().unwrap() as f64;
+                match x.total_cmp(&y) {
+                    Ordering::Equal => self.rank().partial_cmp(&other.rank()),
+                    ord => Some(ord),
+                }
+            }
+            (x, y) => {
+                let x = x.as_i64().unwrap();
+                let y = y.as_i64().unwrap();
+                match x.cmp(&y) {
+                    Ordering::Equal => self.rank().partial_cmp(&other.rank()),
+                    ord => Some(ord),
+                }
+            }
+        }
+    }
+}
+impl From<bool> for Immediate {
+    #[inline(always)]
+    fn from(value: bool) -> Self {
+        Self::I1(value)
+    }
+}
+impl From<i8> for Immediate {
+    #[inline(always)]
+    fn from(value: i8) -> Self {
+        Self::I8(value)
+    }
+}
+impl From<i16> for Immediate {
+    #[inline(always)]
+    fn from(value: i16) -> Self {
+        Self::I16(value)
+    }
+}
+impl From<i32> for Immediate {
+    #[inline(always)]
+    fn from(value: i32) -> Self {
+        Self::I32(value)
+    }
+}
+impl From<i64> for Immediate {
+    #[inline(always)]
+    fn from(value: i64) -> Self {
+        Self::I64(value)
+    }
+}
+impl From<isize> for Immediate {
+    #[inline(always)]
+    fn from(value: isize) -> Self {
+        Self::Isize(value)
+    }
+}
+impl From<f64> for Immediate {
+    #[inline(always)]
+    fn from(value: f64) -> Self {
+        Self::F64(value)
+    }
+}
+impl From<char> for Immediate {
+    #[inline(always)]
+    fn from(value: char) -> Self {
+        Self::Term(ImmediateTerm::Integer(value as i64))
+    }
+}
+impl From<Symbol> for Immediate {
+    #[inline(always)]
+    fn from(value: Symbol) -> Self {
+        Self::Term(ImmediateTerm::Atom(value))
+    }
+}
+impl From<Float> for Immediate {
+    #[inline(always)]
+    fn from(value: Float) -> Self {
+        Self::Term(ImmediateTerm::Float(value.inner()))
     }
 }
 
@@ -318,9 +495,6 @@ pub enum ConstantItem {
     Bitstring(BitVec),
     String(String),
     InternedStr(Symbol),
-    Tuple(Vec<Constant>),
-    List(Vec<Constant>),
-    Map(Vec<(Constant, Constant)>),
 }
 impl Eq for ConstantItem {}
 impl PartialEq for ConstantItem {
@@ -362,12 +536,6 @@ impl PartialEq for ConstantItem {
                 Self::InternedStr(y) => x.eq(y),
                 _ => false,
             },
-            (Self::Tuple(x), Self::Tuple(y)) => x.eq(y),
-            (Self::Tuple(_), _) => false,
-            (Self::List(x), Self::List(y)) => x.eq(y),
-            (Self::List(_), _) => false,
-            (Self::Map(x), Self::Map(y)) => x.eq(y),
-            (Self::Map(_), _) => false,
         }
     }
 }
@@ -387,9 +555,6 @@ impl Hash for ConstantItem {
             Self::Bitstring(b) => b.hash(state),
             Self::String(b) => b.as_bytes().hash(state),
             Self::InternedStr(b) => b.as_str().get().as_bytes().hash(state),
-            Self::Tuple(e) => e.hash(state),
-            Self::List(e) => e.hash(state),
-            Self::Map(e) => e.hash(state),
         }
     }
 }
@@ -403,13 +568,10 @@ impl ConstantItem {
             Self::Bitstring(_) | Self::Bytes(_) | Self::String(_) | Self::InternedStr(_) => {
                 Type::Term(TermType::Bitstring)
             }
-            Self::Tuple(_) => Type::Term(TermType::Tuple(None)),
-            Self::List(_) => Type::Term(TermType::List(None)),
-            Self::Map(_) => Type::Term(TermType::Map),
         }
     }
 
-    fn byte_size(&self, pool: &BTreeMap<Constant, ConstantItem>) -> usize {
+    fn byte_size(&self) -> usize {
         match self {
             Self::Atom(_) | Self::Bool(_) | Self::Float(_) | Self::Integer(Integer::Small(_)) => 8,
             Self::Integer(Integer::Big(b)) => {
@@ -420,28 +582,11 @@ impl ConstantItem {
             Self::Bitstring(b) => b.byte_size(),
             Self::String(b) => b.as_bytes().len(),
             Self::InternedStr(b) => b.as_str().get().as_bytes().len(),
-            Self::Tuple(ref elements) => elements
-                .iter()
-                .map(|i| pool.get(i).unwrap().byte_size(pool))
-                .sum(),
-            Self::List(ref elements) => elements
-                .iter()
-                .map(|i| pool.get(i).unwrap().byte_size(pool))
-                .sum(),
-            Self::Map(ref elements) => elements
-                .iter()
-                .map(|(k, v)| {
-                    pool.get(k).unwrap().byte_size(pool) + pool.get(v).unwrap().byte_size(pool)
-                })
-                .sum(),
         }
     }
-
-    fn display(
-        &self,
-        f: &mut dyn Write,
-        pool: &BTreeMap<Constant, ConstantItem>,
-    ) -> io::Result<()> {
+}
+impl fmt::Display for ConstantItem {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::Integer(i) => write!(f, "{}", i),
             Self::Float(flt) => write!(f, "{}", flt),
@@ -473,38 +618,6 @@ impl ConstantItem {
                     write!(f, "{}", c)?;
                 }
                 write!(f, "\"")
-            }
-            Self::Tuple(ref elements) => {
-                write!(f, "{{")?;
-                for (i, element) in elements.iter().enumerate() {
-                    if i > 0 {
-                        write!(f, ", ")?;
-                    }
-                    pool.get(element).unwrap().display(f, pool)?;
-                }
-                write!(f, "}}")
-            }
-            Self::List(ref elements) => {
-                write!(f, "[")?;
-                for (i, element) in elements.iter().enumerate() {
-                    if i > 0 {
-                        write!(f, ", ")?;
-                    }
-                    pool.get(element).unwrap().display(f, pool)?;
-                }
-                write!(f, "]")
-            }
-            Self::Map(ref elements) => {
-                write!(f, "#{{")?;
-                for (i, (k, v)) in elements.iter().enumerate() {
-                    if i > 0 {
-                        write!(f, ", ")?;
-                    }
-                    pool.get(k).unwrap().display(f, pool)?;
-                    write!(f, " => ")?;
-                    pool.get(v).unwrap().display(f, pool)?;
-                }
-                write!(f, "}}")
             }
         }
     }
@@ -580,18 +693,6 @@ impl ConstantPool {
     }
 
     pub fn byte_size(&self) -> usize {
-        self.values_to_handles
-            .keys()
-            .map(|c| c.byte_size(&self.handles_to_values))
-            .sum()
-    }
-
-    pub fn display(&self, f: &mut dyn Write, handle: Constant) -> io::Result<()> {
-        let item = self.get(handle);
-        item.display(f, &self.handles_to_values)
-    }
-
-    pub fn display_item(&self, f: &mut dyn Write, item: &ConstantItem) -> io::Result<()> {
-        item.display(f, &self.handles_to_values)
+        self.values_to_handles.keys().map(|c| c.byte_size()).sum()
     }
 }

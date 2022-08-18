@@ -32,29 +32,6 @@ impl Pass for KernelToSsa {
     fn run<'a>(&mut self, mut module: Self::Input<'a>) -> anyhow::Result<Self::Output<'a>> {
         let mut ir_module = Module::new(module.name);
 
-        // Add all imports to the module
-        for (_, sig) in module.imports.iter() {
-            ir_module.import_function((**sig).clone());
-        }
-
-        // Register required builtins
-        let raise2 = FunctionName::new(symbols::Erlang, symbols::Raise, 2);
-        let raise3 = FunctionName::new(symbols::Erlang, symbols::Raise, 3);
-        let match_fail1 = FunctionName::new(symbols::Erlang, symbols::MatchFail, 1);
-        let recv_peek_message0 = FunctionName::new(symbols::Erlang, symbols::RecvPeekMessage, 0);
-        let recv_wait_timeout1 = FunctionName::new(symbols::Erlang, symbols::RecvWaitTimeout, 1);
-        let recv_next0 = FunctionName::new(symbols::Erlang, symbols::RecvNext, 0);
-        let remove_message0 = FunctionName::new(symbols::Erlang, symbols::RemoveMessage, 0);
-        let tuple_size1 = FunctionName::new(symbols::Erlang, symbols::TupleSize, 1);
-        ir_module.register_builtin(bifs::get(&raise2).cloned().unwrap());
-        ir_module.register_builtin(bifs::get(&raise3).cloned().unwrap());
-        ir_module.register_builtin(bifs::get(&match_fail1).cloned().unwrap());
-        ir_module.register_builtin(bifs::get(&recv_peek_message0).cloned().unwrap());
-        ir_module.register_builtin(bifs::get(&recv_wait_timeout1).cloned().unwrap());
-        ir_module.register_builtin(bifs::get(&recv_next0).cloned().unwrap());
-        ir_module.register_builtin(bifs::get(&remove_message0).cloned().unwrap());
-        ir_module.register_builtin(bifs::get(&tuple_size1).cloned().unwrap());
-
         // Declare all functions in the module, and store their refs so we can access them later
         let mut functions = Vec::with_capacity(module.functions.len());
         for kfunction in module.functions.iter() {
@@ -76,13 +53,19 @@ impl Pass for KernelToSsa {
                 cc: CallConv::Erlang,
                 module: module.name.name,
                 name: kfunction.name.function,
-                params,
-                results: vec![
-                    Type::Primitive(PrimitiveType::I1),
-                    Type::Term(TermType::Any),
-                ],
+                ty: FunctionType::new(
+                    params,
+                    vec![
+                        Type::Primitive(PrimitiveType::I1),
+                        Type::Term(TermType::Any),
+                    ],
+                ),
             };
-            let id = ir_module.declare_function(signature.clone());
+            let id = if kfunction.has_annotation(symbols::Closure) {
+                ir_module.declare_closure(signature.clone())
+            } else {
+                ir_module.declare_function(signature.clone())
+            };
             debug!(
                 "declared {} with visibility {}, it has id {:?}",
                 signature.mfa(),
@@ -95,7 +78,7 @@ impl Pass for KernelToSsa {
         // For every function in the module, run a function-local pass which produces the function body
         for (i, function) in module.functions.drain(..).enumerate() {
             let (id, sig) = functions.get(i).unwrap();
-            let mut pass = LowerFunctionToCore {
+            let mut pass = LowerFunctionToSsa {
                 reporter: &mut self.reporter,
                 module: &mut ir_module,
                 id: *id,
@@ -133,7 +116,7 @@ impl FailContext {
     }
 }
 
-struct LowerFunctionToCore<'m> {
+struct LowerFunctionToSsa<'m> {
     reporter: &'m mut Reporter,
     module: &'m mut Module,
     id: FuncRef,
@@ -148,13 +131,13 @@ struct LowerFunctionToCore<'m> {
     #[allow(dead_code)]
     recv: Stack<Block>,
 }
-impl<'m> Pass for LowerFunctionToCore<'m> {
+impl<'m> Pass for LowerFunctionToSsa<'m> {
     type Input<'a> = k::Function;
     type Output<'a> = Function;
 
     fn run<'a>(&mut self, kfunction: Self::Input<'a>) -> anyhow::Result<Self::Output<'a>> {
         debug!(
-            "running LowerFunctionToCore pass on {} ({:?})",
+            "running LowerFunctionToSsa pass on {} ({:?})",
             self.signature.mfa(),
             self.id
         );
@@ -194,20 +177,22 @@ impl<'m> Pass for LowerFunctionToCore<'m> {
         self.fail = ultimate_failure;
 
         let span = kfunction.span();
-        let exception_generic =
+        let exception =
             builder.append_block_param(ultimate_failure, Type::Term(TermType::Any), span);
         builder.switch_to_block(ultimate_failure);
-        let exception = builder.ins().cast(exception_generic, Type::Exception, span);
         builder.ins().ret_err(exception, span);
         builder.switch_to_block(current_block);
 
         self.lower(&mut builder, *kfunction.body)?;
 
-        debug!("LowerFunctionToCore pass completed successfully");
+        // Prune any unreachable blocks generated due to the structure of Kernel Erlang
+        builder.prune_unreachable_blocks();
+
+        debug!("LowerFunctionToSsa pass completed successfully");
         Ok(function)
     }
 }
-impl<'m> LowerFunctionToCore<'m> {
+impl<'m> LowerFunctionToSsa<'m> {
     fn lower<'a>(&mut self, builder: &'a mut IrBuilder, expr: KExpr) -> anyhow::Result<()> {
         match expr {
             KExpr::Match(k::Match {
@@ -224,6 +209,16 @@ impl<'m> LowerFunctionToCore<'m> {
                 self.brk.push(brk);
                 self.lower_match(builder, self.fail, body)?;
                 self.brk.pop();
+                // If the break block we created remains empty and
+                // there are no values returned from this match, then
+                // we know that this block is useless and can be removed
+                if ret.is_empty() && builder.is_block_empty(brk) {
+                    builder.remove_block(brk);
+                    return Ok(());
+                }
+                // Otherwise, the values returned from the match are used
+                // and we have more instructions to generate starting in
+                // the break block
                 builder.switch_to_block(brk);
                 Ok(())
             }
@@ -482,24 +477,24 @@ impl<'m> LowerFunctionToCore<'m> {
                 // based on the arity of the tuple. Since the tuple_size BIF will return
                 // an error if the input is not a tuple, we can combine both elements of this
                 // check in a single call
-                let tuple_size1 = FunctionName::new(symbols::Erlang, symbols::TupleSize, 1);
-                let tuple_size_func = builder.get_callee(tuple_size1).unwrap();
+                let tuple_size_func = self.module.get_or_register_native(symbols::NifTupleSize);
                 let inst = builder.ins().call(tuple_size_func, &[src], span);
                 let (is_err, arity) = {
                     let results = builder.inst_results(inst);
                     (results[0], results[1])
                 };
                 builder.ins().br_if(is_err, type_fail, &[], span);
-                // Dispatch on the arity to the appropriate block for that clause
-                let arity32 = builder
+                // The source value is known to be a tuple, so perform a cast before proceeding
+                let src = builder
                     .ins()
-                    .cast(arity, Type::Primitive(PrimitiveType::I32), span);
+                    .cast(src, Type::Term(TermType::Tuple(None)), span);
+                // Dispatch on the arity to the appropriate block for that clause
                 let arms = clauses
                     .iter()
                     .map(|(arity, _)| *arity)
                     .zip(blocks.iter().copied())
                     .collect::<Vec<_>>();
-                builder.ins().switch(arity32, arms, value_fail, span);
+                builder.ins().switch(arity, arms, value_fail, span);
                 // Now, for each clause, lower the body of that clause in the appropriate block
                 for ((_, clause), block) in clauses.drain(..).zip(blocks.drain(..)) {
                     builder.switch_to_block(block);
@@ -510,12 +505,7 @@ impl<'m> LowerFunctionToCore<'m> {
                             continue;
                         }
                         let var = elem.as_var().map(|v| v.name).unwrap();
-                        let index = (i + 1) as i64;
-                        let elem = builder.ins().get_element_imm(
-                            src,
-                            Immediate::Integer(index),
-                            var.span(),
-                        );
+                        let elem = builder.ins().get_element_imm(src, i, var.span());
                         builder.define_var(var.name, elem);
                     }
                     self.lower_match(builder, value_fail, *clause.body)?;
@@ -651,7 +641,7 @@ impl<'m> LowerFunctionToCore<'m> {
                 self.lower_test_is_record(builder, span, tuple, tag, arity, fail)
             }
             _ => {
-                let callee = builder.get_or_register_callee(op);
+                let callee = self.module.get_or_register_builtin(op);
                 let args = self.ssa_values(builder, args)?;
                 // These tests will never raise an exception, so we ignore the is_err flag
                 let inst = builder.ins().call(callee, args.as_slice(), span);
@@ -681,9 +671,7 @@ impl<'m> LowerFunctionToCore<'m> {
         // Cast the input to the correct tuple type now that we know it is the expected shape
         let tuple = builder.ins().cast(tuple, ty, span);
         // Fetch the tag element of the tuple
-        let elem = builder
-            .ins()
-            .get_element_imm(tuple, Immediate::Integer(1), span);
+        let elem = builder.ins().get_element_imm(tuple, 0, span);
         // Compare the fetched tag to the expected tag, branching to the fail block if there is a mismatch
         let tag = builder.ins().atom(tag, span);
         let has_tag = builder.ins().eq_exact(elem, tag, span);
@@ -694,32 +682,103 @@ impl<'m> LowerFunctionToCore<'m> {
     fn lower_call<'a>(&mut self, builder: &'a mut IrBuilder, call: k::Call) -> anyhow::Result<()> {
         let span = call.span();
         match self.fail_context() {
-            FailContext::Guard(fail) => {
-                // Inside a guard. The only allowed function call is to erlang:error/1,2.
-                // We will generate a branch to the failure branch.
-                assert_eq!(call.module_symbol(), Some(symbols::Erlang));
-                assert_eq!(call.function_symbol(), Some(symbols::Error));
-                builder.ins().br(fail, &[], span);
-                Ok(())
-            }
+            // Inside a guard. The only allowed function call is to erlang:error/1,2.
+            // We will generate a branch to the failure branch.
+            FailContext::Guard(_) => panic!(
+                "invalid callee in guard {:#?}/{}",
+                call.callee.as_ref(),
+                call.args.len()
+            ),
             fail => {
                 // Ordinary function call in a function body.
-                let inst = match call.static_callee() {
-                    Some(callee) => {
+                let inst = match *call.callee {
+                    KExpr::Bif(k::Bif {
+                        span: bif_span,
+                        op,
+                        args: mut env,
+                        ..
+                    }) => {
+                        // Call to a local closure
+                        assert_eq!(op.module, Some(symbols::Erlang));
+                        assert_eq!(op.function, symbols::MakeFun);
+                        // NOTE: This is an optimization, because we know that we
+                        // are calling a closure, and that the closure is in the local
+                        // module, we can skip the overhead of erlang:apply/2 and skip
+                        // straight to calling the callee. However, we must still construct
+                        // the closure, as it contains the env that the target function expects
+                        // as an extra argument
+                        let KExpr::Local(name) = env.remove(0) else { panic!("expected local here") };
+                        let env = self.ssa_values(builder, env)?;
+                        let func = builder
+                            .get_callee(name.item)
+                            .expect("undefined local function reference");
+                        let make_fun = builder.ins().make_fun(func, env.as_slice(), bif_span);
+                        let (is_err, fun) = {
+                            let results = builder.inst_results(make_fun);
+                            (results[0], results[1])
+                        };
+                        // Handle the case where fun creation fails for some reason
+                        let current_block = builder.current_block();
+                        let make_fun_failed = builder.create_block();
+                        let exception = builder.append_block_param(
+                            make_fun_failed,
+                            Type::Term(TermType::Any),
+                            bif_span,
+                        );
+                        builder
+                            .ins()
+                            .br_if(is_err, make_fun_failed, &[fun], bif_span);
+                        builder.switch_to_block(make_fun_failed);
+                        builder.ins().ret_err(exception, bif_span);
+                        builder.switch_to_block(current_block);
+                        // Lastly, call the closure function directly
+                        let mut args = self.ssa_values(builder, call.args)?;
+                        args.push(fun);
+                        builder.ins().call(func, args.as_slice(), span)
+                    }
+                    KExpr::Local(name) | KExpr::Remote(k::Remote::Static(name)) => {
+                        assert!(
+                            !self.module.is_closure(&name),
+                            "expected static calls to closures to be transformed"
+                        );
+                        // Static call to a regular function
                         let args = self.ssa_values(builder, call.args)?;
-                        if let Some(func) = builder.get_callee(callee) {
-                            builder.ins().call(func, args.as_slice(), span)
+                        let func = builder.get_or_register_callee(name.item);
+                        builder.ins().call(func, args.as_slice(), span)
+                    }
+                    KExpr::Remote(k::Remote::Dynamic(module, function)) => {
+                        // Indirect callee to a full MFA, convert to an erlang:apply/3 call
+                        let module = self.ssa_value(builder, *module)?;
+                        let function = self.ssa_value(builder, *function)?;
+                        let mut args = self.ssa_values(builder, call.args)?;
+                        let apply3 = FunctionName::new(symbols::Erlang, symbols::Apply, 3);
+                        let apply3 = self.module.get_or_register_builtin(apply3);
+                        let argv = args.drain(..).rfold(builder.ins().nil(span), |tail, hd| {
+                            builder.ins().cons(hd, tail, span)
+                        });
+                        builder.ins().call(apply3, &[module, function, argv], span)
+                    }
+                    v @ KExpr::Var(_) => {
+                        // Indirect callee
+                        let is_closure = v.has_annotation(symbols::Closure);
+                        let callee = self.ssa_value(builder, v)?;
+                        // Optimize the case where we know that the callee is a fun that we just created
+                        let mut args = self.ssa_values(builder, call.args)?;
+                        if is_closure {
+                            // The callee is known statically to be a fun, so we can use the optimized call path
+                            builder.ins().call_indirect(callee, args.as_slice(), span)
                         } else {
-                            let func = builder.get_or_register_callee(callee);
-                            builder.ins().call(func, args.as_slice(), span)
+                            // The callee is either not a fun at all, or we are unable to verify, use the safe path by
+                            // converting this to a call to apply/2
+                            let apply2 = FunctionName::new(symbols::Erlang, symbols::Apply, 2);
+                            let apply2 = self.module.get_or_register_builtin(apply2);
+                            let argv = args.drain(..).rfold(builder.ins().nil(span), |tail, hd| {
+                                builder.ins().cons(hd, tail, span)
+                            });
+                            builder.ins().call(apply2, &[callee, argv], span)
                         }
                     }
-                    None => {
-                        // Indirect callee
-                        let callee = self.ssa_value(builder, *call.callee)?;
-                        let args = self.ssa_values(builder, call.args)?;
-                        builder.ins().call_indirect(callee, args.as_slice(), span)
-                    }
+                    other => panic!("unexpected callee expression: {:#?}", &other),
                 };
                 let (is_err, result) = {
                     let results = builder.inst_results(inst);
@@ -749,33 +808,100 @@ impl<'m> LowerFunctionToCore<'m> {
 
         // Ordinary function call in a function body.
         let span = call.span();
-        let inst = match call.static_callee() {
-            Some(callee) => {
+        match *call.callee {
+            KExpr::Bif(k::Bif {
+                span: bif_span,
+                op,
+                args: mut env,
+                ..
+            }) => {
+                // Call to a local closure
+                assert_eq!(op.module, Some(symbols::Erlang));
+                assert_eq!(op.function, symbols::MakeFun);
+                // NOTE: This is an optimization, because we know that we
+                // are calling a closure, and that the closure is in the local
+                // module, we can skip the overhead of erlang:apply/2 and skip
+                // straight to calling the callee. However, we must still construct
+                // the closure, as it contains the env that the target function expects
+                // as an extra argument
+                let KExpr::Local(name) = env.remove(0) else { panic!("expected local here") };
+                let env = self.ssa_values(builder, env)?;
+                let func = builder
+                    .get_callee(name.item)
+                    .expect("undefined local function reference");
+                let make_fun = builder.ins().make_fun(func, env.as_slice(), bif_span);
+                let (is_err, fun) = {
+                    let results = builder.inst_results(make_fun);
+                    (results[0], results[1])
+                };
+                // Handle the case where fun creation fails for some reason
+                let current_block = builder.current_block();
+                let make_fun_failed = builder.create_block();
+                let exception = builder.append_block_param(
+                    make_fun_failed,
+                    Type::Term(TermType::Any),
+                    bif_span,
+                );
+                builder
+                    .ins()
+                    .br_if(is_err, make_fun_failed, &[fun], bif_span);
+                builder.switch_to_block(make_fun_failed);
+                builder.ins().ret_err(exception, bif_span);
+                builder.switch_to_block(current_block);
+                // Lastly, call the closure function directly
+                let mut args = self.ssa_values(builder, call.args)?;
+                args.push(fun);
+                builder.ins().enter(func, args.as_slice(), span)
+            }
+            KExpr::Local(name) | KExpr::Remote(k::Remote::Static(name)) => {
+                // Static call to a regular function
+                assert!(
+                    !self.module.is_closure(&name),
+                    "expected static calls to closures to be transformed"
+                );
                 let args = self.ssa_values(builder, call.args)?;
-                if let Some(func) = builder.get_callee(callee) {
-                    builder.ins().enter(func, args.as_slice(), span)
+                let func = builder.get_or_register_callee(name.item);
+                builder.ins().enter(func, args.as_slice(), span)
+            }
+            KExpr::Remote(k::Remote::Dynamic(module, function)) => {
+                // Indirect callee to a full MFA, convert to an erlang:apply/3 call
+                let module = self.ssa_value(builder, *module)?;
+                let function = self.ssa_value(builder, *function)?;
+                let mut args = self.ssa_values(builder, call.args)?;
+                let apply3 = FunctionName::new(symbols::Erlang, symbols::Apply, 3);
+                let apply3 = self.module.get_or_register_builtin(apply3);
+                let argv = args.drain(..).rfold(builder.ins().nil(span), |tail, hd| {
+                    builder.ins().cons(hd, tail, span)
+                });
+                builder.ins().enter(apply3, &[module, function, argv], span)
+            }
+            v @ KExpr::Var(_) => {
+                // Indirect callee to a fun
+                let is_closure = v.has_annotation(symbols::Closure);
+                let callee = self.ssa_value(builder, v)?;
+                // Optimize the case where we know that the callee is a fun that we just created
+                let mut args = self.ssa_values(builder, call.args)?;
+                if is_closure {
+                    // The callee is known statically to be a fun, so we can use the optimized call path
+                    builder.ins().enter_indirect(callee, args.as_slice(), span)
                 } else {
-                    let func = builder.get_or_register_callee(callee);
-                    builder.ins().enter(func, args.as_slice(), span)
+                    // The callee is either not a fun at all, or we are unable to verify, use the safe path by
+                    // converting this to a call to apply/2
+                    let apply2 = FunctionName::new(symbols::Erlang, symbols::Apply, 2);
+                    let apply2 = builder.get_callee(apply2).unwrap();
+                    let argv = args.drain(..).rfold(builder.ins().nil(span), |tail, hd| {
+                        builder.ins().cons(hd, tail, span)
+                    });
+                    builder.ins().enter(apply2, &[callee, argv], span)
                 }
             }
-            None => {
-                // Indirect callee
-                let callee = self.ssa_value(builder, *call.callee)?;
-                let args = self.ssa_values(builder, call.args)?;
-                builder.ins().enter_indirect(callee, args.as_slice(), span)
-            }
+            other => panic!("unexpected callee expression: {:#?}", &other),
         };
-        let (is_err, result) = {
-            let results = builder.inst_results(inst);
-            (results[0], results[1])
-        };
-        builder.ins().ret(is_err, result, span);
         Ok(())
     }
 
     ///  Generate code for a guard BIF or primop.
-    fn lower_bif<'a>(&mut self, builder: &'a mut IrBuilder, mut bif: k::Bif) -> anyhow::Result<()> {
+    fn lower_bif<'a>(&mut self, builder: &'a mut IrBuilder, bif: k::Bif) -> anyhow::Result<()> {
         let span = bif.span();
         assert_eq!(bif.op.module, Some(symbols::Erlang));
         if bif.op.is_primop() {
@@ -796,29 +922,19 @@ impl<'m> LowerFunctionToCore<'m> {
                 let arity = arity.to_usize().unwrap();
                 self.lower_is_record_bif(builder, bif, tag, arity)
             }
-            (symbols::MakeFun, [KExpr::Local(local), ..]) => {
-                // make_fun/3 requires special handling to convert to its corresponding core instruction
-                let callee = builder.get_callee(local.item).unwrap();
-                let env = self.ssa_values(builder, bif.args.split_off(1))?;
-                let inst = builder.ins().make_fun(callee, env.as_slice(), span);
-                let (is_err, result) = {
-                    let results = builder.inst_results(inst);
-                    (results[0], results[1])
-                };
-                let fail = self.fail_context();
-                builder.ins().br_if(is_err, fail.block(), &[result], span);
-                if !bif.ret.is_empty() {
-                    builder.define_var(bif.ret[0].as_var().map(|v| v.name()).unwrap(), result);
-                }
-                Ok(())
-            }
             _ if bif.op.is_safe() => {
                 // This bif can never fail, and has no side effects
-                let callee = builder.get_or_register_callee(bif.op);
+                let callee = self.module.get_or_register_builtin(bif.op);
                 let args = self.ssa_values(builder, bif.args)?;
                 let inst = builder.ins().call(callee, args.as_slice(), span);
                 let mut results = builder.inst_results(inst).to_vec();
-                assert_eq!(bif.ret.len(), results.len());
+                assert_eq!(
+                    bif.ret.len(),
+                    results.len(),
+                    "expected bif {} to have {} results",
+                    bif.op,
+                    results.len()
+                );
                 for (ret, value) in bif
                     .ret
                     .iter()
@@ -831,7 +947,7 @@ impl<'m> LowerFunctionToCore<'m> {
             }
             _ => {
                 // This bif is fallible, and may have side effects, so must be treated like a standard call
-                let callee = builder.get_or_register_callee(bif.op);
+                let callee = self.module.get_or_register_builtin(bif.op);
                 let args = self.ssa_values(builder, bif.args)?;
                 let inst = builder.ins().call(callee, args.as_slice(), span);
                 let (is_err, result) = {
@@ -850,7 +966,12 @@ impl<'m> LowerFunctionToCore<'m> {
                     builder.ins().br_if(is_err, fail.block(), &[result], span);
                 } else {
                     // If there are rets, we expect that _all_ of the op results are handled
-                    assert_eq!(bif.ret.len(), 2);
+                    assert_eq!(
+                        bif.ret.len(),
+                        2,
+                        "expected bif {} to have 2 result values",
+                        bif.op
+                    );
                     builder.define_var(bif.ret[0].as_var().map(|v| v.name()).unwrap(), is_err);
                     builder.define_var(bif.ret[1].as_var().map(|v| v.name()).unwrap(), result);
                 }
@@ -887,12 +1008,8 @@ impl<'m> LowerFunctionToCore<'m> {
         builder.ins().br_if(is_type, tag_check_block, &[], span);
         builder.ins().br(final_block, &[is_type], span);
         builder.switch_to_block(tag_check_block);
-        let tag_value = builder
-            .ins()
-            .get_element_imm(tuple, Immediate::Integer(0), span);
-        let has_tag = builder
-            .ins()
-            .eq_exact_imm(tag_value, Immediate::Atom(tag), span);
+        let tag_value = builder.ins().get_element_imm(tuple, 0, span);
+        let has_tag = builder.ins().eq_exact_imm(tag_value, tag.into(), span);
         builder.ins().br(final_block, &[has_tag], span);
         builder.switch_to_block(final_block);
         Ok(())
@@ -901,48 +1018,76 @@ impl<'m> LowerFunctionToCore<'m> {
     fn lower_internal<'a>(
         &mut self,
         builder: &'a mut IrBuilder,
-        bif: k::Bif,
+        mut bif: k::Bif,
     ) -> anyhow::Result<()> {
         let span = bif.span();
-        let callee = builder.get_or_register_callee(bif.op);
-        match bif.op.function {
-            op @ (symbols::MatchFail | symbols::Raise | symbols::RawRaise) => {
-                assert!(bif.ret.len() < 2);
+        match (bif.op.function, bif.args.as_slice()) {
+            (symbols::MakeFun, [KExpr::Local(local), ..]) => {
+                // make_fun/2 requires special handling to convert to its corresponding core instruction
+                let callee = builder
+                    .get_callee(local.item)
+                    .expect("undefined local function reference");
+                let callee_type = builder.func.dfg.callee_signature(callee).get_type().clone();
+                let env = self.ssa_values(builder, bif.args.split_off(1))?;
+                let inst = builder.ins().make_fun(callee, env.as_slice(), span);
+                let (is_err, result) = {
+                    let results = builder.inst_results(inst);
+                    (results[0], results[1])
+                };
+                let fail = self.fail_context();
+                builder.ins().br_if(is_err, fail.block(), &[result], span);
+                if !bif.ret.is_empty() {
+                    let var = bif.ret[0].as_var().map(|v| v.name()).unwrap();
+                    builder.define_var(var, result);
+                    builder
+                        .set_var_type(var, Type::Term(TermType::Fun(Some(Box::new(callee_type)))));
+                }
+                Ok(())
+            }
+            (symbols::MakeFun, _) => {
+                assert_eq!(
+                    bif.args.len(),
+                    3,
+                    "expected make_fun bif to have three arguments"
+                );
+                let callee = self.module.get_or_register_builtin(bif.op);
                 let args = self.ssa_values(builder, bif.args)?;
                 let inst = builder.ins().call(callee, args.as_slice(), span);
-                let exception = builder.first_result(inst);
-                if !bif.ret.is_empty() {
-                    builder.define_var(bif.ret[0].as_var().map(|v| v.name()).unwrap(), exception);
-                }
-                match self.fail_context() {
-                    FailContext::Uncaught(_) => {
-                        // This exception has no local handler, so raise directly to the caller
-                        builder.ins().ret_err(exception, span);
-                        Ok(())
-                    }
-                    FailContext::Catch(blk) => {
-                        // This is a match failure or thrown exception in the presence of a local
-                        // handler, so we can jump straight to the handler with the exception that was constructed
-                        builder.ins().br(blk, &[exception], span);
-                        Ok(())
-                    }
-                    FailContext::Guard(blk) => {
-                        // This is a match failure in a guard context, i.e. this guard always fails,
-                        // we can unconditionally branch to the next guard
-                        assert_eq!(op, symbols::MatchFail, "invalid op in guard: {}", op);
-                        builder.ins().br(blk, &[], span);
-                        Ok(())
-                    }
-                }
+                let results = builder.inst_results(inst);
+                assert_eq!(results.len(), 1, "incorrect results for builtin {}", bif.op);
+                assert_eq!(bif.ret.len(), 1, "result of make_fun/3 bif must be used");
+                builder.define_var(bif.ret[0].as_var().map(|v| v.name()).unwrap(), results[0]);
+                Ok(())
             }
-            symbols::RemoveMessage | symbols::RecvNext => {
+            (symbols::UnpackEnv, _) => {
+                assert_eq!(
+                    bif.args.len(),
+                    2,
+                    "expected unpack_env bif to have two arguments"
+                );
+                assert_eq!(bif.ret.len(), 1, "result of unpack_env bif must be used");
+                let index = match bif.args.pop().unwrap() {
+                    KExpr::Literal(Literal { value: Lit::Integer(Integer::Small(i)), .. }) => i,
+                    other => panic!("invalid argument given to unpack_env bif, expected integer literal, got: {:#?}", &other),
+                };
+                let fun = self.ssa_value(builder, bif.args.pop().unwrap())?;
+                let value =
+                    builder
+                        .ins()
+                        .unpack_env(fun, index.try_into().expect("index too large"), span);
+                builder.define_var(bif.ret[0].as_var().map(|v| v.name()).unwrap(), value);
+                Ok(())
+            }
+            (symbols::RemoveMessage | symbols::RecvNext, _) => {
+                let callee = self.module.get_or_register_builtin(bif.op);
                 // These ops have no arguments and no results, i.e. they are not fallible, but do have a side effect on the process mailbox
                 assert_eq!(bif.ret.len(), 0);
                 assert_eq!(bif.args.len(), 0);
                 builder.ins().call(callee, &[], span);
                 Ok(())
             }
-            symbols::RecvPeekMessage => {
+            (symbols::RecvPeekMessage, _) => {
+                let callee = self.module.get_or_register_builtin(bif.op);
                 assert_eq!(bif.ret.len(), 2);
                 // This op has a multi-value result. The first is a boolean indicating whether a message was available,
                 // the second is the message itself, or NONE, depending on whether or not a message was available
@@ -959,7 +1104,8 @@ impl<'m> LowerFunctionToCore<'m> {
                 builder.define_var(bif.ret[1].as_var().map(|v| v.name()).unwrap(), msg);
                 Ok(())
             }
-            symbols::RecvWaitTimeout => {
+            (symbols::RecvWaitTimeout, _) => {
+                let callee = self.module.get_or_register_builtin(bif.op);
                 assert!(bif.args.len() <= 1);
                 assert_eq!(bif.ret.len(), 1);
                 // This op has a complex multi-value result that can produce branches in three directions:
@@ -989,17 +1135,199 @@ impl<'m> LowerFunctionToCore<'m> {
                 }
                 Ok(())
             }
-            _ => {
-                // All other primops behave like regular function calls
+            (symbols::BuildStacktrace, _) => {
+                assert_eq!(
+                    bif.args.len(),
+                    1,
+                    "invalid number of arguments for build_stacktrace bif"
+                );
+                assert_eq!(
+                    bif.ret.len(),
+                    1,
+                    "result of build_stacktrace bif must be used"
+                );
+                let callee = self
+                    .module
+                    .get_or_register_native(symbols::NifBuildStacktrace);
                 let args = self.ssa_values(builder, bif.args)?;
                 let inst = builder.ins().call(callee, args.as_slice(), span);
-                let (is_err, result) = {
+                let trace = {
+                    let results = builder.inst_results(inst);
+                    assert_eq!(results.len(), 1);
+                    results[0]
+                };
+                builder.define_var(bif.ret[0].as_var().map(|v| v.name()).unwrap(), trace);
+                Ok(())
+            }
+            // The nif_start instruction is simply a marker for now, we don't have any reason to emit it to SSA
+            (symbols::NifStart, _) => {
+                assert_eq!(
+                    bif.args.len(),
+                    0,
+                    "invalid number of arguments for nif_start bif"
+                );
+                assert_eq!(
+                    bif.ret.len(),
+                    0,
+                    "nif_start bif does not produce results, but some are expected"
+                );
+                Ok(())
+            }
+            // MatchFail is a special exception builtin that requires some extra treatment
+            (symbols::MatchFail, _) => {
+                assert!(bif.ret.len() < 2);
+                let error1 = FunctionName::new(symbols::Erlang, symbols::Error, 1);
+                let callee = self.module.get_or_register_builtin(error1);
+                // If this is a function or case clause error, the arity is dynamic, but we need
+                // to convert the argument list into an appropriate form for calling erlang:match_fail/2
+                let (is_err, exception) = match bif.args[0].as_atom() {
+                    Some(symbols::FunctionClause) => {
+                        let mut args = self.ssa_values(builder, bif.args)?;
+                        let ty = args.remove(0);
+                        let argv = args.drain(..).rfold(builder.ins().nil(span), |tail, head| {
+                            builder.ins().cons(head, tail, span)
+                        });
+                        // The first argument will be the type of match error (function),
+                        // the second will be a tuple containing the name of the module,
+                        // the name of the function, and a list of the arguments, and optionally,
+                        // a list of extra info (e.g. file/line)
+                        let (module, function) = match bif.annotations.get(symbols::Inlined) {
+                            None => {
+                                // This error is for the current module/function
+                                let module = builder.ins().atom(self.signature.module, span);
+                                let function = builder.ins().atom(self.signature.name, span);
+                                (module, function)
+                            }
+                            Some(Annotation::Term(Literal {
+                                value: Lit::Tuple(elements),
+                                ..
+                            })) if elements.len() == 2 => {
+                                let Literal { value: Lit::Atom(name), .. } = elements[0] else { panic!("expected literal atom, got: {:#?}", &elements[0]) };
+                                // This error was inlined from another function which we can
+                                // extract from the annotated {Name, Arity} tuple
+                                let module = builder.ins().atom(self.signature.module, span);
+                                let function = builder.ins().atom(name, span);
+                                (module, function)
+                            }
+                            other => panic!("unexpected inlined attribute value: {:#?}", &other),
+                        };
+                        let meta = builder.ins().nil(span);
+                        let reason = builder.ins().tuple_imm(4, span);
+                        builder.ins().set_element_mut(reason, 0, module, span);
+                        builder.ins().set_element_mut(reason, 1, function, span);
+                        builder.ins().set_element_mut(reason, 2, argv, span);
+                        builder.ins().set_element_mut(reason, 3, meta, span);
+                        let error = builder.ins().tuple_imm(2, span);
+                        builder.ins().set_element_mut(error, 0, ty, span);
+                        builder.ins().set_element_mut(error, 1, reason, span);
+                        let inst = builder.ins().call(callee, &[error], span);
+                        let results = builder.inst_results(inst);
+                        assert_eq!(results.len(), 2);
+                        (results[0], results[1])
+                    }
+                    Some(symbols::CaseClause) => {
+                        // The first argument will be the type of match error (case clause),
+                        // the second will be a list of the arguments
+                        let mut args = self.ssa_values(builder, bif.args)?;
+                        let ty = args.remove(0);
+                        let argv = args.drain(..).rfold(builder.ins().nil(span), |tail, head| {
+                            builder.ins().cons(head, tail, span)
+                        });
+                        let error = builder.ins().tuple_imm(2, span);
+                        builder.ins().set_element_mut(error, 0, ty, span);
+                        builder.ins().set_element_mut(error, 1, argv, span);
+                        let inst = builder.ins().call(callee, &[error], span);
+                        let results = builder.inst_results(inst);
+                        assert_eq!(results.len(), 2);
+                        (results[0], results[1])
+                    }
+                    _ => {
+                        // This is a regular match error, in which there is a single argument
+                        assert_eq!(bif.args.len(), 2);
+                        let reason = self.ssa_value(builder, bif.args.pop().unwrap())?;
+                        let ty = self.ssa_value(builder, bif.args.pop().unwrap())?;
+                        let error = builder.ins().tuple_imm(2, span);
+                        builder.ins().set_element_mut(error, 0, ty, span);
+                        builder.ins().set_element_mut(error, 1, reason, span);
+                        let inst = builder.ins().call(callee, &[error], span);
+                        let results = builder.inst_results(inst);
+                        assert_eq!(results.len(), 2);
+                        (results[0], results[1])
+                    }
+                };
+                if !bif.ret.is_empty() {
+                    builder.define_var(bif.ret[0].as_var().map(|v| v.name()).unwrap(), exception);
+                }
+                match self.fail_context() {
+                    FailContext::Uncaught(_) => {
+                        // This exception has no local handler, so raise directly to the caller
+                        builder.ins().ret(is_err, exception, span);
+                        Ok(())
+                    }
+                    FailContext::Catch(blk) => {
+                        // This is a match failure or thrown exception in the presence of a local
+                        // handler, so we can jump straight to the handler with the exception that was constructed
+                        builder.ins().br(blk, &[exception], span);
+                        Ok(())
+                    }
+                    FailContext::Guard(blk) => {
+                        // This is a match failure in a guard context, i.e. this guard always fails,
+                        // we can unconditionally branch to the next guard
+                        builder.ins().br(blk, &[], span);
+                        Ok(())
+                    }
+                }
+            }
+            // Exception builtins return a result matching the standard Erlang calling convention
+            (op, _) if bif.op.is_exception_op() => {
+                assert!(
+                    bif.ret.len() < 2,
+                    "incorrect results for builtin {}",
+                    bif.op
+                );
+                let callee = self.module.get_or_register_builtin(bif.op);
+                let args = self.ssa_values(builder, bif.args)?;
+                let inst = builder.ins().call(callee, args.as_slice(), span);
+                let (is_err, exception) = {
                     let results = builder.inst_results(inst);
                     assert_eq!(results.len(), 2);
                     (results[0], results[1])
                 };
                 if !bif.ret.is_empty() {
-                    assert_eq!(bif.ret.len(), 1);
+                    builder.define_var(bif.ret[0].as_var().map(|v| v.name()).unwrap(), exception);
+                }
+                match self.fail_context() {
+                    FailContext::Uncaught(_) => {
+                        // This exception has no local handler, so raise directly to the caller
+                        builder.ins().ret(is_err, exception, span);
+                        Ok(())
+                    }
+                    FailContext::Catch(blk) => {
+                        // This is a match failure or thrown exception in the presence of a local
+                        // handler, so we can jump straight to the handler with the exception that was constructed
+                        builder.ins().br(blk, &[exception], span);
+                        Ok(())
+                    }
+                    FailContext::Guard(_) => panic!("invalid op in guard: {}", op),
+                }
+            }
+            _ => {
+                let callee = self.module.get_or_register_builtin(bif.op);
+                // All other primops behave like regular function calls
+                let args = self.ssa_values(builder, bif.args)?;
+                let inst = builder.ins().call(callee, args.as_slice(), span);
+                let (is_err, result) = {
+                    let results = builder.inst_results(inst);
+                    assert_eq!(results.len(), 2, "incorrect results for builtin {}", bif.op);
+                    (results[0], results[1])
+                };
+                if !bif.ret.is_empty() {
+                    assert_eq!(
+                        bif.ret.len(),
+                        1,
+                        "mismatch in the number of expected results for builtin {}",
+                        bif.op
+                    );
                     builder.define_var(bif.ret[0].as_var().map(|v| v.name()).unwrap(), result);
                 }
                 let fail = self.fail_context();
@@ -1047,6 +1375,7 @@ impl<'m> LowerFunctionToCore<'m> {
         self.landing_pads.push(handler_block);
         self.lower(builder, *expr.arg)?;
         self.brk.pop();
+        self.landing_pads.pop();
 
         builder.switch_to_block(body_block);
         self.brk.push(final_block);
@@ -1055,7 +1384,6 @@ impl<'m> LowerFunctionToCore<'m> {
         builder.switch_to_block(handler_block);
         self.lower(builder, *expr.handler)?;
         self.brk.pop();
-        self.landing_pads.pop();
 
         builder.switch_to_block(final_block);
 
@@ -1097,6 +1425,7 @@ impl<'m> LowerFunctionToCore<'m> {
         self.landing_pads.push(handler_block);
         self.lower(builder, *expr.arg)?;
         self.brk.pop();
+        self.landing_pads.pop();
 
         builder.switch_to_block(body_block);
         self.lower(builder, *expr.body)?;
@@ -1138,33 +1467,31 @@ impl<'m> LowerFunctionToCore<'m> {
         // Throws are the most common, and require no special handling, so we jump straight to the result block for them
         let is_throw = builder
             .ins()
-            .eq_exact_imm(class, Immediate::Atom(symbols::Throw), span);
+            .eq_exact_imm(class, symbols::Throw.into(), span);
         builder.ins().br_if(is_throw, result_block, &[reason], span);
         // Exits are the next simplest, as we just wrap the reason in a tuple, so we jump straight to the exit block
         let is_exit = builder
             .ins()
-            .eq_exact_imm(class, Immediate::Atom(symbols::Exit), span);
+            .eq_exact_imm(class, symbols::Exit.into(), span);
         builder.ins().br_if(is_exit, exit_block, &[reason], span);
         // Errors are handled in the landing pad directly
         let trace = builder.ins().exception_trace(exception, span);
         // We have to construct a new error reason, and then jump to the exit block to wrap it in the exit tuple
         let error_reason = builder.ins().tuple_imm(2, span);
-        let error_reason = builder.ins().set_element_mut(error_reason, 1, reason, span);
-        let error_reason = builder.ins().set_element_mut(error_reason, 2, trace, span);
+        let error_reason = builder.ins().set_element_mut(error_reason, 0, reason, span);
+        let error_reason = builder.ins().set_element_mut(error_reason, 1, trace, span);
         builder.ins().br(exit_block, &[error_reason], span);
 
         // In the exit block, we need just to construct the {'EXIT', Reason} tuple, and then jump to the result block
         builder.switch_to_block(exit_block);
         let wrapped_reason = builder.ins().tuple_imm(2, span);
-        let wrapped_reason = builder.ins().set_element_mut_imm(
-            wrapped_reason,
-            1,
-            Immediate::Atom(symbols::EXIT),
-            span,
-        );
+        let wrapped_reason =
+            builder
+                .ins()
+                .set_element_mut_imm(wrapped_reason, 0, symbols::EXIT.into(), span);
         let wrapped_reason = builder
             .ins()
-            .set_element_mut(wrapped_reason, 2, exit_reason, span);
+            .set_element_mut(wrapped_reason, 1, exit_reason, span);
         builder.ins().br(result_block, &[wrapped_reason], span);
 
         // Lower body
@@ -1197,7 +1524,7 @@ impl<'m> LowerFunctionToCore<'m> {
                 let mut elements = self.ssa_values(builder, elements)?;
                 let tuple = builder.ins().tuple_imm(elements.len(), span);
                 for (i, element) in elements.drain(..).enumerate() {
-                    builder.ins().set_element_mut(tuple, i + 1, element, span);
+                    builder.ins().set_element_mut(tuple, i, element, span);
                 }
                 builder.define_var(ret, tuple);
                 Ok(())
@@ -1266,22 +1593,28 @@ impl<'m> LowerFunctionToCore<'m> {
         match op {
             MapOp::Assoc => {
                 // Inserts are considered infallible
+                let map_put_3 = self.module.get_or_register_native(symbols::NifMapPut);
+                let map_put_mut_3 = self.module.get_or_register_native(symbols::NifMapPutMut);
                 let map = pairs.drain(..).enumerate().fold(map, |acc, (i, (k, v))| {
                     if i == 0 {
-                        builder.ins().map_put(acc, k, v, span)
+                        let call = builder.ins().call(map_put_3, &[acc, k, v], span);
+                        builder.first_result(call)
                     } else {
-                        builder.ins().map_put_mut(acc, k, v, span)
+                        let call = builder.ins().call(map_put_mut_3, &[acc, k, v], span);
+                        builder.first_result(call)
                     }
                 });
                 builder.define_var(ret, map);
             }
             MapOp::Exact => {
                 // Updates are fallible, so we must take into account exceptions
+                let map_update_3 = self.module.get_or_register_native(symbols::NifMapUpdate);
+                let map_update_mut_3 = self.module.get_or_register_native(symbols::NifMapUpdateMut);
                 let map = pairs.drain(..).enumerate().fold(map, |acc, (i, (k, v))| {
                     let inst = if i == 0 {
-                        builder.ins().map_update(acc, k, v, span)
+                        builder.ins().call(map_update_3, &[acc, k, v], span)
                     } else {
-                        builder.ins().map_update_mut(acc, k, v, span)
+                        builder.ins().call(map_update_mut_3, &[acc, k, v], span)
                     };
                     let (is_err, result) = {
                         let results = builder.inst_results(inst);
@@ -1308,14 +1641,15 @@ impl<'m> LowerFunctionToCore<'m> {
         // calculate the runtime size of the constructed binary and do validation
         // all in one mega-instruction since it allows for optimization opportunities
         // that this flow does not
-        let bin_inst = builder.ins().bs_init_writable(span);
-        let (is_err, bin) = {
+        let bs_init0 = self.module.get_or_register_native(symbols::NifBsInit);
+        let bin_inst = builder.ins().call(bs_init0, &[], span);
+        let (is_err, result) = {
             let results = builder.inst_results(bin_inst);
             (results[0], results[1])
         };
         let fail = self.fail_context();
-        builder.ins().br_if(is_err, fail.block(), &[bin], span);
-        let mut bin = builder.ins().cast(bin, Type::BinaryBuilder, span);
+        builder.ins().br_if(is_err, fail.block(), &[result], span);
+        let mut bin = builder.ins().cast(result, Type::BinaryBuilder, span);
         loop {
             match segment {
                 KExpr::BinarySegment(seg) | KExpr::BinaryInt(seg) => {
@@ -1331,7 +1665,7 @@ impl<'m> LowerFunctionToCore<'m> {
                         (results[0], results[1])
                     };
                     builder.ins().br_if(is_err, fail.block(), &[bin2], span);
-                    bin = builder.ins().cast(bin, Type::BinaryBuilder, span);
+                    bin = builder.ins().cast(bin2, Type::BinaryBuilder, span);
                     let next = *seg.next;
                     segment = next;
                 }
@@ -1339,7 +1673,8 @@ impl<'m> LowerFunctionToCore<'m> {
                 other => panic!("unexpected segment value: {:#?}", &other),
             }
         }
-        let inst = builder.ins().bs_close_writable(bin, span);
+        let bs_finish1 = self.module.get_or_register_native(symbols::NifBsFinish);
+        let inst = builder.ins().call(bs_finish1, &[bin], span);
         let (is_err, bin) = {
             let results = builder.inst_results(inst);
             (results[0], results[1])
@@ -1371,16 +1706,20 @@ impl<'m> LowerFunctionToCore<'m> {
                 for (i, element) in elements.drain(..).enumerate() {
                     let span = element.span();
                     let value = self.lower_literal(builder, element)?;
-                    builder.ins().set_element_mut(tup, i + 1, value, span);
+                    builder.ins().set_element_mut(tup, i, value, span);
                 }
                 Ok(tup)
             }
             Lit::Map(mut lmap) => {
-                let map = builder.ins().map(span);
+                let map_empty0 = self.module.get_or_register_native(symbols::NifMapEmpty);
+                let map_put_mut3 = self.module.get_or_register_native(symbols::NifMapPutMut);
+                let call = builder.ins().call(map_empty0, &[], span);
+                let mut map = builder.first_result(call);
                 while let Some((k, v)) = lmap.pop_first() {
                     let k = self.lower_literal(builder, k)?;
                     let v = self.lower_literal(builder, v)?;
-                    builder.ins().map_put_mut(map, k, v, span);
+                    let call = builder.ins().call(map_put_mut3, &[map, k, v], span);
+                    map = builder.first_result(call);
                 }
                 Ok(map)
             }
@@ -1451,7 +1790,7 @@ impl<'m> LowerFunctionToCore<'m> {
 }
 
 // Select
-impl<'m> LowerFunctionToCore<'m> {
+impl<'m> LowerFunctionToSsa<'m> {
     fn select_binary<'a>(
         &mut self,
         builder: &'a mut IrBuilder,
@@ -1560,7 +1899,6 @@ impl<'m> LowerFunctionToCore<'m> {
             (results[0], results[1], results[2])
         };
         builder.ins().br_if(is_err, fail, &[], span);
-        let next = builder.ins().cast(next, Type::MatchContext, span);
         Ok((extracted, next))
     }
 
@@ -1573,9 +1911,7 @@ impl<'m> LowerFunctionToCore<'m> {
         type_fail: Block,
     ) -> anyhow::Result<()> {
         let src = builder.var(var.name()).unwrap();
-        let is_err = builder
-            .ins()
-            .bs_test_tail_imm(src, Immediate::Integer(0), span);
+        let is_err = builder.ins().bs_test_tail_imm(src, 0, span);
         builder.ins().br_if(is_err, type_fail, &[], span);
         self.lower_match(builder, type_fail, *value.body)
     }
@@ -1619,7 +1955,8 @@ impl<'m> LowerFunctionToCore<'m> {
         for pair in pairs.drain(..) {
             let key = self.ssa_value(builder, *pair.key)?;
             let value_var = pair.value.as_var().map(|v| v.name()).unwrap();
-            let inst = builder.ins().map_fetch(map, key, span);
+            let map_fetch2 = self.module.get_or_register_native(symbols::NifMapFetch);
+            let inst = builder.ins().call(map_fetch2, &[map, key], span);
             let (is_err, result) = {
                 let results = builder.inst_results(inst);
                 (results[0], results[1])
@@ -1727,9 +2064,7 @@ impl<'m> LowerFunctionToCore<'m> {
                 continue;
             }
             let var = element.as_var().map(|v| v.name()).unwrap();
-            let elem = builder
-                .ins()
-                .get_element_imm(src, Immediate::Integer((i + 1) as i64), span);
+            let elem = builder.ins().get_element_imm(src, i, span);
             builder.define_var(var, elem);
         }
     }

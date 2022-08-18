@@ -14,6 +14,7 @@ pub use rpds::map::hash_trie_map::{Iter, IterKeys, IterValues};
 
 use super::{Cons, Term};
 
+#[repr(C)]
 #[derive(Clone)]
 pub struct Map {
     map: HashTrieMap<Term, Term>,

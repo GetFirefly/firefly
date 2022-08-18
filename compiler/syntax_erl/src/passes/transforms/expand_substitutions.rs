@@ -1,3 +1,5 @@
+use core::ops::ControlFlow;
+
 use liblumen_diagnostics::SourceSpan;
 use liblumen_intern::Ident;
 use liblumen_pass::Pass;
@@ -19,8 +21,10 @@ impl Pass for ExpandSubstitutions {
 
     fn run<'a>(&mut self, f: Self::Input<'a>) -> anyhow::Result<Self::Output<'a>> {
         let mut visitor = ExpandSubstitutionsVisitor::new(f);
-        visitor.visit_mut_function(f)?;
-        Ok(f)
+        match visitor.visit_mut_function(f) {
+            ControlFlow::Continue(_) => Ok(f),
+            ControlFlow::Break(err) => Err(err),
+        }
     }
 }
 
@@ -46,20 +50,20 @@ impl ExpandSubstitutionsVisitor {
         }
     }
 }
-impl VisitMut for ExpandSubstitutionsVisitor {
-    fn visit_mut_expr(&mut self, expr: &mut Expr) -> anyhow::Result<()> {
+impl VisitMut<anyhow::Error> for ExpandSubstitutionsVisitor {
+    fn visit_mut_expr(&mut self, expr: &mut Expr) -> ControlFlow<anyhow::Error> {
         if let Expr::DelayedSubstitution(ref span, sub) = expr {
             *expr = self.fix(span, *sub);
-            Ok(())
+            ControlFlow::Continue(())
         } else {
             visit::visit_mut_expr(self, expr)
         }
     }
 
-    fn visit_mut_pattern(&mut self, pattern: &mut Expr) -> anyhow::Result<()> {
+    fn visit_mut_pattern(&mut self, pattern: &mut Expr) -> ControlFlow<anyhow::Error> {
         if let Expr::DelayedSubstitution(ref span, sub) = pattern {
             *pattern = self.fix(span, *sub);
-            Ok(())
+            ControlFlow::Continue(())
         } else {
             visit::visit_mut_pattern(self, pattern)
         }

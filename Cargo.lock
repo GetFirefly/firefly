@@ -825,6 +825,7 @@ dependencies = [
  "num-bigint 0.4.2",
  "num-traits",
  "paste",
+ "static_assertions",
 ]
 
 [[package]]
@@ -975,6 +976,7 @@ dependencies = [
  "liblumen_diagnostics",
  "liblumen_intern",
  "liblumen_llvm",
+ "liblumen_number",
  "liblumen_pass",
  "liblumen_session",
  "liblumen_target",
@@ -1029,6 +1031,7 @@ dependencies = [
 name = "liblumen_rt"
 version = "0.1.0"
 dependencies = [
+ "Inflector",
  "anyhow",
  "backtrace",
  "cfg-if 1.0.0",
@@ -1040,9 +1043,11 @@ dependencies = [
  "liblumen_system",
  "num-bigint 0.4.2",
  "num-traits",
+ "paste",
  "rpds 0.11.0",
  "seq-macro",
  "static_assertions",
+ "toml",
 ]
 
 [[package]]
@@ -1276,12 +1281,15 @@ dependencies = [
  "anyhow",
  "bus",
  "dirs",
+ "half",
  "libc",
  "liblumen_alloc",
  "liblumen_arena",
  "liblumen_binary",
  "liblumen_crt",
  "liblumen_rt",
+ "num-bigint 0.4.2",
+ "num-traits",
  "signal-hook",
 ]
 

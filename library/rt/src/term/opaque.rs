@@ -78,7 +78,7 @@ use core::mem::{self, ManuallyDrop, MaybeUninit};
 use core::num::NonZeroU32;
 use core::ptr::{self, NonNull, Pointee};
 
-use super::{Atom, BinaryData, Cons, Float, Term, Tuple};
+use super::{atoms, Atom, BinaryData, Cons, Float, Term, Tuple};
 
 use liblumen_alloc::gc::{self, GcBox};
 use liblumen_alloc::rc::{self, Rc, Weak};
@@ -178,6 +178,8 @@ impl OpaqueTerm {
     pub const NONE: Self = Self(NONE);
     /// Represents the constant value associated with the value of an empty list
     pub const NIL: Self = Self(NIL);
+    /// Represents the constant value 0 encoded as an integer
+    pub const ZERO: Self = Self(INTEGER_TAG);
 
     /// This is a low-level decoding function written in this specific way in order to
     /// maximize the optimizations the compiler can perform from higher-level conversions
@@ -424,16 +426,25 @@ impl OpaqueTerm {
     /// Returns true if this term is a tuple pointer
     #[inline]
     pub fn is_tuple(self, arity: Option<NonZeroU32>) -> bool {
-        match self.0 & TAG_MASK {
-            TUPLE_TAG | TUPLE_LITERAL_TAG => match arity {
+        match self.tuple_size() {
+            Ok(n) => match arity {
                 None => true,
-                Some(arity) => unsafe {
-                    let ptr = self.as_ptr();
-                    let meta_ptr: *const usize = ptr.sub(mem::size_of::<usize>()).cast();
-                    *meta_ptr == arity.get() as usize
-                },
+                Some(arity) => arity.get() == n,
             },
-            _ => false,
+            Err(_) => false,
+        }
+    }
+
+    /// A combined tuple type test with fetching the arity, optimized for a specific pattern
+    /// produced by the compiler
+    pub fn tuple_size(self) -> Result<u32, ()> {
+        match self.0 & TAG_MASK {
+            TUPLE_TAG | TUPLE_LITERAL_TAG => unsafe {
+                let ptr = self.as_ptr();
+                let meta_ptr: *const usize = ptr.sub(mem::size_of::<usize>()).cast();
+                Ok((*meta_ptr) as u32)
+            },
+            _ => Err(()),
         }
     }
 
@@ -491,8 +502,8 @@ impl OpaqueTerm {
 
         debug_assert!(self.is_atom());
         match self.0 {
-            FALSE => Atom::FALSE,
-            TRUE => Atom::TRUE,
+            FALSE => atoms::False,
+            TRUE => atoms::True,
             _ => {
                 let ptr = (self.0 & PTR_MASK) as *mut AtomData;
                 let ptr = unsafe { NonNull::new_unchecked(ptr) };
@@ -567,6 +578,12 @@ impl From<bool> for OpaqueTerm {
         Self(b as u64 | FALSE)
     }
 }
+impl From<char> for OpaqueTerm {
+    #[inline]
+    fn from(c: char) -> Self {
+        Self((c as u64) | INTEGER_TAG)
+    }
+}
 impl TryFrom<i64> for OpaqueTerm {
     type Error = ImmediateOutOfRangeError;
 
@@ -611,6 +628,23 @@ where
 {
     fn from(boxed: GcBox<T>) -> Self {
         let raw = GcBox::into_raw(boxed) as *const () as u64;
+        debug_assert!(
+            raw & INFINITY == 0,
+            "expected nan bits to be unused in pointers"
+        );
+        debug_assert!(
+            raw & TAG_MASK == 0,
+            "expected pointer to have at least 8-byte alignment"
+        );
+        Self(raw | INFINITY)
+    }
+}
+impl<T: ?Sized> From<Rc<T>> for OpaqueTerm
+where
+    rc::PtrMetadata: From<<T as Pointee>::Metadata> + TryInto<<T as Pointee>::Metadata>,
+{
+    fn from(boxed: Rc<T>) -> Self {
+        let raw = Rc::into_raw(boxed) as *const () as u64;
         debug_assert!(
             raw & INFINITY == 0,
             "expected nan bits to be unused in pointers"

@@ -18,9 +18,9 @@ mod number;
 pub use number::Number;
 
 pub use num_bigint as bigint;
-pub use num_bigint::BigInt;
+pub use num_bigint::{BigInt, Sign};
 pub use num_traits as traits;
-pub use num_traits::{cast, FromPrimitive, NumCast, ToPrimitive};
+pub use num_traits::{cast, int::PrimInt, FromPrimitive, NumCast, ToPrimitive};
 
 #[derive(Debug, Copy, Clone)]
 pub struct DivisionError;

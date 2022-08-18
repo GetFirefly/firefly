@@ -7,6 +7,7 @@
 #![feature(str_internals)]
 #![feature(const_option_ext)]
 #![feature(slice_take)]
+#![feature(arbitrary_enum_discriminant)]
 
 extern crate alloc;
 #[cfg(any(test, feature = "std"))]
@@ -78,7 +79,7 @@ pub use self::traits::{Aligned, Binary, Bitstring, FromEndianBytes, ToEndianByte
 /// machine, or big-endian value on big-endian machine), this is already the case. When reading a value with non-native endianness
 /// though, we need to swap the order of the bytes first.
 ///
-#[repr(C)]
+#[repr(u8)]
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Endianness {
     /// Most-significant bits "first"

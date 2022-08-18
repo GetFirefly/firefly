@@ -1,10 +1,15 @@
+use alloc::alloc::AllocError;
+use alloc::boxed::Box;
 use alloc::sync::Arc;
+use alloc::vec::Vec;
+use core::iter::FusedIterator;
 use core::ptr::NonNull;
 
 use liblumen_alloc::fragment::HeapFragment;
 use liblumen_system::cell::ThreadLocalCell;
 
-use crate::term::Term;
+use crate::function::ModuleFunctionArity;
+use crate::term::{Cons, Term};
 
 use super::{Frame, Symbolication, TraceFrame};
 
@@ -50,7 +55,7 @@ impl Trace {
             //let symbol_address = frame.symbol_address();
             //if stackmap.find_function(symbol_address).is_some() {
             depth += 1;
-            trace.push_frame(Box::new(frame));
+            trace.push_frame(Box::new(frame.clone()));
             //}
 
             depth < Self::MAX_FRAMES
@@ -102,15 +107,12 @@ impl Trace {
         assert!(self.top.is_none(), "top of trace was already set");
 
         // Get heap to allocate the frame on
-        let sizeof_args: usize = arguments
-            .iter()
-            .map(|t| t.size_in_words() * mem::size_of::<Term>())
-            .sum();
-        let extra = utils::BASE_FRAME_SIZE + sizeof_args;
-        let heap_ptr = self.get_or_create_fragment(extra).unwrap_or(None);
+        let heap_ptr = self.get_or_create_fragment(Some(arguments)).unwrap_or(None);
         if let Some(mut heap) = heap_ptr {
             let heap_mut = unsafe { heap.as_mut() };
-            if let Ok(frame) = utils::format_mfa(heap_mut, mfa, Some(arguments), None, None) {
+            if let Ok(frame) =
+                super::symbolication::format_mfa(mfa, Some(arguments), None, None, heap_mut)
+            {
                 unsafe {
                     self.top.set(Some(frame));
                 }
@@ -120,9 +122,7 @@ impl Trace {
 
     #[inline]
     pub fn push_frame(&mut self, frame: Box<dyn Frame>) {
-        unsafe {
-            self.frames.push(TraceFrame::from(frame));
-        }
+        self.frames.push(TraceFrame::from(frame));
     }
 
     pub fn as_term(&self) -> Result<Term, AllocError> {
@@ -199,8 +199,6 @@ impl Iterator for SymbolIter<'_> {
 impl FusedIterator for SymbolIter<'_> {}
 impl DoubleEndedIterator for SymbolIter<'_> {
     fn next_back(&mut self) -> Option<Self::Item> {
-        use std::convert::TryInto;
-
         if self.pos.is_none() {
             self.pos = Some(self.frames.len());
         }
@@ -244,12 +242,17 @@ impl Trace {
     /// of the trace in Erlang Term form. The `extra` parameter is used to indicate
     /// that some amount of extra bytes is requested to fulfill auxillary requests,
     /// such as for `top`.
-    fn get_or_create_fragment(&self, extra: usize) -> AllocResult<Option<NonNull<HeapFragment>>> {
+    fn get_or_create_fragment(
+        &self,
+        extra: Option<&[Term]>,
+    ) -> Result<Option<NonNull<HeapFragment>>, AllocError> {
         if let Some(fragment) = self.fragment.as_ref() {
             Ok(Some(fragment.clone()))
         } else {
-            if let Some(layout) = utils::calculate_fragment_layout(self.frames.len(), extra) {
-                let heap_ptr = HeapFragment::new(layout)?;
+            if let Some(layout) =
+                super::symbolication::calculate_fragment_layout(self.frames.len(), extra)
+            {
+                let heap_ptr = HeapFragment::new(layout, None)?;
                 unsafe {
                     self.fragment.set(Some(heap_ptr.clone()));
                 }
@@ -268,12 +271,12 @@ impl Trace {
         assert!(self.term.is_none());
 
         // Either create a heap fragment for the terms, or use the one created already
-        let heap_ptr = self.get_or_create_fragment(/* extra= */ 0)?;
+        let heap_ptr = self.get_or_create_fragment(None)?;
         if heap_ptr.is_none() {
-            return Ok(Term::NIL);
+            return Ok(Term::Nil);
         }
-        let mut heap_ptr = heap_ptr.unwrap();
-        let heap = unsafe { heap_ptr.as_mut() };
+        let heap_ptr = heap_ptr.unwrap();
+        let heap = unsafe { heap_ptr.as_ref() };
 
         // If top was set, we have an extra frame to append
         let mut erlang_frames = if self.top.is_some() {
@@ -290,21 +293,27 @@ impl Trace {
         // Add all of the "real" stack frames
         for frame in &self.frames[..] {
             if let Some(symbol) = frame.symbolicate() {
-                if let Some(ref mfa) = symbol.module_function_arity() {
-                    let erlang_frame =
-                        utils::format_mfa(heap, mfa, None, symbol.filename(), symbol.line())?;
+                if let Some(mfa) = symbol.mfa.as_ref() {
+                    let erlang_frame = super::symbolication::format_mfa(
+                        mfa,
+                        None,
+                        symbol.filename(),
+                        symbol.line(),
+                        heap,
+                    )?;
                     erlang_frames.push(erlang_frame);
                 }
             }
         }
 
         // Then construct the stacktrace term from the frames we just built up
-        let list = heap.list_from_slice(erlang_frames.as_slice())?;
-        let term: Term = list.into();
+        let list = Cons::from_slice(erlang_frames.as_slice(), heap)?
+            .map(Term::Cons)
+            .unwrap_or(Term::Nil);
 
         // Cache the stacktrace for future queries
-        unsafe { self.term.set(Some(term)) };
+        unsafe { self.term.set(Some(list)) };
 
-        Ok(term)
+        Ok(list)
     }
 }

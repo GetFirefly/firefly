@@ -21,7 +21,7 @@ where
     R: Send + 'static,
 {
     lazy_static! {
-        static ref SCHEDULER: Scheduler = Scheduler::new(num_cpus::get());
+        static ref SCHEDULER: Scheduler = Scheduler::new(1);
     }
 
     SCHEDULER.spawn(future)

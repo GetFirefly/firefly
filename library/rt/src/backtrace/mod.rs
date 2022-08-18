@@ -1,11 +1,12 @@
-//mod frame;
-//mod symbolication;
-//mod trace;
+mod frame;
+mod symbolication;
+mod trace;
 
-//pub use self::frame::{Frame, TraceFrame};
-//pub use self::symbolication::Symbolication;
-//pub use self::trace::Trace;
+pub use self::frame::{Frame, TraceFrame};
+pub use self::symbolication::Symbolication;
+pub use self::trace::Trace;
 
+/*
 use alloc::string::String;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
@@ -24,3 +25,4 @@ impl Trace {
         Arc::from_raw(ptr)
     }
 }
+*/

@@ -44,6 +44,12 @@ impl BitSlice {
         Self { owner, selection }
     }
 
+    /// Create a BitSlice from an existing selection and its owning term
+    #[inline]
+    pub fn from_selection(owner: OpaqueTerm, selection: Selection<'static>) -> Self {
+        Self { owner, selection }
+    }
+
     /// Returns the selection represented by this slice
     #[inline]
     pub fn as_selection(&self) -> Selection<'static> {

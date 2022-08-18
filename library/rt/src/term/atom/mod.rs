@@ -1,3 +1,4 @@
+pub mod atoms;
 mod table;
 
 pub use self::table::AtomData;
@@ -64,12 +65,9 @@ impl PartialEq for AtomError {
 #[repr(transparent)]
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub struct Atom(NonNull<AtomData>);
+unsafe impl Send for Atom {}
+unsafe impl Sync for Atom {}
 impl Atom {
-    pub const FALSE: Atom =
-        Self(unsafe { NonNull::new_unchecked(&AtomData::FALSE as *const _ as *mut AtomData) });
-    pub const TRUE: Atom =
-        Self(unsafe { NonNull::new_unchecked(&AtomData::TRUE as *const _ as *mut AtomData) });
-
     /// Creates a new atom from a slice of bytes interpreted as Latin-1.
     ///
     /// Returns `Err` if the atom does not exist
@@ -128,7 +126,7 @@ impl Atom {
 
     /// Returns `true` if this atom represents a boolean
     pub fn is_boolean(self) -> bool {
-        self == Self::FALSE || self == Self::TRUE
+        self == atoms::False || self == atoms::True
     }
 
     /// Converts this atom to a boolean
@@ -136,7 +134,7 @@ impl Atom {
     /// This function will panic if the atom is not a boolean value
     pub fn as_boolean(self) -> bool {
         debug_assert!(self.is_boolean());
-        self != Self::FALSE
+        self != atoms::False
     }
 
     /// Gets the string value of this atom
@@ -191,9 +189,9 @@ impl From<bool> for Atom {
     #[inline]
     fn from(b: bool) -> Self {
         if b {
-            Self::TRUE
+            atoms::True
         } else {
-            Self::FALSE
+            atoms::False
         }
     }
 }

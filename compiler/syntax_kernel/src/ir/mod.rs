@@ -361,6 +361,16 @@ impl Expr {
         }
     }
 
+    pub fn as_atom(&self) -> Option<Symbol> {
+        match self {
+            Self::Literal(Literal {
+                value: Lit::Atom(a),
+                ..
+            }) => Some(*a),
+            _ => None,
+        }
+    }
+
     pub fn as_binary(&self) -> Option<&Binary> {
         match self {
             Self::Binary(ref b) => Some(b),

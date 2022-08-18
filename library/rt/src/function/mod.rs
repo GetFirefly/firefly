@@ -4,11 +4,13 @@ mod mfa;
 pub use self::apply::*;
 pub use self::mfa::ModuleFunctionArity;
 
+use core::ptr::NonNull;
+
 use crate::error::ErlangException;
-use crate::term::Atom;
+use crate::term::{Atom, OpaqueTerm};
 
 /// This type reflects the implicit return type expected by the Erlang calling convention
-pub type ErlangResult = Result<crate::term::OpaqueTerm, core::ptr::NonNull<ErlangException>>;
+pub type ErlangResult = Result<OpaqueTerm, NonNull<ErlangException>>;
 
 /// This struct represents the serialized form of a symbol table entry
 ///

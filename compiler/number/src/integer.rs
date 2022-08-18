@@ -25,6 +25,24 @@ impl ToBigInt for Integer {
 }
 
 impl Integer {
+    // NOTE: See OpaqueTerm in liblumen_rt for the authoritative source of these constants
+    const NAN: u64 = unsafe { core::mem::transmute::<f64, u64>(f64::NAN) };
+    const QUIET_BIT: u64 = 1 << 51;
+    const SIGN_BIT: u64 = 1 << 63;
+    const INFINITY: u64 = Self::NAN & !Self::QUIET_BIT;
+    const INTEGER_TAG: u64 = Self::INFINITY | Self::SIGN_BIT;
+    const NEG: u64 = Self::INTEGER_TAG | Self::QUIET_BIT;
+    const MIN_SMALL: i64 = (Self::NEG as i64);
+    const MAX_SMALL: i64 = (!Self::NEG as i64);
+
+    pub fn new(i: i64) -> Self {
+        if i < Self::MIN_SMALL || i > Self::MAX_SMALL {
+            Self::Big(i.into())
+        } else {
+            Self::Small(i)
+        }
+    }
+
     pub fn is_zero(&self) -> bool {
         match self {
             Self::Small(num) => *num == 0,
@@ -52,10 +70,10 @@ impl Integer {
 
     pub fn shrink(self) -> Self {
         match self {
-            small @ Self::Small(_) => small,
+            Self::Small(i) => Self::new(i),
             Self::Big(i) => {
-                if let Some(i) = i.to_i64() {
-                    Self::Small(i)
+                if let Some(s) = i.to_i64() {
+                    Self::new(s)
                 } else {
                     Self::Big(i)
                 }
@@ -65,7 +83,7 @@ impl Integer {
 
     pub fn from_string_radix(string: &str, radix: u32) -> Option<Self> {
         if let Ok(i) = i64::from_str_radix(string, radix) {
-            return Some(Self::Small(i));
+            return Some(Self::new(i));
         }
         let bi = BigInt::parse_bytes(string.as_bytes(), radix)?;
         Some(Self::Big(bi))
@@ -123,7 +141,7 @@ impl FromStr for Integer {
     type Err = ParseBigIntError;
     fn from_str(s: &str) -> Result<Self, ParseBigIntError> {
         match s.parse::<i64>() {
-            Ok(int) => Ok(Self::Small(int)),
+            Ok(i) => Ok(Self::new(i)),
             Err(_) => match s.parse::<BigInt>() {
                 Ok(int) => Ok(Self::Big(int)),
                 Err(err) => Err(err),
@@ -288,7 +306,7 @@ impl Shr<u32> for Integer {
     type Output = Integer;
     fn shr(self, num: u32) -> Self::Output {
         match self {
-            Self::Small(i) => Self::Small(i.checked_shr(num).unwrap_or(0)),
+            Self::Small(i) => Self::new(i.checked_shr(num).unwrap_or(0)),
             Self::Big(i) => Self::Big(i >> num).shrink(),
         }
     }
@@ -302,7 +320,7 @@ impl Shl<u32> for Integer {
                     let i = BigInt::from(i);
                     Self::Big(i << num)
                 }
-                Some(i) => Self::Small(i),
+                Some(i) => Self::new(i),
             },
             Self::Big(i) => Self::Big(i << num),
         }
@@ -318,7 +336,7 @@ impl Mul<usize> for &Integer {
                         let i = BigInt::from(*i);
                         Integer::Big(i * rhs)
                     }
-                    Some(i) => Integer::Small(i),
+                    Some(i) => Integer::new(i),
                 },
                 Integer::Big(i) => Integer::Big(i * rhs),
             },
@@ -338,7 +356,7 @@ impl Mul<i64> for Integer {
                     let i = BigInt::from(i);
                     Self::Big(i * rhs)
                 }
-                Some(i) => Self::Small(i),
+                Some(i) => Self::new(i),
             },
             Self::Big(i) => Self::Big(i * rhs),
         }
@@ -385,7 +403,7 @@ impl Div<i64> for Integer {
                     let i = BigInt::from(i);
                     Ok(Self::Big(i / rhs))
                 }
-                Some(i) => Ok(Self::Small(i)),
+                Some(i) => Ok(Self::new(i)),
             },
             Self::Big(_) if rhs == 0 => Err(DivisionError),
             Self::Big(i) => Ok(Self::Big(i / rhs)),
@@ -439,7 +457,7 @@ impl Add<i64> for Integer {
                     let i = BigInt::from(i);
                     Self::Big(i + rhs)
                 }
-                Some(i) => Self::Small(i),
+                Some(i) => Self::new(i),
             },
             Self::Big(i) => Self::Big(i + rhs),
         }
@@ -488,7 +506,7 @@ impl Sub<i64> for Integer {
                     let i = BigInt::from(i);
                     Self::Big(i - rhs)
                 }
-                Some(i) => Self::Small(i),
+                Some(i) => Self::new(i),
             },
             Self::Big(i) => Self::Big(i - rhs).shrink(),
         }
@@ -538,7 +556,7 @@ impl Rem<i64> for Integer {
                     let i = BigInt::from(i);
                     Ok(Self::Big(i.rem(rhs)))
                 }
-                Some(i) => Ok(Self::Small(i)),
+                Some(i) => Ok(Self::new(i)),
             },
             Self::Big(_) if rhs == 0 => Err(DivisionError),
             Self::Big(i) => Ok(Self::Big(i.rem(rhs)).shrink()),
@@ -586,7 +604,7 @@ impl BitAnd<i64> for Integer {
 
     fn bitand(self, rhs: i64) -> Self::Output {
         match self {
-            Self::Small(i) => Self::Small(i & rhs),
+            Self::Small(i) => Self::new(i & rhs),
             Self::Big(i) => Self::Big(i & BigInt::from(rhs)),
         }
     }
@@ -626,7 +644,7 @@ impl BitOr<i64> for Integer {
 
     fn bitor(self, rhs: i64) -> Self::Output {
         match self {
-            Self::Small(i) => Self::Small(i | rhs),
+            Self::Small(i) => Self::new(i | rhs),
             Self::Big(i) => Self::Big(i | BigInt::from(rhs)),
         }
     }
@@ -666,7 +684,7 @@ impl BitXor<i64> for Integer {
 
     fn bitxor(self, rhs: i64) -> Self::Output {
         match self {
-            Self::Small(i) => Self::Small(i ^ rhs),
+            Self::Small(i) => Self::new(i ^ rhs),
             Self::Big(i) => Self::Big(i ^ BigInt::from(rhs)),
         }
     }
@@ -706,7 +724,7 @@ impl Neg for Integer {
 
     fn neg(self) -> Self::Output {
         match self {
-            Self::Small(i) => Self::Small(-i),
+            Self::Small(i) => Self::new(-i),
             Self::Big(i) => Self::Big(-i),
         }
     }
@@ -716,7 +734,7 @@ impl Not for Integer {
 
     fn not(self) -> Self::Output {
         match self {
-            Self::Small(i) => Self::Small(!i),
+            Self::Small(i) => Self::new(!i),
             Self::Big(i) => Self::Big(!i),
         }
     }
@@ -738,12 +756,12 @@ impl ToPrimitive for Integer {
 }
 impl FromPrimitive for Integer {
     fn from_i64(n: i64) -> Option<Self> {
-        Some(Self::Small(n))
+        Some(Self::new(n))
     }
 
     fn from_u64(n: u64) -> Option<Self> {
         if let Ok(int) = n.try_into() {
-            Some(Self::Small(int))
+            Some(Self::new(int))
         } else {
             Some(Self::Big(n.into()))
         }
@@ -776,13 +794,13 @@ impl From<i16> for Integer {
 }
 impl From<i64> for Integer {
     fn from(i: i64) -> Self {
-        Self::Small(i)
+        Self::new(i)
     }
 }
 impl From<u64> for Integer {
     fn from(i: u64) -> Self {
         match i.try_into() {
-            Ok(i) => Self::Small(i),
+            Ok(i) => Self::new(i),
             Err(_) => Self::Big(BigInt::from(i)),
         }
     }
@@ -795,7 +813,7 @@ impl From<i32> for Integer {
 impl From<usize> for Integer {
     fn from(i: usize) -> Self {
         match i.try_into() {
-            Ok(i) => Self::Small(i),
+            Ok(i) => Self::new(i),
             Err(_) => Self::Big(BigInt::from(i)),
         }
     }
@@ -807,15 +825,15 @@ impl From<char> for Integer {
 }
 impl From<BigInt> for Integer {
     fn from(i: BigInt) -> Self {
-        Self::Big(i)
+        Self::Big(i).shrink()
     }
 }
 impl TryInto<u8> for Integer {
     type Error = ();
     fn try_into(self) -> Result<u8, Self::Error> {
         match self {
-            Integer::Small(i) => i.try_into().map_err(|_| ()),
-            Integer::Big(_) => Err(()),
+            Self::Small(i) => i.try_into().map_err(|_| ()),
+            Self::Big(_) => Err(()),
         }
     }
 }

@@ -11,7 +11,7 @@ use super::Float;
 /// an immediate/SmallInteger value.
 #[derive(Clone, Hash)]
 #[repr(transparent)]
-pub struct BigInteger(BigInt);
+pub struct BigInteger(pub BigInt);
 impl BigInteger {
     pub const TYPE_ID: TypeId = TypeId::of::<BigInteger>();
 

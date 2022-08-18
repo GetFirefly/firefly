@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use cranelift_entity::packed_option::PackedOption;
 
@@ -13,25 +13,28 @@ pub struct IrBuilder<'a> {
     pub entry: Block,
     position: PackedOption<Block>,
     vars: HashMap<Symbol, Value>,
+    var_types: HashMap<Value, Type>,
+    reachable_blocks: HashSet<Block>,
 }
 impl<'a> IrBuilder<'a> {
     pub fn new(func: &'a mut Function) -> Self {
         let entry = func.dfg.make_block();
         let position = Some(entry);
 
-        for param_ty in func.signature.params() {
-            func.dfg
-                .append_block_param(entry, param_ty.clone(), SourceSpan::default());
-        }
+        let mut reachable_blocks = HashSet::new();
+        reachable_blocks.insert(entry);
 
         Self {
             func,
             entry,
             position: position.into(),
             vars: HashMap::new(),
+            var_types: HashMap::new(),
+            reachable_blocks,
         }
     }
 
+    #[inline]
     pub fn current_block(&self) -> Block {
         self.position.expand().unwrap()
     }
@@ -47,22 +50,56 @@ impl<'a> IrBuilder<'a> {
         block
     }
 
+    pub fn remove_block(&mut self, block: Block) {
+        assert!(
+            block != self.current_block(),
+            "cannot remove block the builder is currently inserting in"
+        );
+        self.func.dfg.remove_block(block);
+    }
+
+    pub fn prune_unreachable_blocks(&mut self) {
+        // Find the set of unreachable blocks
+        let mut unreachable = Vec::new();
+        {
+            for (block, _) in self.func.dfg.blocks() {
+                if !self.reachable_blocks.contains(&block) {
+                    unreachable.push(block);
+                }
+            }
+        }
+        // Then remove them
+        for block in unreachable.drain(..) {
+            self.func.dfg.remove_block(block);
+        }
+    }
+
+    #[inline]
     pub fn append_block_param(&mut self, block: Block, ty: Type, span: SourceSpan) -> Value {
         self.func.dfg.append_block_param(block, ty, span)
     }
 
-    pub fn first_result(&self, inst: Inst) -> Value {
-        self.func.dfg.first_result(inst)
+    #[inline]
+    pub fn is_block_empty(&mut self, block: Block) -> bool {
+        self.func.dfg.is_block_empty(block)
     }
 
+    #[inline]
     pub fn inst_results(&self, inst: Inst) -> &[Value] {
         self.func.dfg.inst_results(inst)
     }
 
+    #[inline]
+    pub fn first_result(&self, inst: Inst) -> Value {
+        self.func.dfg.first_result(inst)
+    }
+
+    #[inline]
     pub fn get_callee(&self, callee: FunctionName) -> Option<FuncRef> {
         self.func.dfg.get_callee(callee)
     }
 
+    #[inline]
     pub fn get_or_register_callee(&self, mfa: FunctionName) -> FuncRef {
         self.func.dfg.register_callee(mfa)
     }
@@ -81,9 +118,30 @@ impl<'a> IrBuilder<'a> {
         }
     }
 
+    /// Sets the known type of the given variable
+    pub fn set_var_type(&mut self, var: Symbol, ty: Type) {
+        let var = self.var(var).unwrap();
+        self.var_types.insert(var, ty);
+    }
+
     /// Returns the value bound to the given name
     pub fn var(&self, name: Symbol) -> Option<Value> {
         self.vars.get(&name).copied()
+    }
+
+    /// Returns the type (if known) bound to the given variable
+    #[allow(unused)]
+    pub fn var_type(&self, var: Symbol) -> Option<&Type> {
+        self.var(var).and_then(|v| self.var_types.get(&v))
+    }
+
+    /// Returns the type associated with the given value
+    #[allow(unused)]
+    pub fn value_type(&self, var: Value) -> Type {
+        match self.var_types.get(&var) {
+            None => self.func.dfg.value_type(var),
+            Some(t) => t.clone(),
+        }
     }
 
     pub fn ins<'short>(&'short mut self) -> FuncInstBuilder<'short, 'a> {
@@ -135,6 +193,18 @@ impl<'a, 'b> InstBuilderBase<'a> for FuncInstBuilder<'a, 'b> {
 
         let inst = self.builder.func.dfg.push_inst(self.block, data, span);
         self.builder.func.dfg.make_inst_results(inst, ty);
+
+        match self.builder.func.dfg.analyze_branch(inst) {
+            BranchInfo::SingleDest(blk, _) => {
+                self.builder.reachable_blocks.insert(blk);
+            }
+            BranchInfo::MultiDest(blks) => {
+                for blk in blks.iter().map(|jt| jt.destination) {
+                    self.builder.reachable_blocks.insert(blk);
+                }
+            }
+            BranchInfo::NotABranch => (),
+        }
 
         (inst, &mut self.builder.func.dfg)
     }

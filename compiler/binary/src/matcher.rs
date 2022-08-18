@@ -22,6 +22,11 @@ impl<'a> Matcher<'a> {
         }
     }
 
+    #[inline]
+    pub fn bit_size(&self) -> usize {
+        self.selection.bit_size()
+    }
+
     /// Reads a single byte from the current position in the input without
     /// advancing the input.
     pub fn read_byte(&mut self) -> Option<u8> {
@@ -55,6 +60,37 @@ impl<'a> Matcher<'a> {
         true
     }
 
+    /// Reads up to the specified number of bits into the provided buffer.
+    ///
+    /// If the bitsize given is larger than the provided buffer, this function will panic.
+    ///
+    /// If the number of bits requested was read, returns true, otherwise false.
+    pub fn read_bits<const N: usize>(&mut self, buf: &mut [u8; N], bitsize: usize) -> bool {
+        assert!(bitsize <= N * 8);
+
+        match self.selection.take(bitsize) {
+            Ok(s) => {
+                let trailing_bits = bitsize % 8;
+                let needed = (bitsize / 8) + ((trailing_bits > 0) as usize);
+                if let Some(slice) = s.as_bytes() {
+                    let buf2 = &mut buf[..needed];
+                    buf2.copy_from_slice(&slice[..needed]);
+                } else {
+                    let ptr = buf.as_mut_ptr();
+                    let mut idx = 0;
+                    for byte in s.iter().take(needed) {
+                        unsafe {
+                            *ptr.add(idx) = byte;
+                        }
+                        idx += 1;
+                    }
+                }
+                true
+            }
+            Err(_) => false,
+        }
+    }
+
     /// Reads a single number from the current position in the input without
     /// advancing the input. This should be used to build matchers which are
     /// fallible and operate on numeric values.
@@ -80,7 +116,7 @@ impl<'a> Matcher<'a> {
         endianness: Endianness,
     ) -> Option<N>
     where
-        N: FromEndianBytes<S> + core::ops::Shr<usize, Output = N>,
+        N: FromEndianBytes<S> + core::ops::Shr<u32, Output = N>,
     {
         assert!(
             bitsize <= (S * 8),
@@ -91,7 +127,7 @@ impl<'a> Matcher<'a> {
             let mut bytes = [0u8; S];
 
             let mut matcher = Matcher::new(selection);
-            if matcher.read_bytes(&mut bytes) {
+            if matcher.read_bits(&mut bytes, bitsize) {
                 match endianness {
                     Endianness::Native => {
                         let n = N::from_ne_bytes(bytes);
@@ -101,7 +137,7 @@ impl<'a> Matcher<'a> {
                         } else {
                             // We need to shift the bytes right so that the least-significant
                             // bits begin at the correct byte boundary
-                            let shift = 8 - (bitsize % 8);
+                            let shift: u32 = (8 - (bitsize % 8)).try_into().unwrap();
                             Some(n >> shift)
                         }
                     }
@@ -109,7 +145,7 @@ impl<'a> Matcher<'a> {
                     Endianness::Big => Some(N::from_be_bytes(bytes)),
                     // Little-endian bytes always require a shift
                     Endianness::Little => {
-                        let shift = 8 - (bitsize % 8);
+                        let shift: u32 = (8 - (bitsize % 8)).try_into().unwrap();
                         let n = N::from_le_bytes(bytes);
                         Some(n >> shift)
                     }
@@ -159,6 +195,23 @@ impl<'a> Matcher<'a> {
         N: FromEndianBytes<S>,
     {
         let matched = self.read_number(endianness)?;
+
+        self.selection = self.selection.shrink_front(S * 8);
+
+        Some(matched)
+    }
+
+    /// Matches any primitive numeric type from the input, of arbitrary bit size up to the
+    /// containing type size, advancing the input if successful
+    pub fn match_ap_number<N, const S: usize>(
+        &mut self,
+        bitsize: usize,
+        endianness: Endianness,
+    ) -> Option<N>
+    where
+        N: FromEndianBytes<S> + core::ops::Shr<u32, Output = N>,
+    {
+        let matched = self.read_ap_number(bitsize, endianness)?;
 
         self.selection = self.selection.shrink_front(S * 8);
 

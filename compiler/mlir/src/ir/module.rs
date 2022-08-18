@@ -50,6 +50,10 @@ impl Module {
         );
     }
 
+    pub fn get_func_by_name<S: Into<StringRef>>(&self, name: S) -> Option<FuncOp> {
+        SymbolTable::lookup_symbol_in(self.base(), name.into()).and_then(|op| op.try_into().ok())
+    }
+
     /// Returns the module body as a Block
     pub fn body(&self) -> Block {
         unsafe { mlir_module_get_body(*self) }
@@ -163,6 +167,10 @@ impl OwnedModule {
         } else {
             Some(name)
         }
+    }
+
+    pub fn get_func_by_name<S: Into<StringRef>>(&self, name: S) -> Option<FuncOp> {
+        SymbolTable::lookup_symbol_in(self.0.base(), name.into()).and_then(|op| op.try_into().ok())
     }
 }
 unsafe impl Send for OwnedModule {}

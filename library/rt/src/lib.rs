@@ -1,4 +1,6 @@
 #![no_std]
+// Used for atom linkage
+#![feature(linkage)]
 // Used for syntax sugar
 #![feature(let_else)]
 // Used for the `unlikely` compiler hint
@@ -6,6 +8,7 @@
 // Used for custom allocators
 #![feature(allocator_api)]
 #![feature(alloc_layout_extra)]
+#![feature(layout_for_ptr)]
 // Used in process heap impl
 #![feature(nonnull_slice_from_raw_parts)]
 #![feature(slice_ptr_get)]

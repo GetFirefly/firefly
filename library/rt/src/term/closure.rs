@@ -89,6 +89,10 @@ impl Closure {
         self.env.len()
     }
 
+    pub fn env(&self) -> &[OpaqueTerm] {
+        &self.env
+    }
+
     /// Copies the env from `other` into this closure's environment
     ///
     /// This function will panic if the env arities are different

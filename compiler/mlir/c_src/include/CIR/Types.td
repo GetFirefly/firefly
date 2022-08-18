@@ -70,42 +70,49 @@ class CIR_ImmediateType<string name, list<Trait> traits = [],
 
 def CIR_NoneType : CIR_ImmediateType<"None"> {
   let mnemonic = "none";
-  let summary = "A type that represents an invalid term, and has a corresponding runtime representation";
+  let summary = "the none type";
+  let description = "A type that represents an invalid term, and has a corresponding runtime representation";
 }
 
 def CIR_OpaqueTermType : TypeDef<CIR_Dialect, "CIROpaqueTerm", [ImmediateTypeInterface, TermTypeInterface], "::mlir::Type"> {
   let mnemonic = "term";
-  let summary = "A type that represents a valid term of unknown concrete type. It can be treated as an immediate";
+  let summary = "any term";
+  let description = "A type that represents a valid term of unknown concrete type. It can be treated as an immediate";
 }
 
 def CIR_NumberType : CIR_Type<"Number"> {
   let mnemonic = "number";
-  let summary = "A type that represents a term of any numeric type.";
+  let summary = "a numeric term";
+  let description = "A type that represents a term of any numeric type.";
 }
 
 def CIR_IntegerType : CIR_Type<"Integer"> {
   let mnemonic = "integer";
-  let summary = "A type that represents an integer term of either fixed or arbitrary width.";
+  let summary = "an integer term";
+  let description = "A type that represents an integer term of either fixed or arbitrary width.";
 }
 
 def CIR_FloatType : CIR_ImmediateType<"Float"> {
   let mnemonic = "float";
-  let summary = "A type that represents a floating-point term. The runtime representation of this varies.";
+  let summary = "a floating-point term";
+  let description = "A type that represents a floating-point term. The runtime representation of this varies.";
 }
 
 def CIR_AtomType : CIR_ImmediateType<"Atom"> {
   let mnemonic = "atom";
-  let summary = "A type that represents an atom term.";
+  let summary = "an atom";
+  let description = "A type that represents an atom term.";
 }
 
 def CIR_BoolType : CIR_ImmediateType<"Bool"> {
   let mnemonic = "bool";
-  let summary = "A type that represents an atom term of value 'true' or 'false'.";
+  let summary = "a boolean";
+  let description = "A type that represents an atom term of value 'true' or 'false'.";
 }
 
 def CIR_IsizeType : CIR_ImmediateType<"Isize"> {
   let mnemonic = "isize";
-  let summary = "A type that represents an integer term of machine width.";
+  let summary = "a small integer";
   let description = [{
     A machine-width integer is defined as being no larger than the size of the pointer type on the target system.
     As a general rule, this corresponds to i32 on 32-bit systems, i64 on 64-bit systems, and so on. There is an
@@ -118,7 +125,7 @@ def CIR_IsizeType : CIR_ImmediateType<"Isize"> {
 
 def CIR_BigIntType : CIR_BoxedType<"BigInt"> {
   let mnemonic = "bigint";
-  let summary = "A type that represents an integer term of arbitrary width.";
+  let summary = "a big integer";
   let description = [{
     An arbitrary-width integer here is defined not as a specific size in bits, but rather that the type itself can be of
     any bit width and still be considered the same type as another value of a different bit-width if the values are the
@@ -132,47 +139,56 @@ def CIR_BigIntType : CIR_BoxedType<"BigInt"> {
 
 def CIR_NilType : CIR_ImmediateType<"Nil"> {
   let mnemonic = "nil";
-  let summary = "A type that represents the nil term.";
+  let summary = "nil";
+  let description = "A type that represents the nil term.";
 }
 
 def CIR_ConsType : CIR_BoxedType<"Cons"> {
   let mnemonic = "cons";
-  let summary = "A type that represents a cons term.";
+  let summary = "a non-empty list term";
+  let description = "A type that represents a cons term.";
 }
 
 def CIR_MapType : CIR_BoxedType<"Map"> {
   let mnemonic = "map";
-  let summary = "A type that represents a map term.";
+  let summary = "a map term";
+  let description = "A type that represents a map term.";
 }
 
 def CIR_BitsType : CIR_BoxedType<"Bits"> {
   let mnemonic = "bits";
-  let summary = "A type that represents a bitstring term.";
+  let summary = "a bitstring term";
+  let description = "A type that represents a bitstring term.";
 }
 
 def CIR_BinaryType : CIR_BoxedType<"Binary"> {
   let mnemonic = "binary";
-  let summary = "A type that represents a bitstring evenly divisible into units of 8 bits";
+  let summary = "a binary term";
+  let description = "A type that represents a bitstring evenly divisible into units of 8 bits";
 }
 
 def CIR_PidType : CIR_BoxedType<"Pid"> {
   let mnemonic = "pid";
-  let summary = "A type that represents a local or external process identifier term.";
+  let summary = "a pid term";
+  let description = "A type that represents a local or external process identifier term.";
 }
 
 def CIR_PortType : CIR_BoxedType<"Port"> {
   let mnemonic = "port";
-  let summary = "A type that represents a local or external port term.";
+  let summary = "a port term";
+  let description = "A type that represents a local or external port term.";
 }
 
 def CIR_ReferenceType : CIR_BoxedType<"Reference"> {
   let mnemonic = "ref";
-  let summary = "A type that represents a local or external reference term.";
+  let summary = "a reference term";
+  let description = "A type that represents a local or external reference term.";
 }
 
 def CIR_BoxType : CIR_ImmediateType<"Box"> {
   let mnemonic = "box";
-  let summary = "A type that represents a boxed term";
+  let summary = "a boxed term";
+  let description = "A type that represents a boxed term";
   let parameters = (ins "Type":$elementType);
   let assemblyFormat = "`<` $elementType `>`";
   let builders = [
@@ -187,7 +203,8 @@ def CIR_BoxType : CIR_ImmediateType<"Box"> {
 
 def CIR_FunType : CIR_BoxedType<"Fun", [DeclareTypeInterfaceMethods<SubElementTypeInterface>]> {
   let mnemonic = "fun";
-  let summary = "A type that represents a closure term";
+  let summary = "a closure";
+  let description = "A type that represents a closure term";
   let parameters = (ins "FunctionType":$calleeType, "ArrayRef<Type>":$envTypes);
   let builders = [
     TypeBuilder<(ins CArg<"FunctionType">:$calleeType, CArg<"ArrayRef<Type>">:$envTypes), [{
@@ -207,27 +224,38 @@ def CIR_FunType : CIR_BoxedType<"Fun", [DeclareTypeInterfaceMethods<SubElementTy
 
 def CIR_ExceptionType : TypeDef<CIR_Dialect, "CIRException"> {
   let mnemonic = "exception";
-  let summary = "A type that represents the exception structure used internally for exception handling";
+  let summary = "an erlang exception";
+  let description = "A type that represents the exception structure used internally for exception handling";
 }
 
 def CIR_TraceType : TypeDef<CIR_Dialect, "CIRTrace"> {
   let mnemonic = "trace";
-  let summary = "A type that represents a handle to the raw internal exception trace";
+  let summary = "an erlang exception trace";
+  let description = "A type that represents a handle to the raw internal exception trace";
 }
 
 def CIR_RecvContextType : TypeDef<CIR_Dialect, "CIRRecvContext"> {
   let mnemonic = "recv.context";
-  let summary = "A type that represents a handle to a receive state machine context";
+  let summary = "a receive context";
+  let description = "A type that represents a handle to a receive state machine context";
 }
 
 def CIR_BinaryBuilderType : TypeDef<CIR_Dialect, "CIRBinaryBuilder"> {
   let mnemonic = "bin.builder";
-  let summary = "A type that represents a handle to state associated with a binary constructor";
+  let summary = "a binary builder result type";
+  let description = "A type that represents a handle to state associated with a binary constructor";
+}
+
+def CIR_MatchContextType : TypeDef<CIR_Dialect, "CIRMatchContext"> {
+  let mnemonic = "match.context";
+  let summary = "a match context";
+  let description = "A type that represents a handle to state associated with a binary pattern matching operation";
 }
 
 def PtrType : TypeDef<CIR_Dialect, "Ptr"> {
   let mnemonic = "ptr";
-  let summary = "A type that represents a raw pointer to another type";
+  let summary = "a raw pointer";
+  let description = "A type that represents a raw pointer to another type";
   let parameters = (ins "Type":$elementType);
   let assemblyFormat = "`<` $elementType `>`";
   let builders = [

@@ -48,8 +48,8 @@ struct CIRInlinerInterface : public DialectInlinerInterface {
   /// operation if necessary.
   void handleTerminator(Operation *,
                         ArrayRef<Value> _valuesToRepl) const final {
-    // Our only terminator currently is RaiseOp, which doesn't need to
-    // be replaced as it remains a terminator even after inlining
+    // Our only terminators are currently EnterOp and RaiseOp, which don't need
+    // to be replaced as they remain terminators even after inlining
   }
 
   /// Attempts to materialize a conversion for a type mismatch between a call
@@ -171,6 +171,73 @@ FunctionType CallOp::getCalleeType() {
 }
 
 //===----------------------------------------------------------------------===//
+// EnterOp
+//===----------------------------------------------------------------------===//
+
+LogicalResult EnterOp::verifySymbolUses(SymbolTableCollection &symbolTable) {
+  // Check that the callee attribute was specified.
+  auto fnAttr = (*this)->getAttrOfType<FlatSymbolRefAttr>("callee");
+  if (!fnAttr)
+    return emitOpError("requires a 'callee' symbol reference attribute");
+  FuncOp fn = symbolTable.lookupNearestSymbolFrom<FuncOp>(*this, fnAttr);
+  if (!fn)
+    return emitOpError() << "'" << fnAttr.getValue()
+                         << "' does not reference a valid function";
+
+  // Verify that the operand and result types match the callee.
+  auto fnType = fn.getFunctionType();
+  if (fnType.getNumInputs() != getNumOperands())
+    return emitOpError("incorrect number of operands for callee");
+
+  for (unsigned i = 0, e = fnType.getNumInputs(); i != e; ++i) {
+    Type srcTy = getOperand(i).getType();
+    Type dstTy = fnType.getInput(i);
+    if (srcTy == dstTy)
+      continue;
+    else if (srcTy.isa<TermType>() && dstTy.isa<TermType>())
+      continue;
+    else if (srcTy.isa<CIRExceptionType>() && dstTy.isa<CIROpaqueTermType>())
+      continue;
+    else
+      return emitOpError("operand type mismatch: expected operand type ")
+             << fnType.getInput(i) << ", but provided "
+             << getOperand(i).getType() << " for operand number " << i;
+  }
+
+  FuncOp parent = cast<FuncOp>((*this)->getParentOp());
+  auto parentType = parent.getFunctionType();
+  if (fnType.getNumResults() != parentType.getNumResults())
+    return emitOpError(
+        "callee result type does not match the containing function");
+
+  for (unsigned i = 0, e = fnType.getNumResults(); i != e; ++i) {
+    Type dstTy = parentType.getResult(i);
+    Type srcTy = fnType.getResult(i);
+    if (srcTy == dstTy)
+      continue;
+    else if (srcTy.isa<TermType>() && dstTy.isa<TermType>())
+      continue;
+    else {
+      auto diag = emitOpError("result type mismatch at index ") << i;
+      diag.attachNote() << "expected result types: " << parentType.getResults();
+      diag.attachNote() << "  callee result types: " << fnType.getResults();
+      return diag;
+    }
+  }
+
+  return success();
+}
+
+FunctionType EnterOp::getCalleeType() {
+  auto fnAttr = (*this)->getAttrOfType<FlatSymbolRefAttr>("callee");
+  if (!fnAttr)
+    return nullptr;
+  auto fn =
+      cast<FuncOp>(mlir::SymbolTable::lookupNearestSymbolFrom(*this, fnAttr));
+  return fn.getFunctionType();
+}
+
+//===----------------------------------------------------------------------===//
 // CastOp
 //===----------------------------------------------------------------------===//
 
@@ -183,6 +250,22 @@ bool canCastBetween(Type input, Type output) {
   // Opaque terms are always castable to a term type, numeric, or tuple type
   if (input.isa<CIROpaqueTermType>() && isTermOutput)
     return true;
+
+  // Opaque terms are always castable to special primop pointer types
+  if (input.isa<CIROpaqueTermType>()) {
+    if (auto ptrTy = output.dyn_cast_or_null<PtrType>()) {
+      auto innerTy = ptrTy.getElementType();
+      // *mut BitVec
+      if (innerTy.isa<CIRBinaryBuilderType>())
+        return true;
+      // *mut MatchContext
+      if (innerTy.isa<CIRMatchContextType>())
+        return true;
+      // *mut ErlangException
+      if (innerTy.isa<CIRExceptionType>())
+        return true;
+    }
+  }
 
   // All term, numeric or tuple types are castable to an opaque term
   auto isTermInput = isTermType(input);
@@ -348,8 +431,14 @@ LogicalResult cir::MallocOp::inferReturnTypes(
     ValueRange operands, DictionaryAttr attributes, RegionRange regions,
     llvm::SmallVectorImpl<Type> &inferredReturnTypes) {
   auto allocTypeAttr = attributes.get("allocType").cast<TypeAttr>();
-  auto returnType = PtrType::get(allocTypeAttr.getValue());
-  inferredReturnTypes.assign({returnType});
+  auto allocType = allocTypeAttr.getValue();
+  if (auto boxTy = allocType.dyn_cast<CIRBoxType>()) {
+    auto returnType = PtrType::get(boxTy.getElementType());
+    inferredReturnTypes.assign({returnType});
+  } else {
+    auto returnType = PtrType::get(allocType);
+    inferredReturnTypes.assign({returnType});
+  }
   return success();
 }
 
@@ -363,6 +452,7 @@ LogicalResult cir::MakeFunOp::inferReturnTypes(
     llvm::SmallVectorImpl<Type> &inferredReturnTypes) {
   auto funTypeAttr = attributes.get("funType").cast<TypeAttr>();
   auto returnType = CIRBoxType::get(funTypeAttr.getValue());
-  inferredReturnTypes.assign({returnType});
+  auto i1Type = IntegerType::get(context, 1);
+  inferredReturnTypes.assign({i1Type, returnType});
   return success();
 }

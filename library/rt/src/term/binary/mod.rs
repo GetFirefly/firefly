@@ -1,18 +1,23 @@
+mod matching;
 mod slice;
 
+pub use self::matching::{MatchContext, MatchResult};
 pub use self::slice::BitSlice;
 
+use alloc::alloc::{AllocError, Allocator};
 use core::any::TypeId;
 use core::fmt;
 use core::hash::{Hash, Hasher};
 use core::ops::{Index, IndexMut};
 use core::slice::SliceIndex;
 
+use liblumen_alloc::gc::GcBox;
 use liblumen_alloc::rc::Rc;
 use liblumen_binary::{Aligned, Binary, BinaryFlags, Bitstring, Encoding};
 
 /// This represents binary data, i.e. byte-aligned, with a number of bits
 /// divisible by 8 evenly.
+#[repr(C)]
 pub struct BinaryData {
     flags: BinaryFlags,
     data: [u8],
@@ -77,6 +82,31 @@ impl BinaryData {
             value.copy_from_slice(bytes);
         }
         rcbox
+    }
+
+    pub fn with_capacity_small<A: Allocator>(
+        cap: usize,
+        alloc: A,
+    ) -> Result<GcBox<BinaryData>, AllocError> {
+        assert!(cap <= 64);
+        let mut gcbox = GcBox::<BinaryData>::with_capacity_in(cap, alloc)?;
+        {
+            gcbox.flags = BinaryFlags::new(cap, Encoding::Raw);
+        }
+        Ok(gcbox)
+    }
+
+    pub fn with_capacity_large<A: Allocator>(
+        cap: usize,
+        alloc: A,
+    ) -> Result<Rc<BinaryData>, AllocError> {
+        assert!(cap > 64);
+        let mut rcbox = Rc::<BinaryData>::with_capacity_in(cap, alloc)?;
+        {
+            let value = unsafe { Rc::get_mut_unchecked(&mut rcbox) };
+            value.flags = BinaryFlags::new(cap, Encoding::Raw);
+        }
+        Ok(rcbox)
     }
 
     /// Constructs an Rc<BinaryData> from the given byte slice.

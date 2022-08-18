@@ -134,7 +134,7 @@ impl FunctionName {
             {
                 true
             }
-            symbols::Max | symbols::Min if self.arity == 2 => true,
+            symbols::Max | symbols::Min | symbols::UnpackEnv if self.arity == 2 => true,
             _ => false,
         }
     }
@@ -146,7 +146,13 @@ impl FunctionName {
         match self.function {
             symbols::NifStart
             | symbols::MatchFail
+            | symbols::Error
+            | symbols::Exit
+            | symbols::Throw
             | symbols::Raise
+            | symbols::RawRaise
+            | symbols::MakeFun
+            | symbols::UnpackEnv
             | symbols::BuildStacktrace
             | symbols::BitsInitWritable
             | symbols::RemoveMessage
@@ -157,18 +163,37 @@ impl FunctionName {
         }
     }
 
+    pub fn is_exception_op(&self) -> bool {
+        if self.module != Some(symbols::Erlang) {
+            return false;
+        }
+        match self.function {
+            symbols::MatchFail
+            | symbols::Error
+            | symbols::Exit
+            | symbols::Throw
+            | symbols::Raise
+            | symbols::RawRaise => true,
+            _ => false,
+        }
+    }
+
     /// Returns the number of values produced by this BIF
     ///
     /// NOTE: This function will panic if this function is not a BIF
     pub fn bif_values(&self) -> usize {
         let sig = crate::bifs::get(self).unwrap();
-        // RecvWaitTimeout produces two values, but only one of
-        // those is visible to Erlang code, the other is handled
-        // in the kernel lowering code to raise an error
-        if sig.name == symbols::RecvWaitTimeout {
-            1
-        } else {
-            sig.results.len()
+        match sig.name {
+            // RecvWaitTimeout produces two values, but only one of
+            // those is visible to Erlang code, the other is handled
+            // in the kernel lowering code to raise an error
+            symbols::RecvWaitTimeout => 1,
+            // Exception primitives produce a single value from the
+            // perspective of Erlang source code, but actually produce
+            // two values corresponding to our Erlang calling convention,
+            // one of those (the exception flag) is hidden from Erlang
+            _ if self.is_exception_op() => 1,
+            _ => sig.results().len(),
         }
     }
 
@@ -512,8 +537,7 @@ pub struct Signature {
     pub cc: CallConv,
     pub module: Symbol,
     pub name: Symbol,
-    pub params: Vec<Type>,
-    pub results: Vec<Type>,
+    pub ty: FunctionType,
 }
 impl Signature {
     pub fn new(
@@ -521,16 +545,14 @@ impl Signature {
         cc: CallConv,
         module: Symbol,
         name: Symbol,
-        params: &[Type],
-        results: &[Type],
+        ty: FunctionType,
     ) -> Self {
         Self {
             visibility,
             cc,
             module,
             name,
-            params: params.to_vec(),
-            results: results.to_vec(),
+            ty,
         }
     }
 
@@ -549,10 +571,13 @@ impl Signature {
         let cap = name.arity as usize;
         let mut params = Vec::with_capacity(cap);
         params.resize(cap, Type::Term(TermType::Any));
-        let results = vec![
-            Type::Primitive(PrimitiveType::I1),
-            Type::Term(TermType::Any),
-        ];
+        let ty = FunctionType {
+            results: vec![
+                Type::Primitive(PrimitiveType::I1),
+                Type::Term(TermType::Any),
+            ],
+            params,
+        };
         Self {
             visibility,
             cc,
@@ -560,28 +585,40 @@ impl Signature {
                 .module
                 .expect("generating a signature requires a fully-qualified function name"),
             name: name.function,
-            params,
-            results,
+            ty,
         }
     }
 
     /// Returns the fully-qualified function name of this signature
     pub fn mfa(&self) -> FunctionName {
-        FunctionName {
-            module: Some(self.module),
-            function: self.name,
-            arity: self.params.len().try_into().unwrap(),
+        if self.module == symbols::Empty {
+            FunctionName {
+                module: None,
+                function: self.name,
+                arity: self.arity().try_into().unwrap(),
+            }
+        } else {
+            FunctionName {
+                module: Some(self.module),
+                function: self.name,
+                arity: self.arity().try_into().unwrap(),
+            }
         }
     }
 
     /// Returns the arity of the function
     pub fn arity(&self) -> usize {
-        self.params.len()
+        self.params().len()
+    }
+
+    /// Returns the type signature of this function
+    pub fn get_type(&self) -> &FunctionType {
+        &self.ty
     }
 
     /// Returns a slice of the parameter types for this function
     pub fn params(&self) -> &[Type] {
-        self.params.as_slice()
+        self.ty.params()
     }
 
     /// Returns a slice of the result types for this function
@@ -592,7 +629,7 @@ impl Signature {
     /// targets supports multi-return natively (WebAssembly), and we want to be able to take
     /// advantage of that when we can.
     pub fn results(&self) -> &[Type] {
-        self.results.as_slice()
+        self.ty.results()
     }
 
     /// Returns true if this signature has the given name and arity, disregarding the module

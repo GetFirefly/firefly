@@ -1,0 +1,44 @@
+[fundamental]
+false = {}
+true = {}
+empty = { value = "" }
+
+[attributes]
+author = {}
+behaviour = {}
+callback = {}
+compile = {}
+deprecated = {}
+export = {}
+file = {}
+import = {}
+line = {}
+module = {}
+nifs = {}
+on_load = {}
+opaque = {}
+spec = {}
+type = {}
+vsn = {}
+
+[errors]
+badarg = {}
+badrecord = {}
+badmap = {}
+badmatch = {}
+bad_filter = {}
+bad_generator = {}
+bad_value = {}
+bad_size = {}
+case_clause = {}
+error = {}
+exit = {}
+function_clause = {}
+if_clause = {}
+nif_error = {}
+throw = {}
+try_clause = {}
+
+[common]
+undef = {}
+utf8 = {}

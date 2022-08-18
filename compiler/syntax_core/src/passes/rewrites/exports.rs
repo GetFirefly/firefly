@@ -673,6 +673,32 @@ impl RewriteExports {
                 }));
                 Ok((tuple, rbt_set![], used))
             }
+            IExpr::Map(mut map) if map.is_literal() => {
+                assert_eq!(map.is_pattern, false);
+                let used = map.used_vars();
+                let (arg, _, _) = self.cexpr(*map.arg, rbt_set![])?;
+                let pairs = map
+                    .pairs
+                    .drain(..)
+                    .map(|mut pair| {
+                        let (key, _, _) = self.cexpr(pair.key.pop().unwrap(), rbt_set![])?;
+                        let (value, _, _) = self.cexpr(*pair.value, rbt_set![])?;
+                        Ok::<_, anyhow::Error>(MapPair {
+                            op: pair.op,
+                            key,
+                            value,
+                        })
+                    })
+                    .try_collect::<Vec<_>>()?;
+                let map = Box::new(Expr::Map(Map {
+                    span: map.span,
+                    annotations: map.annotations,
+                    arg,
+                    pairs,
+                    is_pattern: false,
+                }));
+                Ok((map, rbt_set![], used))
+            }
             IExpr::Var(var) => {
                 let used = var.used_vars();
                 Ok((Box::new(Expr::Var(var)), rbt_set![], used))

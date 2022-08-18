@@ -249,7 +249,7 @@ args = ["clean"]
 [tasks.test]
 category = "Test"
 description = "Runs all tests"
-dependencies = ["test-rust", "test-cleanup"]
+dependencies = ["test-rust", "test-lit", "test-cleanup"]
 
 [tasks.test-rust]
 category = "Test"
@@ -262,13 +262,22 @@ dependencies = [
   "require-cmake",
 ]
 
+[tasks.test-lit]
+category = "Test"
+description = "Runs file-based checks using lit"
+env = { RUSTFLAGS = "-Z unstable-options -C link-args=-Wl,-rpath,${LLVM_PREFIX}/lib" }
+script_runner = "@rust"
+script = { file = "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/scripts/lit.rs", absolute_path = true }
+dependencies = [
+  "lumen",
+]
+
 [tasks.test-cleanup]
 private = true
 #condition = { env = { CARGO_MAKE_CI = "true" } }
 script = ['''
 #!@duckscript
 
-rm -r ${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/lumen/tests/_build
 rm -r ${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/native_implemented/otp/tests/_build
 ''']
 

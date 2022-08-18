@@ -115,7 +115,6 @@ fn compile_command<'a, 'b>() -> App<'a, 'b> {
                  .help("Specify the version of the Erlang application being built")
                  .long("app-version")
                  .takes_value(true)
-                 .possible_values(&["lib", "bin"])
         )
         .arg(
             Arg::with_name("app")

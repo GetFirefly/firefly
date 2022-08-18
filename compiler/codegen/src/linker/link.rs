@@ -1,11 +1,11 @@
 use std::ascii;
+use std::cell::OnceCell;
 use std::char;
 use std::env;
 use std::ffi::OsString;
 use std::fmt;
 use std::fs;
 use std::io;
-use std::cell::OnceCell;
 use std::path::{Path, PathBuf};
 use std::process::{Output, Stdio};
 use std::str;
@@ -89,13 +89,12 @@ pub fn link_binary(
 
     // `output_dir` is not necessarily the parent of `output_file`, such as with
     // `--output-dir _build --output bin/myapp`
-    let output_file_parent = output_file.parent().with_context(|| {
-        format!(
-            "{} does not have a parent directory",
-            output_file.as_display()
-        )
-    })?;
-    fs::create_dir_all(output_file_parent).with_context(|| {
+    let output_file_parent = if output_file.is_absolute() {
+        output_file.parent().unwrap().to_path_buf()
+    } else {
+        output_dir.clone()
+    };
+    fs::create_dir_all(output_file_parent.as_path()).with_context(|| {
         format!(
             "Could not create parent directories ({}) of file ({})",
             output_file_parent.as_display(),
@@ -168,7 +167,7 @@ pub fn link_binary(
 // about all dynamic library dependencies that they're not linked in.
 fn link_staticlib<'a>(
     options: &'a Options,
-    _diagnostics: &DiagnosticsHandler,
+    diagnostics: &DiagnosticsHandler,
     project_type: ProjectType,
     codegen_results: &CodegenResults,
     output_file: &Path,
@@ -189,6 +188,11 @@ fn link_staticlib<'a>(
     }
 
     ab.build();
+
+    diagnostics.success(
+        "Linker",
+        format!("generated static library to {}", output_file.display()),
+    );
 
     Ok(())
 }
@@ -239,7 +243,7 @@ fn link_natively(
     }
 
     if options.debugging_opts.print_link_args {
-        println!("{:?}", &cmd);
+        diagnostics.notice("Linker", format!("{:?}", &cmd));
     }
 
     // May have not found libraries in the right formats.
@@ -365,6 +369,11 @@ fn link_natively(
             Strip::None => (),
         }
     }
+
+    diagnostics.success(
+        "Linker",
+        format!("generated executable to {}", output_file.display()),
+    );
 
     Ok(())
 }

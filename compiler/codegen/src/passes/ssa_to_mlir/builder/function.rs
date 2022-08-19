@@ -222,8 +222,14 @@ impl<'m> ModuleBuilder<'m> {
             }
             ConstantItem::Integer(Integer::Big(i)) => {
                 let builder = CirBuilder::new(&self.builder);
-                let ty = builder.get_cir_bigint_type().base();
+                let ty = builder
+                    .get_cir_box_type(builder.get_cir_bigint_type())
+                    .base();
                 let op = builder.build_constant(loc, ty, builder.get_bigint_attr(i, ty));
+                // We need a cast to generic integer type because lowering of boxed types
+                // like bigint is to a pointer type,
+                //let value = op.get_result(0).base();
+                //let op = builder.build_cast(loc, value, builder.get_cir_integer_type());
                 op.get_result(0).base()
             }
             ConstantItem::Float(f) => {

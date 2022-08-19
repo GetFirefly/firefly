@@ -51,7 +51,7 @@ template <> struct FieldParser<AtomRef> {
 /// BigIntRef
 //===----------------------------------------------------------------------===//
 
-llvm::ArrayRef<int32_t> BigIntRef::data() const { return {digits, len}; }
+llvm::StringRef BigIntRef::data() const { return {digits, len}; }
 
 llvm::hash_code mlir::cir::hash_value(const BigIntRef &bigint) {
   auto data = bigint.data();
@@ -79,9 +79,9 @@ template <> struct FieldParser<BigIntRef> {
     if (kw1 != "digits" || parser.parseEqual())
       return failure();
 
-    SmallVector<int32_t, 4> digits;
+    SmallVector<int8_t, 4> digits;
     auto parseElt = [&] {
-      int32_t digit;
+      int8_t digit;
       if (parser.parseInteger(digit))
         return failure();
       digits.push_back(digit);
@@ -93,9 +93,9 @@ template <> struct FieldParser<BigIntRef> {
       return failure();
 
     size_t len = digits.size();
-    int32_t *data = nullptr;
+    char *data = nullptr;
     if (len > 0) {
-      data = static_cast<int32_t *>(aligned_alloc(16, digits.size_in_bytes()));
+      data = static_cast<char *>(aligned_alloc(16, digits.size_in_bytes()));
       std::memcpy(data, digits.data(), len);
     }
     return BigIntRef{sign, data, len};

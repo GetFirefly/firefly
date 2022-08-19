@@ -61,8 +61,8 @@ def BigIntRefParameter :
     }
     }
     $_printer << "digits = [";
-    llvm::interleaveComma($_self.data(), $_printer,
-                        [&](int32_t digit) { $_printer << (uint32_t)digit; });
+    llvm::interleaveComma($_self.data().bytes(), $_printer,
+                        [&](unsigned char digit) { $_printer << digit; });
     $_printer << "]";
   }];
   let comparator = [{ $_lhs.sign == $_rhs.sign && $_lhs.data() == $_rhs.data() }];
@@ -83,11 +83,11 @@ def BigIntAttr : CIR_Attr<"BigInt"> {
   let extraClassDeclaration = [{
     using ValueType = ::mlir::cir::BigIntRef;
     Sign getSign() const { return getValue().sign; }
-    ::llvm::ArrayRef<int32_t> getDigits() const { return getValue().data(); }
+    ::llvm::StringRef getDigits() const { return getValue().data(); }
 
   }];
   let skipDefaultBuilders = 1;
-  let typeBuilder = "CIRBigIntType::get($_type.getContext())";
+  let typeBuilder = "CIRBoxType::get(CIRBigIntType::get($_type.getContext()))";
 }
 
 def BinaryEntrySpecifierParameter :

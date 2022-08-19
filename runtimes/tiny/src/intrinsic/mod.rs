@@ -54,7 +54,7 @@ impl Into<Sign> for SignRaw {
 #[repr(C)]
 pub struct BigIntRef {
     sign: SignRaw,
-    digits: [u32],
+    digits: [u8],
 }
 
 /// Allocates a new BigInteger from constant data produced by the compiler
@@ -65,7 +65,7 @@ pub extern "C" fn bigint_from_digits(raw: &BigIntRef) -> OpaqueTerm {
         let arc_proc = scheduler.current_process();
         let proc = arc_proc.deref();
         GcBox::new_in(
-            BigInteger(BigInt::from_slice(raw.sign.into(), &raw.digits[..])),
+            BigInteger(BigInt::from_bytes_be(raw.sign.into(), &raw.digits[..])),
             proc,
         )
         .unwrap()
@@ -269,6 +269,87 @@ pub extern "C-unwind" fn bs_init() -> Result<NonNull<BitVec>, ()> {
 }
 
 #[allow(improper_ctypes_definitions)]
+#[export_name = "__lumen_bs_push"]
+pub extern "C-unwind" fn bs_push(
+    mut bin: NonNull<BitVec>,
+    spec: BinaryEntrySpecifier,
+    value: OpaqueTerm,
+    size: OpaqueTerm,
+) -> Result<NonNull<BitVec>, NonNull<ErlangException>> {
+    let buffer = unsafe { bin.as_mut() };
+    match spec {
+        BinaryEntrySpecifier::Integer {
+            signed,
+            unit,
+            endianness,
+        } => match (value.into(), size.into()) {
+            (Term::Int(i), Term::Int(size)) => {
+                if signed {
+                    buffer.push_ap_number(i, (unit as usize) * (size as usize), endianness);
+                } else {
+                    buffer.push_ap_number(i as u64, (unit as usize) * (size as usize), endianness);
+                }
+                Ok(bin)
+            }
+            (Term::BigInt(i), Term::Int(size)) => {
+                buffer.push_ap_bigint(
+                    i.deref(),
+                    (unit as usize) * (size as usize),
+                    signed,
+                    endianness,
+                );
+                Ok(bin)
+            }
+            _ => Err(badarg(Trace::capture())),
+        },
+        BinaryEntrySpecifier::Float { unit, endianness } => match (value.into(), size.into()) {
+            (Term::Float(f), Term::Int(size)) => match (unit as usize) * (size as usize) {
+                64 => {
+                    buffer.push_number(f.as_f64(), endianness);
+                    Ok(bin)
+                }
+                _ => todo!("bs.push float"),
+            },
+            _ => Err(badarg(Trace::capture())),
+        },
+        BinaryEntrySpecifier::Binary { unit } => match (value.into(), size.into()) {
+            (Term::ConstantBinary(bin), Term::Int(size)) => {
+                let bitsize = (unit as usize) * (size as usize);
+                todo!()
+            }
+            _ => Err(badarg(Trace::capture())),
+        },
+        BinaryEntrySpecifier::Utf8 => match (value.into(), size.into()) {
+            (Term::Int(i), Term::Int(size)) => {
+                let Ok(codepoint) = i.try_into() else { return Err(badarg(Trace::capture())); };
+                let Some(c) = char::from_u32(codepoint) else { return Err(badarg(Trace::capture())); };
+                buffer.push_utf8(c);
+                Ok(bin)
+            }
+            _ => Err(badarg(Trace::capture())),
+        },
+        BinaryEntrySpecifier::Utf16 { endianness } => match (value.into(), size.into()) {
+            (Term::Int(i), Term::Int(size)) => {
+                let Ok(codepoint) = i.try_into() else { return Err(badarg(Trace::capture())); };
+                let Some(c) = char::from_u32(codepoint) else { return Err(badarg(Trace::capture())); };
+                buffer.push_utf16(c, endianness);
+                Ok(bin)
+            }
+            _ => Err(badarg(Trace::capture())),
+        },
+        BinaryEntrySpecifier::Utf32 { endianness } => match (value.into(), size.into()) {
+            (Term::Int(i), Term::Int(size)) => {
+                let Ok(codepoint) = i.try_into() else { return Err(badarg(Trace::capture())); };
+                let Some(c) = char::from_u32(codepoint) else { return Err(badarg(Trace::capture())); };
+                buffer.push_utf32(c, endianness);
+                Ok(bin)
+            }
+            _ => Err(badarg(Trace::capture())),
+        },
+    }
+}
+
+#[allow(improper_ctypes_definitions)]
 #[export_name = "__lumen_bs_finish"]
 pub extern "C-unwind" fn bs_finish(buffer: NonNull<BitVec>) -> Result<OpaqueTerm, ()> {
     use liblumen_binary::Bitstring;
@@ -414,4 +495,11 @@ pub extern "C-unwind" fn bs_match(
 #[export_name = "__lumen_bs_test_tail"]
 pub unsafe extern "C-unwind" fn bs_test_tail(ctx: NonNull<MatchContext>, size: usize) -> bool {
     ctx.as_ref().bits_remaining() == size
+}
+
+pub(self) fn badarg(trace: Arc<Trace>) -> NonNull<ErlangException> {
+    crate::erlang::raise2(atoms::Badarg.into(), unsafe {
+        NonNull::new_unchecked(Trace::into_raw(trace))
+    })
+    .unwrap_err()
 }

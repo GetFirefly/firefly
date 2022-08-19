@@ -135,7 +135,7 @@ impl Into<Sign> for BigIntSign {
 #[repr(C)]
 struct BigIntRaw {
     sign: BigIntSign,
-    digits: *const u32,
+    digits: *const u8,
     num_digits: usize,
 }
 
@@ -146,7 +146,7 @@ pub struct BigIntAttr(AttributeBase);
 impl BigIntAttr {
     #[inline]
     pub fn get(value: &BigInt, ty: TypeBase) -> Self {
-        let (sign, digits) = value.to_u32_digits();
+        let (sign, digits) = value.to_bytes_be();
         let raw = BigIntRaw {
             sign: sign.into(),
             digits: digits.as_ptr(),
@@ -159,7 +159,7 @@ impl BigIntAttr {
     pub fn value(&self) -> BigInt {
         let raw = self.raw();
         let digits = unsafe { core::slice::from_raw_parts(raw.digits, raw.num_digits) };
-        BigInt::from_slice(raw.sign.into(), digits)
+        BigInt::from_bytes_be(raw.sign.into(), digits)
     }
 
     fn raw(&self) -> BigIntRaw {

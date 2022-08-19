@@ -679,19 +679,19 @@ protected:
   }
 
   Value createBigIntConstant(OpBuilder &builder, Location loc, Sign sign,
-                             ArrayRef<int32_t> digits, ModuleOp &module) const {
+                             StringRef digits, ModuleOp &module) const {
     llvm::SHA1 hasher;
     hasher.update((unsigned)sign);
-    for (auto digit : digits)
-      hasher.update(digit);
+    hasher.update(digits);
     auto hash = llvm::toHex(hasher.result(), true);
     auto globalName = std::string("bigint_") + hash;
 
+    auto i8Ty = builder.getI8Type();
     auto i32Ty = builder.getI32Type();
     auto isizeTy = getIsizeType();
     auto termTy = getTermType();
-    auto digitsTy = LLVM::LLVMArrayType::get(i32Ty, digits.size());
-    auto emptyArrayTy = LLVM::LLVMArrayType::get(i32Ty, 0);
+    auto digitsTy = LLVM::LLVMArrayType::get(i8Ty, digits.size());
+    auto emptyArrayTy = LLVM::LLVMArrayType::get(i8Ty, 0);
     auto dataTy = LLVM::LLVMStructType::getLiteral(builder.getContext(),
                                                    {i32Ty, digitsTy});
     auto genericDataTy =
@@ -715,13 +715,13 @@ protected:
 
       Value dataSign = createI32Constant(builder, loc, (unsigned)sign);
       Value dataRaw = builder.create<LLVM::ConstantOp>(
-          loc, digitsTy, builder.getI32ArrayAttr(digits));
+          loc, digitsTy, builder.getStringAttr(digits.str()));
 
       Value data = builder.create<LLVM::UndefOp>(loc, dataTy);
       data = builder.create<LLVM::InsertValueOp>(loc, data, dataSign,
                                                  builder.getI64ArrayAttr(0));
       data = builder.create<LLVM::InsertValueOp>(loc, data, dataRaw,
-                                                 builder.getI64ArrayAttr(2));
+                                                 builder.getI64ArrayAttr(1));
       builder.create<LLVM::ReturnOp>(loc, data);
     }
 
@@ -1218,11 +1218,6 @@ struct ConstantOpLowering : public ConvertCIROpToLLVMPattern<cir::ConstantOp> {
               assert(NANBOX_INFINITY != 0);
               return createTermConstant(rewriter, loc, NANBOX_INFINITY);
             })
-            .Case<CIRBigIntType>([&](CIRBigIntType) {
-              auto bigIntAttr = attr.cast<BigIntAttr>();
-              return createBigIntConstant(rewriter, loc, bigIntAttr.getSign(),
-                                          bigIntAttr.getDigits(), module);
-            })
             .Case<CIRIntegerType>([&](CIRIntegerType) {
               return createIntegerConstant(rewriter, loc,
                                            attr.cast<IsizeAttr>().getInt());
@@ -1253,6 +1248,12 @@ struct ConstantOpLowering : public ConvertCIROpToLLVMPattern<cir::ConstantOp> {
                         op->getAttrOfType<BoolAttr>("utf8").getValue();
                     return createBinaryDataConstant(rewriter, loc, str, isUtf8,
                                                     module);
+                  })
+                  .Case<CIRBigIntType>([&](CIRBigIntType) {
+                    auto bigIntAttr = attr.cast<BigIntAttr>();
+                    return createBigIntConstant(rewriter, loc,
+                                                bigIntAttr.getSign(),
+                                                bigIntAttr.getDigits(), module);
                   })
                   .Default([](Type) { return nullptr; });
             })
@@ -2927,7 +2928,7 @@ struct BinaryPushOpLowering
     }
 
     auto callOp = rewriter.create<LLVM::CallOp>(
-        loc, TypeRange({resultTy}), "__lumen_bs_match",
+        loc, TypeRange({resultTy}), "__lumen_bs_push",
         ValueRange({bin, specRaw, size, adaptor.value()}));
     Value callResult = callOp->getResult(0);
     Value isErrWide = rewriter.create<LLVM::ExtractValueOp>(

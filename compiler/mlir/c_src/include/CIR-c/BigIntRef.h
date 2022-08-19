@@ -3,7 +3,9 @@
 #include <cstdlib>
 
 #ifdef __cplusplus
-#include <llvm/ADT/ArrayRef.h>
+namespace llvm {
+class StringRef;
+}
 
 namespace mlir {
 namespace cir {
@@ -14,11 +16,11 @@ enum Sign { SignMinus = 0, SignNoSign, SignPlus };
 
 struct BigIntRef {
   Sign sign;
-  const int32_t *digits;
+  const char *digits;
   size_t len;
 
 #ifdef __cplusplus
-  llvm::ArrayRef<int32_t> data() const;
+  llvm::StringRef data() const;
 #endif
 };
 

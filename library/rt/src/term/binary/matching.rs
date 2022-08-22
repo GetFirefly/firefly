@@ -22,22 +22,24 @@ use crate::term::{OpaqueTerm, Term};
 /// }
 /// ... proceed to another match using the updated match_ctx
 /// ```
-#[repr(u8)]
+#[repr(u32)]
 pub enum MatchResult {
     Ok {
         extracted: OpaqueTerm,
         context: NonNull<MatchContext>,
-    },
+    } = 0,
     Err {
         none: OpaqueTerm,
         context: NonNull<MatchContext>,
-    },
+    } = 1,
 }
 impl MatchResult {
+    #[inline(always)]
     pub fn ok(extracted: OpaqueTerm, context: NonNull<MatchContext>) -> Self {
         Self::Ok { extracted, context }
     }
 
+    #[inline(always)]
     pub fn err(context: NonNull<MatchContext>) -> Self {
         Self::Err {
             none: OpaqueTerm::NONE,

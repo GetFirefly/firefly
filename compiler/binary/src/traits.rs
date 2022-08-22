@@ -2,7 +2,7 @@ use half::f16;
 use paste::paste;
 
 use crate::helpers::DisplayErlang;
-use crate::{BinaryFlags, ByteIter, Encoding, Selection};
+use crate::{BinaryFlags, BitsIter, ByteIter, Encoding, Selection};
 
 /// This trait provides common behavior for all types which represent
 /// binary data, either as a collection of bytes, or a collection of bits.
@@ -42,17 +42,54 @@ pub trait Bitstring {
         (total_bits % 8) as u8
     }
 
+    /// Obtains a `Selection` containing `n` bytes from this bitstring.
+    ///
+    /// Returns a `Result<Selection, Selection>` where `Err` implies that there
+    /// was insufficient bytes in the underlying data, with a selection covering
+    /// what was available.
+    #[inline]
+    fn select_bytes(&self, n: usize) -> Result<Selection<'_>, Selection<'_>> {
+        let data = unsafe { self.as_bytes_unchecked() };
+        Selection::new(data, 0, self.bit_offset(), None, n * 8)
+    }
+
+    /// Obtains a `Selection` containing `n` bits from this bitstring.
+    ///
+    /// Returns a `Result<Selection, Selection>` where `Err` implies that there
+    /// was insufficient bits in the underlying data, with a selection covering
+    /// what was available.
+    #[inline]
+    fn select_bits(&self, n: usize) -> Result<Selection<'_>, Selection<'_>> {
+        let data = unsafe { self.as_bytes_unchecked() };
+        Selection::new(data, 0, self.bit_offset(), None, n)
+    }
+
+    /// Obtains a `Selection` containing all of the bits in the underlying data
+    #[inline]
+    fn select_all(&self) -> Selection<'_> {
+        unsafe { self.select_bits(self.bit_size()).unwrap_unchecked() }
+    }
+
     /// Returns an iterator over the bytes in this bitstring.
     ///
     /// See the docs for `ByteIter` for more information on its semantics
     /// around bitstrings.
     #[inline]
     fn bytes(&self) -> ByteIter<'_> {
-        let data = unsafe { self.as_bytes_unchecked() };
-        let bit_size = self.bit_size();
-        let selection =
-            Selection::new(data, 0, self.bit_offset(), Some(bit_size), bit_size).unwrap();
-        ByteIter::new(selection)
+        ByteIter::new(self.select_all())
+    }
+
+    /// Returns an iterator over the full bytes of the underlying bitstring.
+    ///
+    /// See the docs for `BitsIter` for more information on its semantics
+    /// around bitstrings.
+    ///
+    /// NOTE: The returned iterator requires that the caller handle the possibility of
+    /// a trailing partial byte manually, you MUST check the iterator to see if a
+    /// trailing byte is present, and handle it accordingly
+    #[inline]
+    fn bits(&self) -> BitsIter<'_> {
+        BitsIter::new(self.select_all())
     }
 
     /// Returns true if this bitstring begins aligned on a byte boundary.

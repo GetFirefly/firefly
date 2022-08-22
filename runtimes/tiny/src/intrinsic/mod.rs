@@ -5,7 +5,7 @@ use std::sync::Arc;
 use num_bigint::{BigInt, Sign};
 
 use liblumen_alloc::gc::GcBox;
-use liblumen_binary::{BinaryEntrySpecifier, BitVec};
+use liblumen_binary::{BinaryEntrySpecifier, BitVec, Bitstring};
 use liblumen_rt::backtrace::Trace;
 use liblumen_rt::error::ErlangException;
 use liblumen_rt::function::ErlangResult;
@@ -276,84 +276,152 @@ pub extern "C-unwind" fn bs_push(
     value: OpaqueTerm,
     size: OpaqueTerm,
 ) -> Result<NonNull<BitVec>, NonNull<ErlangException>> {
+    use half::f16;
+
     let buffer = unsafe { bin.as_mut() };
     match spec {
         BinaryEntrySpecifier::Integer {
             signed,
             unit,
             endianness,
-        } => match (value.into(), size.into()) {
-            (Term::Int(i), Term::Int(size)) => {
-                if signed {
-                    buffer.push_ap_number(i, (unit as usize) * (size as usize), endianness);
-                } else {
-                    buffer.push_ap_number(i as u64, (unit as usize) * (size as usize), endianness);
+        } => {
+            // Size MUST be a non-negative integer
+            let size: usize = match size.into() {
+                Term::Int(sz) if sz >= 0 => sz.try_into().map_err(|_| badarg(Trace::capture()))?,
+                _ => return Err(badarg(Trace::capture())),
+            };
+            let num_bits = size * (unit as usize);
+            match value.into() {
+                // Pushing with a size of zero has no effect
+                Term::Int(_) | Term::BigInt(_) if num_bits == 0 => return Ok(bin),
+                Term::Int(i) if signed => buffer.push_ap_number(i, num_bits, endianness),
+                Term::Int(i) => buffer.push_ap_number(i as u64, num_bits, endianness),
+                Term::BigInt(i) => buffer.push_ap_bigint(i.deref(), num_bits, signed, endianness),
+                _ => return Err(badarg(Trace::capture())),
+            }
+            Ok(bin)
+        }
+        BinaryEntrySpecifier::Float { unit, endianness } => {
+            // Size MUST be one of 16, 32, 64
+            let size = match size.into() {
+                Term::Int(sz) => match sz {
+                    16 | 32 | 64 => sz,
+                    _ => return Err(badarg(Trace::capture())),
+                },
+                _ => return Err(badarg(Trace::capture())),
+            };
+            // Value can be any integer or float
+            match value.into() {
+                Term::Float(f) if size == 16 => {
+                    buffer.push_number(f16::from_f64(f.as_f64()), endianness)
                 }
-                Ok(bin)
+                Term::Float(f) if size == 32 => buffer.push_number(f.as_f64() as f32, endianness),
+                Term::Float(f) if size == 64 => buffer.push_number(f.as_f64(), endianness),
+                Term::Int(i) if size == 16 => {
+                    buffer.push_number(f16::from_f64(i as f64), endianness)
+                }
+                Term::Int(i) if size == 32 => buffer.push_number(i as f32, endianness),
+                Term::Int(i) if size == 64 => buffer.push_number(i as f64, endianness),
+                Term::BigInt(i) => match i.as_f64() {
+                    Some(f) if size == 16 => buffer.push_number(f16::from_f64(f), endianness),
+                    Some(f) if size == 32 => buffer.push_number(f as f32, endianness),
+                    Some(f) if size == 64 => buffer.push_number(f, endianness),
+                    _ => return Err(badarg(Trace::capture())),
+                },
+                _ => return Err(badarg(Trace::capture())),
             }
-            (Term::BigInt(i), Term::Int(size)) => {
-                buffer.push_ap_bigint(
-                    i.deref(),
-                    (unit as usize) * (size as usize),
-                    signed,
-                    endianness,
-                );
-                Ok(bin)
-            }
-            _ => Err(badarg(Trace::capture())),
-        },
-        BinaryEntrySpecifier::Float { unit, endianness } => match (value.into(), size.into()) {
-            (Term::Float(f), Term::Int(size)) => match (unit as usize) * (size as usize) {
-                64 => {
-                    buffer.push_number(f.as_f64(), endianness);
+            Ok(bin)
+        }
+        BinaryEntrySpecifier::Binary { unit } => {
+            // Size must be a non-negative integer, or None to represent pushing all of the source value
+            // into the destination buffer
+            let size: Option<usize> = match size.into() {
+                Term::None => None,
+                Term::Int(sz) if sz >= 0 => {
+                    Some(sz.try_into().map_err(|_| badarg(Trace::capture()))?)
+                }
+                _ => return Err(badarg(Trace::capture())),
+            };
+            // Term must be a bitstring/binary
+            let term: Term = value.into();
+            match term.as_bitstring() {
+                // Push all of a binary
+                Some(bs) if unit == 8 && size.is_none() => {
+                    // The source value must be a binary
+                    if !bs.is_binary() {
+                        return Err(badarg(Trace::capture()));
+                    }
+                    buffer.extend(bs.bytes());
                     Ok(bin)
                 }
-                _ => todo!("bs.push float"),
-            },
-            _ => Err(badarg(Trace::capture())),
-        },
-        BinaryEntrySpecifier::Binary { unit } => match (value.into(), size.into()) {
-            (Term::ConstantBinary(bin), Term::Int(size)) => {
-                let bitsize = (unit as usize) * (size as usize);
-                todo!()
+                // Push `size` bytes of the given bitstring
+                Some(bs) if unit == 8 => {
+                    let size = unsafe { size.unwrap_unchecked() };
+                    let data = unsafe { bs.as_bytes_unchecked() };
+                    // Selects precisely `size` bytes from the underlying data
+                    // The value must be at least as large as the requested size
+                    match bs.select_bytes(size) {
+                        Ok(selection) => {
+                            buffer.extend(selection.bytes());
+                            Ok(bin)
+                        }
+                        _ => return Err(badarg(Trace::capture())),
+                    }
+                }
+                // Push all bits of a bitstring
+                Some(bs) if size.is_none() => {
+                    // The source value may be either a binary or bitstring
+                    if bs.is_binary() {
+                        buffer.extend(bs.bytes());
+                    } else {
+                        buffer.extend(bs.bits());
+                    }
+                    Ok(bin)
+                }
+                // Push `size * unit` bits of the given bitstring
+                Some(bs) => {
+                    let size = unsafe { size.unwrap_unchecked() };
+                    let bitsize = size * (unit as usize);
+                    // Selects precisely `bitsize` bits from the underlying data
+                    // The value must be at least as large as the requested size
+                    match bs.select_bits(bitsize) {
+                        Ok(selection) => {
+                            buffer.extend(selection.bits());
+                            Ok(bin)
+                        }
+                        _ => return Err(badarg(Trace::capture())),
+                    }
+                }
+                _ => Err(badarg(Trace::capture())),
             }
-            _ => Err(badarg(Trace::capture())),
-        },
-        BinaryEntrySpecifier::Utf8 => match (value.into(), size.into()) {
-            (Term::Int(i), Term::Int(size)) => {
-                let Ok(codepoint) = i.try_into() else { return Err(badarg(Trace::capture())); };
-                let Some(c) = char::from_u32(codepoint) else { return Err(badarg(Trace::capture())); };
-                buffer.push_utf8(c);
-                Ok(bin)
-            }
-            _ => Err(badarg(Trace::capture())),
-        },
-        BinaryEntrySpecifier::Utf16 { endianness } => match (value.into(), size.into()) {
-            (Term::Int(i), Term::Int(size)) => {
-                let Ok(codepoint) = i.try_into() else { return Err(badarg(Trace::capture())); };
-                let Some(c) = char::from_u32(codepoint) else { return Err(badarg(Trace::capture())); };
-                buffer.push_utf16(c, endianness);
-                Ok(bin)
-            }
-            _ => Err(badarg(Trace::capture())),
-        },
-        BinaryEntrySpecifier::Utf32 { endianness } => match (value.into(), size.into()) {
-            (Term::Int(i), Term::Int(size)) => {
-                let Ok(codepoint) = i.try_into() else { return Err(badarg(Trace::capture())); };
-                let Some(c) = char::from_u32(codepoint) else { return Err(badarg(Trace::capture())); };
-                buffer.push_utf32(c, endianness);
-                Ok(bin)
-            }
-            _ => Err(badarg(Trace::capture())),
-        },
+        }
+        BinaryEntrySpecifier::Utf8 => {
+            let Term::Int(i) = value.into() else { return Err(badarg(Trace::capture())); };
+            let Ok(codepoint) = i.try_into() else { return Err(badarg(Trace::capture())); };
+            let Some(c) = char::from_u32(codepoint) else { return Err(badarg(Trace::capture())); };
+            buffer.push_utf8(c);
+            Ok(bin)
+        }
+        BinaryEntrySpecifier::Utf16 { endianness } => {
+            let Term::Int(i) = value.into() else { return Err(badarg(Trace::capture())); };
+            let Ok(codepoint) = i.try_into() else { return Err(badarg(Trace::capture())); };
+            let Some(c) = char::from_u32(codepoint) else { return Err(badarg(Trace::capture())); };
+            buffer.push_utf16(c, endianness);
+            Ok(bin)
+        }
+        BinaryEntrySpecifier::Utf32 { endianness } => {
+            let Term::Int(i) = value.into() else { return Err(badarg(Trace::capture())); };
+            let Ok(codepoint) = i.try_into() else { return Err(badarg(Trace::capture())); };
+            let Some(c) = char::from_u32(codepoint) else { return Err(badarg(Trace::capture())); };
+            buffer.push_utf32(c, endianness);
+            Ok(bin)
+        }
     }
 }
 
 #[allow(improper_ctypes_definitions)]
 #[export_name = "__lumen_bs_finish"]
 pub extern "C-unwind" fn bs_finish(buffer: NonNull<BitVec>) -> Result<OpaqueTerm, ()> {
-    use liblumen_binary::Bitstring;
-
     let buffer = unsafe { Box::from_raw(buffer.as_ptr()) };
     scheduler::with_current(|scheduler| {
         let arc_proc = scheduler.current_process();
@@ -460,12 +528,40 @@ pub extern "C-unwind" fn bs_match(
                 }
             }
             BinaryEntrySpecifier::Binary { unit } => {
-                let Term::Int(size) = size.into() else { panic!("expected an immediate integer") };
-                let size: usize = size.try_into().expect("invalid size");
-                let bitsize = unit as usize * size;
-                match matcher.match_bits(bitsize) {
-                    None => MatchResult::err(ctx),
-                    Some(selection) => {
+                match size.into() {
+                    Term::Int(size) => {
+                        // Match `size * unit` bits of the binary/bitstring
+                        let size: usize = size.try_into().expect("invalid size");
+                        let bitsize = unit as usize * size;
+                        match matcher.match_bits(bitsize) {
+                            None => MatchResult::err(ctx),
+                            Some(selection) => {
+                                let bin = GcBox::new_in(
+                                    BitSlice::from_selection(context.owner(), selection),
+                                    proc,
+                                )
+                                .unwrap();
+                                MatchResult::ok(OpaqueTerm::from(bin), ctx)
+                            }
+                        }
+                    }
+                    Term::None if unit == 8 => {
+                        // Match the remaining bits, as long as those bits form a binary
+                        match matcher.match_binary() {
+                            Some(selection) => {
+                                let bin = GcBox::new_in(
+                                    BitSlice::from_selection(context.owner(), selection),
+                                    proc,
+                                )
+                                .unwrap();
+                                MatchResult::ok(OpaqueTerm::from(bin), ctx)
+                            }
+                            None => MatchResult::err(ctx),
+                        }
+                    }
+                    Term::None => {
+                        // Match the remaining bits
+                        let selection = matcher.match_any();
                         let bin = GcBox::new_in(
                             BitSlice::from_selection(context.owner(), selection),
                             proc,
@@ -473,6 +569,7 @@ pub extern "C-unwind" fn bs_match(
                         .unwrap();
                         MatchResult::ok(OpaqueTerm::from(bin), ctx)
                     }
+                    other => panic!("expected an immediate integer or none, got {:#?}", &other),
                 }
             }
             BinaryEntrySpecifier::Utf8 => match matcher.match_utf8() {

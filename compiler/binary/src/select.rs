@@ -7,7 +7,7 @@ use core::ops::Shl;
 use core::str;
 
 use crate::helpers::*;
-use crate::{Bitstring, ByteIter};
+use crate::{BitsIter, Bitstring, ByteIter};
 
 /// Represents some number of bits that fit within a single byte
 ///
@@ -400,7 +400,7 @@ impl<'a> Selection<'a> {
                 )))
             } else {
                 let last_index = byte_offset + bytes;
-                let last = unsafe { *data.get_unchecked(last_index + 1) };
+                let last = unsafe { *data.get_unchecked(last_index) };
                 Ok(Self::AlignedBitstring(
                     &data[byte_offset..last_index],
                     MaybePartialByte::new(last & mask, trailing_bits),
@@ -493,13 +493,8 @@ impl<'a> Selection<'a> {
                     b.get(n).copied()
                 }
             }
-            _ => self.iter().nth(n),
+            _ => self.bytes().nth(n),
         }
-    }
-
-    /// Returns an iterator over the bytes this selection contains
-    pub fn iter(self) -> ByteIter<'a> {
-        ByteIter::new(self)
     }
 
     /// Returns the selected bytes as a string reference, if the data is binary, aligned, and valid UTF-8.
@@ -530,7 +525,7 @@ impl<'a> Selection<'a> {
         } else {
             let cap = self.byte_size();
             let mut buf = Vec::with_capacity(cap);
-            for byte in self.iter() {
+            for byte in self.bytes() {
                 buf.push(byte);
             }
             String::from_utf8(buf).map(Cow::Owned).ok()
@@ -543,7 +538,7 @@ impl<'a> Selection<'a> {
     /// partial byte.
     pub fn as_bytes(&self) -> Option<&[u8]> {
         match self {
-            Self::Empty => None,
+            Self::Empty => Some(&[]),
             Self::Byte(b) => Some(b.byte.as_slice()),
             Self::AlignedBinary(b) => Some(b),
             _ => None,
@@ -574,7 +569,7 @@ impl<'a> Selection<'a> {
             _ => {
                 let cap = self.byte_size();
                 let mut vec = Vec::with_capacity(cap);
-                for byte in self.iter() {
+                for byte in self.bytes() {
                     vec.push(byte);
                 }
                 Cow::Owned(vec)
@@ -598,14 +593,19 @@ impl<'a> Selection<'a> {
                 }
                 bytes.take_first().copied()
             }
-            Self::AlignedBitstring(ref mut bytes, last) => {
-                if bytes.is_empty() {
+            Self::AlignedBitstring(ref mut bytes, last) => match bytes.len() {
+                0 => {
                     let byte = last.byte();
                     *self = Self::Empty;
-                    return Some(byte);
+                    Some(byte)
                 }
-                bytes.take_first().copied()
-            }
+                1 => {
+                    let byte = bytes.take_first().copied();
+                    *self = Self::Byte(*last);
+                    byte
+                }
+                _ => bytes.take_first().copied(),
+            },
             Self::Binary(l, mut bytes, r) => {
                 let x = l.byte();
                 if bytes.is_empty() {
@@ -819,7 +819,7 @@ impl<'a> Selection<'a> {
                     // We're going to produce an aligned bitstring, so we will have a trailing partial byte
                     let last_index = n / 8;
                     let mask = bitmask_be(trailing_bits);
-                    let last = unsafe { *bytes.get_unchecked(last_index + 1) } & mask;
+                    let last = unsafe { *bytes.get_unchecked(last_index) } & mask;
                     Ok(Self::AlignedBitstring(
                         &bytes[..last_index],
                         MaybePartialByte::new(last, trailing_bits),
@@ -1026,7 +1026,12 @@ impl<'a> Bitstring for Selection<'a> {
 
     #[inline(always)]
     fn bytes(&self) -> ByteIter<'_> {
-        self.iter()
+        ByteIter::new(*self)
+    }
+
+    #[inline(always)]
+    fn bits(&self) -> BitsIter<'_> {
+        BitsIter::new(*self)
     }
 
     unsafe fn as_bytes_unchecked(&self) -> &[u8] {

@@ -8,6 +8,8 @@
 #![feature(const_option_ext)]
 #![feature(slice_take)]
 #![feature(arbitrary_enum_discriminant)]
+#![feature(min_specialization)]
+#![feature(extend_one)]
 
 extern crate alloc;
 #[cfg(any(test, feature = "std"))]
@@ -28,7 +30,7 @@ mod traits;
 
 pub use self::bitvec::BitVec;
 pub use self::flags::{BinaryFlags, Encoding};
-pub use self::iter::ByteIter;
+pub use self::iter::{BitsIter, ByteIter};
 pub use self::matcher::Matcher;
 pub use self::select::{MaybePartialByte, Selection};
 pub use self::spec::BinaryEntrySpecifier;
@@ -53,10 +55,10 @@ pub use self::traits::{Aligned, Binary, Bitstring, FromEndianBytes, ToEndianByte
 ///
 /// So lets apply that to an example, a 16-bit integer 64542, as viewed on a little-endian machine:
 ///
-///     * 0xfc1e (little-endian hex)
-///     * 0x1efc (big-endian hex)
-///     * 0b1111110000011110 (little-endian binary)
-///     * 0b0001111011111100 (big-endian binary)
+/// * 0xfc1e (little-endian hex)
+/// * 0x1efc (big-endian hex)
+/// * 0b1111110000011110 (little-endian binary)
+/// * 0b0001111011111100 (big-endian binary)
 ///
 /// Well that's confusing, The bytes appear to be backwards! The little-endian version has the most-significant bits in the least-significant
 /// byte, and the big-endian version has the least-significant bits in the most-significant byte. What's going on here?

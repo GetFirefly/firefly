@@ -2,6 +2,7 @@ use alloc::alloc::{Allocator, Global};
 use alloc::vec::Vec;
 use core::fmt;
 use core::hash::{Hash, Hasher};
+use core::iter::Extend;
 use core::mem;
 
 use num_bigint::BigInt;
@@ -105,6 +106,12 @@ impl<A: Allocator> BitVec<A> {
     /// to start a match while there are outstanding mutable references to this BitVec
     pub fn matcher<'a>(&'a self) -> Matcher<'a> {
         Matcher::new(self.select())
+    }
+
+    /// Returns the available capacity in bytes of the underlying buffer
+    #[inline]
+    fn bytes_available(&self) -> usize {
+        self.data.capacity() - self.byte_size()
     }
 }
 
@@ -431,11 +438,15 @@ impl<A: Allocator> BitVec<A> {
 
     #[inline]
     fn reserve(&mut self, cap: usize) {
-        if (self.pos + cap + 1) >= self.data.capacity() {
-            self.data.reserve(cap + mem::size_of::<usize>());
-            unsafe {
-                self.data.set_len(self.data.capacity());
-            }
+        let available = self.bytes_available();
+        if available >= cap {
+            return;
+        }
+        // Buffer some additional capacity above and beyond
+        let cap = mem::size_of::<usize>() + cap;
+        self.data.reserve(cap - available);
+        unsafe {
+            self.data.set_len(self.data.capacity());
         }
     }
 
@@ -581,6 +592,14 @@ impl<A: Allocator> BitVec<A> {
             self.bit_offset = size - offset_shift;
         }
     }
+
+    /// This is the fallback implementation for `extend` for cases where we don't
+    /// know the length of the iterator
+    fn default_extend<I: Iterator<Item = u8>>(&mut self, iter: I) {
+        for byte in iter {
+            self.push_byte(byte);
+        }
+    }
 }
 impl<A: Allocator> Eq for BitVec<A> {}
 impl<A: Allocator, T: ?Sized + Bitstring> PartialEq<T> for BitVec<A> {
@@ -690,6 +709,92 @@ impl<A: Allocator> std::io::Write for BitVec<A> {
     #[inline]
     fn flush(&mut self) -> std::io::Result<()> {
         Ok(())
+    }
+}
+impl Extend<u8> for BitVec {
+    fn extend<T: IntoIterator<Item = u8>>(&mut self, iter: T) {
+        <Self as SpecExtend<T::IntoIter>>::spec_extend(self, iter.into_iter())
+    }
+
+    #[inline]
+    fn extend_one(&mut self, byte: u8) {
+        self.push_byte(byte);
+    }
+
+    #[inline]
+    fn extend_reserve(&mut self, additional: usize) {
+        self.reserve(additional)
+    }
+}
+
+trait SpecExtend<I> {
+    fn spec_extend(&mut self, iter: I);
+}
+impl<I: Iterator<Item = u8>> SpecExtend<I> for BitVec {
+    default fn spec_extend(&mut self, iter: I) {
+        self.default_extend(iter)
+    }
+}
+impl<'a> SpecExtend<ByteIter<'a>> for BitVec {
+    fn spec_extend(&mut self, iter: ByteIter<'a>) {
+        match iter.as_slice() {
+            Some(bytes) => self.push_bytes(bytes),
+            None => {
+                self.reserve(iter.len());
+                if self.bit_offset == 0 {
+                    for byte in iter {
+                        unsafe {
+                            self.push_byte_fast(byte);
+                        }
+                    }
+                } else {
+                    for byte in iter {
+                        unsafe {
+                            self.push_byte_slow(byte);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+impl<'a> SpecExtend<BitsIter<'a>> for BitVec {
+    fn spec_extend(&mut self, mut iter: BitsIter<'a>) {
+        match iter.as_slice() {
+            Some(bytes) => self.push_bytes(bytes),
+            None => {
+                self.reserve(iter.byte_size());
+                if self.bit_offset == 0 {
+                    loop {
+                        match iter.next() {
+                            Some(byte) => unsafe { self.push_byte_fast(byte) },
+                            None => {
+                                if let Some(b) = iter.consume() {
+                                    unsafe {
+                                        self.push_partial_byte(b.byte(), b.size);
+                                    }
+                                }
+                                break;
+                            }
+                        }
+                    }
+                } else {
+                    loop {
+                        match iter.next() {
+                            Some(byte) => unsafe { self.push_byte_slow(byte) },
+                            None => {
+                                if let Some(b) = iter.consume() {
+                                    unsafe {
+                                        self.push_partial_byte(b.byte(), b.size);
+                                    }
+                                }
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -899,9 +1004,9 @@ mod test {
         vec.clear();
 
         vec.push_utf16('〦', Endianness::Native);
-        assert_eq!(vec.byte_size(), 4);
-        assert_eq!(vec.bit_size(), 32);
-        assert_eq!(vec.pos, 4);
+        assert_eq!(vec.byte_size(), 2);
+        assert_eq!(vec.bit_size(), 16);
+        assert_eq!(vec.pos, 2);
         assert_eq!(vec.bit_offset, 0);
 
         vec.clear();

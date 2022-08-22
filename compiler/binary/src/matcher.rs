@@ -51,7 +51,7 @@ impl<'a> Matcher<'a> {
 
         let ptr = buf.as_mut_ptr();
         let mut idx = 0;
-        for byte in self.selection.iter().take(N) {
+        for byte in self.selection.bytes().take(N) {
             unsafe {
                 *ptr.add(idx) = byte;
             }
@@ -60,7 +60,7 @@ impl<'a> Matcher<'a> {
         true
     }
 
-    /// Reads up to the specified number of bits into the provided buffer.
+    /// Reads the specified number of bits into the provided buffer.
     ///
     /// If the bitsize given is larger than the provided buffer, this function will panic.
     ///
@@ -68,26 +68,33 @@ impl<'a> Matcher<'a> {
     pub fn read_bits<const N: usize>(&mut self, buf: &mut [u8; N], bitsize: usize) -> bool {
         assert!(bitsize <= N * 8);
 
-        match self.selection.take(bitsize) {
-            Ok(s) => {
-                let trailing_bits = bitsize % 8;
-                let needed = (bitsize / 8) + ((trailing_bits > 0) as usize);
-                if let Some(slice) = s.as_bytes() {
-                    let buf2 = &mut buf[..needed];
-                    buf2.copy_from_slice(&slice[..needed]);
-                } else {
-                    let ptr = buf.as_mut_ptr();
-                    let mut idx = 0;
-                    for byte in s.iter().take(needed) {
-                        unsafe {
-                            *ptr.add(idx) = byte;
-                        }
-                        idx += 1;
-                    }
-                }
-                true
+        if let Ok(selection) = self.selection.take(bitsize) {
+            // Ensure the buffer is zeroed
+            unsafe {
+                core::ptr::write_bytes(buf.as_mut_ptr(), 0, N);
             }
-            Err(_) => false,
+
+            let mut iter = selection.bits();
+            let mut index = 0;
+            while let Some(b) = iter.next() {
+                buf[index] = b;
+                index += 1;
+            }
+            match iter.consume() {
+                None => {
+                    // We're ending on the exact size of the request, we're done
+                    // NOTE: This should only be reachable if the bitsize was binary
+                    assert_eq!(bitsize % 8, 0);
+                    true
+                }
+                Some(b) => {
+                    // We're ending on the exact size of the request, we're done
+                    buf[index] = b.byte();
+                    true
+                }
+            }
+        } else {
+            false
         }
     }
 
@@ -123,35 +130,45 @@ impl<'a> Matcher<'a> {
             "requested bit size is larger than that of the containing type"
         );
 
-        if let Ok(selection) = self.selection.take(bitsize) {
-            let mut bytes = [0u8; S];
+        let trailing_bits = bitsize % 8;
+        let byte_size = (bitsize / 8) + ((trailing_bits > 0) as usize);
+        let rotation = S - byte_size;
 
-            let mut matcher = Matcher::new(selection);
-            if matcher.read_bits(&mut bytes, bitsize) {
-                match endianness {
-                    Endianness::Native => {
-                        let n = N::from_ne_bytes(bytes);
-                        if cfg!(target_endian = "big") {
-                            // No shift needed, as the bytes are already in big-endian order
-                            Some(n)
-                        } else {
-                            // We need to shift the bytes right so that the least-significant
-                            // bits begin at the correct byte boundary
-                            let shift: u32 = (8 - (bitsize % 8)).try_into().unwrap();
-                            Some(n >> shift)
-                        }
-                    }
-                    // Big-endian bytes never require a shift
-                    Endianness::Big => Some(N::from_be_bytes(bytes)),
-                    // Little-endian bytes always require a shift
-                    Endianness::Little => {
-                        let shift: u32 = (8 - (bitsize % 8)).try_into().unwrap();
-                        let n = N::from_le_bytes(bytes);
+        let mut bytes = [0u8; S];
+        if self.read_bits(&mut bytes, bitsize) {
+            match endianness {
+                // When native endianness is requested, no manipulation of the buffer is required
+                Endianness::Native => Some(N::from_le_bytes(bytes)),
+                Endianness::Big => {
+                    if cfg!(target_endian = "big") {
+                        Some(N::from_be_bytes(bytes))
+                    } else if trailing_bits > 0 {
+                        // On little-endian systems, big-endian numbers must
+                        // be shifted to the right by the number of trailing bits
+                        let n = N::from_be_bytes(bytes);
+                        let shift = ((rotation * 8) + (8 - trailing_bits)) as u32;
                         Some(n >> shift)
+                    } else {
+                        // When there are no trailing bits we can simply shift the bytes
+                        bytes.rotate_right(rotation);
+                        Some(N::from_be_bytes(bytes))
                     }
                 }
-            } else {
-                None
+                Endianness::Little => {
+                    if cfg!(target_endian = "little") {
+                        Some(N::from_le_bytes(bytes))
+                    } else if trailing_bits > 0 {
+                        // On big-endian systems, little-endian numbers must
+                        // be shifted to the right by the number of trailing bits
+                        let n = N::from_le_bytes(bytes);
+                        let shift = ((rotation * 8) + (8 - trailing_bits)) as u32;
+                        Some(n >> shift)
+                    } else {
+                        // When there are no trailing bits we can simply shift the bytes
+                        bytes.rotate_right(rotation);
+                        Some(N::from_le_bytes(bytes))
+                    }
+                }
             }
         } else {
             None
@@ -213,7 +230,7 @@ impl<'a> Matcher<'a> {
     {
         let matched = self.read_ap_number(bitsize, endianness)?;
 
-        self.selection = self.selection.shrink_front(S * 8);
+        self.selection = self.selection.shrink_front(bitsize);
 
         Some(matched)
     }
@@ -331,9 +348,9 @@ impl<'a> Matcher<'a> {
     /// the number of bits is evenly divisible into bytes.
     ///
     /// Since this function consumes the matcher itself, it must always be the last match performed
-    pub fn match_binary(self) -> Option<Selection<'a>> {
+    pub fn match_binary(&mut self) -> Option<Selection<'a>> {
         if self.selection.is_binary() {
-            Some(self.selection)
+            Some(core::mem::replace(&mut self.selection, Selection::Empty))
         } else {
             None
         }
@@ -342,8 +359,8 @@ impl<'a> Matcher<'a> {
     /// This operation always succeeds by returning what remains of the underlyings slice
     ///
     /// Since this function consumes the matcher itself, it must always be the last match performed
-    pub fn match_any(self) -> Selection<'a> {
-        self.selection
+    pub fn match_any(&mut self) -> Selection<'a> {
+        core::mem::replace(&mut self.selection, Selection::Empty)
     }
 }
 
@@ -381,11 +398,150 @@ mod test {
     }
 
     #[test]
-    fn matcher_test_floats() {
+    fn matcher_test_integer_endianness() {
+        // big-endian 123456789u32 in a 64-bit buffer
+        let bytes = [7, 91, 205, 21, 0, 0, 0, 0];
+        let mut matcher = Matcher::with_slice(bytes.as_slice().into());
+        let num: Option<u64> = matcher.match_ap_number(32, Endianness::Big);
+        assert_eq!(num, Some(123456789u64));
+
+        // little-endian 123456789u32 in a 64-bit buffer
+        let bytes = [21, 205, 91, 7, 0, 0, 0, 0];
+        let mut matcher = Matcher::with_slice(bytes.as_slice().into());
+        let num: Option<u64> = matcher.match_ap_number(32, Endianness::Little);
+        assert_eq!(num, Some(123456789u64));
+    }
+
+    #[test]
+    fn matcher_test_ap_integer_oversized_buffer() {
+        // 8 bits: we expect to pull out the number 7
+        let bytes = [7, 91, 205, 21, 0, 0, 0, 0];
+        let mut matcher = Matcher::with_slice(bytes.as_slice().into());
+        let num: Option<u64> = matcher.match_ap_number(8, Endianness::Big);
+        assert_eq!(num, Some(7u64));
+
+        // 12 bits: we expect to pull out the number 117
+        let bytes = [7, 91, 205, 21, 0, 0, 0, 0];
+        let mut matcher = Matcher::with_slice(bytes.as_slice().into());
+        let num: Option<u64> = matcher.match_ap_number(12, Endianness::Big);
+        assert_eq!(num, Some(117u64));
+
+        // 16 bits: we expect to pull out the number 1883
+        let bytes = [7, 91, 205, 21, 0, 0, 0, 0];
+        let mut matcher = Matcher::with_slice(bytes.as_slice().into());
+        let num: Option<u64> = matcher.match_ap_number(16, Endianness::Big);
+        assert_eq!(num, Some(1883u64));
+
+        // 24 bits: we expect to pull out the number 482253
+        let bytes = [7, 91, 205, 21, 0, 0, 0, 0];
+        let mut matcher = Matcher::with_slice(bytes.as_slice().into());
+        let num: Option<u64> = matcher.match_ap_number(24, Endianness::Big);
+        assert_eq!(num, Some(482253u64));
+
+        // 32 bits: we expect to pull out the number 123456789
+        let bytes = [7, 91, 205, 21, 0, 0, 0, 0];
+        let mut matcher = Matcher::with_slice(bytes.as_slice().into());
+        let num: Option<u64> = matcher.match_ap_number(32, Endianness::Big);
+        assert_eq!(num, Some(123456789u64));
+
+        // 38 bits: we expect to pull out the number 7901234496
+        let bytes = [7, 91, 205, 21, 1, 0, 0, 0];
+        let mut matcher = Matcher::with_slice(bytes.as_slice().into());
+        let num: Option<u64> = matcher.match_ap_number(38, Endianness::Big);
+        assert_eq!(num, Some(7901234496u64));
+
+        // 40 bits: we expect to pull out the number 31604937985
+        let bytes = [7, 91, 205, 21, 1, 0, 0, 0];
+        let mut matcher = Matcher::with_slice(bytes.as_slice().into());
+        let num: Option<u64> = matcher.match_ap_number(40, Endianness::Big);
+        assert_eq!(num, Some(31604937985u64));
+
+        // 48 bits: we expect to pull out the number 8090864124161
+        let bytes = [7, 91, 205, 21, 1, 1, 0, 0];
+        let mut matcher = Matcher::with_slice(bytes.as_slice().into());
+        let num: Option<u64> = matcher.match_ap_number(48, Endianness::Big);
+        assert_eq!(num, Some(8090864124161u64));
+
+        // 56 bits: we expect to pull out the number 2071261215785217
+        let bytes = [7, 91, 205, 21, 1, 1, 1, 0];
+        let mut matcher = Matcher::with_slice(bytes.as_slice().into());
+        let num: Option<u64> = matcher.match_ap_number(56, Endianness::Big);
+        assert_eq!(num, Some(2071261215785217u64));
+
+        // 64 bits: we expect to pull out the number 530242871241015553
+        let bytes = [7, 91, 205, 21, 1, 1, 1, 1];
+        let mut matcher = Matcher::with_slice(bytes.as_slice().into());
+        let num: Option<u64> = matcher.match_ap_number(64, Endianness::Big);
+        assert_eq!(num, Some(530242871241015553u64));
+    }
+
+    #[test]
+    fn matcher_test_f16() {
+        use half::f16;
+
+        let f = f16::from_f64(1.0);
+        let bytes = f.to_be_bytes();
+        let mut matcher = Matcher::with_slice(bytes.as_slice().into());
+        let num: Option<f16> = matcher.match_number(Endianness::Big);
+        assert_eq!(num, Some(f));
+
+        let f = f16::from_f64(1.0);
+        let bytes = f.to_le_bytes();
+        let mut matcher = Matcher::with_slice(bytes.as_slice().into());
+        let num: Option<f16> = matcher.match_number(Endianness::Little);
+        assert_eq!(num, Some(f));
+
+        // Too large to fit in f16, should become infinite
+        let f = f16::from_f64(f32::MAX as f64);
+        assert!(f.is_infinite());
+        let bytes = f.to_be_bytes();
+        let mut matcher = Matcher::with_slice(bytes.as_slice().into());
+        let num: Option<f16> = matcher.match_number(Endianness::Big);
+        assert_eq!(num, Some(f));
+    }
+
+    #[test]
+    fn matcher_test_f32() {
+        let bytes = 1.0f32.to_be_bytes();
+        let mut matcher = Matcher::with_slice(bytes.as_slice().into());
+        let num: Option<f32> = matcher.match_number(Endianness::Big);
+        assert_eq!(num, Some(1.0));
+
+        let bytes = 1.0f32.to_le_bytes();
+        let mut matcher = Matcher::with_slice(bytes.as_slice().into());
+        let num: Option<f32> = matcher.match_number(Endianness::Little);
+        assert_eq!(num, Some(1.0));
+
+        // Too large to fit in f32, should become infinite
+        let bytes = (1.0_f32 / 0.0_f32).to_be_bytes();
+        let f = f32::from_be_bytes(bytes);
+        assert!(f.is_infinite());
+        let bytes = f.to_be_bytes();
+        let mut matcher = Matcher::with_slice(bytes.as_slice().into());
+        let num: Option<f32> = matcher.match_number(Endianness::Big);
+        assert_eq!(num, Some(f));
+    }
+
+    #[test]
+    fn matcher_test_f64() {
         let bytes = 1.0f64.to_be_bytes();
         let mut matcher = Matcher::with_slice(bytes.as_slice().into());
         let num: Option<f64> = matcher.match_number(Endianness::Big);
         assert_eq!(num, Some(1.0));
+
+        let bytes = 1.0f64.to_le_bytes();
+        let mut matcher = Matcher::with_slice(bytes.as_slice().into());
+        let num: Option<f64> = matcher.match_number(Endianness::Little);
+        assert_eq!(num, Some(1.0));
+
+        // Too large to fit in f32, should become infinite
+        let bytes = (1.0_f64 / 0.0_f64).to_be_bytes();
+        let f = f64::from_be_bytes(bytes);
+        assert!(f.is_infinite());
+        let bytes = f.to_be_bytes();
+        let mut matcher = Matcher::with_slice(bytes.as_slice().into());
+        let num: Option<f64> = matcher.match_number(Endianness::Big);
+        assert_eq!(num, Some(f));
     }
 
     #[test]

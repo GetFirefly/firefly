@@ -135,8 +135,13 @@ pub enum TermType {
     Atom,
     Bitstring,
     Binary,
+    /// The empty list
     Nil,
+    /// A non-empty list of at least one element
+    Cons,
+    /// A potentially-empty proper list, with an optional constraint on the element types
     List(Option<Box<TermType>>),
+    /// A potentially-empty improper list
     MaybeImproperList,
     Tuple(Option<Vec<TermType>>),
     Map,
@@ -169,7 +174,14 @@ impl TermType {
 
     pub fn is_list(&self) -> bool {
         match self {
-            Self::List(_) | Self::MaybeImproperList | Self::Nil => true,
+            Self::List(_) | Self::MaybeImproperList | Self::Cons | Self::Nil => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_nonempty_list(&self) -> bool {
+        match self {
+            Self::Cons => true,
             _ => false,
         }
     }
@@ -240,6 +252,7 @@ impl fmt::Display for TermType {
             Self::Bitstring => f.write_str("bits"),
             Self::Binary => f.write_str("bytes"),
             Self::Nil => f.write_str("nil"),
+            Self::Cons => f.write_str("cons"),
             Self::List(None) => f.write_str("list"),
             Self::List(Some(ty)) => write!(f, "list<{}>", ty.as_ref()),
             Self::MaybeImproperList => f.write_str("list?"),
@@ -312,6 +325,8 @@ impl PartialOrd for TermType {
             (_, Self::Map) => Some(Greater),
             (Self::Nil, _) => Some(Less),
             (_, Self::Nil) => Some(Greater),
+            (Self::Cons, _) => Some(Less),
+            (_, Self::Cons) => Some(Greater),
             (Self::List(_), _) => Some(Less),
             (_, Self::List(_)) => Some(Greater),
             (Self::MaybeImproperList, _) => Some(Less),

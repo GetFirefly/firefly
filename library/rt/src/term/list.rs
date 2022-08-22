@@ -24,8 +24,8 @@ pub enum CharlistToBinaryError {
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct Cons {
-    head: OpaqueTerm,
-    tail: OpaqueTerm,
+    pub head: OpaqueTerm,
+    pub tail: OpaqueTerm,
 }
 impl Cons {
     pub const TYPE_ID: TypeId = TypeId::of::<Cons>();
@@ -465,7 +465,7 @@ impl Iterator for Iter<'_> {
             Some(Ok(Term::Nil)) if self.tail.is_none() => {
                 self.head = None;
                 self.tail = None;
-                Some(Ok(Term::Nil))
+                None
             }
             next => {
                 let tail = self.tail.unwrap();
@@ -576,7 +576,6 @@ mod test {
         assert_eq!(iter.next(), Some(Ok(Term::Int(1))));
         assert_eq!(iter.next(), Some(Ok(Term::Int(2))));
         assert_eq!(iter.next(), Some(Ok(Term::Int(3))));
-        assert_eq!(iter.next(), Some(Ok(Term::Nil)));
         assert_eq!(iter.next(), None);
         assert_eq!(iter.next(), None);
     }

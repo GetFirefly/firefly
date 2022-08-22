@@ -450,17 +450,6 @@ def CIR_ZExtOp : CIR_Op<"zext", [NoSideEffect]> {
   }];
 }
 
-def CIR_ICmpOp : CIR_Op<"icmp", [NoSideEffect, SameTypeOperands]> {
-  let summary = "Performs a raw integer comparison operation";
-
-  let arguments = (ins ICmpPredicate:$predicate, AnyInteger:$lhs, AnyInteger:$rhs);
-  let results = (outs I1:$result);
-
-  let assemblyFormat = [{
-    $predicate $lhs `,` $rhs `:` type($lhs) attr-dict
-  }];
-}
-
 def CIR_TypeOfOp : CIR_Op<"typeof", [MemoryEffects<[MemRead]>]> {
   let summary = "Returns the type information of the given term value";
   let description = [{
@@ -479,6 +468,22 @@ def CIR_IsListOp : CIR_Op<"is_list", [MemoryEffects<[MemRead]>]> {
   let summary = "A type checking predicate for lists.";
   let description = [{
     This operation returns true if the given term is nil or a pointer to a cons cell.
+  }];
+
+  let arguments = (ins CIR_AnyTerm:$value);
+  let results = (outs I1:$result);
+
+  let assemblyFormat = [{
+    $value `:` type($value) attr-dict
+  }];
+
+  //let hasFolder = 1;
+}
+
+def CIR_IsNonEmptyListOp : CIR_Op<"is_nonempty_list", [MemoryEffects<[MemRead]>]> {
+  let summary = "A type checking predicate for nonempty lists.";
+  let description = [{
+    This operation returns true if the given term is a pointer to a cons cell.
   }];
 
   let arguments = (ins CIR_AnyTerm:$value);

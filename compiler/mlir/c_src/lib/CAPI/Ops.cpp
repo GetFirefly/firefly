@@ -12,8 +12,12 @@
 #include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/IR/BuiltinOps.h"
 
+#include "llvm/ADT/Optional.h"
+
 using namespace mlir;
 using namespace mlir::cir;
+
+using llvm::Optional;
 
 MlirOperation mlirCirIsNullOp(MlirOpBuilder bldr, MlirLocation location,
                               MlirValue value) {
@@ -36,15 +40,6 @@ MlirOperation mlirCirZExtOp(MlirOpBuilder bldr, MlirLocation location,
   OpBuilder *builder = unwrap(bldr);
   Operation *op =
       builder->create<cir::ZExtOp>(unwrap(location), unwrap(ty), unwrap(value));
-  return wrap(op);
-}
-
-MlirOperation mlirCirICmpOp(MlirOpBuilder bldr, MlirLocation location,
-                            unsigned predicate, MlirValue lhs, MlirValue rhs) {
-  OpBuilder *builder = unwrap(bldr);
-  auto pred = static_cast<cir::ICmpPredicate>(predicate);
-  Operation *op = builder->create<cir::ICmpOp>(unwrap(location), pred,
-                                               unwrap(lhs), unwrap(rhs));
   return wrap(op);
 }
 
@@ -133,6 +128,15 @@ MlirOperation mlirCirIsListOp(MlirOpBuilder bldr, MlirLocation location,
   OpBuilder *builder = unwrap(bldr);
   Operation *op =
       builder->create<cir::IsListOp>(unwrap(location), unwrap(value));
+  return wrap(op);
+}
+
+MlirOperation mlirCirIsNonEmptyListOp(MlirOpBuilder bldr, MlirLocation location,
+                                      MlirValue value) {
+
+  OpBuilder *builder = unwrap(bldr);
+  Operation *op =
+      builder->create<cir::IsNonEmptyListOp>(unwrap(location), unwrap(value));
   return wrap(op);
 }
 
@@ -668,4 +672,20 @@ MlirOperation mlirScfExecuteRegionOp(MlirOpBuilder bldr, MlirLocation location,
 
 bool mlirLLVMFuncOpIsA(MlirOperation op) {
   return isa<LLVM::LLVMFuncOp>(unwrap(op));
+}
+
+bool mlirLLVMConstantOpIsA(MlirOperation op) {
+  return isa<LLVM::ConstantOp>(unwrap(op));
+}
+
+bool mlirLLVMICmpOpIsA(MlirOperation op) {
+  return isa<LLVM::ICmpOp>(unwrap(op));
+}
+
+MlirAttribute mlirLLVMICmpPredicateAttrGet(MlirContext ctx,
+                                           unsigned predicate) {
+  Optional<LLVM::ICmpPredicate> pred =
+      LLVM::symbolizeICmpPredicate((uint64_t)predicate);
+  Attribute attr = LLVM::ICmpPredicateAttr::get(unwrap(ctx), pred.getValue());
+  return wrap(attr);
 }

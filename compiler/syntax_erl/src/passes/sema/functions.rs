@@ -42,6 +42,11 @@ impl SemanticAnalysis {
             }
         }
 
+        // If we have a local with the same name as an imported function, the import is shadowed
+        if module.imports.contains_key(&local_resolved_name) {
+            module.imports.remove(&local_resolved_name);
+        }
+
         match module.functions.entry(local_resolved_name) {
             Entry::Vacant(f) => {
                 f.insert(function);

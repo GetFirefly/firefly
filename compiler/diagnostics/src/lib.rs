@@ -151,7 +151,7 @@ impl Reporter {
                 })
                 .collect();
             self.diagnostic(
-                Diagnostic::error()
+                Diagnostic::warning()
                     .with_message(message)
                     .with_labels(labels),
             );

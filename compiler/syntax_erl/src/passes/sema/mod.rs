@@ -13,7 +13,7 @@ use liblumen_pass::Pass;
 use crate::ast::{self, *};
 
 use self::inject::AddAutoImports;
-use self::verify::{VerifyNifs, VerifyOnLoadFunctions, VerifyTypeSpecs};
+use self::verify::{VerifyCalls, VerifyNifs, VerifyOnLoadFunctions, VerifyTypeSpecs};
 
 /// This pass is responsible for taking a set of top-level forms and
 /// analyzing them in the context of a new module to produce a fully
@@ -86,7 +86,8 @@ impl Pass for SemanticAnalysis {
             //.chain(DefinePseudoLocals)
             .chain(VerifyOnLoadFunctions::new(self.reporter.clone()))
             .chain(VerifyTypeSpecs::new(self.reporter.clone()))
-            .chain(VerifyNifs::new(self.reporter.clone()));
+            .chain(VerifyNifs::new(self.reporter.clone()))
+            .chain(VerifyCalls::new(self.reporter.clone()));
 
         passes.run(&mut module)?;
 

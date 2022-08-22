@@ -1,10 +1,10 @@
 use liblumen_binary::{Bitstring, Encoding};
 use liblumen_diagnostics::{SourceSpan, Spanned};
 use liblumen_llvm::Linkage;
-use liblumen_mlir::cir::ICmpPredicate;
-use liblumen_mlir::llvm::LinkageAttr;
+use liblumen_mlir::llvm::{ICmpPredicate, LinkageAttr};
 use liblumen_mlir::*;
 use liblumen_number::Integer;
+use liblumen_rt::term::OpaqueTerm;
 use liblumen_syntax_base::{self as syntax_base, Signature};
 use liblumen_syntax_ssa::{self as syntax_ssa, ir::instructions::*, DataFlowGraph};
 use liblumen_syntax_ssa::{ConstantItem, Immediate, ImmediateTerm};
@@ -226,10 +226,6 @@ impl<'m> ModuleBuilder<'m> {
                     .get_cir_box_type(builder.get_cir_bigint_type())
                     .base();
                 let op = builder.build_constant(loc, ty, builder.get_bigint_attr(i, ty));
-                // We need a cast to generic integer type because lowering of boxed types
-                // like bigint is to a pointer type,
-                //let value = op.get_result(0).base();
-                //let op = builder.build_cast(loc, value, builder.get_cir_integer_type());
                 op.get_result(0).base()
             }
             ConstantItem::Float(f) => {
@@ -570,28 +566,28 @@ impl<'m> ModuleBuilder<'m> {
                 return Ok(());
             }
             Opcode::IcmpEq => self
-                .cir()
+                .llvm()
                 .build_icmp(loc, ICmpPredicate::Eq, lhs, rhs)
                 .base(),
             Opcode::IcmpNeq => self
-                .cir()
+                .llvm()
                 .build_icmp(loc, ICmpPredicate::Neq, lhs, rhs)
                 .base(),
             Opcode::IcmpGt => self
-                .cir()
-                .build_icmp(loc, ICmpPredicate::Gt, lhs, rhs)
+                .llvm()
+                .build_icmp(loc, ICmpPredicate::Ugt, lhs, rhs)
                 .base(),
             Opcode::IcmpGte => self
-                .cir()
-                .build_icmp(loc, ICmpPredicate::Gte, lhs, rhs)
+                .llvm()
+                .build_icmp(loc, ICmpPredicate::Uge, lhs, rhs)
                 .base(),
             Opcode::IcmpLt => self
-                .cir()
-                .build_icmp(loc, ICmpPredicate::Lt, lhs, rhs)
+                .llvm()
+                .build_icmp(loc, ICmpPredicate::Ult, lhs, rhs)
                 .base(),
             Opcode::IcmpLte => self
-                .cir()
-                .build_icmp(loc, ICmpPredicate::Lte, lhs, rhs)
+                .llvm()
+                .build_icmp(loc, ICmpPredicate::Ule, lhs, rhs)
                 .base(),
             Opcode::Eq => {
                 let callee = self.get_or_declare_builtin("erlang:==/2").unwrap();
@@ -760,27 +756,27 @@ impl<'m> ModuleBuilder<'m> {
             }
             Opcode::IcmpEq => {
                 let rhs = self.immediate_to_constant(loc, op.imm);
-                self.cir().build_icmp(loc, ICmpPredicate::Eq, lhs, rhs).base()
+                self.llvm().build_icmp(loc, ICmpPredicate::Eq, lhs, rhs).base()
             }
             Opcode::IcmpNeq => {
                 let rhs = self.immediate_to_constant(loc, op.imm);
-                self.cir().build_icmp(loc, ICmpPredicate::Neq, lhs, rhs).base()
+                self.llvm().build_icmp(loc, ICmpPredicate::Neq, lhs, rhs).base()
             }
             Opcode::IcmpGt => {
                 let rhs = self.immediate_to_constant(loc, op.imm);
-                self.cir().build_icmp(loc, ICmpPredicate::Gt, lhs, rhs).base()
+                self.llvm().build_icmp(loc, ICmpPredicate::Ugt, lhs, rhs).base()
             }
             Opcode::IcmpGte => {
                 let rhs = self.immediate_to_constant(loc, op.imm);
-                self.cir().build_icmp(loc, ICmpPredicate::Gte, lhs, rhs).base()
+                self.llvm().build_icmp(loc, ICmpPredicate::Uge, lhs, rhs).base()
             }
             Opcode::IcmpLt => {
                 let rhs = self.immediate_to_constant(loc, op.imm);
-                self.cir().build_icmp(loc, ICmpPredicate::Lt, lhs, rhs).base()
+                self.llvm().build_icmp(loc, ICmpPredicate::Ult, lhs, rhs).base()
             }
             Opcode::IcmpLte => {
                 let rhs = self.immediate_to_constant(loc, op.imm);
-                self.cir().build_icmp(loc, ICmpPredicate::Lte, lhs, rhs).base()
+                self.llvm().build_icmp(loc, ICmpPredicate::Ule, lhs, rhs).base()
             }
             Opcode::Eq => {
                 let rhs = self.immediate_to_constant(loc, op.imm);
@@ -1162,6 +1158,24 @@ impl<'m> ModuleBuilder<'m> {
         let input = self.values[&op.arg];
         let op = match op.ty {
             CoreType::Term(TermType::List(_)) => builder.build_is_list(loc, input).base(),
+            CoreType::Term(TermType::Cons) => builder.build_is_nonempty_list(loc, input).base(),
+            CoreType::Term(TermType::Nil) => {
+                let raw = builder.build_cast(loc, input, builder.get_i64_type());
+                let llvm = builder.llvm();
+                let i1 = llvm.get_i64_type();
+                let nil = llvm.build_constant(
+                    loc,
+                    i1,
+                    llvm.get_i64_attr(OpaqueTerm::NIL.raw() as i64).base(),
+                );
+                llvm.build_icmp(
+                    loc,
+                    ICmpPredicate::Eq,
+                    raw.get_result(0).base(),
+                    nil.get_result(0).base(),
+                )
+                .base()
+            }
             CoreType::Term(TermType::Number) => builder.build_is_number(loc, input).base(),
             CoreType::Term(TermType::Integer) => builder.build_is_integer(loc, input).base(),
             CoreType::Term(TermType::Float) => builder.build_is_float(loc, input).base(),
@@ -1609,6 +1623,7 @@ fn translate_term_ir_type<'a, B: OpBuilder>(
             .get_cir_box_type(builder.get_cir_binary_type())
             .base(),
         TermType::Nil => builder.get_cir_nil_type().base(),
+        TermType::Cons => builder.get_cir_box_type(builder.get_cir_cons_type()).base(),
         TermType::List(_) | TermType::MaybeImproperList => {
             builder.get_cir_box_type(builder.get_cir_cons_type()).base()
         }

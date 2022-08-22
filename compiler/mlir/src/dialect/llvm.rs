@@ -1,3 +1,4 @@
+use std::fmt;
 use std::ops::Deref;
 
 use liblumen_llvm::{Linkage, StringRef};
@@ -7,7 +8,7 @@ use crate::{Attribute, AttributeBase, NamedAttribute};
 use crate::{Builder, BuilderBase, OpBuilder};
 use crate::{InvalidTypeCastError, OwnedRegion};
 use crate::{Operation, OperationBase, OperationState};
-use crate::{Type, TypeBase};
+use crate::{Type, TypeBase, ValueBase};
 
 /// Primary builder for the LLVM dialect
 ///
@@ -42,6 +43,11 @@ impl<'a, B: OpBuilder> Deref for LlvmBuilder<'a, B> {
 
 /// Marker type for LLVM types
 pub trait LlvmType: Type {}
+
+/// The built-in numeric types are valid LLVM types
+impl LlvmType for crate::IntegerType {}
+impl LlvmType for crate::IndexType {}
+impl LlvmType for crate::FloatType {}
 
 /// A type which represents nothing, e.g. Rust's `()` type, or C's `void` type
 #[repr(transparent)]
@@ -266,6 +272,11 @@ impl LinkageAttr {
         unsafe { mlirLLVMLinkageAttrGet(context, name.into()) }
     }
 }
+impl fmt::Debug for LinkageAttr {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self.0)
+    }
+}
 impl Attribute for LinkageAttr {
     #[inline]
     fn base(&self) -> AttributeBase {
@@ -276,6 +287,54 @@ impl<'a, B: OpBuilder> LlvmBuilder<'a, B> {
     #[inline]
     pub fn get_linkage_attr(&self, linkage: Linkage) -> LinkageAttr {
         LinkageAttr::get(self.context(), linkage)
+    }
+}
+
+#[repr(u32)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum ICmpPredicate {
+    Eq = 0,
+    Neq,
+    Slt,
+    Sle,
+    Sgt,
+    Sge,
+    Ult,
+    Ule,
+    Ugt,
+    Uge,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct ICmpPredicateAttr(AttributeBase);
+impl ICmpPredicateAttr {
+    #[inline]
+    pub fn get(context: Context, value: ICmpPredicate) -> Self {
+        extern "C" {
+            fn mlirLLVMICmpPredicateAttrGet(
+                context: Context,
+                value: ICmpPredicate,
+            ) -> ICmpPredicateAttr;
+        }
+        unsafe { mlirLLVMICmpPredicateAttrGet(context, value) }
+    }
+}
+impl Attribute for ICmpPredicateAttr {
+    #[inline]
+    fn base(&self) -> AttributeBase {
+        self.0
+    }
+}
+impl fmt::Debug for ICmpPredicateAttr {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self.0)
+    }
+}
+impl<'a, B: OpBuilder> LlvmBuilder<'a, B> {
+    #[inline]
+    pub fn get_icmp_predicate_attr(&self, predicate: ICmpPredicate) -> ICmpPredicateAttr {
+        ICmpPredicateAttr::get(self.context(), predicate)
     }
 }
 
@@ -330,6 +389,98 @@ impl<'a, B: OpBuilder> LlvmBuilder<'a, B> {
         base_attrs.push(self.get_named_attr("linkage", self.get_linkage_attr(linkage)));
         state.add_attributes(base_attrs.as_slice());
         state.add_attributes(attrs);
+
+        self.create_operation(state).unwrap()
+    }
+}
+
+/// Represents a constant in LLVM dialect
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct ConstantOp(OperationBase);
+impl Operation for ConstantOp {
+    fn base(&self) -> OperationBase {
+        self.0
+    }
+}
+impl TryFrom<OperationBase> for ConstantOp {
+    type Error = InvalidTypeCastError;
+
+    #[inline]
+    fn try_from(op: OperationBase) -> Result<Self, Self::Error> {
+        extern "C" {
+            fn mlirLLVMConstantOpIsA(op: OperationBase) -> bool;
+        }
+        if unsafe { mlirLLVMConstantOpIsA(op) } {
+            Ok(Self(op))
+        } else {
+            Err(InvalidTypeCastError)
+        }
+    }
+}
+impl<'a, B: OpBuilder> LlvmBuilder<'a, B> {
+    #[inline]
+    pub fn build_constant<T: LlvmType>(
+        &self,
+        loc: Location,
+        ty: T,
+        value: AttributeBase,
+    ) -> ConstantOp {
+        let mut state = OperationState::get("llvm.mlir.constant", loc);
+
+        let value_attr = self.get_named_attr("value", value);
+        state.add_attributes(&[value_attr]);
+
+        let ty = ty.base();
+        state.add_results(&[ty]);
+
+        self.create_operation(state).unwrap()
+    }
+}
+
+/// Represents an integer comparison in LLVM dialect
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct ICmpOp(OperationBase);
+impl Operation for ICmpOp {
+    fn base(&self) -> OperationBase {
+        self.0
+    }
+}
+impl TryFrom<OperationBase> for ICmpOp {
+    type Error = InvalidTypeCastError;
+
+    #[inline]
+    fn try_from(op: OperationBase) -> Result<Self, Self::Error> {
+        extern "C" {
+            fn mlirLLVMICmpOpIsA(op: OperationBase) -> bool;
+        }
+        if unsafe { mlirLLVMICmpOpIsA(op) } {
+            Ok(Self(op))
+        } else {
+            Err(InvalidTypeCastError)
+        }
+    }
+}
+impl<'a, B: OpBuilder> LlvmBuilder<'a, B> {
+    #[inline]
+    pub fn build_icmp(
+        &self,
+        loc: Location,
+        predicate: ICmpPredicate,
+        lhs: ValueBase,
+        rhs: ValueBase,
+    ) -> ICmpOp {
+        let mut state = OperationState::get("llvm.icmp", loc);
+
+        let predicate = self.get_icmp_predicate_attr(predicate);
+        let pred_attr = self.get_named_attr("predicate", predicate);
+        state.add_attributes(&[pred_attr]);
+
+        state.add_operands(&[lhs, rhs]);
+
+        let ty = self.get_i1_type().base();
+        state.add_results(&[ty]);
 
         self.create_operation(state).unwrap()
     }

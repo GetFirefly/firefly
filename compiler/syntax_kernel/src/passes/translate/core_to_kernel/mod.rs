@@ -2251,7 +2251,14 @@ fn handle_bin_con(clauses: Vec<IClause>) -> Vec<(MatchType, Vec<IClause>)> {
         let mut dummy = Expr::Literal(Literal::nil(SourceSpan::default()));
         for clause in bin_segs.iter_mut() {
             let pattern = clause.patterns.get_mut(0).unwrap();
-            let Expr::BinarySegment(bs) = mem::replace(pattern, dummy) else { panic!("expected binary segment pattern") };
+            let Expr::BinarySegment(mut bs) = mem::replace(pattern, dummy) else { panic!("expected binary segment pattern") };
+            // To make lowering easier, force the size to always be set, i..e. if the
+            // size value is None, set it to the default of 8
+            if bs.size.is_none() {
+                let span = bs.span;
+                bs.size
+                    .replace(Box::new(Expr::Literal(Literal::integer(span, 8))));
+            }
             dummy = mem::replace(pattern, Expr::BinaryInt(bs));
         }
 

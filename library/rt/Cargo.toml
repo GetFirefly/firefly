@@ -8,7 +8,7 @@ edition = "2021"
 
 [features]
 default = ["std"]
-std = ["anyhow/std", "backtrace/std", "num-bigint/std", "rpds/std"]
+std = ["anyhow/std", "backtrace/std", "num-bigint/std", "rpds/std", "termcolor"]
 
 [dependencies]
 cfg-if = "1.0"
@@ -43,6 +43,9 @@ features = ["i128"]
 version = "0.11"
 default-features = false
 
+[dependencies.termcolor]
+version = "1.1"
+optional = true
 
 [build-dependencies]
 toml = { version = "0.5", features = ["preserve_order"] }

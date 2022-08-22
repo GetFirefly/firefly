@@ -107,6 +107,11 @@ impl<'m> ModuleBuilder<'m> {
         CirBuilder::new(&self.builder)
     }
 
+    #[inline]
+    pub fn llvm(&self) -> LlvmBuilder<'_, OwnedOpBuilder> {
+        LlvmBuilder::new(&self.builder)
+    }
+
     pub fn find_function(&self, f: syntax_ssa::FuncRef) -> Signature {
         self.module.call_signature(f).clone()
     }

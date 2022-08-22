@@ -305,18 +305,4 @@ def CIR_FloatAttr : CIR_Attr<"CIRFloat"> {
   }];
 }
 
-def ICmpPredicateEQ  : I64EnumAttrCase<"eq", 0>;
-def ICmpPredicateNE  : I64EnumAttrCase<"ne", 1>;
-def ICmpPredicateLT : I64EnumAttrCase<"lt", 2>;
-def ICmpPredicateLE : I64EnumAttrCase<"le", 3>;
-def ICmpPredicateGT : I64EnumAttrCase<"gt", 4>;
-def ICmpPredicateGE : I64EnumAttrCase<"ge", 5>;
-def ICmpPredicate : I64EnumAttr<
-    "ICmpPredicate",
-    "integer comparison predicate",
-    [ICmpPredicateEQ, ICmpPredicateNE, ICmpPredicateLT, ICmpPredicateLE,
-     ICmpPredicateGT, ICmpPredicateGE]> {
-  let cppNamespace = "::mlir::cir";
-}
-
 #endif

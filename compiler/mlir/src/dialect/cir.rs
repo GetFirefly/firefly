@@ -25,6 +25,11 @@ impl<'a, B: OpBuilder> CirBuilder<'a, B> {
     pub fn get_struct_type(&self, fields: &[TypeBase]) -> llvm::StructType {
         llvm::StructType::get(self.context(), fields)
     }
+
+    /// Convert this builder to an LlvmBuilder temporarily
+    pub fn llvm(&self) -> llvm::LlvmBuilder<'_, Self> {
+        llvm::LlvmBuilder::new(self)
+    }
 }
 impl<'a, B: OpBuilder> Builder for CirBuilder<'a, B> {
     #[inline]
@@ -1077,48 +1082,6 @@ impl<'a, B: OpBuilder> CirBuilder<'a, B> {
     }
 }
 
-#[repr(u32)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub enum ICmpPredicate {
-    Eq = 0,
-    Neq,
-    Gt,
-    Gte,
-    Lt,
-    Lte,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct ICmpOp(OperationBase);
-impl Operation for ICmpOp {
-    fn base(&self) -> OperationBase {
-        self.0
-    }
-}
-impl<'a, B: OpBuilder> CirBuilder<'a, B> {
-    #[inline]
-    pub fn build_icmp<L: Value, R: Value>(
-        &self,
-        loc: Location,
-        predicate: ICmpPredicate,
-        lhs: L,
-        rhs: R,
-    ) -> ICmpOp {
-        extern "C" {
-            fn mlirCirICmpOp(
-                builder: OpBuilderBase,
-                loc: Location,
-                predicate: ICmpPredicate,
-                lhs: ValueBase,
-                rhs: ValueBase,
-            ) -> ICmpOp;
-        }
-
-        unsafe { mlirCirICmpOp(self.base().into(), loc, predicate, lhs.base(), rhs.base()) }
-    }
-}
-
 /// Represents a logical boolean op, e.g. and/andalso, or/orelse, xor, not
 #[repr(transparent)]
 #[derive(Copy, Clone)]
@@ -1273,6 +1236,30 @@ impl<'a, B: OpBuilder> CirBuilder<'a, B> {
         }
 
         unsafe { mlirCirIsListOp(self.base().into(), loc, value.base()) }
+    }
+}
+
+/// Represents a predicate that answers whether a value is a nonempty list
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct IsNonEmptyListOp(OperationBase);
+impl Operation for IsNonEmptyListOp {
+    fn base(&self) -> OperationBase {
+        self.0
+    }
+}
+impl<'a, B: OpBuilder> CirBuilder<'a, B> {
+    #[inline]
+    pub fn build_is_nonempty_list<V: Value>(&self, loc: Location, value: V) -> IsNonEmptyListOp {
+        extern "C" {
+            fn mlirCirIsNonEmptyListOp(
+                builder: OpBuilderBase,
+                loc: Location,
+                value: ValueBase,
+            ) -> IsNonEmptyListOp;
+        }
+
+        unsafe { mlirCirIsNonEmptyListOp(self.base().into(), loc, value.base()) }
     }
 }
 

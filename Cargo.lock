@@ -1047,6 +1047,7 @@ dependencies = [
  "rpds 0.11.0",
  "seq-macro",
  "static_assertions",
+ "termcolor",
  "toml",
 ]
 

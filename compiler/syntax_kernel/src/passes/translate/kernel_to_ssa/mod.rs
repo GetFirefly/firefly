@@ -522,22 +522,22 @@ impl<'m> LowerFunctionToSsa<'m> {
                 let src = builder.var(var.name()).unwrap();
                 let current_block = builder.current_block();
                 // Generate type test
-                match ty {
-                    MatchType::Atom => {
-                        builder.ins().is_type(Type::Term(TermType::Atom), src, span);
-                    }
+                let is_type = match ty {
+                    MatchType::Atom => builder.ins().is_type(Type::Term(TermType::Atom), src, span),
                     MatchType::Float => {
                         builder
                             .ins()
-                            .is_type(Type::Term(TermType::Float), src, span);
+                            .is_type(Type::Term(TermType::Float), src, span)
                     }
                     MatchType::Int => {
                         builder
                             .ins()
-                            .is_type(Type::Term(TermType::Integer), src, span);
+                            .is_type(Type::Term(TermType::Integer), src, span)
                     }
                     _ => unreachable!(),
-                }
+                };
+                // Jump to next type if the type test fails
+                builder.ins().br_if(is_type, type_fail, &[], span);
                 // Lower each value test
                 for (vclause, block) in clause.values.drain(..).zip(blocks.drain(..)) {
                     let span = vclause.span();
@@ -1652,7 +1652,7 @@ impl<'m> LowerFunctionToSsa<'m> {
         let mut bin = builder.ins().cast(result, Type::BinaryBuilder, span);
         loop {
             match segment {
-                KExpr::BinarySegment(seg) | KExpr::BinaryInt(seg) => {
+                KExpr::BinarySegment(seg) => {
                     let spec = seg.spec;
                     let value = self.ssa_value(builder, *seg.value)?;
                     let size = match seg.size {
@@ -1670,7 +1670,7 @@ impl<'m> LowerFunctionToSsa<'m> {
                     segment = next;
                 }
                 KExpr::BinaryEnd(_) => break,
-                other => panic!("unexpected segment value: {:#?}", &other),
+                other => panic!("unexpected binary constructor segment value: {:#?}", &other),
             }
         }
         let bs_finish1 = self.module.get_or_register_native(symbols::NifBsFinish);
@@ -1978,17 +1978,13 @@ impl<'m> LowerFunctionToSsa<'m> {
         value_fail: Block,
     ) -> anyhow::Result<()> {
         let src = builder.var(var.name()).unwrap();
-        let is_nonempty_list = builder
-            .ins()
-            .is_type(Type::Term(TermType::List(None)), src, span);
+        let is_nonempty_list = builder.ins().is_type(Type::Term(TermType::Cons), src, span);
         builder
             .ins()
             .br_unless(is_nonempty_list, type_fail, &[], span);
 
         let cons = value.value.into_cons().unwrap();
-        let list = builder
-            .ins()
-            .cast(src, Type::Term(TermType::List(None)), span);
+        let list = builder.ins().cast(src, Type::Term(TermType::Cons), span);
         let hd = builder.ins().head(list, span);
         builder.define_var(cons.head.as_var().map(|v| v.name()).unwrap(), hd);
         let tl = builder.ins().tail(list, span);
@@ -2007,8 +2003,7 @@ impl<'m> LowerFunctionToSsa<'m> {
         value_fail: Block,
     ) -> anyhow::Result<()> {
         let src = builder.var(var.name()).unwrap();
-        let nil = builder.ins().nil(span);
-        let is_nil = builder.ins().eq_exact(src, nil, span);
+        let is_nil = builder.ins().is_type(Type::Term(TermType::Nil), src, span);
         builder.ins().br_unless(is_nil, type_fail, &[], span);
         self.lower_match(builder, value_fail, *value.body)
     }
@@ -2032,6 +2027,12 @@ impl<'m> LowerFunctionToSsa<'m> {
         blocks.push(type_fail);
         for (value, fail) in values.drain(..).zip(blocks.drain(..)) {
             match *value.value {
+                KExpr::Literal(Literal {
+                    value: Lit::Nil, ..
+                }) => {
+                    let is_nil = builder.ins().is_type(Type::Term(TermType::Nil), src, span);
+                    builder.ins().br_unless(is_nil, fail, &[], span);
+                }
                 KExpr::Literal(lit) => {
                     let val = self.ssa_value(builder, KExpr::Literal(lit.clone()))?;
                     let is_eq = builder.ins().eq_exact(src, val, span);

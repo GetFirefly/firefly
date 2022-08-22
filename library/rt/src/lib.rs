@@ -32,6 +32,7 @@
 // Used for FFI
 #![feature(extern_types)]
 #![feature(c_unwind)]
+#![feature(arbitrary_enum_discriminant)]
 #![cfg_attr(test, feature(test))]
 
 extern crate alloc;

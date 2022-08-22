@@ -20,12 +20,6 @@ pub extern "C" fn is_number(value: OpaqueTerm) -> bool {
 }
 
 /// This is an intrinsic expected by the compiler to be defined as part of the runtime, and is used for runtime type checking
-#[export_name = "__lumen_builtin_is_list"]
-pub extern "C" fn is_list(value: OpaqueTerm) -> bool {
-    value.is_list()
-}
-
-/// This is an intrinsic expected by the compiler to be defined as part of the runtime, and is used for runtime type checking
 #[export_name = "__lumen_builtin_is_tuple"]
 #[allow(improper_ctypes_definitions)]
 pub extern "C" fn is_tuple(value: OpaqueTerm) -> Result<u32, u32> {

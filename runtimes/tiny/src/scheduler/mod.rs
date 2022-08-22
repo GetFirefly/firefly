@@ -1,10 +1,15 @@
+mod exit;
 mod queue;
 
 use std::arch::global_asm;
 use std::cell::{OnceCell, UnsafeCell};
 use std::mem;
+use std::ops::{Deref, DerefMut};
 use std::ptr;
-use std::sync::{atomic::AtomicU64, Arc};
+use std::sync::{
+    atomic::{AtomicI32, AtomicU64, Ordering},
+    Arc,
+};
 use std::thread::{self, ThreadId};
 
 use liblumen_rt::function::{DynamicCallee, ModuleFunctionArity};
@@ -83,6 +88,7 @@ pub struct Scheduler {
     run_queue: UnsafeCell<RunQueue>,
     prev: UnsafeCell<Option<Arc<SchedulerData>>>,
     current: UnsafeCell<Arc<SchedulerData>>,
+    halt_code: AtomicI32,
 }
 // This guarantee holds as long as `init` and `current` are only
 // ever accessed by the scheduler when scheduling
@@ -121,6 +127,7 @@ impl Scheduler {
             run_queue: UnsafeCell::new(RunQueue::default()),
             prev: UnsafeCell::new(None),
             current: UnsafeCell::new(root),
+            halt_code: AtomicI32::new(0),
         })
     }
 
@@ -132,12 +139,25 @@ impl Scheduler {
         unsafe { (&*self.prev.get()).as_deref().unwrap() }
     }
 
+    fn prev_mut(&self) -> &mut SchedulerData {
+        unsafe {
+            (&mut *self.prev.get())
+                .as_mut()
+                .map(|prev| Arc::get_mut(prev).unwrap())
+                .unwrap()
+        }
+    }
+
     fn take_prev(&self) -> Arc<SchedulerData> {
         unsafe { (&mut *self.prev.get()).take().unwrap() }
     }
 
     fn current(&self) -> &SchedulerData {
         unsafe { &*self.current.get() }
+    }
+
+    fn current_mut(&self) -> &mut SchedulerData {
+        unsafe { Arc::get_mut(&mut *self.current.get()).unwrap() }
     }
 
     pub fn current_process(&self) -> Arc<Process> {
@@ -148,16 +168,18 @@ impl Scheduler {
     ///
     /// This is intended for use when yielding to the scheduler
     fn swap_current(&self) {
-        let prev = unsafe { (&mut *self.prev.get()).as_mut().unwrap() };
-        // Change the previous process status to Runnable
+        // Here, `prev` is the previously suspended process, and `current` is
+        // the process currently in the process of yielding. We need to set the
+        // yielding process status to Runnable and reschedule it for later, if applicable
+        let prev = self.prev_mut();
+        let proc = prev.process.clone();
+        let current = self.current_mut();
         unsafe {
-            let prev_status = prev.process.status();
+            let prev_status = current.process.status();
             if prev_status == ProcessStatus::Running {
-                prev.process.set_status(ProcessStatus::Runnable);
+                current.process.set_status(ProcessStatus::Runnable);
             }
         }
-        let proc = prev.process.clone();
-        let current = unsafe { &mut *self.current.get() };
         mem::swap(prev, current);
         let _ = unsafe { (&mut *CURRENT_PROCESS.get()).replace(proc) };
     }
@@ -269,10 +291,14 @@ impl Scheduler {
     //
     // Returns `Ok(())` if shutdown was successful, `Err(anyhow::Error)` if something
     // went wrong during shutdown, and it was not able to complete normally
-    pub(super) fn shutdown(&self) -> anyhow::Result<()> {
-        // For now just Ok(()), but this needs to be addressed when proper
-        // system startup/shutdown is in place
-        Ok(())
+    pub(super) fn shutdown(&self) -> std::process::ExitCode {
+        use std::process::ExitCode;
+
+        if self.halt_code.load(Ordering::Relaxed) == 0 {
+            ExitCode::SUCCESS
+        } else {
+            ExitCode::FAILURE
+        }
     }
 
     pub(super) fn process_yield(&self) -> bool {
@@ -326,6 +352,7 @@ impl Scheduler {
                     // swapping it out with the scheduler process
                     // and handling its exit, if exiting
                     self.swap_current();
+                    // At this point, `prev` is the process which just yielded
                     let prev = self.take_prev();
                     match prev.process.status() {
                         ProcessStatus::Running => {
@@ -333,9 +360,14 @@ impl Scheduler {
                             rq.reschedule(prev);
                         }
                         ProcessStatus::Exiting => {
-                            // TODO
+                            self.halt_code.store(0, Ordering::Relaxed);
+                            // Process has exited normally, we're done with it
                         }
-                        _ => (),
+                        ProcessStatus::Errored(exception) => {
+                            exit::log_exit(&prev.process, exception);
+                            self.halt_code.store(1, Ordering::Relaxed);
+                        }
+                        other => assert_eq!(other, ProcessStatus::Running),
                     }
 
                     // When reached, either the process scheduled is the root process,
@@ -344,7 +376,7 @@ impl Scheduler {
                     break true;
                 }
                 None => {
-                    // Nothing to schedule, so bail
+                    // No more processes to schedule, we're done
                     break false;
                 }
             }

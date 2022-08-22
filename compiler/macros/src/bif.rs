@@ -296,9 +296,8 @@ fn erlang_type_to_core_type_enum(ident: Ident) -> Expr {
         "function" => core_enum_fun_variant(span),
         "nil" => core_enum_variant("Nil", span),
         "tuple" => core_enum_tuple_variant(None, span),
-        "list" | "nonempty_list" | "string" | "nonempty_string" | "iovec" => {
-            core_enum_list_variant(span)
-        }
+        "nonempty_list" | "nonempty_string" => core_enum_nonempty_list_variant(span),
+        "list" | "string" | "iovec" => core_enum_list_variant(span),
         "maybe_improper_list"
         | "nonempty_improper_list"
         | "nonempty_maybe_improper_list"
@@ -403,6 +402,11 @@ fn core_enum_fun_variant(span: Span) -> Expr {
 
 fn core_enum_list_variant(span: Span) -> Expr {
     let quoted = quote_spanned! { span => crate::Type::Term(crate::TermType::List(None)) };
+    parse_quote!(#quoted)
+}
+
+fn core_enum_nonempty_list_variant(span: Span) -> Expr {
+    let quoted = quote_spanned! { span => crate::Type::Term(crate::TermType::Cons) };
     parse_quote!(#quoted)
 }
 

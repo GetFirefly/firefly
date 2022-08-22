@@ -42,3 +42,4 @@ try_clause = {}
 [common]
 undef = {}
 utf8 = {}
+normal = {}

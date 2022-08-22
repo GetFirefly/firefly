@@ -447,6 +447,18 @@ pub static Utf8_ATOM: AtomData = AtomData {
 };
 
 
+pub const Normal_VALUE: &'static [u8] = b"normal";
+
+#[cfg_attr(target_os = "macos", link_section = "__DATA,atoms")]
+#[cfg_attr(all(linux, not(target_os = "macos")), link_section = "__atoms")]
+#[export_name = "atom_normal"]
+#[linkage = "linkonce_odr"]
+pub static Normal_ATOM: AtomData = AtomData {
+    size: Normal_VALUE.len(),
+    ptr: Normal_VALUE.as_ptr(),
+};
+
+
 
 
 pub static False: Atom = Atom(unsafe { NonNull::new_unchecked(&False_ATOM as *const _ as *mut AtomData) });
@@ -522,3 +534,5 @@ pub static TryClause: Atom = Atom(unsafe { NonNull::new_unchecked(&TryClause_ATO
 pub static Undef: Atom = Atom(unsafe { NonNull::new_unchecked(&Undef_ATOM as *const _ as *mut AtomData) });
 
 pub static Utf8: Atom = Atom(unsafe { NonNull::new_unchecked(&Utf8_ATOM as *const _ as *mut AtomData) });
+
+pub static Normal: Atom = Atom(unsafe { NonNull::new_unchecked(&Normal_ATOM as *const _ as *mut AtomData) });

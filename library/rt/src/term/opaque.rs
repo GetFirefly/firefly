@@ -181,6 +181,12 @@ impl OpaqueTerm {
     /// Represents the constant value 0 encoded as an integer
     pub const ZERO: Self = Self(INTEGER_TAG);
 
+    /// Returns this opaque term as a raw u64
+    #[inline(always)]
+    pub fn raw(self) -> u64 {
+        self.0
+    }
+
     /// This is a low-level decoding function written in this specific way in order to
     /// maximize the optimizations the compiler can perform from higher-level conversions
     ///
@@ -410,6 +416,15 @@ impl OpaqueTerm {
     pub fn is_number(self) -> bool {
         match self.r#typeof() {
             TermType::Int | TermType::Float => true,
+            _ => false,
+        }
+    }
+
+    /// Returns true if this term is a cons cell pointer
+    #[inline]
+    pub fn is_nonempty_list(self) -> bool {
+        match self.0 & TAG_MASK {
+            CONS_TAG | CONS_LITERAL_TAG => true,
             _ => false,
         }
     }

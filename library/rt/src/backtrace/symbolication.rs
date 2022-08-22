@@ -25,6 +25,11 @@ impl Symbolication {
     }
 
     #[inline]
+    pub fn mfa(&self) -> Option<ModuleFunctionArity> {
+        self.mfa
+    }
+
+    #[inline]
     pub fn arity(&self) -> Option<u8> {
         self.mfa.map(|mfa| mfa.arity)
     }

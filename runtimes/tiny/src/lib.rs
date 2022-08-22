@@ -17,6 +17,7 @@ mod sys;
 
 use anyhow::anyhow;
 use bus::Bus;
+use std::process::ExitCode;
 
 use self::sys::break_handler::{self, Signal};
 
@@ -26,10 +27,10 @@ pub unsafe extern "C" fn main() -> i32 {
 
     let name = env!("CARGO_PKG_NAME");
     let version = env!("CARGO_PKG_VERSION");
-    main_internal(name, version, Vec::new()).report().to_i32()
+    main_internal(name, version, vec![]).report().to_i32()
 }
 
-fn main_internal(_name: &str, _version: &str, _argv: Vec<String>) -> anyhow::Result<()> {
+fn main_internal(_name: &str, _version: &str, _argv: Vec<String>) -> ExitCode {
     self::env::init(std::env::args_os()).unwrap();
 
     // This bus is used to receive signals across threads in the system
@@ -50,18 +51,14 @@ fn main_internal(_name: &str, _version: &str, _argv: Vec<String>) -> anyhow::Res
                 // For now, SIGINT initiates a controlled shutdown
                 Signal::INT => {
                     // If an error occurs, report it before shutdown
-                    if let Err(err) = scheduler::with_current(|s| s.shutdown()) {
-                        return Err(anyhow!(err));
-                    } else {
-                        break;
-                    }
+                    break;
                 }
                 // Technically, we may never see these signals directly,
                 // we may just be terminated out of hand; but just in case,
                 // we handle them explicitly by immediately terminating, so
                 // that we are good citizens of the operating system
                 sig if sig.should_terminate() => {
-                    return Ok(());
+                    return ExitCode::FAILURE;
                 }
                 // All other signals can be surfaced to other parts of the
                 // system for custom use, e.g. SIGCHLD, SIGALRM, SIGUSR1/2
@@ -77,8 +74,5 @@ fn main_internal(_name: &str, _version: &str, _argv: Vec<String>) -> anyhow::Res
         break;
     }
 
-    match scheduler::with_current(|s| s.shutdown()) {
-        Ok(_) => Ok(()),
-        Err(err) => Err(anyhow!(err)),
-    }
+    scheduler::with_current(|s| s.shutdown())
 }

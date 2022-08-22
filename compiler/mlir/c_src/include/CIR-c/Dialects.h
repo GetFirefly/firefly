@@ -172,11 +172,6 @@ MLIR_CAPI_EXPORTED MlirOperation mlirCirZExtOp(MlirOpBuilder builder,
                                                MlirLocation location,
                                                MlirValue value, MlirType ty);
 
-MLIR_CAPI_EXPORTED MlirOperation mlirCirICmpOp(MlirOpBuilder builder,
-                                               MlirLocation location,
-                                               unsigned predicate,
-                                               MlirValue lhs, MlirValue rhs);
-
 MLIR_CAPI_EXPORTED MlirOperation mlirCirCastOp(MlirOpBuilder builder,
                                                MlirLocation location,
                                                MlirValue value, MlirType ty);
@@ -221,6 +216,10 @@ MLIR_CAPI_EXPORTED MlirOperation mlirCirTypeOfOp(MlirOpBuilder builder,
 MLIR_CAPI_EXPORTED MlirOperation mlirCirIsListOp(MlirOpBuilder builder,
                                                  MlirLocation location,
                                                  MlirValue value);
+
+MLIR_CAPI_EXPORTED MlirOperation mlirCirIsNonEmptyListOp(MlirOpBuilder builder,
+                                                         MlirLocation location,
+                                                         MlirValue value);
 
 MLIR_CAPI_EXPORTED MlirOperation mlirCirIsNumberOp(MlirOpBuilder builder,
                                                    MlirLocation location,
@@ -456,6 +455,13 @@ MLIR_CAPI_EXPORTED MlirOperation mlirScfExecuteRegionOp(MlirOpBuilder builder,
                                                         MlirLocation location);
 
 MLIR_CAPI_EXPORTED bool mlirLLVMFuncOpIsA(MlirOperation op);
+
+MLIR_CAPI_EXPORTED bool mlirLLVMConstantOpIsA(MlirOperation op);
+
+MLIR_CAPI_EXPORTED bool mlirLLVMICmpOpIsA(MlirOperation op);
+
+MLIR_CAPI_EXPORTED MlirAttribute
+mlirLLVMICmpPredicateAttrGet(MlirContext ctx, unsigned predicate);
 
 #ifdef __cplusplus
 }

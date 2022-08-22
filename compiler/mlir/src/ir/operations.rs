@@ -265,6 +265,18 @@ impl OperationBase {
         T::try_from(self)
     }
 }
+impl fmt::Debug for OperationBase {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        unsafe {
+            mlir_operation_print(
+                *self,
+                support::write_to_formatter,
+                f as *mut _ as *mut c_void,
+            );
+        }
+        Ok(())
+    }
+}
 impl fmt::Pointer for OperationBase {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{:p}", self.0)

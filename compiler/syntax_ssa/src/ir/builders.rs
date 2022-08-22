@@ -676,24 +676,13 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
     }
 
     fn cons(self, head: Value, tail: Value, span: SourceSpan) -> Value {
-        let (inst, dfg) = self.Binary(
-            Opcode::Cons,
-            Type::Term(TermType::List(None)),
-            head,
-            tail,
-            span,
-        );
+        let (inst, dfg) = self.Binary(Opcode::Cons, Type::Term(TermType::Cons), head, tail, span);
         dfg.first_result(inst)
     }
 
     fn cons_imm(self, head: Value, tail: Immediate, span: SourceSpan) -> Value {
-        let (inst, dfg) = self.BinaryImm(
-            Opcode::Cons,
-            Type::Term(TermType::List(None)),
-            head,
-            tail,
-            span,
-        );
+        let (inst, dfg) =
+            self.BinaryImm(Opcode::Cons, Type::Term(TermType::Cons), head, tail, span);
         dfg.first_result(inst)
     }
 

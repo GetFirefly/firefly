@@ -1,5 +1,5 @@
 use std::ffi::c_void;
-use std::fmt::{self, Display};
+use std::fmt::{self, Debug, Display};
 
 use paste::paste;
 
@@ -116,6 +116,18 @@ impl Default for AttributeBase {
         Self(unsafe { std::mem::transmute::<*mut (), *mut MlirAttribute>(::core::ptr::null_mut()) })
     }
 }
+impl Debug for AttributeBase {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        unsafe {
+            mlir_attribute_print(
+                *self,
+                support::write_to_formatter,
+                f as *mut _ as *mut c_void,
+            );
+        }
+        Ok(())
+    }
+}
 impl Display for AttributeBase {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         unsafe {
@@ -208,6 +220,11 @@ macro_rules! primitive_builtin_attr_impl {
         impl std::fmt::Display for $ty {
             fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
                 write!(f, "{}", &self.0)
+            }
+        }
+        impl std::fmt::Debug for $ty {
+            fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                write!(f, "{:?}", &self.0)
             }
         }
         impl Eq for $ty {}
@@ -350,6 +367,11 @@ impl Display for TypeAttr {
         write!(f, "{}", &self.0)
     }
 }
+impl Debug for TypeAttr {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", &self.0)
+    }
+}
 impl Eq for TypeAttr {}
 impl PartialEq for TypeAttr {
     fn eq(&self, other: &Self) -> bool {
@@ -401,6 +423,11 @@ impl TryFrom<AttributeBase> for IntegerAttr {
 impl Display for IntegerAttr {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", &self.0)
+    }
+}
+impl Debug for IntegerAttr {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", &self.0)
     }
 }
 impl Eq for IntegerAttr {}
@@ -463,6 +490,11 @@ impl Display for FloatAttr {
         write!(f, "{}", &self.0)
     }
 }
+impl Debug for FloatAttr {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", &self.0)
+    }
+}
 impl Eq for FloatAttr {}
 impl PartialEq for FloatAttr {
     fn eq(&self, other: &Self) -> bool {
@@ -522,6 +554,11 @@ impl TryFrom<AttributeBase> for StringAttr {
 impl Display for StringAttr {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", &self.0)
+    }
+}
+impl Debug for StringAttr {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", &self.0)
     }
 }
 impl fmt::Pointer for StringAttr {
@@ -629,6 +666,11 @@ impl Display for SymbolRefAttr {
         write!(f, "{}", &self.0)
     }
 }
+impl Debug for SymbolRefAttr {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", &self.0)
+    }
+}
 impl fmt::Pointer for SymbolRefAttr {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{:p}", &self.0)
@@ -704,6 +746,11 @@ impl TryFrom<AttributeBase> for FlatSymbolRefAttr {
 impl Display for FlatSymbolRefAttr {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", &self.0)
+    }
+}
+impl Debug for FlatSymbolRefAttr {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", &self.0)
     }
 }
 impl fmt::Pointer for FlatSymbolRefAttr {
@@ -792,6 +839,11 @@ impl Display for DictionaryAttr {
         write!(f, "{}", &self.0)
     }
 }
+impl Debug for DictionaryAttr {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", &self.0)
+    }
+}
 impl fmt::Pointer for DictionaryAttr {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{:p}", &self.0)
@@ -867,6 +919,11 @@ impl Display for AffineMapAttr {
         write!(f, "{}", &self.0)
     }
 }
+impl Debug for AffineMapAttr {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", &self.0)
+    }
+}
 impl fmt::Pointer for AffineMapAttr {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{:p}", &self.0)
@@ -940,6 +997,11 @@ impl TryFrom<AttributeBase> for ArrayAttr {
 impl Display for ArrayAttr {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", &self.0)
+    }
+}
+impl Debug for ArrayAttr {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", &self.0)
     }
 }
 impl fmt::Pointer for ArrayAttr {

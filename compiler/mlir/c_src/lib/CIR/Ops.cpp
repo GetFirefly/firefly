@@ -265,6 +265,11 @@ bool canCastBetween(Type input, Type output) {
       if (innerTy.isa<CIRExceptionType>())
         return true;
     }
+
+    // Casts from opaque term to i64 are intended as a bitcast from term
+    // type to native machine integer representation WITHOUT decoding the value
+    if (output.isInteger(64))
+      return true;
   }
 
   // All term, numeric or tuple types are castable to an opaque term

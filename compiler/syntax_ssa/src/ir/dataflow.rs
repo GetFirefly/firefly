@@ -280,7 +280,11 @@ impl DataFlowGraph {
                     1
                 }
                 // These ops have specific types they produce
-                Opcode::Cons | Opcode::ListConcat | Opcode::ListSubtract => {
+                Opcode::Cons => {
+                    self.append_result(inst, Type::Term(TermType::Cons));
+                    1
+                }
+                Opcode::ListConcat | Opcode::ListSubtract => {
                     self.append_result(inst, Type::Term(TermType::List(None)));
                     1
                 }

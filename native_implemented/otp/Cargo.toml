@@ -11,8 +11,7 @@ crate-type = ["staticlib", "rlib"]
 [dependencies]
 anyhow = "1.0"
 lazy_static = "1.4"
-liblumen_alloc = { path = "../../liblumen_alloc" }
-liblumen_core = { path = "../../library/core" }
+liblumen_alloc = { path = "../../library/alloc" }
 lumen_rt_core = { path = "../../runtimes/core" }
 native_implemented = { path = "../macro" }
 num-bigint = "0.4"
@@ -36,7 +35,7 @@ features = ['console']
 
 [dev-dependencies]
 libc = "0.2"
-lumen_rt_full = { path = "../../runtimes/full" }
+lumen_rt_tiny = { path = "../../runtimes/tiny" }
 lumen = { path = "../../lumen" }
 panic-control = "0.1.4"
 process_control = "3.3"

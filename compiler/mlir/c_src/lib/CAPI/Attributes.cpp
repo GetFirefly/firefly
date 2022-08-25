@@ -150,3 +150,19 @@ bool mlirCirEndianessAttrIsA(MlirAttribute attr) {
 CirEndianness mlirCirEndiannessAttrValueOf(MlirAttribute attr) {
   return static_cast<uint8_t>(unwrap(attr).cast<EndiannessAttr>().getValue());
 }
+
+//===----------------------------------------------------------------------===//
+/// BinarySpecAttr
+//===----------------------------------------------------------------------===//
+
+MlirAttribute mlirCirBinarySpecAttrGet(BinaryEntrySpecifier value,
+                                       MlirContext ctx) {
+  MLIRContext *context = unwrap(ctx);
+
+  auto ty = NoneType::get(context);
+  return wrap(BinarySpecAttr::get(context, ty, value));
+}
+
+bool mlirCirBinarySpecAttrIsA(MlirAttribute attr) {
+  return unwrap(attr).isa<BinarySpecAttr>();
+}

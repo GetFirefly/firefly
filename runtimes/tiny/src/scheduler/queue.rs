@@ -13,10 +13,6 @@ pub(super) struct RunQueue {
     visited: VecDeque<Arc<SchedulerData>>,
 }
 impl RunQueue {
-    pub fn is_empty(&self) -> bool {
-        self.scheduled.is_empty() && self.visited.is_empty()
-    }
-
     /// Returns the next process to execute, if any are available
     pub fn next(&mut self) -> Option<Arc<SchedulerData>> {
         let next = self.scheduled.pop_front();

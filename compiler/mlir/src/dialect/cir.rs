@@ -1,3 +1,4 @@
+use std::fmt;
 use std::ops::Deref;
 
 use liblumen_binary::{BinaryEntrySpecifier, Endianness};
@@ -560,6 +561,40 @@ extern "C" {
     fn mlir_cir_float_attr_isa(attr: AttributeBase) -> bool;
     #[link_name = "mlirCirFloatAttrValueOf"]
     fn mlir_cir_float_attr_value_of(attr: AttributeBase) -> f64;
+}
+
+/// BinarySpecAttr is used to represent BinaryEntrySpecifier in MLIR
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct BinarySpecAttr(AttributeBase);
+impl BinarySpecAttr {
+    #[inline]
+    pub fn get(context: Context, value: BinaryEntrySpecifier) -> Self {
+        extern "C" {
+            fn mlirCirBinarySpecAttrGet(
+                value: BinaryEntrySpecifier,
+                context: Context,
+            ) -> BinarySpecAttr;
+        }
+        unsafe { mlirCirBinarySpecAttrGet(value, context) }
+    }
+}
+impl fmt::Debug for BinarySpecAttr {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self.0)
+    }
+}
+impl Attribute for BinarySpecAttr {
+    #[inline]
+    fn base(&self) -> AttributeBase {
+        self.0
+    }
+}
+impl<'a, B: OpBuilder> CirBuilder<'a, B> {
+    #[inline]
+    pub fn get_binary_spec_attr(&self, spec: BinaryEntrySpecifier) -> BinarySpecAttr {
+        BinarySpecAttr::get(self.context(), spec)
+    }
 }
 
 //----------------------------
@@ -1979,18 +2014,33 @@ impl Operation for BinaryMatchStartOp {
         self.0
     }
 }
+impl TryFrom<OperationBase> for BinaryMatchStartOp {
+    type Error = InvalidTypeCastError;
+
+    #[inline]
+    fn try_from(op: OperationBase) -> Result<Self, Self::Error> {
+        extern "C" {
+            fn mlirCirBinaryMatchStartOpIsA(op: OperationBase) -> bool;
+        }
+        if unsafe { mlirCirBinaryMatchStartOpIsA(op) } {
+            Ok(Self(op))
+        } else {
+            Err(InvalidTypeCastError)
+        }
+    }
+}
 impl<'a, B: OpBuilder> CirBuilder<'a, B> {
     #[inline]
     pub fn build_bs_match_start(&self, loc: Location, bin: ValueBase) -> BinaryMatchStartOp {
-        extern "C" {
-            fn mlirCirBinaryMatchStartOp(
-                builder: OpBuilderBase,
-                loc: Location,
-                bin: ValueBase,
-            ) -> BinaryMatchStartOp;
-        }
+        let mut state = OperationState::get("cir.bs.match.start", loc);
 
-        unsafe { mlirCirBinaryMatchStartOp(self.base().into(), loc, bin) }
+        state.add_operands(&[bin]);
+
+        let i1 = self.get_i1_type().base();
+        let term = self.get_cir_term_type().base();
+        state.add_results(&[i1, term]);
+
+        self.create_operation(state).unwrap()
     }
 }
 
@@ -2003,6 +2053,21 @@ impl Operation for BinaryMatchOp {
         self.0
     }
 }
+impl TryFrom<OperationBase> for BinaryMatchOp {
+    type Error = InvalidTypeCastError;
+
+    #[inline]
+    fn try_from(op: OperationBase) -> Result<Self, Self::Error> {
+        extern "C" {
+            fn mlirCirBinaryMatchOpIsA(op: OperationBase) -> bool;
+        }
+        if unsafe { mlirCirBinaryMatchOpIsA(op) } {
+            Ok(Self(op))
+        } else {
+            Err(InvalidTypeCastError)
+        }
+    }
+}
 impl<'a, B: OpBuilder> CirBuilder<'a, B> {
     #[inline]
     pub fn build_bs_match(
@@ -2012,19 +2077,78 @@ impl<'a, B: OpBuilder> CirBuilder<'a, B> {
         spec: BinaryEntrySpecifier,
         size: Option<ValueBase>,
     ) -> BinaryMatchOp {
-        extern "C" {
-            fn mlirCirBinaryMatchOp(
-                builder: OpBuilderBase,
-                loc: Location,
-                ctx: ValueBase,
-                spec: BinaryEntrySpecifier,
-                size: ValueBase,
-            ) -> BinaryMatchOp;
+        let mut state = OperationState::get("cir.bs.match", loc);
+
+        let spec = self.get_binary_spec_attr(spec);
+        let spec_attr = self.get_named_attr("spec", spec);
+        state.add_attributes(&[spec_attr]);
+
+        if let Some(sz) = size {
+            state.add_operands(&[ctx, sz]);
+        } else {
+            state.add_operands(&[ctx]);
         }
 
-        unsafe {
-            mlirCirBinaryMatchOp(self.base().into(), loc, ctx, spec, size.unwrap_or_default())
+        let i1 = self.get_i1_type().base();
+        let term = self.get_cir_term_type().base();
+        let match_ctx = self
+            .get_cir_ptr_type(self.get_cir_match_context_type())
+            .base();
+        state.add_results(&[i1, term, match_ctx]);
+
+        self.create_operation(state).unwrap()
+    }
+}
+
+/// Represents extraction of a matching value from a match context
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct BinaryMatchSkipOp(OperationBase);
+impl Operation for BinaryMatchSkipOp {
+    fn base(&self) -> OperationBase {
+        self.0
+    }
+}
+impl TryFrom<OperationBase> for BinaryMatchSkipOp {
+    type Error = InvalidTypeCastError;
+
+    #[inline]
+    fn try_from(op: OperationBase) -> Result<Self, Self::Error> {
+        extern "C" {
+            fn mlirCirBinaryMatchSkipOpIsA(op: OperationBase) -> bool;
         }
+        if unsafe { mlirCirBinaryMatchSkipOpIsA(op) } {
+            Ok(Self(op))
+        } else {
+            Err(InvalidTypeCastError)
+        }
+    }
+}
+impl<'a, B: OpBuilder> CirBuilder<'a, B> {
+    #[inline]
+    pub fn build_bs_match_skip(
+        &self,
+        loc: Location,
+        ctx: ValueBase,
+        spec: BinaryEntrySpecifier,
+        size: ValueBase,
+        value: ValueBase,
+    ) -> BinaryMatchSkipOp {
+        let mut state = OperationState::get("cir.bs.match.skip", loc);
+
+        let spec = self.get_binary_spec_attr(spec);
+        let spec_attr = self.get_named_attr("spec", spec);
+        state.add_attributes(&[spec_attr]);
+
+        state.add_operands(&[ctx, size, value]);
+
+        let i1 = self.get_i1_type().base();
+        let match_ctx = self
+            .get_cir_ptr_type(self.get_cir_match_context_type())
+            .base();
+        state.add_results(&[i1, match_ctx]);
+
+        self.create_operation(state).unwrap()
     }
 }
 

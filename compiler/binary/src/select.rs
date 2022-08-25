@@ -497,19 +497,6 @@ impl<'a> Selection<'a> {
         }
     }
 
-    /// Returns the selected bytes as a string reference, if the data is binary, aligned, and valid UTF-8.
-    ///
-    /// For unaligned binaries or bitstrings, returns `None`. See `to_str` for an alternative
-    /// available to unaligned binaries.
-    pub fn as_str(&self) -> Option<&str> {
-        match self {
-            Self::Empty => Some(""),
-            Self::Byte(b) => str::from_utf8(b.byte.as_slice()).ok(),
-            Self::AlignedBinary(b) => str::from_utf8(b).ok(),
-            _ => None,
-        }
-    }
-
     /// Returns the selected bytes as a `Cow<str>`, if the data is binary and valid UTF-8.
     ///
     /// The data is borrowed if the underlying bytes can be used directly, otherwise
@@ -1032,6 +1019,19 @@ impl<'a> Bitstring for Selection<'a> {
     #[inline(always)]
     fn bits(&self) -> BitsIter<'_> {
         BitsIter::new(*self)
+    }
+
+    /// Returns the selected bytes as a string reference, if the data is binary, aligned, and valid UTF-8.
+    ///
+    /// For unaligned binaries or bitstrings, returns `None`. See `to_str` for an alternative
+    /// available to unaligned binaries.
+    fn as_str(&self) -> Option<&str> {
+        match self {
+            Self::Empty => Some(""),
+            Self::Byte(b) => str::from_utf8(b.byte.as_slice()).ok(),
+            Self::AlignedBinary(b) => str::from_utf8(b).ok(),
+            _ => None,
+        }
     }
 
     unsafe fn as_bytes_unchecked(&self) -> &[u8] {

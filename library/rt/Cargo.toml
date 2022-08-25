@@ -8,7 +8,8 @@ edition = "2021"
 
 [features]
 default = ["std"]
-std = ["anyhow/std", "backtrace/std", "num-bigint/std", "rpds/std", "termcolor"]
+std = ["anyhow/std", "backtrace/std", "num-bigint/std", "rpds/std", "termcolor", "liblumen_binary/std"]
+no_std = ["lazy_static/spin_no_std"]
 
 [dependencies]
 cfg-if = "1.0"
@@ -19,6 +20,7 @@ liblumen_arena = { path = "../arena" }
 liblumen_system = { path = "../system" }
 liblumen_binary = { path = "../../compiler/binary" }
 paste = "1.0"
+rustc-demangle = "0.1"
 seq-macro = "0.3"
 static_assertions = "1.1"
 

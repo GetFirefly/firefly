@@ -68,6 +68,7 @@ pub enum InstData {
     PrimOpImm(PrimOpImm),
     IsType(IsType),
     BitsMatch(BitsMatch),
+    BitsMatchSkip(BitsMatchSkip),
     BitsPush(BitsPush),
     SetElement(SetElement),
     SetElementImm(SetElementImm),
@@ -90,6 +91,7 @@ impl InstData {
             Self::PrimOp(PrimOp { ref op, .. }) | Self::PrimOpImm(PrimOpImm { ref op, .. }) => *op,
             Self::IsType(_) => Opcode::IsType,
             Self::BitsMatch(_) => Opcode::BitsMatch,
+            Self::BitsMatchSkip(_) => Opcode::BitsMatchSkip,
             Self::BitsPush(_) => Opcode::BitsPush,
             Self::SetElement(SetElement { ref op, .. })
             | Self::SetElementImm(SetElementImm { ref op, .. }) => *op,
@@ -115,6 +117,7 @@ impl InstData {
             Self::PrimOpImm(PrimOpImm { ref args, .. }) => args.as_slice(pool),
             Self::IsType(IsType { ref arg, .. }) => core::slice::from_ref(arg),
             Self::BitsMatch(BitsMatch { ref args, .. }) => args.as_slice(pool),
+            Self::BitsMatchSkip(BitsMatchSkip { ref args, .. }) => args.as_slice(pool),
             Self::BitsPush(BitsPush { ref args, .. }) => args.as_slice(pool),
             Self::SetElement(SetElement { ref args, .. }) => args.as_slice(),
             Self::SetElementImm(SetElementImm { ref arg, .. }) => core::slice::from_ref(arg),
@@ -140,6 +143,7 @@ impl InstData {
             Self::PrimOpImm(PrimOpImm { ref mut args, .. }) => args.as_mut_slice(pool),
             Self::IsType(IsType { ref mut arg, .. }) => core::slice::from_mut(arg),
             Self::BitsMatch(BitsMatch { ref mut args, .. }) => args.as_mut_slice(pool),
+            Self::BitsMatchSkip(BitsMatchSkip { ref mut args, .. }) => args.as_mut_slice(pool),
             Self::BitsPush(BitsPush { ref mut args, .. }) => args.as_mut_slice(pool),
             Self::SetElement(SetElement { ref mut args, .. }) => args.as_mut_slice(),
             Self::SetElementImm(SetElementImm { ref mut arg, .. }) => core::slice::from_mut(arg),
@@ -153,6 +157,7 @@ impl InstData {
             Self::PrimOp(PrimOp { ref mut args, .. }) => Some(args),
             Self::PrimOpImm(PrimOpImm { ref mut args, .. }) => Some(args),
             Self::BitsMatch(BitsMatch { ref mut args, .. }) => Some(args),
+            Self::BitsMatchSkip(BitsMatchSkip { ref mut args, .. }) => Some(args),
             Self::BitsPush(BitsPush { ref mut args, .. }) => Some(args),
             _ => None,
         }
@@ -300,6 +305,7 @@ pub enum Opcode {
     // Binary Operations
     BitsMatchStart,
     BitsMatch,
+    BitsMatchSkip,
     BitsPush,
     BitsTestTail,
     // Closures
@@ -329,6 +335,13 @@ impl Opcode {
             | Self::Raise
             | Self::Enter
             | Self::EnterIndirect => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_exception(&self) -> bool {
+        match self {
+            Self::Raise => true,
             _ => false,
         }
     }
@@ -422,6 +435,7 @@ impl Opcode {
             // Raising errors requires the class, the error value, and the stacktrace
             Self::Raise => 3,
             // Bitstring ops
+            Self::BitsMatchSkip => 2,
             Self::BitsMatch | Self::BitsPush => 1,
             Self::BitsTestTail => 2,
         }
@@ -507,6 +521,7 @@ impl fmt::Display for Opcode {
             Self::RecvDone => f.write_str("recv.done"),
             Self::BitsMatchStart => f.write_str("bs.match.start"),
             Self::BitsMatch => f.write_str("bs.match"),
+            Self::BitsMatchSkip => f.write_str("bs.match.skip"),
             Self::BitsPush => f.write_str("bs.push"),
             Self::BitsTestTail => f.write_str("bs.test.tail"),
             Self::Raise => f.write_str("raise"),
@@ -712,6 +727,13 @@ pub struct MakeFun {
 pub struct BitsMatch {
     pub spec: BinaryEntrySpecifier,
     pub args: ValueList,
+}
+
+#[derive(Debug, Clone)]
+pub struct BitsMatchSkip {
+    pub spec: BinaryEntrySpecifier,
+    pub args: ValueList,
+    pub value: Immediate,
 }
 
 #[derive(Debug, Clone)]

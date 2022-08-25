@@ -1,3 +1,8 @@
+use alloc::borrow::Cow;
+use alloc::string::String;
+use alloc::vec::Vec;
+use core::fmt;
+
 use half::f16;
 use paste::paste;
 
@@ -9,7 +14,7 @@ use crate::{BinaryFlags, BitsIter, ByteIter, Encoding, Selection};
 ///
 /// Bitstrings are strictly a superset of binaries, as binaries are simply
 /// bitstrings which have a number of bits divisible by 8
-pub trait Bitstring {
+pub trait Bitstring: fmt::Debug {
     /// The total number of full bytes required to hold this bitstring
     fn byte_size(&self) -> usize;
 
@@ -125,6 +130,23 @@ pub trait Bitstring {
         self.bit_size() % 8 == 0
     }
 
+    /// Attempts to access the underlying data as a `str`
+    ///
+    /// Returns `None` if the bitstring is not aligned and binary, and if the data is not valid UTF-8
+    ///
+    /// If the encoding is known to be UTF-8, this operation can be very efficient,
+    /// otherwise, the data must be examined for validity first, which is linear
+    /// in the size of the string (though validation stops as soon as an error is
+    /// encountered).
+    #[inline]
+    fn as_str(&self) -> Option<&str> {
+        if self.is_aligned() && self.is_binary() {
+            core::str::from_utf8(unsafe { self.as_bytes_unchecked() }).ok()
+        } else {
+            None
+        }
+    }
+
     /// Returns a slice to the memory backing this bitstring directly.
     ///
     /// # Safety
@@ -184,6 +206,11 @@ where
     }
 
     #[inline]
+    fn as_str(&self) -> Option<&str> {
+        (**self).as_str()
+    }
+
+    #[inline]
     unsafe fn as_bytes_unchecked(&self) -> &[u8] {
         (**self).as_bytes_unchecked()
     }
@@ -208,6 +235,11 @@ impl<const N: usize> Bitstring for [u8; N] {
     #[inline(always)]
     fn is_binary(&self) -> bool {
         true
+    }
+
+    #[inline]
+    fn as_str(&self) -> Option<&str> {
+        core::str::from_utf8(self.as_slice()).ok()
     }
 
     #[inline(always)]
@@ -237,9 +269,46 @@ impl Bitstring for [u8] {
         true
     }
 
+    #[inline]
+    fn as_str(&self) -> Option<&str> {
+        core::str::from_utf8(self).ok()
+    }
+
     #[inline(always)]
     unsafe fn as_bytes_unchecked(&self) -> &[u8] {
         self
+    }
+}
+
+impl Bitstring for Vec<u8> {
+    #[inline(always)]
+    fn byte_size(&self) -> usize {
+        self.len()
+    }
+
+    #[inline]
+    fn bit_size(&self) -> usize {
+        self.len() * 8
+    }
+
+    #[inline(always)]
+    fn is_aligned(&self) -> bool {
+        true
+    }
+
+    #[inline(always)]
+    fn is_binary(&self) -> bool {
+        true
+    }
+
+    #[inline]
+    fn as_str(&self) -> Option<&str> {
+        core::str::from_utf8(self.as_slice()).ok()
+    }
+
+    #[inline(always)]
+    unsafe fn as_bytes_unchecked(&self) -> &[u8] {
+        self.as_slice()
     }
 }
 
@@ -265,12 +334,49 @@ impl Bitstring for str {
     }
 
     #[inline(always)]
+    fn as_str(&self) -> Option<&str> {
+        Some(self)
+    }
+
+    #[inline(always)]
     unsafe fn as_bytes_unchecked(&self) -> &[u8] {
         self.as_bytes()
     }
 }
 
-/// This trait provides common behavior for all binary types which represent a collection of bytes
+impl Bitstring for String {
+    #[inline]
+    fn byte_size(&self) -> usize {
+        self.as_bytes().len()
+    }
+
+    #[inline]
+    fn bit_size(&self) -> usize {
+        self.as_bytes().len() * 8
+    }
+
+    #[inline(always)]
+    fn is_aligned(&self) -> bool {
+        true
+    }
+
+    #[inline(always)]
+    fn is_binary(&self) -> bool {
+        true
+    }
+
+    #[inline(always)]
+    fn as_str(&self) -> Option<&str> {
+        Some(self.as_str())
+    }
+
+    #[inline(always)]
+    unsafe fn as_bytes_unchecked(&self) -> &[u8] {
+        self.as_bytes()
+    }
+}
+
+/// This trait provides common behavior for all types which are always composed of aligned and binary data.
 pub trait Binary: Bitstring {
     /// Returns the set of flags that apply to this binary
     fn flags(&self) -> BinaryFlags;
@@ -301,30 +407,29 @@ pub trait Binary: Bitstring {
 
     /// Returns the underlying bytes as a raw slice.
     #[inline]
-    fn as_bytes(&self) -> &[u8]
-    where
-        Self: Aligned,
-    {
+    fn as_bytes(&self) -> &[u8] {
         unsafe { self.as_bytes_unchecked() }
     }
 
-    /// Attempts to access the underlying binary data as a `str`
+    /// Converts the underlying data to UTF-8
     ///
-    /// Returns `None` if the data is not valid UTF-8.
+    /// If the data is not UTF-8, it will convert it to valid UTF-8, producing an
+    /// owned String containing the converted data. Otherwise, if the data is valid
+    /// UTF-8, it simply borrows the underlying data as a str.
     ///
     /// If the encoding is known to be UTF-8, this operation is very efficient,
     /// otherwise, the data must be examined for validity first, which is linear
     /// in the size of the string (though validation stops as soon as an error is
     /// encountered).
+    ///
+    /// See `Bitstring::as_str` for similar functionality that avoids allocating if the
+    /// data is not valid UTF-8.
     #[inline]
-    fn as_str(&self) -> Option<&str>
-    where
-        Self: Aligned,
-    {
+    fn to_str(&self) -> Cow<'_, str> {
         if self.is_utf8() {
-            Some(unsafe { core::str::from_utf8_unchecked(self.as_bytes()) })
+            Cow::Borrowed(unsafe { core::str::from_utf8_unchecked(self.as_bytes()) })
         } else {
-            core::str::from_utf8(self.as_bytes()).ok()
+            String::from_utf8_lossy(self.as_bytes())
         }
     }
 }
@@ -372,6 +477,19 @@ impl Binary for [u8] {
     }
 }
 
+impl Binary for Vec<u8> {
+    fn flags(&self) -> BinaryFlags {
+        let size = self.len();
+        let encoding = Encoding::detect(self.as_slice());
+        BinaryFlags::new(size, encoding)
+    }
+
+    #[inline]
+    fn encoding(&self) -> Encoding {
+        Encoding::detect(self.as_slice())
+    }
+}
+
 impl Binary for str {
     #[inline(always)]
     fn flags(&self) -> BinaryFlags {
@@ -400,11 +518,40 @@ impl Binary for str {
     }
 
     #[inline(always)]
-    fn as_str(&self) -> Option<&str>
-    where
-        Self: Aligned,
-    {
-        Some(self)
+    fn to_str(&self) -> Cow<'_, str> {
+        Cow::Borrowed(self)
+    }
+}
+impl Binary for String {
+    #[inline(always)]
+    fn flags(&self) -> BinaryFlags {
+        let size = self.as_bytes().len();
+        BinaryFlags::new(size, Encoding::Utf8)
+    }
+
+    #[inline(always)]
+    fn encoding(&self) -> Encoding {
+        Encoding::Utf8
+    }
+
+    #[inline(always)]
+    fn is_raw(&self) -> bool {
+        false
+    }
+
+    #[inline]
+    fn is_latin1(&self) -> bool {
+        self.is_ascii()
+    }
+
+    #[inline(always)]
+    fn is_utf8(&self) -> bool {
+        true
+    }
+
+    #[inline(always)]
+    fn to_str(&self) -> Cow<'_, str> {
+        Cow::Borrowed(self.as_str())
     }
 }
 
@@ -415,8 +562,11 @@ pub trait Aligned {}
 
 impl<A: Aligned + ?Sized> Aligned for &A {}
 
+impl<const N: usize> Aligned for [u8; N] {}
 impl Aligned for [u8] {}
 impl Aligned for str {}
+impl Aligned for String {}
+impl Aligned for Vec<u8> {}
 
 /// A trait that represents the ability to obtain the byte representation of a endianness-sensitive value,
 /// namely numerics.

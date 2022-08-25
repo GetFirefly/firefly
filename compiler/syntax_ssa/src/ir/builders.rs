@@ -856,6 +856,23 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
         self.BitsMatch(spec, vlist, span).0
     }
 
+    fn bs_match_skip(
+        mut self,
+        spec: BinaryEntrySpecifier,
+        bin: Value,
+        size: Value,
+        value: Immediate,
+        span: SourceSpan,
+    ) -> Inst {
+        let mut vlist = ValueList::default();
+        {
+            let pool = &mut self.data_flow_graph_mut().value_lists;
+            vlist.push(bin, pool);
+            vlist.push(size, pool);
+        }
+        self.BitsMatchSkip(spec, vlist, value, span).0
+    }
+
     fn bs_push(
         mut self,
         spec: BinaryEntrySpecifier,
@@ -1214,6 +1231,18 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
         };
         let data = InstData::BitsMatch(BitsMatch { spec, args });
         self.build(data, ty, span)
+    }
+
+    #[allow(non_snake_case)]
+    fn BitsMatchSkip(
+        self,
+        spec: BinaryEntrySpecifier,
+        args: ValueList,
+        value: Immediate,
+        span: SourceSpan,
+    ) -> (Inst, &'f mut DataFlowGraph) {
+        let data = InstData::BitsMatchSkip(BitsMatchSkip { spec, args, value });
+        self.build(data, Type::Invalid, span)
     }
 
     #[allow(non_snake_case)]

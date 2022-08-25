@@ -223,8 +223,8 @@ lazy_static! {
             bif!(pub erlang:unlink/1(term) -> boolean),
             bif!(pub erlang:unregister/1(atom) -> boolean),
             bif!(pub erlang:whereis/1(atom) -> term),
-            // pub erlang:make_fun/3(atom, atom, int) -> term
-            Signature::new(Visibility::PUBLIC | Visibility::EXTERNAL, CallConv::C, symbols::Erlang, symbols::MakeFun, FunctionType::new(vec![Type::Term(TermType::Atom), Type::Term(TermType::Atom), Type::Term(TermType::Integer)], vec![Type::Term(TermType::Any)])),
+            // pub erlang:make_fun/3(atom, atom, int) -> i1, term
+            Signature::new(Visibility::PUBLIC | Visibility::EXTERNAL, CallConv::C, symbols::Erlang, symbols::MakeFun, FunctionType::new(vec![Type::Term(TermType::Atom), Type::Term(TermType::Atom), Type::Term(TermType::Integer)], vec![Type::Primitive(PrimitiveType::I1), Type::Term(TermType::Any)])),
             // pub erlang:build_stacktrace/1(exception_trace) -> term
             Signature::new(Visibility::PUBLIC | Visibility::EXTERNAL, CallConv::C, symbols::Erlang, symbols::BuildStacktrace, FunctionType::new(vec![Type::ExceptionTrace], vec![Type::Term(TermType::Any)])),
             // pub erlang:nif_start/0

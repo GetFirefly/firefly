@@ -5,6 +5,8 @@ pub use self::matching::{MatchContext, MatchResult};
 pub use self::slice::BitSlice;
 
 use alloc::alloc::{AllocError, Allocator};
+use alloc::borrow::Cow;
+use alloc::string::String;
 use core::any::TypeId;
 use core::fmt;
 use core::hash::{Hash, Hasher};
@@ -223,6 +225,15 @@ impl Bitstring for BinaryData {
     }
 
     #[inline]
+    fn as_str(&self) -> Option<&str> {
+        if self.is_utf8() {
+            Some(unsafe { core::str::from_utf8_unchecked(&self.data) })
+        } else {
+            core::str::from_utf8(&self.data).ok()
+        }
+    }
+
+    #[inline]
     unsafe fn as_bytes_unchecked(&self) -> &[u8] {
         &self.data
     }
@@ -231,6 +242,14 @@ impl Binary for BinaryData {
     #[inline]
     fn flags(&self) -> BinaryFlags {
         self.flags
+    }
+
+    #[inline]
+    fn to_str(&self) -> Cow<'_, str> {
+        match self.as_str() {
+            Some(s) => Cow::Borrowed(s),
+            None => String::from_utf8_lossy(&self.data),
+        }
     }
 }
 impl Aligned for BinaryData {}

@@ -384,24 +384,16 @@ MlirOperation mlirCirRecvDoneOp(MlirOpBuilder bldr, MlirLocation location,
   return wrap(op);
 }
 
-MlirOperation mlirCirBinaryMatchStartOp(MlirOpBuilder bldr,
-                                        MlirLocation location, MlirValue bin) {
-  OpBuilder *builder = unwrap(bldr);
-  Operation *op =
-      builder->create<cir::BinaryMatchStartOp>(unwrap(location), unwrap(bin));
-  return wrap(op);
+bool mlirCirBinaryMatchStartOpIsA(MlirOperation op) {
+  return isa<cir::BinaryMatchStartOp>(unwrap(op));
 }
 
-MlirOperation mlirCirBinaryMatchOp(MlirOpBuilder bldr, MlirLocation location,
-                                   MlirValue ctx, BinaryEntrySpecifier spec,
-                                   MlirValue sizeOpt) {
-  OpBuilder *builder = unwrap(bldr);
-  Value size = unwrap(sizeOpt);
-  auto specAttr =
-      BinarySpecAttr::get(builder->getContext(), builder->getNoneType(), spec);
-  Operation *op = builder->create<cir::BinaryMatchOp>(
-      unwrap(location), unwrap(ctx), specAttr, size);
-  return wrap(op);
+bool mlirCirBinaryMatchOpIsA(MlirOperation op) {
+  return isa<cir::BinaryMatchOp>(unwrap(op));
+}
+
+bool mlirCirBinaryMatchSkipOpIsA(MlirOperation op) {
+  return isa<cir::BinaryMatchSkipOp>(unwrap(op));
 }
 
 MlirOperation mlirCirBinaryTestTailOp(MlirOpBuilder bldr, MlirLocation location,

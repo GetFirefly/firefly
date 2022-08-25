@@ -15,6 +15,18 @@ use liblumen_rt::term::{OpaqueTerm, Term, TermType};
 
 use crate::scheduler;
 
+macro_rules! ok {
+    ($value:expr) => {
+        liblumen_rt::function::ErlangResult::Ok($value)
+    };
+}
+
+macro_rules! err {
+    ($value:expr) => {
+        liblumen_rt::function::ErlangResult::Err($value)
+    };
+}
+
 /// Constructs a new empty term of the given type and size on the current process heap
 #[export_name = "__lumen_builtin_malloc"]
 pub extern "C-unwind" fn malloc(kind: TermType, size: usize) -> *mut () {
@@ -77,7 +89,7 @@ pub extern "C" fn bigint_from_digits(raw: &BigIntRef) -> OpaqueTerm {
 /// produced by the compiler
 #[export_name = "__lumen_tuple_size"]
 #[allow(improper_ctypes_definitions)]
-pub extern "C-unwind" fn tuple_size(term: OpaqueTerm) -> Result<u32, ()> {
+pub extern "C-unwind" fn tuple_size(term: OpaqueTerm) -> ErlangResult<u32, ()> {
     term.tuple_size()
 }
 
@@ -163,8 +175,8 @@ pub extern "C-unwind" fn map_update(
             let arc_proc = scheduler.current_process();
             let proc = arc_proc.deref();
             match m.insert_new(key.into(), value.into()) {
-                None => Err(map_error(key, Trace::capture())),
-                Some(updated) => Ok(GcBox::new_in(updated, proc).unwrap().into()),
+                None => err!(map_error(key, Trace::capture())),
+                Some(updated) => ok!(GcBox::new_in(updated, proc).unwrap().into()),
             }
         }),
         _ => panic!("unexpected argument given to map_update bif"),
@@ -183,8 +195,8 @@ pub extern "C-unwind" fn map_update_mut(
             let arc_proc = scheduler.current_process();
             let proc = arc_proc.deref();
             match m.insert_new(key.into(), value.into()) {
-                None => Err(map_error(key, Trace::capture())),
-                Some(updated) => Ok(GcBox::new_in(updated, proc).unwrap().into()),
+                None => err!(map_error(key, Trace::capture())),
+                Some(updated) => ok!(GcBox::new_in(updated, proc).unwrap().into()),
             }
         }),
         _ => panic!("unexpected argument given to map_update_mut bif"),
@@ -201,13 +213,16 @@ fn map_error(key: OpaqueTerm, trace: Arc<Trace>) -> NonNull<ErlangException> {
 /// we've already type checked the map, and we're simply fetching the given key from the map
 #[export_name = "__lumen_map_fetch"]
 #[allow(improper_ctypes_definitions)]
-pub extern "C-unwind" fn map_fetch(map: OpaqueTerm, key: OpaqueTerm) -> Result<OpaqueTerm, ()> {
+pub extern "C-unwind" fn map_fetch(
+    map: OpaqueTerm,
+    key: OpaqueTerm,
+) -> ErlangResult<OpaqueTerm, ()> {
     match map.into() {
         Term::Map(m) => {
             let key: Term = key.into();
-            m.get(&key).map(|t| t.into()).ok_or(())
+            m.get(&key).map(|t| t.into()).ok_or(()).into()
         }
-        _ => Err(()),
+        _ => err!(()),
     }
 }
 
@@ -249,10 +264,10 @@ pub unsafe extern "C-unwind" fn process_yield() -> bool {
 pub unsafe extern "C-unwind" fn process_exit(result: ErlangResult) {
     scheduler::with_current(|scheduler| {
         match result {
-            Ok(_) => {
+            ErlangResult::Ok(_) => {
                 scheduler.current_process().exit_normal();
             }
-            Err(err) => {
+            ErlangResult::Err(err) => {
                 scheduler.current_process().exit_error(err);
             }
         }
@@ -263,9 +278,9 @@ pub unsafe extern "C-unwind" fn process_exit(result: ErlangResult) {
 
 #[allow(improper_ctypes_definitions)]
 #[export_name = "__lumen_bs_init"]
-pub extern "C-unwind" fn bs_init() -> Result<NonNull<BitVec>, ()> {
+pub extern "C-unwind" fn bs_init() -> ErlangResult<NonNull<BitVec>, ()> {
     let buffer = Box::new(BitVec::new());
-    Ok(unsafe { NonNull::new_unchecked(Box::into_raw(buffer)) })
+    ok!(unsafe { NonNull::new_unchecked(Box::into_raw(buffer)) })
 }
 
 #[allow(improper_ctypes_definitions)]
@@ -275,7 +290,7 @@ pub extern "C-unwind" fn bs_push(
     spec: BinaryEntrySpecifier,
     value: OpaqueTerm,
     size: OpaqueTerm,
-) -> Result<NonNull<BitVec>, NonNull<ErlangException>> {
+) -> ErlangResult<NonNull<BitVec>, NonNull<ErlangException>> {
     use half::f16;
 
     let buffer = unsafe { bin.as_mut() };
@@ -288,27 +303,30 @@ pub extern "C-unwind" fn bs_push(
             // Size MUST be a non-negative integer
             let size: usize = match size.into() {
                 Term::Int(sz) if sz >= 0 => sz.try_into().map_err(|_| badarg(Trace::capture()))?,
-                _ => return Err(badarg(Trace::capture())),
+                _other => return err!(badarg(Trace::capture())),
             };
             let num_bits = size * (unit as usize);
             match value.into() {
                 // Pushing with a size of zero has no effect
-                Term::Int(_) | Term::BigInt(_) if num_bits == 0 => return Ok(bin),
+                Term::Int(_) | Term::BigInt(_) if num_bits == 0 => return ok!(bin),
                 Term::Int(i) if signed => buffer.push_ap_number(i, num_bits, endianness),
                 Term::Int(i) => buffer.push_ap_number(i as u64, num_bits, endianness),
                 Term::BigInt(i) => buffer.push_ap_bigint(i.deref(), num_bits, signed, endianness),
-                _ => return Err(badarg(Trace::capture())),
+                _ => return err!(badarg(Trace::capture())),
             }
-            Ok(bin)
+            ok!(bin)
         }
         BinaryEntrySpecifier::Float { unit, endianness } => {
             // Size MUST be one of 16, 32, 64
             let size = match size.into() {
-                Term::Int(sz) => match sz {
-                    16 | 32 | 64 => sz,
-                    _ => return Err(badarg(Trace::capture())),
-                },
-                _ => return Err(badarg(Trace::capture())),
+                Term::Int(sz) => {
+                    let sz: usize = sz.try_into().map_err(|_| badarg(Trace::capture()))?;
+                    match sz * unit as usize {
+                        sz @ (16 | 32 | 64) => sz,
+                        _ => return err!(badarg(Trace::capture())),
+                    }
+                }
+                _ => return err!(badarg(Trace::capture())),
             };
             // Value can be any integer or float
             match value.into() {
@@ -326,11 +344,11 @@ pub extern "C-unwind" fn bs_push(
                     Some(f) if size == 16 => buffer.push_number(f16::from_f64(f), endianness),
                     Some(f) if size == 32 => buffer.push_number(f as f32, endianness),
                     Some(f) if size == 64 => buffer.push_number(f, endianness),
-                    _ => return Err(badarg(Trace::capture())),
+                    _ => return err!(badarg(Trace::capture())),
                 },
-                _ => return Err(badarg(Trace::capture())),
+                _ => return err!(badarg(Trace::capture())),
             }
-            Ok(bin)
+            ok!(bin)
         }
         BinaryEntrySpecifier::Binary { unit } => {
             // Size must be a non-negative integer, or None to represent pushing all of the source value
@@ -340,7 +358,7 @@ pub extern "C-unwind" fn bs_push(
                 Term::Int(sz) if sz >= 0 => {
                     Some(sz.try_into().map_err(|_| badarg(Trace::capture()))?)
                 }
-                _ => return Err(badarg(Trace::capture())),
+                _ => return err!(badarg(Trace::capture())),
             };
             // Term must be a bitstring/binary
             let term: Term = value.into();
@@ -349,23 +367,22 @@ pub extern "C-unwind" fn bs_push(
                 Some(bs) if unit == 8 && size.is_none() => {
                     // The source value must be a binary
                     if !bs.is_binary() {
-                        return Err(badarg(Trace::capture()));
+                        return err!(badarg(Trace::capture()));
                     }
                     buffer.extend(bs.bytes());
-                    Ok(bin)
+                    ok!(bin)
                 }
                 // Push `size` bytes of the given bitstring
                 Some(bs) if unit == 8 => {
                     let size = unsafe { size.unwrap_unchecked() };
-                    let data = unsafe { bs.as_bytes_unchecked() };
                     // Selects precisely `size` bytes from the underlying data
                     // The value must be at least as large as the requested size
                     match bs.select_bytes(size) {
                         Ok(selection) => {
                             buffer.extend(selection.bytes());
-                            Ok(bin)
+                            ok!(bin)
                         }
-                        _ => return Err(badarg(Trace::capture())),
+                        _ => return err!(badarg(Trace::capture())),
                     }
                 }
                 // Push all bits of a bitstring
@@ -376,7 +393,7 @@ pub extern "C-unwind" fn bs_push(
                     } else {
                         buffer.extend(bs.bits());
                     }
-                    Ok(bin)
+                    ok!(bin)
                 }
                 // Push `size * unit` bits of the given bitstring
                 Some(bs) => {
@@ -387,41 +404,43 @@ pub extern "C-unwind" fn bs_push(
                     match bs.select_bits(bitsize) {
                         Ok(selection) => {
                             buffer.extend(selection.bits());
-                            Ok(bin)
+                            ok!(bin)
                         }
-                        _ => return Err(badarg(Trace::capture())),
+                        _ => return err!(badarg(Trace::capture())),
                     }
                 }
-                _ => Err(badarg(Trace::capture())),
+                _ => err!(badarg(Trace::capture())),
             }
         }
         BinaryEntrySpecifier::Utf8 => {
-            let Term::Int(i) = value.into() else { return Err(badarg(Trace::capture())); };
-            let Ok(codepoint) = i.try_into() else { return Err(badarg(Trace::capture())); };
-            let Some(c) = char::from_u32(codepoint) else { return Err(badarg(Trace::capture())); };
+            let Term::Int(i) = value.into() else { return err!(badarg(Trace::capture())); };
+            let Ok(codepoint) = i.try_into() else { return err!(badarg(Trace::capture())); };
+            let Some(c) = char::from_u32(codepoint) else { return err!(badarg(Trace::capture())); };
             buffer.push_utf8(c);
-            Ok(bin)
+            ok!(bin)
         }
         BinaryEntrySpecifier::Utf16 { endianness } => {
-            let Term::Int(i) = value.into() else { return Err(badarg(Trace::capture())); };
-            let Ok(codepoint) = i.try_into() else { return Err(badarg(Trace::capture())); };
-            let Some(c) = char::from_u32(codepoint) else { return Err(badarg(Trace::capture())); };
+            let Term::Int(i) = value.into() else { return err!(badarg(Trace::capture())); };
+            let Ok(codepoint) = i.try_into() else { return err!(badarg(Trace::capture())); };
+            let Some(c) = char::from_u32(codepoint) else { return err!(badarg(Trace::capture())); };
             buffer.push_utf16(c, endianness);
-            Ok(bin)
+            ok!(bin)
         }
         BinaryEntrySpecifier::Utf32 { endianness } => {
-            let Term::Int(i) = value.into() else { return Err(badarg(Trace::capture())); };
-            let Ok(codepoint) = i.try_into() else { return Err(badarg(Trace::capture())); };
-            let Some(c) = char::from_u32(codepoint) else { return Err(badarg(Trace::capture())); };
+            let Term::Int(i) = value.into() else { return err!(badarg(Trace::capture())); };
+            let Ok(codepoint) = i.try_into() else { return err!(badarg(Trace::capture())); };
+            let Some(c) = char::from_u32(codepoint) else { return err!(badarg(Trace::capture())); };
             buffer.push_utf32(c, endianness);
-            Ok(bin)
+            ok!(bin)
         }
     }
 }
 
 #[allow(improper_ctypes_definitions)]
 #[export_name = "__lumen_bs_finish"]
-pub extern "C-unwind" fn bs_finish(buffer: NonNull<BitVec>) -> Result<OpaqueTerm, ()> {
+pub extern "C-unwind" fn bs_finish(buffer: NonNull<BitVec>) -> ErlangResult<OpaqueTerm, ()> {
+    use liblumen_alloc::rc::Rc;
+
     let buffer = unsafe { Box::from_raw(buffer.as_ptr()) };
     scheduler::with_current(|scheduler| {
         let arc_proc = scheduler.current_process();
@@ -429,15 +448,24 @@ pub extern "C-unwind" fn bs_finish(buffer: NonNull<BitVec>) -> Result<OpaqueTerm
         match buffer.byte_size() {
             0 => {
                 let bin = BinaryData::with_capacity_small(0, proc).unwrap();
-                Ok(bin.into())
+                ok!(bin.into())
             }
             n if n <= 64 => {
-                let bin = BinaryData::with_capacity_small(n, proc).unwrap();
-                Ok(bin.into())
+                let mut bin = BinaryData::with_capacity_small(n, proc).unwrap();
+                let bytes = unsafe { buffer.as_bytes_unchecked() };
+                bin.copy_from_slice(&bytes[..n]);
+                ok!(bin.into())
             }
             n => {
-                let bin = BinaryData::with_capacity_large(n, proc).unwrap();
-                Ok(bin.into())
+                let mut bin = BinaryData::with_capacity_large(n, proc).unwrap();
+                let bytes = unsafe { buffer.as_bytes_unchecked() };
+                {
+                    // SAFETY: There can be no other references to this Rc yet,
+                    // so we know this is safe
+                    let b = unsafe { Rc::get_mut(&mut bin).unwrap_unchecked() };
+                    b.copy_from_slice(&bytes[..n]);
+                }
+                ok!(bin.into())
             }
         }
     })
@@ -447,12 +475,12 @@ pub extern "C-unwind" fn bs_finish(buffer: NonNull<BitVec>) -> Result<OpaqueTerm
 #[export_name = "__lumen_bs_match_start"]
 pub extern "C-unwind" fn bs_match_start(
     bin: OpaqueTerm,
-) -> Result<NonNull<MatchContext>, NonNull<ErlangException>> {
+) -> ErlangResult<NonNull<MatchContext>, NonNull<ErlangException>> {
     scheduler::with_current(|scheduler| {
         let arc_proc = scheduler.current_process();
         let proc = arc_proc.deref();
         let boxed = MatchContext::new(bin, proc).unwrap();
-        Ok(unsafe { NonNull::new_unchecked(GcBox::into_raw(boxed)) })
+        ok!(unsafe { NonNull::new_unchecked(GcBox::into_raw(boxed)) })
     })
 }
 
@@ -524,7 +552,10 @@ pub extern "C-unwind" fn bs_match(
                         None => MatchResult::err(ctx),
                         Some(f) => MatchResult::ok(f.into(), ctx),
                     },
-                    _ => MatchResult::err(ctx),
+                    bitsize => panic!(
+                        "invalid bitsize for floats, must be 16, 32 or 64, got {}",
+                        bitsize
+                    ),
                 }
             }
             BinaryEntrySpecifier::Binary { unit } => {
@@ -588,10 +619,103 @@ pub extern "C-unwind" fn bs_match(
     })
 }
 
+#[export_name = "__lumen_bs_match_skip"]
+pub extern "C-unwind" fn bs_match_skip(
+    mut ctx: NonNull<MatchContext>,
+    spec: BinaryEntrySpecifier,
+    size: OpaqueTerm,
+    value: u64,
+) -> ErlangResult<NonNull<MatchContext>, NonNull<MatchContext>> {
+    use half::f16;
+
+    let context = unsafe { ctx.as_mut() };
+    let matcher = context.matcher();
+    match spec {
+        BinaryEntrySpecifier::Integer {
+            signed,
+            unit,
+            endianness,
+        } => {
+            let Term::Int(size) = size.into() else { panic!("expected an immediate integer") };
+            let size: usize = size.try_into().expect("invalid size");
+            let bitsize = unit as usize * size;
+            if bitsize == 0 {
+                ErlangResult::Ok(ctx)
+            } else if bitsize > 64 {
+                panic!("unexpected match size for bs.match.skip instruction, should have been 64 bits or less, got {}", bitsize);
+            } else if signed {
+                let expected = value as i64;
+                match matcher.match_ap_number::<i64, 8>(bitsize, endianness) {
+                    Some(i) if i == expected => ErlangResult::Ok(ctx),
+                    _ => ErlangResult::Err(ctx),
+                }
+            } else {
+                match matcher.match_ap_number::<u64, 8>(bitsize, endianness) {
+                    Some(i) if i == value => ErlangResult::Ok(ctx),
+                    _ => ErlangResult::Err(ctx),
+                }
+            }
+        }
+        BinaryEntrySpecifier::Float { unit, endianness } => {
+            let Term::Int(size) = size.into() else { panic!("expected an immediate integer") };
+            let size: usize = size.try_into().expect("invalid size");
+            let bitsize = unit as usize * size;
+            match bitsize {
+                0 => ErlangResult::Ok(ctx),
+                16 => match matcher.match_number::<f16, 2>(endianness) {
+                    None => ErlangResult::Err(ctx),
+                    Some(n) => {
+                        let f: f64 = n.into();
+                        if f.to_bits() == value {
+                            ErlangResult::Ok(ctx)
+                        } else {
+                            ErlangResult::Err(ctx)
+                        }
+                    }
+                },
+                32 => match matcher.match_number::<f32, 4>(endianness) {
+                    None => ErlangResult::Err(ctx),
+                    Some(n) => {
+                        let f: f64 = n.into();
+                        if f.to_bits() == value {
+                            ErlangResult::Ok(ctx)
+                        } else {
+                            ErlangResult::Err(ctx)
+                        }
+                    }
+                },
+                64 => match matcher.match_number::<f64, 8>(endianness) {
+                    Some(f) if f.to_bits() == value => ErlangResult::Ok(ctx),
+                    _ => ErlangResult::Err(ctx),
+                },
+                bitsize => panic!(
+                    "invalid bitsize for floats, must be 16, 32 or 64, got {}",
+                    bitsize
+                ),
+            }
+        }
+        spec @ BinaryEntrySpecifier::Binary { .. } => {
+            panic!("unexpected match spec for bs.match.skip, got {:#?}", spec)
+        }
+        BinaryEntrySpecifier::Utf8 => match matcher.match_utf8() {
+            Some(c) if c as u64 == value => ErlangResult::Ok(ctx),
+            _ => ErlangResult::Err(ctx),
+        },
+        BinaryEntrySpecifier::Utf16 { endianness } => match matcher.match_utf16(endianness) {
+            Some(c) if c as u64 == value => ErlangResult::Ok(ctx),
+            _ => ErlangResult::Err(ctx),
+        },
+        BinaryEntrySpecifier::Utf32 { endianness } => match matcher.match_utf32(endianness) {
+            Some(c) if c as u64 == value => ErlangResult::Ok(ctx),
+            _ => ErlangResult::Err(ctx),
+        },
+    }
+}
+
 /// Tests the tail of the current match context matches the given size in bits
 #[export_name = "__lumen_bs_test_tail"]
 pub unsafe extern "C-unwind" fn bs_test_tail(ctx: NonNull<MatchContext>, size: usize) -> bool {
-    ctx.as_ref().bits_remaining() == size
+    ctx.as_ref().bits_remaining() != size
 }
 
 pub(self) fn badarg(trace: Arc<Trace>) -> NonNull<ErlangException> {

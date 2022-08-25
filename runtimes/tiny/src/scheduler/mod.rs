@@ -4,7 +4,6 @@ mod queue;
 use std::arch::global_asm;
 use std::cell::{OnceCell, UnsafeCell};
 use std::mem;
-use std::ops::{Deref, DerefMut};
 use std::ptr;
 use std::sync::{
     atomic::{AtomicI32, AtomicU64, Ordering},

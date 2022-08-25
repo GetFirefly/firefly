@@ -19,7 +19,7 @@ pub use self::closure::Closure;
 pub use self::float::Float;
 pub use self::index::{NonPrimitiveIndex, OneBasedIndex, TupleIndex, ZeroBasedIndex};
 pub use self::integer::BigInteger;
-pub use self::list::{Cons, ListBuilder};
+pub use self::list::{Cons, ImproperList, ListBuilder};
 pub use self::map::Map;
 pub use self::node::Node;
 pub use self::opaque::{OpaqueTerm, TermType};
@@ -29,7 +29,6 @@ pub use self::reference::{Reference, ReferenceId};
 pub use self::tuple::Tuple;
 
 use alloc::alloc::{AllocError, Layout};
-use alloc::format;
 use core::convert::AsRef;
 use core::fmt;
 use core::ptr::NonNull;

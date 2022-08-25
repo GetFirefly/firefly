@@ -98,6 +98,10 @@ impl DataFlowGraph {
         self.values[v].ty()
     }
 
+    pub fn set_value_type(&mut self, v: Value, ty: Type) {
+        self.values[v].set_type(ty)
+    }
+
     pub fn get_value(&self, v: Value) -> ValueData {
         self.values[v].clone()
     }
@@ -173,6 +177,13 @@ impl DataFlowGraph {
                     self.append_result(inst, ty);
                     self.append_result(inst, Type::Term(TermType::Any));
                     3
+                }
+                // This is an optimized form of BitsMatch that skips extraction of the term to be matched and just
+                // advances the position in the underlying match context
+                Opcode::BitsMatchSkip => {
+                    self.append_result(inst, Type::Primitive(PrimitiveType::I1));
+                    self.append_result(inst, Type::Term(TermType::Any));
+                    2
                 }
                 // Binary construction produces two results, an error flag and the new binary value
                 Opcode::BitsPush => {

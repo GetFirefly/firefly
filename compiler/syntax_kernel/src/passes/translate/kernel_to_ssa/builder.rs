@@ -124,6 +124,11 @@ impl<'a> IrBuilder<'a> {
         self.var_types.insert(var, ty);
     }
 
+    /// Sets the known type of the given value
+    pub fn set_value_type(&mut self, value: Value, ty: Type) {
+        self.func.dfg.set_value_type(value, ty)
+    }
+
     /// Returns the value bound to the given name
     pub fn var(&self, name: Symbol) -> Option<Value> {
         self.vars.get(&name).copied()
@@ -136,7 +141,6 @@ impl<'a> IrBuilder<'a> {
     }
 
     /// Returns the type associated with the given value
-    #[allow(unused)]
     pub fn value_type(&self, var: Value) -> Type {
         match self.var_types.get(&var) {
             None => self.func.dfg.value_type(var),

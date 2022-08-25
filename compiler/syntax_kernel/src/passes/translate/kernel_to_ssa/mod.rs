@@ -1,6 +1,7 @@
 use std::assert_matches::assert_matches;
 use std::collections::HashMap;
 
+use anyhow::anyhow;
 use liblumen_binary::BinaryEntrySpecifier;
 use liblumen_diagnostics::*;
 use liblumen_intern::{symbols, Symbol};
@@ -238,36 +239,51 @@ impl<'m> LowerFunctionToSsa<'m> {
             KExpr::Put(put) => self.lower_put(builder, put),
             KExpr::Return(k::Return { span, mut args, .. }) => {
                 assert_eq!(args.len(), 1);
+                let value = self.ssa_value(builder, args.pop().unwrap())?;
                 if builder.is_current_block_terminated() {
-                    let msg = format!(
-                        "return associated with this expression with args: {:#?}",
-                        &args
-                    );
-                    self.show_warning(
-                        "skipped generating return as block is already terminated",
-                        &[(span, msg.as_str())],
-                    );
-                    Ok(())
+                    // If the return is redundant due to an exception bif, we can
+                    // ignore it as it is introduced due to an optimization
+                    match builder.value_type(value) {
+                        Type::Exception => Ok(()),
+                        _ => {
+                            let msg = format!(
+                                "return associated with this expression with value: {:?}",
+                                value
+                            );
+                            self.reporter.show_error(
+                                "skipped generating return as block is already terminated",
+                                &[(span, msg.as_str())],
+                            );
+                            Err(anyhow!("issue encountered during lowering to ssa"))
+                        }
+                    }
                 } else {
-                    let value = self.ssa_value(builder, args.pop().unwrap())?;
                     builder.ins().ret_ok(value, span);
                     Ok(())
                 }
             }
             KExpr::Break(k::Break { span, args, .. }) => {
+                let args = self.ssa_values(builder, args)?;
                 if builder.is_current_block_terminated() {
-                    let msg = format!(
-                        "break associated with this expression with args: {:#?}",
-                        &args
-                    );
-                    self.show_warning(
-                        "skipped generating break as block is already terminated",
-                        &[(span, msg.as_str())],
-                    );
-                    Ok(())
+                    // If the break is redundant due to an exception bif, we can
+                    // ignore it as it is introduced due to an optimization
+                    assert_eq!(args.len(), 1);
+                    match builder.value_type(args[0]) {
+                        Type::Exception => Ok(()),
+                        _ => {
+                            let msg = format!(
+                                "break associated with this expression with values: {:#?}",
+                                args.as_slice()
+                            );
+                            self.reporter.show_error(
+                                "skipped generating break as block is already terminated",
+                                &[(span, msg.as_str())],
+                            );
+                            Err(anyhow!("issue encountered during lowering to ssa"))
+                        }
+                    }
                 } else {
                     let brk = self.brk.last().copied().expect("break target is missing");
-                    let args = self.ssa_values(builder, args)?;
                     builder.ins().br(brk, args.as_slice(), span);
                     Ok(())
                 }
@@ -537,7 +553,7 @@ impl<'m> LowerFunctionToSsa<'m> {
                     _ => unreachable!(),
                 };
                 // Jump to next type if the type test fails
-                builder.ins().br_if(is_type, type_fail, &[], span);
+                builder.ins().br_unless(is_type, type_fail, &[], span);
                 // Lower each value test
                 for (vclause, block) in clause.values.drain(..).zip(blocks.drain(..)) {
                     let span = vclause.span();
@@ -888,7 +904,7 @@ impl<'m> LowerFunctionToSsa<'m> {
                     // The callee is either not a fun at all, or we are unable to verify, use the safe path by
                     // converting this to a call to apply/2
                     let apply2 = FunctionName::new(symbols::Erlang, symbols::Apply, 2);
-                    let apply2 = builder.get_callee(apply2).unwrap();
+                    let apply2 = self.module.get_or_register_builtin(apply2);
                     let argv = args.drain(..).rfold(builder.ins().nil(span), |tail, hd| {
                         builder.ins().cons(hd, tail, span)
                     });
@@ -1053,10 +1069,17 @@ impl<'m> LowerFunctionToSsa<'m> {
                 let callee = self.module.get_or_register_builtin(bif.op);
                 let args = self.ssa_values(builder, bif.args)?;
                 let inst = builder.ins().call(callee, args.as_slice(), span);
-                let results = builder.inst_results(inst);
-                assert_eq!(results.len(), 1, "incorrect results for builtin {}", bif.op);
-                assert_eq!(bif.ret.len(), 1, "result of make_fun/3 bif must be used");
-                builder.define_var(bif.ret[0].as_var().map(|v| v.name()).unwrap(), results[0]);
+                let (is_err, result) = {
+                    let results = builder.inst_results(inst);
+                    (results[0], results[1])
+                };
+                let fail = self.fail_context();
+                builder.ins().br_if(is_err, fail.block(), &[result], span);
+                if !bif.ret.is_empty() {
+                    let var = bif.ret[0].as_var().map(|v| v.name()).unwrap();
+                    builder.define_var(var, result);
+                    builder.set_var_type(var, Type::Term(TermType::Fun(None)));
+                }
                 Ok(())
             }
             (symbols::UnpackEnv, _) => {
@@ -1256,7 +1279,9 @@ impl<'m> LowerFunctionToSsa<'m> {
                     }
                 };
                 if !bif.ret.is_empty() {
-                    builder.define_var(bif.ret[0].as_var().map(|v| v.name()).unwrap(), exception);
+                    let var = bif.ret[0].as_var().map(|v| v.name()).unwrap();
+                    builder.define_var(var, exception);
+                    builder.set_value_type(exception, Type::Exception);
                 }
                 match self.fail_context() {
                     FailContext::Uncaught(_) => {
@@ -1656,7 +1681,11 @@ impl<'m> LowerFunctionToSsa<'m> {
                     let spec = seg.spec;
                     let value = self.ssa_value(builder, *seg.value)?;
                     let size = match seg.size {
-                        None => None,
+                        None
+                        | Some(box KExpr::Literal(Literal {
+                            value: Lit::Atom(symbols::All),
+                            ..
+                        })) => None,
                         Some(box expr) => Some(self.ssa_value(builder, expr)?),
                     };
                     let inst = builder.ins().bs_push(spec, bin, value, size, span);
@@ -1762,31 +1791,6 @@ impl<'m> LowerFunctionToSsa<'m> {
             Some(catch) => FailContext::Catch(catch),
         }
     }
-
-    fn show_warning(&mut self, message: &str, labels: &[(SourceSpan, &str)]) {
-        if labels.is_empty() {
-            self.reporter
-                .diagnostic(Diagnostic::warning().with_message(message));
-        } else {
-            let labels = labels
-                .iter()
-                .copied()
-                .enumerate()
-                .map(|(i, (span, message))| {
-                    if i > 0 {
-                        Label::secondary(span.source_id(), span).with_message(message)
-                    } else {
-                        Label::primary(span.source_id(), span).with_message(message)
-                    }
-                })
-                .collect();
-            self.reporter.diagnostic(
-                Diagnostic::error()
-                    .with_message(message)
-                    .with_labels(labels),
-            );
-        }
-    }
 }
 
 // Select
@@ -1871,10 +1875,22 @@ impl<'m> LowerFunctionToSsa<'m> {
                 builder.define_var(extracted, extracted_value);
                 self.lower_match(builder, fail, *clause.body)
             }
-            KExpr::BinaryInt(k::BinarySegment { .. }) => {
-                //self.select_extract_int(builder, span, src, spec, size, value, fail)?;
-                //self.lower_match(builder, span, fail, *clause.body)
-                todo!()
+            KExpr::BinaryInt(k::BinarySegment {
+                next,
+                value:
+                    box KExpr::Literal(Literal {
+                        value: Lit::Integer(Integer::Small(value)),
+                        ..
+                    }),
+                size,
+                spec,
+                ..
+            }) => {
+                let next = next.as_var().map(|v| v.name()).unwrap();
+                let next_value =
+                    self.select_extract_int(builder, span, src, spec, size, value, fail)?;
+                builder.define_var(next, next_value);
+                self.lower_match(builder, fail, *clause.body)
             }
             _ => unreachable!(),
         }
@@ -1900,6 +1916,28 @@ impl<'m> LowerFunctionToSsa<'m> {
         };
         builder.ins().br_if(is_err, fail, &[], span);
         Ok((extracted, next))
+    }
+
+    fn select_extract_int<'a>(
+        &mut self,
+        builder: &'a mut IrBuilder,
+        span: SourceSpan,
+        src: Value,
+        spec: BinaryEntrySpecifier,
+        size: Option<Box<KExpr>>,
+        value: i64,
+        fail: Block,
+    ) -> anyhow::Result<Value> {
+        let Some(size) = size.map(|box sz| self.ssa_value(builder, sz).unwrap()) else { panic!("expected size"); };
+        let inst = builder
+            .ins()
+            .bs_match_skip(spec, src, size, Immediate::I64(value), span);
+        let (is_err, next) = {
+            let results = builder.inst_results(inst);
+            (results[0], results[1])
+        };
+        builder.ins().br_if(is_err, fail, &[], span);
+        Ok(next)
     }
 
     fn select_binary_end<'a>(

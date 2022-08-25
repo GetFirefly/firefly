@@ -9,7 +9,7 @@ use liblumen_alloc::fragment::HeapFragment;
 use liblumen_system::cell::ThreadLocalCell;
 
 use crate::function::ModuleFunctionArity;
-use crate::term::{Cons, Term};
+use crate::term::{Cons, OpaqueTerm, Term};
 
 use super::{Frame, Symbolication, TraceFrame};
 
@@ -47,6 +47,13 @@ impl Trace {
         // Capture the raw metadata for each frame in the trace
         let mut depth = 0;
         backtrace::trace(|frame| {
+            // The first two frames will always be for backtrace::trace, and Trace::capture,
+            // so drop those straight away and do not count them towards our max
+            if depth < 2 {
+                depth += 1;
+                return true;
+            }
+
             // Look up the symbol in our stack map, if we have an
             // entry, then this frame is an Erlang frame, so push
             // it on the trace
@@ -54,11 +61,12 @@ impl Trace {
             // All other frames can be ignored for now
             //let symbol_address = frame.symbol_address();
             //if stackmap.find_function(symbol_address).is_some() {
+
             depth += 1;
             trace.push_frame(Box::new(frame.clone()));
             //}
 
-            depth < Self::MAX_FRAMES
+            depth < (Self::MAX_FRAMES + 2)
         });
 
         trace_arc
@@ -103,7 +111,7 @@ impl Trace {
     /// add a frame to the trace for calls which we know will fail (e.g. apply/3 with
     /// a function that doesn't exist). This still feels like a gross hack though.
     #[inline]
-    pub fn set_top_frame(&self, mfa: &ModuleFunctionArity, arguments: &[Term]) {
+    pub fn set_top_frame(&self, mfa: &ModuleFunctionArity, arguments: &[OpaqueTerm]) {
         assert!(self.top.is_none(), "top of trace was already set");
 
         // Get heap to allocate the frame on
@@ -244,7 +252,7 @@ impl Trace {
     /// such as for `top`.
     fn get_or_create_fragment(
         &self,
-        extra: Option<&[Term]>,
+        extra: Option<&[OpaqueTerm]>,
     ) -> Result<Option<NonNull<HeapFragment>>, AllocError> {
         if let Some(fragment) = self.fragment.as_ref() {
             Ok(Some(fragment.clone()))
@@ -293,7 +301,8 @@ impl Trace {
         // Add all of the "real" stack frames
         for frame in &self.frames[..] {
             if let Some(symbol) = frame.symbolicate() {
-                if let Some(mfa) = symbol.mfa.as_ref() {
+                // This implicitly ignores native frames, as symbol.mfa() returns None for those
+                if let Some(ref mfa) = symbol.mfa() {
                     let erlang_frame = super::symbolication::format_mfa(
                         mfa,
                         None,

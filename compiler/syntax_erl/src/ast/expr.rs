@@ -641,9 +641,8 @@ impl Into<syntax_base::Literal> for Literal {
                 id.as_str()
                     .get()
                     .chars()
-                    .rev()
                     .map(|c| syntax_base::Literal::integer(span, c as i64))
-                    .rfold(syntax_base::Literal::nil(span), |c, tl| {
+                    .rfold(syntax_base::Literal::nil(span), |tl, c| {
                         syntax_base::Literal::cons(span, c, tl)
                     })
             }

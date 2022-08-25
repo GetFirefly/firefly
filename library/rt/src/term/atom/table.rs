@@ -136,7 +136,7 @@ impl Default for AtomTable {
 impl fmt::Debug for AtomTable {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         for (_name, data) in self.ids.iter() {
-            let atom = Atom(*data);
+            let atom = Atom(data.as_ptr() as *const AtomData);
             writeln!(f, "atom(value = {}, ptr = {:p})", &atom, data)?;
         }
         Ok(())

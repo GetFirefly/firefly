@@ -17,7 +17,7 @@ impl Node {
     pub fn new(id: usize, name: Atom, creation: u32) -> Self {
         Self {
             id,
-            name: AtomicPtr::new(name.as_ptr() as *mut AtomData),
+            name: AtomicPtr::new(unsafe { name.as_ptr() as *mut AtomData }),
             creation,
         }
     }

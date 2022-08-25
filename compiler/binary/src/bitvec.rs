@@ -23,11 +23,22 @@ use super::*;
 /// let mut w = BitVec::new();
 /// write!(&mut w, "Hello, {}!", name)?;
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct BitVec<A: Allocator = Global> {
     data: Vec<u8, A>,
     pos: usize,
     bit_offset: u8,
+}
+impl<A: Allocator> fmt::Debug for BitVec<A> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("BitVec")
+            .field("data", &self.data.as_slice())
+            .field("capacity", &self.data.capacity())
+            .field("len", &self.data.len())
+            .field("pos", &self.pos)
+            .field("bit_offset", &self.bit_offset)
+            .finish()
+    }
 }
 impl BitVec {
     /// Create a new, empty BitVec
@@ -199,11 +210,16 @@ impl<A: Allocator> BitVec<A> {
     ) where
         N: ToEndianBytes<S>,
     {
-        match endianness {
-            Endianness::Native => self.push_bits(&n.to_ne_bytes(), bitsize),
-            Endianness::Big => self.push_bits(&n.to_be_bytes(), bitsize),
-            Endianness::Little => self.push_bits(&n.to_le_bytes(), bitsize),
-        }
+        assert!(bitsize <= S * 8);
+        let padding_bits = bitsize % 8;
+        let padding_bytes = S - ((bitsize / 8) + (padding_bits > 0) as usize);
+        let bytes = match endianness {
+            Endianness::Native => n.to_ne_bytes(),
+            Endianness::Big => n.to_be_bytes(),
+            Endianness::Little => n.to_le_bytes(),
+        };
+        let mut bytes = bytes.as_slice();
+        self.push_bits(bytes.take(padding_bytes..).unwrap(), bitsize)
     }
 
     /// Writes a big integer value to the buffer in the specified endianness.

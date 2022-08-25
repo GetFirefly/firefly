@@ -34,6 +34,13 @@
 #![feature(c_unwind)]
 #![feature(arbitrary_enum_discriminant)]
 #![cfg_attr(test, feature(test))]
+// Used for ErlangResult
+#![feature(try_trait_v2)]
+#![feature(try_trait_v2_residual)]
+#![feature(const_trait_impl)]
+#![feature(const_mut_refs)]
+// Testing
+#![feature(assert_matches)]
 
 extern crate alloc;
 #[cfg(feature = "std")]

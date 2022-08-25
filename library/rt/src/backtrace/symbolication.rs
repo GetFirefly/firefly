@@ -1,5 +1,5 @@
 use alloc::alloc::{AllocError, Layout};
-use alloc::string::String;
+use alloc::string::{String, ToString};
 use core::ptr;
 
 use liblumen_alloc::heap::Heap;
@@ -7,31 +7,85 @@ use liblumen_alloc::heap::Heap;
 use crate::function::ModuleFunctionArity;
 use crate::term::*;
 
+#[derive(Debug, Clone)]
+pub enum Symbol {
+    Erlang(ModuleFunctionArity),
+    Native(String),
+}
+impl From<ModuleFunctionArity> for Symbol {
+    fn from(mfa: ModuleFunctionArity) -> Self {
+        Self::Erlang(mfa)
+    }
+}
+impl From<&str> for Symbol {
+    fn from(sym: &str) -> Self {
+        match rustc_demangle::try_demangle(sym) {
+            Ok(demangled) => Self::Native(alloc::format!("{:#}", demangled)),
+            Err(_) => Self::Native(sym.to_string()),
+        }
+    }
+}
+impl Symbol {
+    pub fn module(&self) -> Option<Atom> {
+        match self {
+            Self::Erlang(mfa) => Some(mfa.module),
+            Self::Native(_) => None,
+        }
+    }
+
+    pub fn function(&self) -> Option<Atom> {
+        match self {
+            Self::Erlang(mfa) => Some(mfa.function),
+            Self::Native(_) => None,
+        }
+    }
+
+    pub fn arity(&self) -> Option<u8> {
+        match self {
+            Self::Erlang(mfa) => Some(mfa.arity),
+            Self::Native(_) => None,
+        }
+    }
+
+    pub fn mfa(&self) -> Option<ModuleFunctionArity> {
+        match self {
+            Self::Erlang(mfa) => Some(*mfa),
+            Self::Native(_) => None,
+        }
+    }
+}
+
 #[derive(Default, Debug, Clone)]
 pub struct Symbolication {
-    pub(super) mfa: Option<ModuleFunctionArity>,
+    pub(super) symbol: Option<Symbol>,
     pub(super) filename: Option<String>,
     pub(super) line: Option<u32>,
+    pub(super) column: Option<u32>,
 }
 impl Symbolication {
     #[inline]
     pub fn module(&self) -> Option<Atom> {
-        self.mfa.map(|mfa| mfa.module)
+        self.symbol.as_ref().and_then(|mfa| mfa.module())
     }
 
     #[inline]
     pub fn function(&self) -> Option<Atom> {
-        self.mfa.map(|mfa| mfa.function)
-    }
-
-    #[inline]
-    pub fn mfa(&self) -> Option<ModuleFunctionArity> {
-        self.mfa
+        self.symbol.as_ref().and_then(|mfa| mfa.function())
     }
 
     #[inline]
     pub fn arity(&self) -> Option<u8> {
-        self.mfa.map(|mfa| mfa.arity)
+        self.symbol.as_ref().and_then(|mfa| mfa.arity())
+    }
+
+    #[inline]
+    pub fn mfa(&self) -> Option<ModuleFunctionArity> {
+        self.symbol.as_ref().and_then(|mfa| mfa.mfa())
+    }
+
+    #[inline]
+    pub fn symbol(&self) -> Option<&Symbol> {
+        self.symbol.as_ref()
     }
 
     #[inline]
@@ -42,6 +96,11 @@ impl Symbolication {
     #[inline]
     pub fn line(&self) -> Option<u32> {
         self.line
+    }
+
+    #[inline]
+    pub fn column(&self) -> Option<u32> {
+        self.column
     }
 }
 impl TryFrom<Term> for Symbolication {
@@ -86,9 +145,10 @@ impl TryFrom<Term> for Symbolication {
         match tuple[3].into() {
             // No location metadata
             Term::Nil => Ok(Self {
-                mfa: Some(mfa),
+                symbol: Some(Symbol::Erlang(mfa)),
                 filename: None,
                 line: None,
+                column: None,
             }),
             Term::Cons(ptr) => {
                 let list = unsafe { ptr.as_ref() };
@@ -109,17 +169,19 @@ impl TryFrom<Term> for Symbolication {
                     None
                 };
                 Ok(Self {
-                    mfa: Some(mfa),
+                    symbol: Some(Symbol::Erlang(mfa)),
                     filename,
                     line,
+                    column: None,
                 })
             }
             // Technically a bug, but it is optional info, so we ignore it in the
             // interest of getting usable traces
             _ => Ok(Self {
-                mfa: Some(mfa),
+                symbol: Some(Symbol::Erlang(mfa)),
                 filename: None,
                 line: None,
+                column: None,
             }),
         }
     }
@@ -191,7 +253,10 @@ pub const MAX_FILENAME_LEN: usize = 120;
 /// running out of memory while constructing the trace for display and potentially
 /// losing the whole trace. Especially on 64-bit systems, the address space is relatively
 /// plentiful, so we're better off erring on the side of too much.
-pub fn calculate_fragment_layout(num_frames: usize, arguments: Option<&[Term]>) -> Option<Layout> {
+pub fn calculate_fragment_layout(
+    num_frames: usize,
+    arguments: Option<&[OpaqueTerm]>,
+) -> Option<Layout> {
     if num_frames == 0 {
         return None;
     }
@@ -201,8 +266,9 @@ pub fn calculate_fragment_layout(num_frames: usize, arguments: Option<&[Term]>) 
         Some(terms) if terms.is_empty() => Layout::new::<OpaqueTerm>(),
         Some(terms) => {
             let base = Layout::array::<Cons>(terms.len()).unwrap();
-            terms.iter().fold(base, |layout, term| {
-                let (extended, _) = layout.extend(term.layout()).unwrap();
+            terms.iter().copied().fold(base, |layout, term| {
+                let decoded: Term = term.into();
+                let (extended, _) = layout.extend(decoded.layout()).unwrap();
                 extended.pad_to_align()
             })
         }
@@ -273,7 +339,7 @@ fn min_tuple_layout(capacity: usize) -> Layout {
 
 pub fn format_mfa<H>(
     mfa: &ModuleFunctionArity,
-    argv: Option<&[Term]>,
+    argv: Option<&[OpaqueTerm]>,
     filename: Option<&str>,
     line: Option<u32>,
     alloc: &H,
@@ -290,8 +356,8 @@ where
 
     let frame = if let Some(args) = argv {
         let mut builder = ListBuilder::new(alloc);
-        for arg in args.iter().rev().cloned() {
-            builder.push(arg)?;
+        for arg in args.iter().rev().copied() {
+            builder.push(arg.into())?;
         }
         let arglist: OpaqueTerm = builder.finish().unwrap().into();
         Tuple::from_slice(&[module, function, arglist, locs], alloc)?

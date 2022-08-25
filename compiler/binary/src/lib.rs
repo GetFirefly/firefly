@@ -10,6 +10,7 @@
 #![feature(arbitrary_enum_discriminant)]
 #![feature(min_specialization)]
 #![feature(extend_one)]
+#![feature(can_vector)]
 
 extern crate alloc;
 #[cfg(any(test, feature = "std"))]

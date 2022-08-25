@@ -33,7 +33,13 @@ pub struct Closure {
 impl fmt::Debug for Closure {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self)
+        f.debug_struct("Closure")
+            .field("module", &self.module)
+            .field("function", &self.name)
+            .field("arity", &self.arity)
+            .field("fun", &self.fun)
+            .field("env", &&self.env)
+            .finish()
     }
 }
 impl fmt::Display for Closure {
@@ -93,6 +99,10 @@ impl Closure {
         &self.env
     }
 
+    pub fn callee(&self) -> *const () {
+        self.fun
+    }
+
     /// Copies the env from `other` into this closure's environment
     ///
     /// This function will panic if the env arities are different
@@ -146,11 +156,12 @@ seq!(A in 0..10 {
 
                 #[inline]
                 extern "rust-call" fn call_once(self, _args: Args~A) -> Self::Output {
-                    assert_eq!(self.arity, A, "mismatched arity");
                     if self.is_thin() {
+                        assert_eq!(self.arity, A, "mismatched arity");
                         let fun = unsafe { core::mem::transmute::<_, Fun~A>(self.fun) };
                         fun(#(_args.N,)*)
                     } else {
+                        assert_eq!(self.arity, A + 1, "mismatched arity");
                         let fun = unsafe { core::mem::transmute::<_, Closure~A>(self.fun) };
                         fun(self, #(_args.N,)*)
                     }
@@ -159,11 +170,12 @@ seq!(A in 0..10 {
             impl FnMut<Args~A> for &Closure {
                 #[inline]
                 extern "rust-call" fn call_mut(&mut self, _args: Args~A) -> Self::Output {
-                    assert_eq!(self.arity, A, "mismatched arity");
                     if self.is_thin() {
+                        assert_eq!(self.arity, A, "mismatched arity");
                         let fun = unsafe { core::mem::transmute::<_, Fun~A>(self.fun) };
                         fun(#(_args.N,)*)
                     } else {
+                        assert_eq!(self.arity, A + 1, "mismatched arity");
                         let fun = unsafe { core::mem::transmute::<_, Closure~A>(self.fun) };
                         fun(self, #(_args.N,)*)
                     }
@@ -172,11 +184,12 @@ seq!(A in 0..10 {
             impl Fn<Args~A> for &Closure {
                 #[inline]
                 extern "rust-call" fn call(&self, _args: Args~A) -> Self::Output {
-                    assert_eq!(self.arity, A, "mismatched arity");
                     if self.is_thin() {
+                        assert_eq!(self.arity, A, "mismatched arity");
                         let fun = unsafe { core::mem::transmute::<_, Fun~A>(self.fun) };
                         fun(#(_args.N,)*)
                     } else {
+                        assert_eq!(self.arity, A + 1, "mismatched arity");
                         let fun = unsafe { core::mem::transmute::<_, Closure~A>(self.fun) };
                         fun(self, #(_args.N,)*)
                     }

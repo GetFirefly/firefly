@@ -4,6 +4,7 @@
 !/.vscode/launch.json
 /.vscode/*
 _build
+bin/firefly-make
 
 *.beam
 .#*

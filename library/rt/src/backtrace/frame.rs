@@ -1,7 +1,17 @@
 use alloc::boxed::Box;
 use core::cell::UnsafeCell;
 
-use super::Symbolication;
+use lazy_static::lazy_static;
+
+use crate::function::ModuleFunctionArity;
+
+use super::{Symbol, Symbolication};
+
+#[cfg(feature = "std")]
+lazy_static! {
+    /// The symbol table used by the runtime system
+    static ref CWD: Option<std::path::PathBuf> = std::env::current_dir().ok();
+}
 
 /// This trait allows us to abstract over the concrete implementation
 /// of stack frames, which in the general case, requires libstd, which
@@ -18,19 +28,33 @@ impl Frame for backtrace::Frame {
     fn resolve(&self) -> Option<Symbolication> {
         let mut result = None;
 
-        backtrace::resolve_frame(self, |symbol| {
-            let name = symbol.name();
-            let mfa = if let Some(name) = name.and_then(|n| n.as_str()) {
-                name.parse().ok()
+        let current_dir = CWD.as_deref();
+
+        backtrace::resolve_frame(self, |resolved_symbol| {
+            let name = resolved_symbol.name();
+            let symbol = if let Some(name) = name.and_then(|n| n.as_str()) {
+                let mfa: Option<ModuleFunctionArity> = name.parse().ok();
+                match mfa {
+                    Some(mfa) => Some(Symbol::Erlang(mfa)),
+                    None => Some(name.into()),
+                }
             } else {
                 None
             };
-            let filename = symbol.filename().map(|p| p.to_string_lossy().into_owned());
-            let line = symbol.lineno();
+            let filename = resolved_symbol.filename().map(|p| match current_dir {
+                None => p.to_string_lossy().into_owned(),
+                Some(cwd) => match p.strip_prefix(cwd) {
+                    Ok(stripped) => stripped.to_string_lossy().into_owned(),
+                    Err(_) => p.to_string_lossy().into_owned(),
+                },
+            });
+            let line = resolved_symbol.lineno();
+            let column = resolved_symbol.colno();
             result = Some(Symbolication {
-                mfa,
+                symbol,
                 filename,
                 line,
+                column,
             });
         });
 

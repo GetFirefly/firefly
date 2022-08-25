@@ -1,7 +1,6 @@
 use std::ops::Deref;
 
 use liblumen_rt::backtrace::Trace;
-use liblumen_rt::error::ErlangException;
 use liblumen_rt::function::ErlangResult;
 use liblumen_rt::term::*;
 
@@ -14,7 +13,7 @@ use super::badarg;
 pub extern "C-unwind" fn reverse(list: OpaqueTerm, tail: OpaqueTerm) -> ErlangResult {
     // If we get a non-empty list, we can return the tail directly
     if list.is_nil() {
-        return Ok(tail);
+        return ErlangResult::Ok(tail);
     }
 
     match list.into() {
@@ -46,9 +45,9 @@ pub extern "C-unwind" fn reverse(list: OpaqueTerm, tail: OpaqueTerm) -> ErlangRe
                     }
                 }
                 // We know we have at least one cell because the list in this branch is nonempty
-                Ok(current.unwrap())
+                ErlangResult::Ok(current.unwrap())
             })
         }
-        other => badarg(Trace::capture()),
+        _other => badarg(Trace::capture()),
     }
 }

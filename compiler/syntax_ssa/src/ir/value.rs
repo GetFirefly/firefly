@@ -32,6 +32,19 @@ impl ValueData {
             Self::Inst { ty, .. } | Self::Param { ty, .. } => ty.clone(),
         }
     }
+
+    pub fn set_type(&mut self, ty: Type) {
+        match self {
+            Self::Inst {
+                ty: ref mut prev_ty,
+                ..
+            } => *prev_ty = ty,
+            Self::Param {
+                ty: ref mut prev_ty,
+                ..
+            } => *prev_ty = ty,
+        }
+    }
 }
 
 pub struct Values<'a> {

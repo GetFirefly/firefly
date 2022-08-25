@@ -1,5 +1,6 @@
 use alloc::alloc::{AllocError, Allocator};
 use core::any::TypeId;
+use core::fmt;
 use core::ptr::NonNull;
 use core::slice;
 
@@ -44,6 +45,19 @@ impl MatchResult {
         Self::Err {
             none: OpaqueTerm::NONE,
             context,
+        }
+    }
+}
+impl fmt::Debug for MatchResult {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::Ok { extracted, .. } => {
+                let t: Term = (*extracted).into();
+                write!(f, "Ok({:?})", &t)
+            }
+            Self::Err { .. } => {
+                write!(f, "Err")
+            }
         }
     }
 }

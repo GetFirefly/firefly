@@ -337,6 +337,7 @@ impl<'m> ModuleBuilder<'m> {
             InstData::SetElementImm(op) => self.build_setelement_imm(dfg, inst, inst_span, op),
             InstData::BitsPush(op) => self.build_bits_push(dfg, inst, inst_span, op),
             InstData::BitsMatch(op) => self.build_bits_match(dfg, inst, inst_span, op),
+            InstData::BitsMatchSkip(op) => self.build_bits_match_skip(dfg, inst, inst_span, op),
         }
     }
 
@@ -1491,6 +1492,31 @@ impl<'m> ModuleBuilder<'m> {
         Ok(())
     }
 
+    fn build_bits_match_skip(
+        &mut self,
+        dfg: &DataFlowGraph,
+        inst: Inst,
+        span: SourceSpan,
+        op: &BitsMatchSkip,
+    ) -> anyhow::Result<()> {
+        let loc = self.location_from_span(span);
+        let args = dfg.inst_args(inst);
+        let spec = op.spec;
+        let src = self.values[&args[0]];
+        let size = self.values[&args[1]];
+        let value = self.immediate_to_constant(loc, op.value);
+
+        let builder = CirBuilder::new(&self.builder);
+        let mlir_op = builder.build_bs_match_skip(loc, src, spec, size, value);
+
+        let results = dfg.inst_results(inst);
+        assert_eq!(results.len(), mlir_op.num_results());
+        for (value, op_result) in results.iter().copied().zip(mlir_op.results()) {
+            self.values.insert(value, op_result.base());
+        }
+        Ok(())
+    }
+
     fn build_bits_push(
         &mut self,
         dfg: &DataFlowGraph,
@@ -1625,7 +1651,8 @@ fn translate_term_ir_type<'a, B: OpBuilder>(
         TermType::Nil => builder.get_cir_nil_type().base(),
         TermType::Cons => builder.get_cir_box_type(builder.get_cir_cons_type()).base(),
         TermType::List(_) | TermType::MaybeImproperList => {
-            builder.get_cir_box_type(builder.get_cir_cons_type()).base()
+            // Since lists can be either nil or a boxed cons cell, we use the generic term type
+            builder.get_cir_term_type().base()
         }
         TermType::Tuple(None) => builder.get_cir_box_type(builder.get_tuple_type(&[])).base(),
         TermType::Tuple(Some(ref elems)) => {

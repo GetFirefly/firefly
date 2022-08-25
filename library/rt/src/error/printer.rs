@@ -2,6 +2,7 @@ use std::io::{self, Write};
 
 use termcolor::{BufferWriter, Color, ColorChoice, ColorSpec, WriteColor};
 
+use crate::backtrace::Symbol;
 use crate::error::ErlangException;
 use crate::process::Process;
 use crate::term::*;
@@ -13,7 +14,7 @@ pub fn print(process: &Process, exception: &ErlangException) -> io::Result<()> {
     let mut bold = ColorSpec::new();
     bold.set_bold(true);
     let mut underlined = ColorSpec::new();
-    underlined.set_underline(true);
+    underlined.set_dimmed(true);
 
     let mut yellow = ColorSpec::new();
     yellow.set_fg(Some(Color::Yellow));
@@ -26,11 +27,11 @@ pub fn print(process: &Process, exception: &ErlangException) -> io::Result<()> {
     let trace = exception.trace();
 
     for symbol in trace.iter_symbols().rev() {
-        let mfa = symbol.mfa();
-        if mfa.is_none() {
-            continue;
-        }
-        let mfa = mfa.unwrap();
+        let mfa = match symbol.symbol() {
+            Some(Symbol::Erlang(mfa)) => alloc::format!("{}", mfa),
+            Some(Symbol::Native(name)) => name.clone(),
+            None => continue,
+        };
         let filename = symbol.filename();
 
         writer.reset()?;
@@ -45,6 +46,11 @@ pub fn print(process: &Process, exception: &ErlangException) -> io::Result<()> {
                     write!(writer, ":")?;
                     writer.set_color(&yellow)?;
                     write!(writer, "{}", line)?;
+                }
+                if let Some(col) = symbol.column() {
+                    write!(writer, ":")?;
+                    writer.set_color(&yellow)?;
+                    write!(writer, "{}", col)?;
                 }
             }
             None => {

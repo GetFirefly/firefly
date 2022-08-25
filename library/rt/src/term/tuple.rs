@@ -1,5 +1,4 @@
 use alloc::alloc::{AllocError, Allocator, Layout};
-use alloc::format;
 use core::any::TypeId;
 use core::convert::AsRef;
 use core::fmt::{self, Debug};
@@ -28,8 +27,13 @@ impl Tuple {
             .extend(Layout::array::<OpaqueTerm>(capacity).unwrap())
             .unwrap();
         let ptr: *mut u8 = alloc.allocate(layout)?.cast().as_ptr();
-        let ptr = unsafe { ptr::from_raw_parts_mut(ptr.add(value_offset).cast(), capacity) };
-        Ok(unsafe { NonNull::new_unchecked(ptr) })
+        unsafe {
+            // Write the pointer metadata
+            ptr::write(ptr as *mut usize, capacity);
+            // Cast the pointer to a fat NonNull
+            let ptr = ptr::from_raw_parts_mut(ptr.add(value_offset).cast(), capacity);
+            Ok(NonNull::new_unchecked(ptr))
+        }
     }
 
     /// Creates a new tuple in the given allocator, from a slice of elements.

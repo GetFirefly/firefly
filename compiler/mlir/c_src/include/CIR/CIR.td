@@ -1012,6 +1012,23 @@ def CIR_BinaryMatchOp : CIR_Op<"bs.match", [MemoryEffects<[MemRead, MemWrite]>]>
   }];
 }
 
+def CIR_BinaryMatchSkipOp : CIR_Op<"bs.match.skip", [MemoryEffects<[MemRead, MemWrite]>]> {
+  let summary = "Matches a value from the given match context, but skips extraction";
+  let description = [{
+    This operation largely mirrors `bs.match`, but instead of extracting a term, it simply
+    advances the position of the match context if the match was successful. this is an optimization
+    for binary matches which do not use the extracted term and so enables us to avoid unused allocations.
+
+    The first argument must be a match context value, the size argument is required, unlike `bs.match`.
+  }];
+
+  let arguments = (ins PtrOf<CIR_MatchContextType>:$matchContext, BinarySpecAttr:$spec, CIR_AnyTerm:$size, I64:$value);
+  let results = (outs I1:$is_err, PtrOf<CIR_MatchContextType>:$updatedMatchContext);
+  let assemblyFormat = [{
+    $value `with` $spec `in` $matchContext `sized` $size `:` type($size) attr-dict
+  }];
+}
+
 def CIR_BinaryTestTailOp : CIR_Op<"bs.test.tail", [MemoryEffects<[MemRead, MemWrite]>]> {
   let summary = "Tests that the tail of a binary match context is of the expected size";
   let description = [{
@@ -1021,7 +1038,7 @@ def CIR_BinaryTestTailOp : CIR_Op<"bs.test.tail", [MemoryEffects<[MemRead, MemWr
   }];
 
   let arguments = (ins PtrOf<CIR_MatchContextType>:$matchContext, IndexAttr:$size);
-  let results = (outs I1:$result);
+  let results = (outs I1:$is_err);
   let assemblyFormat = [{
     $matchContext `,` $size attr-dict
   }];

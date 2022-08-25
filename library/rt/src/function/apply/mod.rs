@@ -35,9 +35,9 @@ lazy_static! {
 /// or if the given symbol doesn't exist.
 ///
 /// This function will panic if the symbol table has not been initialized.
-pub unsafe fn apply(symbol: &ModuleFunctionArity, args: &[OpaqueTerm]) -> Result<ErlangResult, ()> {
+pub fn apply(symbol: &ModuleFunctionArity, args: &[OpaqueTerm]) -> Result<ErlangResult, ()> {
     if let Some(f) = find_symbol(symbol) {
-        Ok(dynamic::apply(f, args.as_ptr(), args.len()))
+        Ok(unsafe { dynamic::apply(f, args.as_ptr(), args.len()) })
     } else {
         Err(())
     }

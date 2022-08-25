@@ -1,7 +1,7 @@
 use std::fmt;
 use std::io::{self, Write};
 
-use super::{Block, DataFlowGraph, Function, Inst, Value};
+use super::{Block, DataFlowGraph, Function, Immediate, Inst, Value};
 
 pub fn write_function(w: &mut dyn Write, func: &Function) -> io::Result<()> {
     let is_public = func.signature.visibility.is_public();
@@ -231,6 +231,42 @@ fn write_operands(w: &mut dyn Write, dfg: &DataFlowGraph, inst: Inst) -> io::Res
                 }
             }
         }
+        InstData::BitsMatchSkip(BitsMatchSkip {
+            spec, args, value, ..
+        }) => {
+            let values = DisplayValuesWithImmediate(args.as_slice(pool), *value);
+            match spec {
+                BinaryEntrySpecifier::Integer {
+                    endianness, signed, ..
+                } => {
+                    if *signed {
+                        write!(w, ".sint.{} {}", endianness, values)
+                    } else {
+                        write!(w, ".uint.{} {}", endianness, values)
+                    }
+                }
+                BinaryEntrySpecifier::Float {
+                    endianness, unit, ..
+                } => {
+                    write!(w, ".float.{}({}) {}", endianness, unit, values)
+                }
+                BinaryEntrySpecifier::Binary { unit: 8, .. } => {
+                    write!(w, ".bytes {}", values)
+                }
+                BinaryEntrySpecifier::Binary { unit, .. } => {
+                    write!(w, ".bits({}) {}", unit, values)
+                }
+                BinaryEntrySpecifier::Utf8 => {
+                    write!(w, ".utf8 {}", values)
+                }
+                BinaryEntrySpecifier::Utf16 { endianness, .. } => {
+                    write!(w, ".utf16.{} {}", endianness, values)
+                }
+                BinaryEntrySpecifier::Utf32 { endianness, .. } => {
+                    write!(w, ".utf32.{} {}", endianness, values)
+                }
+            }
+        }
         InstData::BitsPush(BitsPush { spec, args, .. }) => {
             let values = DisplayValues(args.as_slice(pool));
             match spec {
@@ -297,5 +333,23 @@ impl<'a> fmt::Display for DisplayValues<'a> {
             }
         }
         Ok(())
+    }
+}
+
+struct DisplayValuesWithImmediate<'a>(&'a [Value], Immediate);
+impl<'a> fmt::Display for DisplayValuesWithImmediate<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        for (i, val) in self.0.iter().enumerate() {
+            if i == 0 {
+                write!(f, "{}", val)?;
+            } else {
+                write!(f, ", {}", val)?;
+            }
+        }
+        if self.0.is_empty() {
+            write!(f, "{}", &self.1)
+        } else {
+            write!(f, ", {}", &self.1)
+        }
     }
 }

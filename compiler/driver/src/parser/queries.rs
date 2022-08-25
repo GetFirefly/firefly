@@ -4,7 +4,7 @@ use std::thread::ThreadId;
 
 use log::debug;
 
-use liblumen_diagnostics::Reporter;
+use liblumen_diagnostics::{Reporter, ToDiagnostic};
 use liblumen_llvm as llvm;
 use liblumen_mlir as mlir;
 use liblumen_session::{Input, InputType};
@@ -28,7 +28,10 @@ macro_rules! unwrap_or_bail {
 
     ($db:ident, $reporter:expr, $codemap:expr, $e:expr) => {
         match $e {
-            Ok(result) => result,
+            Ok(result) => {
+                $reporter.print($codemap);
+                result
+            }
             Err(ref e) => {
                 $reporter.print($codemap);
                 bail!($db, "{}", e);
@@ -208,11 +211,18 @@ where
         ty => bail!(db, "invalid input type: {}", ty),
     };
 
-    let module = unwrap_or_bail!(db, reporter, &codemap, result);
-
-    db.maybe_emit_file_with_opts(&options, input, &module)?;
-
-    Ok(module)
+    match result {
+        Ok(module) => {
+            reporter.print(&codemap);
+            db.maybe_emit_file_with_opts(&options, input, &module)?;
+            Ok(module)
+        }
+        Err(e) => {
+            reporter.diagnostic(e.to_diagnostic());
+            reporter.print(&codemap);
+            bail!(db, "parsing failed, see diagnostics for details");
+        }
+    }
 }
 
 pub(crate) fn input_core<P>(

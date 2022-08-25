@@ -6,7 +6,7 @@ use super::BigInteger;
 
 #[derive(Copy, Clone, PartialEq, PartialOrd)]
 #[repr(transparent)]
-pub struct Float(f64);
+pub struct Float(pub f64);
 impl Float {
     const I64_UPPER_BOUNDARY: f64 = (1i64 << f64::MANTISSA_DIGITS) as f64;
     const I64_LOWER_BOUNDARY: f64 = (-1i64 << f64::MANTISSA_DIGITS) as f64;

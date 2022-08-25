@@ -51,12 +51,55 @@ template <> struct FieldParser<AtomRef> {
 /// BigIntRef
 //===----------------------------------------------------------------------===//
 
+/*
+struct BigIntAttrStorage : public ::mlir::AttributeStorage {
+  using KeyTy = std::tuple<::mlir::Type, Sign, ArrayRef<char>>;
+
+  BigIntAttrStorage(Type type, BigIntRef value)
+      : ::mlir::AttributeStorage(
+            CIRBoxType::get(CIRBigIntType::get(type.getContext()))),
+        sign(value.sign), data(value.digits, value.len) {}
+
+  BigIntAttrStorage(Type type, Sign sign, ArrayRef<char> data)
+      : ::mlir::AttributeStorage(
+            CIRBoxType::get(CIRBigIntType::get(type.getContext()))),
+        sign(sign), data(data) {}
+
+  bool operator==(const KeyTy &k) const {
+    return getType() == std::get<0>(k) && sign == std::get<1>(k) &&
+           data == std::get<2>(k);
+  }
+
+  static ::llvm::hash_code hashKey(const KeyTy &k) {
+    return ::llvm::hash_combine(
+        std::get<0>(k), ::llvm::hash_combine(std::get<1>(k), std::get<2>(k)));
+  }
+
+  static BigIntAttrStorage *
+  construct(::mlir::AttributeStorageAllocator &allocator, const KeyTy &k) {
+    auto type = std::get<0>(k);
+    auto sign = std::get<1>(k);
+
+    ArrayRef<char> copy, data = std::get<2>(k);
+    if (!data.empty()) {
+      char *rawData = reinterpret_cast<char *>(
+          allocator.allocate(data.size(), alignof(uint64_t)));
+      std::memcpy(rawData, data.data(), data.size());
+      copy = ArrayRef<char>(rawData, data.size());
+    }
+
+    return new (allocator.allocate<BigIntAttrStorage>())
+        BigIntAttrStorage(type, sign, copy);
+  }
+
+  Sign sign;
+  ArrayRef<char> data;
+};
+*/
 llvm::StringRef BigIntRef::data() const { return {digits, len}; }
 
 llvm::hash_code mlir::cir::hash_value(const BigIntRef &bigint) {
-  auto data = bigint.data();
-  return llvm::hash_combine((unsigned)bigint.sign,
-                            llvm::hash_combine_range(data.begin(), data.end()));
+  return llvm::hash_combine((unsigned)bigint.sign, bigint.data());
 }
 
 template <> struct FieldParser<BigIntRef> {

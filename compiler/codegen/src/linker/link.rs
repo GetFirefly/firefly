@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Output, Stdio};
 use std::str;
 
-use anyhow::*;
+use anyhow::{anyhow, Context};
 use log::info;
 use tempfile::Builder as TempFileBuilder;
 use thiserror::private::PathAsDisplay;

@@ -43,12 +43,17 @@ const uint64_t NANBOX_CANONICAL_NAN = NANBOX_NEG_INFINITY >> 1;
 const uint64_t NANBOX_INTEGER_MASK = ~NANBOX_NEG_INFINITY;
 const uint64_t NANBOX_INTEGER_NEG = NANBOX_NEG_INFINITY | NANBOX_SIGNAL_BIT;
 const uint64_t NANBOX_TAG_MASK = 0xFull;
-const uint64_t NANBOX_PTR_MASK = ~(NANBOX_NEG_INFINITY | NANBOX_TAG_MASK);
+const uint64_t NANBOX_PTR_MASK =
+    ~(NANBOX_SIGN_BIT | NANBOX_CANONICAL_NAN | NANBOX_TAG_MASK);
 // const uint64_t NANBOX_MANTISSA_MASK = !(NANBOX_CANONICAL_NAN |
 // NANBOX_SIGN_BIT);
 const uint64_t NANBOX_LITERAL_TAG = 0x1ull;
 const uint64_t CONS_TAG = 0x4ull;
 const uint64_t CONS_LITERAL_TAG = CONS_TAG | NANBOX_LITERAL_TAG;
+const uint64_t IS_CONS = NANBOX_INFINITY | CONS_TAG;
+const uint64_t IS_CONS_LITERAL = NANBOX_INFINITY | CONS_LITERAL_TAG;
+const uint64_t TAG_MASK =
+    NANBOX_CANONICAL_NAN | NANBOX_SIGN_BIT | NANBOX_TAG_MASK;
 
 namespace TermKind {
 enum Kind {
@@ -301,9 +306,12 @@ public:
     return gcBoxTy;
   }
 
-  // This function returns the equivalent representation of Rust's `Result<T,
-  // *mut ErlangException>`, where T is pointer-sized. This is used as the
-  // general return type of runtime functions that are fallible.
+  // This function represnts `liblumen_rt::function::ErlangResult`, which is
+  // used as the general return type of runtime functions that are fallible.
+  //
+  // NOTE: It is essential to understand the ABI implications of the types you
+  // build with this; as the mechanism by which values of the resulting type get
+  // passed/returned from functions changes.
   Type getResultType(Type okTy) {
     MLIRContext *context = &getContext();
     auto isizeTy = getIsizeType();
@@ -475,8 +483,11 @@ public:
       return convertType(calleeTy);
 
     auto closurePtrTy = LLVM::LLVMPointerType::get(getClosureType());
+    auto lastIdx = calleeTy.getNumInputs();
+    if (lastIdx > 0)
+      lastIdx--;
     return convertType(
-        calleeTy.getWithArgsAndResults({0}, {closurePtrTy}, {}, {}));
+        calleeTy.getWithArgsAndResults({lastIdx}, {closurePtrTy}, {}, {}));
   }
 
   // This function lowers a tuple type to its LLVM equivalent
@@ -960,24 +971,7 @@ protected:
     auto termTy = getTermType();
     Value valueAsInt = builder.create<LLVM::PtrToIntOp>(loc, termTy, value);
     Value tag =
-        createTermConstant(builder, loc, NANBOX_CANONICAL_NAN | (uint64_t)0x01);
-    return builder.create<LLVM::OrOp>(loc, valueAsInt, tag);
-  }
-
-  // This function encodes a pointer to an Erlang term as an opaque term value.
-  //
-  // The caller must guarantee the following:
-  //
-  // * The given value is a valid pointer to a term header.
-  // * The pointee term is located on the process heap. It is not safe to store
-  // boxed terms on the stack currently.
-  //
-  // NOTE: This function is not valid for cons cells, use encodeListPtr for
-  // that.
-  Value encodePtr(OpBuilder &builder, Location loc, Value value) const {
-    auto termTy = getTermType();
-    Value valueAsInt = builder.create<LLVM::PtrToIntOp>(loc, termTy, value);
-    Value tag = createTermConstant(builder, loc, NANBOX_CANONICAL_NAN);
+        createTermConstant(builder, loc, NANBOX_INFINITY | (uint64_t)0x01);
     return builder.create<LLVM::OrOp>(loc, valueAsInt, tag);
   }
 
@@ -998,9 +992,19 @@ protected:
                       bool isLiteral = false) const {
     // TODO: Possibly use ptrmask intrinsic
     auto termTy = getTermType();
-    Value tag = createTermConstant(builder, loc,
-                                   NANBOX_CANONICAL_NAN |
-                                       (uint64_t)(isLiteral ? 0x05 : 0x04));
+    Value tag = createTermConstant(
+        builder, loc, NANBOX_INFINITY | (uint64_t)(isLiteral ? 0x05 : 0x04));
+    Value valueAsInt = builder.create<LLVM::PtrToIntOp>(loc, termTy, value);
+    return builder.create<LLVM::OrOp>(loc, valueAsInt, tag);
+  }
+
+  /// This function encodes a pointer as a GcBox<T>, which requires that it was
+  /// originally allocated via GcBox, and is non-null. It is up to the caller to
+  /// guarantee these properties
+  Value encodeGcBoxPtr(OpBuilder &builder, Location loc, Value value) const {
+    // TODO: Possibly use ptrmask intrinsic
+    auto termTy = getTermType();
+    Value tag = createTermConstant(builder, loc, NANBOX_INFINITY);
     Value valueAsInt = builder.create<LLVM::PtrToIntOp>(loc, termTy, value);
     return builder.create<LLVM::OrOp>(loc, valueAsInt, tag);
   }
@@ -1010,9 +1014,8 @@ protected:
                        bool isLiteral = false) const {
     // TODO: Possibly use ptrmask intrinsic
     auto termTy = getTermType();
-    Value tag = createTermConstant(builder, loc,
-                                   NANBOX_CANONICAL_NAN |
-                                       (uint64_t)(isLiteral ? 0x07 : 0x06));
+    Value tag = createTermConstant(
+        builder, loc, NANBOX_INFINITY | (uint64_t)(isLiteral ? 0x07 : 0x06));
     Value valueAsInt = builder.create<LLVM::PtrToIntOp>(loc, termTy, value);
     return builder.create<LLVM::OrOp>(loc, valueAsInt, tag);
   }
@@ -1062,13 +1065,13 @@ protected:
     return builder.create<LLVM::OrOp>(loc, raw, sign);
   }
 
-  // This function is the natural opposite of
-  // encodePtr/encodeListPtr/encodeLiteralPtr, i.e. it can decode a value
-  // encoded by encodePtr, as a pointer to a value of `pointee` type.
+  // This function is intended to be a general purpose pointer decoder
+  // for term values, i.e. it masks out the bits of an opaque term that
+  // are used solely for tagging in all pointer types currently supported
   //
   // The caller must guarantee the following:
   //
-  // * The given value is a box term
+  // * The given value is a boxed term, i.e. an encoded pointer
   // * The pointer produced by decoding the box is a valid pointer
   // * The pointee value can be dereferenced as a value of type `pointee`
   //
@@ -1076,7 +1079,7 @@ protected:
   // the value is literal or not must perform that check separately.
   Value decodePtr(OpBuilder &builder, Location loc, Type pointee,
                   Value box) const {
-    // TODO: Possibly use ptrmask intrinsic
+    // NOTE: Possibly use ptrmask intrinsic
     auto ptrTy = LLVM::LLVMPointerType::get(pointee);
     // Need to untag the pointer first
     auto mask = createTermConstant(builder, loc, NANBOX_PTR_MASK);
@@ -1091,12 +1094,7 @@ protected:
 
   Value decodeGcBoxPtr(OpBuilder &builder, Location loc, Type pointee,
                        Value box) const {
-    auto gcBoxTy = getGcBoxType(pointee);
-    auto gcBoxPtrTy = LLVM::LLVMPointerType::get(gcBoxTy);
-    auto mask = createTermConstant(builder, loc, NANBOX_PTR_MASK);
-    Value untagged = builder.create<LLVM::AndOp>(loc, box, mask);
-    Value ptr = builder.create<LLVM::IntToPtrOp>(loc, gcBoxPtrTy, untagged);
-    return ptr;
+    return decodePtr(builder, loc, pointee, box);
   }
 
   LLVM::LLVMFuncOp
@@ -1768,23 +1766,33 @@ struct IsListOpLowering : public ConvertCIROpToLLVMPattern<cir::IsListOp> {
                   ConversionPatternRewriter &rewriter) const override {
     auto loc = op.getLoc();
     auto i1Ty = getI1Type();
-    auto termTy = getTermType();
-    auto module = op->getParentOfType<ModuleOp>();
 
-    auto mask = createTermConstant(rewriter, loc, NANBOX_TAG_MASK);
-    Value untagged = rewriter.create<LLVM::AndOp>(loc, adaptor.value(), mask);
-    // Is the untagged value a boxed cons cell
-    Value consTag = createTermConstant(rewriter, loc, CONS_TAG);
+    auto input = adaptor.value();
+    //#[inline]
+    // pub fn is_list(self) -> bool {
+    //  const IS_CONS: u64 = INFINITY | CONS_TAG;
+    //  const IS_CONS_LITERAL: u64 = INFINITY | CONS_LITERAL_TAG;
+    //
+    //    match self.0 & (NAN | SIGN_BIT | TAG_MASK) {
+    //        IS_CONS | IS_CONS_LITERAL => true,
+    //        _ => self.0 == NIL,
+    //    }
+    //}
+
+    auto mask = createTermConstant(rewriter, loc, TAG_MASK);
+    Value masked = rewriter.create<LLVM::AndOp>(loc, input, mask);
+    // Is the masked value a boxed cons cell
+    Value consTag = createTermConstant(rewriter, loc, IS_CONS);
     Value isCons = rewriter.create<LLVM::ICmpOp>(loc, LLVM::ICmpPredicate::eq,
-                                                 untagged, consTag);
-    // Is the untagged value a literal cons cell
-    Value consLiteralTag = createTermConstant(rewriter, loc, CONS_LITERAL_TAG);
+                                                 masked, consTag);
+    // Is the masked value a literal cons cell
+    Value consLiteralTag = createTermConstant(rewriter, loc, IS_CONS_LITERAL);
     Value isConsLiteral = rewriter.create<LLVM::ICmpOp>(
-        loc, LLVM::ICmpPredicate::eq, untagged, consLiteralTag);
+        loc, LLVM::ICmpPredicate::eq, masked, consLiteralTag);
     // Is the untagged value nil
     Value nilValue = createTermConstant(rewriter, loc, NANBOX_INFINITY);
     Value isNil = rewriter.create<LLVM::ICmpOp>(loc, LLVM::ICmpPredicate::eq,
-                                                untagged, nilValue);
+                                                input, nilValue);
     Value isNonEmpty = rewriter.create<LLVM::OrOp>(loc, isCons, isConsLiteral);
     Value isList = rewriter.create<LLVM::OrOp>(loc, isNonEmpty, isNil);
 
@@ -1805,21 +1813,20 @@ struct IsNonEmptyListOpLowering
   matchAndRewrite(cir::IsNonEmptyListOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     auto loc = op.getLoc();
-    auto i1Ty = getI1Type();
 
-    auto mask = createTermConstant(rewriter, loc, NANBOX_TAG_MASK);
-    Value untagged = rewriter.create<LLVM::AndOp>(loc, adaptor.value(), mask);
-    // Is the untagged value a boxed cons cell
-    Value consTag = createTermConstant(rewriter, loc, CONS_TAG);
+    // Same as IsListOp, but without the check for nil
+    auto mask = createTermConstant(rewriter, loc, TAG_MASK);
+    Value masked = rewriter.create<LLVM::AndOp>(loc, adaptor.value(), mask);
+    // Is the tag value a boxed cons cell
+    Value consTag = createTermConstant(rewriter, loc, IS_CONS);
     Value isCons = rewriter.create<LLVM::ICmpOp>(loc, LLVM::ICmpPredicate::eq,
-                                                 untagged, consTag);
-    // Is the untagged value a literal cons cell
-    Value consLiteralTag = createTermConstant(rewriter, loc, CONS_LITERAL_TAG);
+                                                 masked, consTag);
+    // Is the tag value a literal cons cell
+    Value consLiteralTag = createTermConstant(rewriter, loc, IS_CONS_LITERAL);
     Value isConsLiteral = rewriter.create<LLVM::ICmpOp>(
-        loc, LLVM::ICmpPredicate::eq, untagged, consLiteralTag);
-    Value isNonEmpty = rewriter.create<LLVM::OrOp>(loc, isCons, isConsLiteral);
+        loc, LLVM::ICmpPredicate::eq, masked, consLiteralTag);
 
-    rewriter.replaceOpWithNewOp<LLVM::TruncOp>(op, i1Ty, isNonEmpty);
+    rewriter.replaceOpWithNewOp<LLVM::OrOp>(op, isCons, isConsLiteral);
     return success();
   }
 };
@@ -1969,9 +1976,9 @@ struct IsFloatOpLowering : public ConvertCIROpToLLVMPattern<cir::IsFloatOp> {
     auto loc = op.getLoc();
     auto value = adaptor.value();
 
-    // The value is a float if it is not NaN
-    Value mask = createIsizeConstant(rewriter, loc, NANBOX_NAN);
-    Value masked = rewriter.create<LLVM::AndOp>(loc, value, mask);
+    // The value is a float if its NaN bits (ignoring the quiet bit) are not set
+    Value nan = createIsizeConstant(rewriter, loc, NANBOX_NAN);
+    Value masked = rewriter.create<LLVM::AndOp>(loc, value, nan);
     rewriter.replaceOpWithNewOp<LLVM::ICmpOp>(op, LLVM::ICmpPredicate::ne,
                                               value, masked);
     return success();
@@ -2062,20 +2069,23 @@ struct IsAtomOpLowering : public ConvertCIROpToLLVMPattern<cir::IsAtomOp> {
     auto input = adaptor.value();
 
     // Extract the tag bits
-    Value tagMask = createTermConstant(rewriter, loc,
-                                       NANBOX_CANONICAL_NAN | NANBOX_TAG_MASK);
-    Value tag = rewriter.create<LLVM::AndOp>(loc, input, tagMask);
-    // The value is an atom, or the atom 'false' if it has the standard atom tag
+    Value tagMask = createTermConstant(rewriter, loc, TAG_MASK);
+    Value masked = rewriter.create<LLVM::AndOp>(loc, input, tagMask);
+    // The masked value must meet one of two criteria:
+    //
+    // 1. Have it's tag bits be equal to the 'false' value, which is the same as
+    // the atom tag scheme
+    // 2. Be equal to the 'true' value (NOTE: The entire thing, not just the tag
+    // bits, as 'true' overlaps with the tag scheme for Rc<T>)
+    //
     Value atomTag =
         createTermConstant(rewriter, loc, NANBOX_CANONICAL_NAN | 0x02);
     Value isAtom = rewriter.create<LLVM::ICmpOp>(loc, LLVM::ICmpPredicate::eq,
-                                                 tag, atomTag);
-    // The value is the atom 'true' if it has the standard atom tag + the
-    // literal tag bit set
-    Value constTrue =
+                                                 masked, atomTag);
+    Value trueTag =
         createTermConstant(rewriter, loc, NANBOX_CANONICAL_NAN | 0x03);
     Value isTrue = rewriter.create<LLVM::ICmpOp>(loc, LLVM::ICmpPredicate::eq,
-                                                 input, constTrue);
+                                                 input, trueTag);
     // Combine the two checks to give us our result
     rewriter.replaceOpWithNewOp<LLVM::OrOp>(op, isAtom, isTrue);
     return success();
@@ -2095,8 +2105,6 @@ struct IsBoolOpLowering : public ConvertCIROpToLLVMPattern<cir::IsBoolOp> {
     auto loc = op.getLoc();
     auto value = adaptor.value();
 
-    // The value is a bool if it is equal to either the 'true' or 'false'
-    // atoms
     Value constFalse =
         createIsizeConstant(rewriter, loc, NANBOX_CANONICAL_NAN | 0x02);
     Value isFalse = rewriter.create<LLVM::ICmpOp>(loc, LLVM::ICmpPredicate::eq,
@@ -2181,19 +2189,21 @@ struct MallocOpLowering : public ConvertCIROpToLLVMPattern<cir::MallocOp> {
                                 calleeType);
     }
 
+    Type outType;
     TermKind::Kind mallocType = TermKind::Invalid;
     unsigned size = 0;
 
     if (allocType.isa<CIRConsType>()) {
       mallocType = TermKind::Cons;
+      outType = convertType(allocType);
     } else if (allocType.isa<TupleType>()) {
       mallocType = TermKind::Tuple;
+      outType = convertType(allocType);
       size = allocType.cast<TupleType>().size();
     } else if (allocType.isa<CIRFunType>()) {
       mallocType = TermKind::Closure;
       size = allocType.cast<CIRFunType>().getEnvArity();
-    } else if (allocType.isa<CIRMapType>()) {
-      mallocType = TermKind::Map;
+      outType = getClosureType();
     } else {
       return rewriter.notifyMatchFailure(
           op, "failed to lower malloc op, unsupported boxed type");
@@ -2205,7 +2215,7 @@ struct MallocOpLowering : public ConvertCIROpToLLVMPattern<cir::MallocOp> {
         loc, TypeRange({i8PtrTy}), "__lumen_builtin_malloc",
         ValueRange({kindArg, arityArg}));
 
-    auto ptrTy = LLVM::LLVMPointerType::get(convertType(allocType));
+    auto ptrTy = LLVM::LLVMPointerType::get(outType);
     rewriter.replaceOpWithNewOp<LLVM::BitcastOp>(op, ptrTy,
                                                  callOp->getResult(0));
     return success();
@@ -2232,15 +2242,158 @@ struct UnpackEnvOpLowering
 
     // Then obtain the address of the specific env item
     Value base = createI32Constant(rewriter, loc, 0);
-    Value closure = createI32Constant(rewriter, loc, 1);
     Value env = createI32Constant(rewriter, loc, 4);
     Value index =
         createI32Constant(rewriter, loc, adaptor.index().getLimitedValue());
     auto itemAddr = rewriter.create<LLVM::GEPOp>(
-        loc, termPtrTy, ptr, ValueRange({base, closure, env, index}));
+        loc, termPtrTy, ptr, ValueRange({base, env, index}));
 
     // Then store the input value at the calculated pointer
     rewriter.replaceOpWithNewOp<LLVM::LoadOp>(op, itemAddr);
+    return success();
+  }
+};
+
+//===---------===//
+// MakeFunOp
+//===---------===//
+struct MakeFunOpLowering : public ConvertCIROpToLLVMPattern<cir::MakeFunOp> {
+  using ConvertCIROpToLLVMPattern<cir::MakeFunOp>::ConvertCIROpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(cir::MakeFunOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    auto module = op->getParentOfType<ModuleOp>();
+
+    auto termTy = getTermType();
+    auto calleeName = adaptor.callee();
+    auto funTy = op->getAttrOfType<TypeAttr>("funType").getValue();
+    // TODO: Make sure the callee type matches the type of the callee function,
+    // NOT a closure type
+    Type calleeType;
+    Operation *calleeOp = module.lookupSymbol(calleeName);
+    assert(calleeOp && "expected callee op to already be defined");
+    if (auto calleeMlirFun = dyn_cast<FuncOp>(calleeOp)) {
+      calleeType = convertType(calleeMlirFun.getFunctionType());
+    } else if (auto calleeLlvmFun = dyn_cast<LLVM::LLVMFuncOp>(calleeOp)) {
+      calleeType = calleeLlvmFun.getFunctionType();
+    }
+    auto callee =
+        rewriter.create<LLVM::AddressOfOp>(loc, calleeType, calleeName);
+
+    SmallVector<Type, 1> envTypes;
+    for (auto env : adaptor.env()) {
+      envTypes.push_back(env.getType());
+    }
+
+    // Allocate space on the process heap for the closure
+    auto closureTy = getClosureType();
+    auto closurePtrTy = LLVM::LLVMPointerType::get(closureTy);
+    auto termPtrTy = LLVM::LLVMPointerType::get(termTy);
+    auto i8Ty = getI8Type();
+    auto i8PtrTy = LLVM::LLVMPointerType::get(i8Ty);
+
+    Value mallocPtr = rewriter.create<cir::MallocOp>(loc, TypeAttr::get(funTy));
+    Operation *ptrCast = rewriter.create<UnrealizedConversionCastOp>(
+        loc, TypeRange({closurePtrTy}), ValueRange({mallocPtr}));
+    Value ptr = ptrCast->getResult(0);
+
+    // Write the various bits of metadata to the allocated closure
+
+    // Use the callee name to obtain the module/function/arity metadata
+    //
+    // NOTE: It is invalid for a callee to not be a valid erlang function name
+    auto moduleSplit = calleeName.split(':');
+    auto moduleName = std::get<0>(moduleSplit);
+    auto functionArity = std::get<1>(moduleSplit);
+    if (functionArity.empty()) {
+      op.emitError("invalid callee for fun, must be an erlang function with "
+                   "name 'module:fun/arity'");
+      return failure();
+    }
+    auto functionSplit = functionArity.rsplit('/');
+    auto functionName = std::get<0>(functionSplit);
+    auto arityStr = std::get<1>(functionSplit);
+    if (arityStr.empty()) {
+      op.emitError("invalid callee for fun, must be an erlang function with "
+                   "name 'module:fun/arity'");
+      return failure();
+    }
+    int8_t arity = 0;
+    if (arityStr.getAsInteger(10, arity)) {
+      op.emitError("invalid arity in fun name, expected valid integer");
+      return failure();
+    }
+
+    // Store the module atom
+    auto moduleAtom = createAtom(rewriter, loc, moduleName, module);
+    Value zero = createI32Constant(rewriter, loc, 0);
+    auto modulePtr = rewriter.create<LLVM::GEPOp>(loc, termPtrTy, ptr,
+                                                  ValueRange({zero, zero}));
+    rewriter.create<LLVM::StoreOp>(loc, moduleAtom, modulePtr);
+
+    // Store the function atom
+    auto functionAtom = createAtom(rewriter, loc, functionName, module);
+    Value one = createI32Constant(rewriter, loc, 1);
+    auto functionPtr = rewriter.create<LLVM::GEPOp>(loc, termPtrTy, ptr,
+                                                    ValueRange({zero, one}));
+    rewriter.create<LLVM::StoreOp>(loc, functionAtom, functionPtr);
+
+    // Store the arity (i8)
+    auto arityInt = createI8Constant(rewriter, loc, arity);
+    Value two = createI32Constant(rewriter, loc, 2);
+    auto arityPtr = rewriter.create<LLVM::GEPOp>(loc, i8PtrTy, ptr,
+                                                 ValueRange({zero, two}));
+    rewriter.create<LLVM::StoreOp>(loc, arityInt, arityPtr);
+
+    // Store the callee pointer
+    Value three = createI32Constant(rewriter, loc, 3);
+    auto calleePtr = rewriter.create<LLVM::GEPOp>(loc, i8PtrTy, ptr,
+                                                  ValueRange({zero, three}));
+    auto opaqueFunTy =
+        LLVM::LLVMFunctionType::get(getVoidType(), ArrayRef<Type>{});
+    auto opaqueFunPtrTy = LLVM::LLVMPointerType::get(opaqueFunTy);
+    auto calleeRaw =
+        rewriter.create<LLVM::BitcastOp>(loc, opaqueFunPtrTy, callee);
+    rewriter.create<LLVM::StoreOp>(loc, calleeRaw, calleePtr);
+
+    // Store the env in the closure
+    Value four = createI32Constant(rewriter, loc, 4);
+    uint64_t envIdx = 0;
+    for (auto env : adaptor.env()) {
+      Value envIdxConst;
+      switch (envIdx) {
+      case 0:
+        envIdxConst = zero;
+        break;
+      case 1:
+        envIdxConst = one;
+        break;
+      case 2:
+        envIdxConst = two;
+        break;
+      case 3:
+        envIdxConst = three;
+        break;
+      case 4:
+        envIdxConst = four;
+        break;
+      default:
+        envIdxConst = createI32Constant(rewriter, loc, envIdx);
+        break;
+      }
+      auto envPtr = rewriter.create<LLVM::GEPOp>(
+          loc, termPtrTy, ptr, ValueRange({zero, four, envIdxConst}));
+      rewriter.create<LLVM::StoreOp>(loc, env, envPtr);
+    }
+
+    // Box the pointer to the allocation
+    Value box = encodeGcBoxPtr(rewriter, loc, ptr);
+    Value isErr = createBoolConstant(rewriter, loc, false);
+
+    // Return the boxed value
+    rewriter.replaceOp(op, ValueRange({isErr, box}));
     return success();
   }
 };
@@ -2889,11 +3042,9 @@ struct BinaryMatchOpLowering
     specRawInt |= (uint64_t)(spec.tag);
 
     Value specRaw = createI64Constant(rewriter, loc, specRawInt);
-    Value size;
-    if (adaptor.getOperands().size() == 1) {
+    Value size = adaptor.size();
+    if (!size) {
       size = createTermConstant(rewriter, loc, NANBOX_CANONICAL_NAN);
-    } else {
-      size = adaptor.size();
     }
 
     Value one = createI32Constant(rewriter, loc, 1);
@@ -2958,6 +3109,61 @@ struct BinaryTestTailOpLowering
 };
 
 //===------------===//
+// BinaryMatchSkipOp
+//===------------===//
+struct BinaryMatchSkipOpLowering
+    : public ConvertCIROpToLLVMPattern<cir::BinaryMatchSkipOp> {
+  using ConvertCIROpToLLVMPattern<
+      cir::BinaryMatchSkipOp>::ConvertCIROpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(cir::BinaryMatchSkipOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    auto termTy = getTermType();
+    auto matchContextTy = LLVM::LLVMPointerType::get(getMatchContextType());
+    auto resultTy = getResultType(matchContextTy);
+    auto isizeTy = getIsizeType();
+    auto i1Ty = getI1Type();
+    auto i64Ty = getI64Type();
+
+    auto matchContext = adaptor.matchContext();
+    BinarySpecAttr specAttr = adaptor.spec();
+    BinaryEntrySpecifier spec = specAttr.getValue();
+
+    auto module = op->getParentOfType<ModuleOp>();
+    Operation *callee = module.lookupSymbol("__lumen_bs_match_skip");
+    if (!callee) {
+      auto calleeType = LLVM::LLVMFunctionType::get(
+          resultTy, ArrayRef<Type>{matchContextTy, i64Ty, termTy, i64Ty});
+      callee = insertFunctionDeclaration(rewriter, loc, module,
+                                         "__lumen_bs_match_skip", calleeType);
+    }
+
+    uint64_t specRawInt = 0;
+    specRawInt |= ((uint64_t)(spec.data.raw)) << 32;
+    specRawInt |= (uint64_t)(spec.tag);
+
+    Value specRaw = createI64Constant(rewriter, loc, specRawInt);
+    Value size = adaptor.size();
+    Value matchValue = adaptor.value();
+
+    auto callOp = rewriter.create<LLVM::CallOp>(
+        loc, cast<LLVM::LLVMFuncOp>(callee),
+        ValueRange({matchContext, specRaw, size, matchValue}));
+
+    Value callResult = callOp->getResult(0);
+    Value isErrWide = rewriter.create<LLVM::ExtractValueOp>(
+        loc, isizeTy, callResult, rewriter.getI32ArrayAttr({0}));
+    Value isErr = rewriter.create<LLVM::TruncOp>(loc, i1Ty, isErrWide);
+    Value updatedMatchCtx = rewriter.create<LLVM::ExtractValueOp>(
+        loc, matchContextTy, callResult, rewriter.getI32ArrayAttr({1}));
+    rewriter.replaceOp(op, ValueRange({isErr, updatedMatchCtx}));
+    return success();
+  }
+};
+
+//===------------===//
 // BinaryPushOp
 //===------------===//
 struct BinaryPushOpLowering
@@ -2994,16 +3200,14 @@ struct BinaryPushOpLowering
     specRawInt |= (uint64_t)(spec.tag);
 
     Value specRaw = createI64Constant(rewriter, loc, specRawInt);
-    Value size;
-    if (adaptor.getOperands().size() == 1) {
+    Value size = adaptor.size();
+    if (!size) {
       size = createTermConstant(rewriter, loc, NANBOX_CANONICAL_NAN);
-    } else {
-      size = adaptor.size();
     }
 
     auto callOp = rewriter.create<LLVM::CallOp>(
         loc, TypeRange({resultTy}), "__lumen_bs_push",
-        ValueRange({bin, specRaw, size, adaptor.value()}));
+        ValueRange({bin, specRaw, adaptor.value(), size}));
     Value callResult = callOp->getResult(0);
     Value isErrWide = rewriter.create<LLVM::ExtractValueOp>(
         loc, isizeTy, callResult, rewriter.getI32ArrayAttr({0}));
@@ -3116,7 +3320,8 @@ void ConvertCIRToLLVMPass::runOnOperation() {
   patterns.add<IsTupleOpLowering>(typeConverter);
   patterns.add<IsTaggedTupleOpLowering>(typeConverter);
   patterns.add<MallocOpLowering>(typeConverter);
-  // patterns.add<MakeFunOpLowering>(typeConverter);
+  patterns.add<MakeFunOpLowering>(typeConverter);
+  patterns.add<UnpackEnvOpLowering>(typeConverter);
   patterns.add<ConsOpLowering>(typeConverter);
   patterns.add<HeadOpLowering>(typeConverter);
   patterns.add<TailOpLowering>(typeConverter);
@@ -3134,6 +3339,7 @@ void ConvertCIRToLLVMPass::runOnOperation() {
   patterns.add<RecvDoneOpLowering>(typeConverter);
   patterns.add<BinaryMatchStartOpLowering>(typeConverter);
   patterns.add<BinaryMatchOpLowering>(typeConverter);
+  patterns.add<BinaryMatchSkipOpLowering>(typeConverter);
   patterns.add<BinaryTestTailOpLowering>(typeConverter);
   patterns.add<BinaryPushOpLowering>(typeConverter);
 

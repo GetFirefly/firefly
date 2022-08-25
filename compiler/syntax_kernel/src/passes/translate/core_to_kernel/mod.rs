@@ -106,7 +106,7 @@ impl Pass for CoreToKernel {
         while let Some((name, function)) = cst.functions.pop_first() {
             let context = FunctionContext::new(function.span(), name, function.var_counter);
 
-            let mut pipeline = TranslateCore::new(self.reporter.clone(), context);
+            let mut pipeline = TranslateCore::new(self.reporter.clone(), context, module.name.name);
             let fun = pipeline.run(function.fun)?;
             module.functions.push(fun);
             funs.append(&mut pipeline.context.funs);
@@ -121,10 +121,15 @@ impl Pass for CoreToKernel {
 struct TranslateCore {
     reporter: Reporter,
     context: FunctionContext,
+    module_name: Symbol,
 }
 impl TranslateCore {
-    fn new(reporter: Reporter, context: FunctionContext) -> Self {
-        Self { reporter, context }
+    fn new(reporter: Reporter, context: FunctionContext, module_name: Symbol) -> Self {
+        Self {
+            reporter,
+            context,
+            module_name,
+        }
     }
 }
 impl Pass for TranslateCore {
@@ -357,7 +362,7 @@ impl TranslateCore {
                     pre,
                 )),
                 Err(ExprError::BadSegmentSize(span)) => {
-                    self.reporter.show_warning(
+                    self.reporter.show_error(
                         "invalid binary size",
                         &[(span, "associated with this segment")],
                     );
@@ -576,6 +581,44 @@ impl TranslateCore {
                 name: symbols::MatchFail,
                 mut args,
             }) => self.translate_match_fail(span, annotations, args.pop().unwrap(), sub),
+            core::Expr::PrimOp(core::PrimOp {
+                span,
+                name: symbols::MakeFun,
+                args,
+                ..
+            }) if args.len() == 3 && args.iter().all(|arg| arg.is_literal()) => {
+                // If make_fun/3 is called with all literal values, convert it to its ideal form
+                match args.as_slice() {
+                    [core::Expr::Literal(Literal {
+                        value: Lit::Atom(m),
+                        ..
+                    }), core::Expr::Literal(Literal {
+                        value: Lit::Atom(f),
+                        ..
+                    }), core::Expr::Literal(Literal {
+                        value: Lit::Integer(Integer::Small(arity)),
+                        ..
+                    })] => {
+                        let arity = *arity;
+                        if *m == self.module_name {
+                            let local = Expr::Local(Span::new(
+                                span,
+                                FunctionName::new_local(*f, arity.try_into().unwrap()),
+                            ));
+                            let op = FunctionName::new(symbols::Erlang, symbols::MakeFun, 3);
+                            Ok((Expr::Bif(Bif::new(span, op, vec![local])), vec![]))
+                        } else {
+                            let remote = Expr::Remote(Remote::Static(Span::new(
+                                span,
+                                FunctionName::new(*m, *f, arity.try_into().unwrap()),
+                            )));
+                            let op = FunctionName::new(symbols::Erlang, symbols::MakeFun, 3);
+                            Ok((Expr::Bif(Bif::new(span, op, vec![remote])), vec![]))
+                        }
+                    }
+                    other => panic!("invalid callee, expected literal mfa, got {:#?}", &other),
+                }
+            }
             core::Expr::PrimOp(core::PrimOp {
                 span, name, args, ..
             }) => {
@@ -1672,6 +1715,10 @@ fn validate_bin_element_size(
             value: Lit::Integer(i),
             ..
         })) if i >= &0 => Ok(()),
+        Some(Expr::Literal(Literal {
+            value: Lit::Atom(symbols::All),
+            ..
+        })) => Ok(()),
         Some(expr) => Err(ExprError::BadSegmentSize(expr.span())),
     }
 }
@@ -1809,7 +1856,7 @@ impl TranslateCore {
             // The true clause body becomes the default
             let (body, pre) = self.body(*clause.body, clause.osub.clone())?;
             for clause in clauses.iter() {
-                if clause.is_compiler_generated() {
+                if !clause.is_compiler_generated() {
                     self.reporter.show_warning(
                         "pattern cannot match",
                         &[
@@ -3949,7 +3996,10 @@ fn lit_vars(expr: &Expr) -> RedBlackTreeSet<Ident> {
         Expr::BinarySegment(BinarySegment { value, next, .. }) => {
             sets::union(lit_vars(value.as_ref()), lit_vars(next.as_ref()))
         }
-        Expr::Literal(_) => rbt_set![],
+        Expr::Literal(_) | Expr::Local(_) | Expr::Remote(Remote::Static(_)) => rbt_set![],
+        Expr::Remote(Remote::Dynamic(m, f)) => {
+            sets::union(lit_vars(m.as_ref()), lit_vars(f.as_ref()))
+        }
         other => panic!("expected literal pattern, got {:?}", &other),
     }
 }

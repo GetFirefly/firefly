@@ -46,6 +46,17 @@ def AtomAttr : CIR_Attr<"Atom"> {
 
 def BigIntRefParameter :
     AttrOrTypeParameter<"::mlir::cir::BigIntRef", ""> {
+
+  let allocator = [{
+    if ($_self.len) {
+      char *rawData = reinterpret_cast<char *>($_allocator.allocate($_self.len, alignof(uint64_t)));
+      std::memcpy(rawData, $_self.digits, $_self.len);
+      $_dst = BigIntRef{$_self.sign,rawData,$_self.len};
+    } else {
+      $_dst = BigIntRef{$_self.sign,nullptr,0};
+    }
+  }];
+
   let printer = [{
     switch ($_self.sign) {
     case SignMinus: {
@@ -62,7 +73,7 @@ def BigIntRefParameter :
     }
     $_printer << "digits = [";
     llvm::interleaveComma($_self.data().bytes(), $_printer,
-                        [&](unsigned char digit) { $_printer << digit; });
+                        [&](unsigned digit) { $_printer << digit; });
     $_printer << "]";
   }];
   let comparator = [{ $_lhs.sign == $_rhs.sign && $_lhs.data() == $_rhs.data() }];
@@ -82,9 +93,12 @@ def BigIntAttr : CIR_Attr<"BigInt"> {
   ];
   let extraClassDeclaration = [{
     using ValueType = ::mlir::cir::BigIntRef;
-    Sign getSign() const { return getValue().sign; }
-    ::llvm::StringRef getDigits() const { return getValue().data(); }
 
+    Sign getSign() const { return getValue().sign; }
+
+    ::llvm::StringRef getDigits() const {
+        return StringRef(getValue().digits, getValue().len);
+    }
   }];
   let skipDefaultBuilders = 1;
   let typeBuilder = "CIRBoxType::get(CIRBigIntType::get($_type.getContext()))";

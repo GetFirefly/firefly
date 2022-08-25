@@ -64,7 +64,7 @@ impl PartialEq for AtomError {
 /// of the program.
 #[repr(transparent)]
 #[derive(Copy, Clone, PartialEq, Eq)]
-pub struct Atom(NonNull<AtomData>);
+pub struct Atom(*const AtomData);
 unsafe impl Send for Atom {}
 unsafe impl Sync for Atom {}
 impl Atom {
@@ -82,11 +82,17 @@ impl Atom {
     #[inline]
     pub fn try_from_str_existing<S: AsRef<str>>(s: S) -> Result<Self, AtomError> {
         let name = s.as_ref();
-        Self::validate(name)?;
-        if let Some(data) = table::get_data(name) {
-            return Ok(Self(data));
+        match name {
+            "false" => Ok(atoms::False),
+            "true" => Ok(atoms::True),
+            name => {
+                Self::validate(name)?;
+                if let Some(data) = table::get_data(name) {
+                    return Ok(Self(data.as_ptr() as *const AtomData));
+                }
+                Err(AtomError::NonExistent)
+            }
         }
-        Err(AtomError::NonExistent)
     }
 
     /// For convenience, this function takes a `str`, creates an atom
@@ -121,7 +127,14 @@ impl Atom {
                 error,
             )
         });
-        Self(table::get_data_or_insert_static(name).unwrap())
+        match name {
+            "false" => atoms::False,
+            "true" => atoms::True,
+            name => {
+                let ptr = table::get_data_or_insert_static(name).unwrap();
+                Self(ptr.as_ptr() as *const AtomData)
+            }
+        }
     }
 
     /// Returns `true` if this atom represents a boolean
@@ -140,12 +153,16 @@ impl Atom {
     /// Gets the string value of this atom
     pub fn as_str(&self) -> &'static str {
         // SAFETY: Atom contents are validated when creating the raw atom data, so converting back to str is safe
-        unsafe { self.0.as_ref().as_str().unwrap() }
+        match self {
+            &atoms::False => "false",
+            &atoms::True => "true",
+            _ => unsafe { (&*self.0).as_str().unwrap() },
+        }
     }
 
     #[inline(always)]
-    pub(super) fn as_ptr(&self) -> *const AtomData {
-        self.0.as_ptr()
+    pub(crate) unsafe fn as_ptr(&self) -> *const AtomData {
+        self.0
     }
 
     /// Returns true if this atom requires quotes when printing as an Erlang term
@@ -182,7 +199,7 @@ impl Atom {
 impl From<NonNull<AtomData>> for Atom {
     #[inline]
     fn from(ptr: NonNull<AtomData>) -> Self {
-        Self(ptr)
+        Self(ptr.as_ptr() as *const AtomData)
     }
 }
 impl From<bool> for Atom {
@@ -199,11 +216,18 @@ impl TryFrom<&str> for Atom {
     type Error = AtomError;
 
     fn try_from(s: &str) -> Result<Self, Self::Error> {
-        Self::validate(s)?;
-        if let Some(data) = table::get_data(s) {
-            return Ok(Self(data));
+        match s {
+            "false" => Ok(atoms::False),
+            "true" => Ok(atoms::True),
+            s => {
+                Self::validate(s)?;
+                if let Some(data) = table::get_data(s) {
+                    return Ok(Self(data.as_ptr() as *const AtomData));
+                }
+                let ptr = unsafe { table::get_data_or_insert(s)? };
+                Ok(Self(ptr.as_ptr() as *const AtomData))
+            }
         }
-        Ok(Self(unsafe { table::get_data_or_insert(s)? }))
     }
 }
 impl TryFrom<&[u8]> for Atom {
@@ -251,12 +275,12 @@ impl Ord for Atom {
 }
 impl Debug for Atom {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.as_str())
+        write!(f, "Atom({:p})", self.0)
     }
 }
 impl fmt::Pointer for Atom {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:p}", self.as_ptr())
+        write!(f, "{:p}", self.0)
     }
 }
 impl Display for Atom {
@@ -294,7 +318,7 @@ impl Display for Atom {
 
 impl Hash for Atom {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        ptr::hash(self.0.as_ptr(), state);
+        ptr::hash(self.0, state);
     }
 }
 

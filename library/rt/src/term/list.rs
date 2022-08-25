@@ -1,4 +1,5 @@
 use alloc::alloc::{AllocError, Allocator, Layout};
+use alloc::boxed::Box;
 use alloc::string::String;
 use core::any::TypeId;
 use core::fmt::{self, Debug, Display};
@@ -30,6 +31,14 @@ pub struct Cons {
 impl Cons {
     pub const TYPE_ID: TypeId = TypeId::of::<Cons>();
 
+    /// Allocates a new cons cell via Box<T>
+    pub fn new<H: Into<OpaqueTerm>, T: Into<OpaqueTerm>>(head: H, tail: T) -> Box<Self> {
+        Box::new(Self {
+            head: head.into(),
+            tail: tail.into(),
+        })
+    }
+
     /// Allocates a new cons cell in the given allocator
     ///
     /// NOTE: The returned cell is wrapped in `MaybeUninit<T>` because the head/tail require
@@ -55,7 +64,7 @@ impl Cons {
     /// the new location.
     #[inline]
     pub fn is_move_marker(&self) -> bool {
-        self.head.is_null()
+        self.head.is_none()
     }
 
     /// Returns the head of this list as a Term

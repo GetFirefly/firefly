@@ -1,5 +1,4 @@
 use alloc::alloc::{AllocError, Allocator};
-use alloc::format;
 use alloc::vec::Vec;
 use core::any::TypeId;
 use core::convert::AsRef;

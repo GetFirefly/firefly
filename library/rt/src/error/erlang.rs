@@ -42,6 +42,7 @@ use crate::term::{Atom, OpaqueTerm, Term};
 pub struct ErlangException {
     kind: Atom,
     reason: OpaqueTerm,
+    meta: OpaqueTerm,
     trace: *mut Trace,
     fragment: Option<NonNull<HeapFragment>>,
 }
@@ -52,6 +53,19 @@ impl ErlangException {
         Box::new(Self {
             kind,
             reason: reason.into(),
+            meta: OpaqueTerm::NIL,
+            trace,
+            fragment: None,
+        })
+    }
+
+    pub fn new_with_meta(kind: Atom, reason: Term, meta: Term, trace: Arc<Trace>) -> Box<Self> {
+        let trace = Trace::into_raw(trace);
+
+        Box::new(Self {
+            kind,
+            reason: reason.into(),
+            meta: meta.into(),
             trace,
             fragment: None,
         })
@@ -65,6 +79,11 @@ impl ErlangException {
     #[inline]
     pub fn reason(&self) -> Term {
         self.reason.into()
+    }
+
+    #[inline]
+    pub fn meta(&self) -> Term {
+        self.meta.into()
     }
 
     #[inline]

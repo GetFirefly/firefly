@@ -15,7 +15,6 @@ mod intrinsic;
 mod scheduler;
 mod sys;
 
-use anyhow::anyhow;
 use bus::Bus;
 use std::process::ExitCode;
 

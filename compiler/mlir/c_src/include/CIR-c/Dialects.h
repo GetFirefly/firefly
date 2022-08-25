@@ -156,6 +156,11 @@ MLIR_CAPI_EXPORTED bool mlirCirEndiannessAttrIsA(MlirAttribute attr);
 MLIR_CAPI_EXPORTED CirEndianness
 mlirCirEndiannessAttrValueOf(MlirAttribute attr);
 
+MLIR_CAPI_EXPORTED bool mlirCirBinarySpecAttrIsA(MlirAttribute op);
+
+MLIR_CAPI_EXPORTED MlirAttribute
+mlirCirBinarySpecAttrGet(BinaryEntrySpecifier spec, MlirContext ctx);
+
 //===----------------------------------------------------------------------===//
 /// Operations
 //===----------------------------------------------------------------------===//
@@ -335,14 +340,9 @@ MLIR_CAPI_EXPORTED MlirOperation mlirCirRecvDoneOp(MlirOpBuilder builder,
                                                    MlirLocation location,
                                                    MlirValue recvContext);
 
-MLIR_CAPI_EXPORTED MlirOperation mlirCirBinaryMatchStartOp(
-    MlirOpBuilder builder, MlirLocation location, MlirValue bin);
-
-MLIR_CAPI_EXPORTED MlirOperation mlirCirBinaryMatchOp(MlirOpBuilder builder,
-                                                      MlirLocation location,
-                                                      MlirValue ctx,
-                                                      BinaryEntrySpecifier spec,
-                                                      MlirValue sizeOpt);
+MLIR_CAPI_EXPORTED bool mlirCirBinaryMatchStartOpIsA(MlirOperation op);
+MLIR_CAPI_EXPORTED bool mlirCirBinaryMatchOpIsA(MlirOperation op);
+MLIR_CAPI_EXPORTED bool mlirCirBinaryMatchSkipOpIsA(MlirOperation op);
 
 MLIR_CAPI_EXPORTED MlirOperation mlirCirBinaryTestTailOp(MlirOpBuilder builder,
                                                          MlirLocation location,

@@ -3,12 +3,12 @@
 !/.vscode/tasks.json
 !/.vscode/launch.json
 /.vscode/*
-_build
-bin/firefly-make
+/_build
+/bin/firefly-make
 
-*.beam
-.#*
-
-*.ignore
+/*.beam
 
 .ccls-cache
+
+test/*
+!test/lit/

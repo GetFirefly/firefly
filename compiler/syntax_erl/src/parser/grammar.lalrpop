@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use liblumen_binary::BinaryEntrySpecifier;
 use liblumen_diagnostics::*;
-use liblumen_intern::{Symbol, Ident};
+use liblumen_intern::{symbols, Symbol, Ident};
 use liblumen_number::{Integer, Float};
 use liblumen_syntax_base::{FunctionName, BinaryOp, UnaryOp};
 
@@ -236,6 +236,18 @@ Deprecation: Deprecation = {
         => Deprecation::Function { span: span!(l, r), function, flag: DeprecatedFlag::Eventually },
     <l:@L> "{" <function:FunctionName> "," <flag:DeprecatedFlag> "}" <r:@R>
         => Deprecation::Function { span: span!(l, r), function, flag },
+    <l:@L> "{" <module:atom> "," <function:atom> "," <flag:DeprecatedFlag> "}" <r:@R> =>? {
+        let span = span!(l, r);
+        match (module.name, function.name) {
+          (symbols::Underscore, symbols::Underscore) => {
+            Ok(Deprecation::Module { span, flag })
+          }
+          _ => {
+            Err(ParserError::ShowDiagnostic { diagnostic: Diagnostic::error().with_message("invalid deprecated attribute").with_labels(vec![Label::primary(span.source_id(), span).with_message("expected {'_','_',Flag}")]) }.into())
+
+          }
+        }
+    },
     <l:@L> "{" <function:atom> "," <arity:arity> "," <flag:DeprecatedFlag> "}" <r:@R> => {
         let span = span!(l, r);
         let f = Span::new(span, FunctionName::new_local(function.name, arity));

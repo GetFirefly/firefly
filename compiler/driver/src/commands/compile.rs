@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::thread;
@@ -10,13 +11,16 @@ use salsa::{ParallelDatabase, Snapshot};
 use liblumen_codegen as codegen;
 use liblumen_codegen::linker;
 use liblumen_codegen::meta::{CodegenResults, CompiledModule, ProjectInfo};
+use liblumen_diagnostics::{CodeMap, Diagnostic, Label};
 use liblumen_session::{CodegenOptions, DebuggingOptions, Options};
-use liblumen_util::diagnostics::{CodeMap, Emitter};
+use liblumen_syntax_base::{ApplicationMetadata, Deprecation, FunctionName, ModuleMetadata};
+use liblumen_util::diagnostics::Emitter;
 use liblumen_util::time::HumanDuration;
 
 use crate::commands::*;
 use crate::compiler::prelude::{Compiler as CompilerQueryGroup, *};
 use crate::compiler::Compiler;
+use crate::parser::prelude::Parser as ParserQueryGroup;
 use crate::task;
 
 pub fn handle_command<'a>(
@@ -50,28 +54,66 @@ pub fn handle_command<'a>(
         db.diagnostics().fatal("No input sources found!").raise();
     }
 
-    // Spawn tasks for each input to be compiled
     let start = Instant::now();
+
+    // Spawn tasks to do initial parsing, semantic analysis and metadata gathering
     let mut tasks = inputs
         .iter()
         .copied()
         .map(|input| {
             let snapshot = db.snapshot();
-            task::spawn(async move { compile(snapshot, input) })
+            task::spawn(async move { parse(snapshot, input) })
         })
         .collect::<Vec<_>>();
 
-    debug!("awaiting results from workers ({} units)", num_inputs);
+    debug!("awaiting parse results from workers ({} units)", num_inputs);
+
+    let options = db.options();
+    let diagnostics = db.diagnostics();
+
+    let mut modules = BTreeMap::new();
+
+    for task in tasks.drain(..) {
+        match task::join(task).unwrap() {
+            Ok(metadata) => {
+                modules.insert(metadata.name.name, metadata);
+            }
+            Err(_) => (),
+        }
+    }
+
+    // Do not proceed with compilation if there were frontend errors
+    diagnostics.abort_if_errors();
+
+    // Initialize application metadata for use by compilation tasks
+    let app = Arc::new(ApplicationMetadata {
+        name: options.app.name,
+        modules,
+    });
+
+    // Spawn tasks for each input to be compiled
+    let mut tasks = inputs
+        .iter()
+        .copied()
+        .map(|input| {
+            let app = app.clone();
+            let snapshot = db.snapshot();
+            task::spawn(async move { compile(snapshot, input, app) })
+        })
+        .collect::<Vec<_>>();
+
+    debug!(
+        "awaiting compilation results from workers ({} units)",
+        num_inputs
+    );
 
     // Gather compilation results
-    let options = db.options();
     let mut codegen_results = CodegenResults {
         app_name: options.app.name,
         modules: Vec::with_capacity(num_inputs),
         project_info: ProjectInfo::new(&options),
     };
 
-    let diagnostics = db.diagnostics();
     for task in tasks.drain(..) {
         match task::join(task).unwrap() {
             Ok(None) => continue,
@@ -118,18 +160,95 @@ pub fn handle_command<'a>(
     Ok(())
 }
 
+fn parse<C>(db: Snapshot<C>, input: InternedInput) -> Result<ModuleMetadata, ErrorReported>
+where
+    C: ParserQueryGroup + ParallelDatabase,
+{
+    debug!("spawning worker for {:?}", input);
+
+    // Generate metadata about modules read from sources provided to the compiler
+    let result = db.input_ast(input);
+    match result {
+        Err(err) => {
+            let diagnostics = db.diagnostics();
+            let input_info = db.lookup_intern_input(input);
+            diagnostics.failed("Failed", format!("{}", &input_info.source_name()));
+            Err(err)
+        }
+        Ok(module) => {
+            let diagnostics = db.diagnostics();
+            let name = module.name;
+            let exports = module.exports.iter().cloned().collect();
+            let mut deprecation = module.deprecation.clone();
+            let mut deprecations: BTreeMap<FunctionName, Deprecation> = BTreeMap::new();
+            for dep in module.deprecations.iter().copied() {
+                match dep {
+                    d @ Deprecation::Module { .. } if deprecation.is_none() => {
+                        deprecation = Some(d);
+                        continue;
+                    }
+                    Deprecation::Module { .. } => continue,
+                    Deprecation::Function {
+                        span,
+                        function,
+                        flag,
+                    } => {
+                        if function.is_local() {
+                            deprecations.insert(
+                                function.resolve(name.name),
+                                Deprecation::Function {
+                                    span,
+                                    function,
+                                    flag,
+                                },
+                            );
+                        } else {
+                            let module = function.module.unwrap();
+                            if module == name.name {
+                                deprecations.insert(
+                                    *function,
+                                    Deprecation::Function {
+                                        span,
+                                        function,
+                                        flag,
+                                    },
+                                );
+                            } else {
+                                let diagnostic = Diagnostic::warning()
+                                    .with_message("invalid deprecation")
+                                    .with_labels(vec![Label::primary(span.source_id(), span)
+                                        .with_message(
+                                            "cannot deprecate a function in another module",
+                                        )]);
+                                diagnostics.emit(&diagnostic);
+                            }
+                        }
+                    }
+                }
+            }
+            Ok(ModuleMetadata {
+                name,
+                exports,
+                deprecation,
+                deprecations,
+            })
+        }
+    }
+}
+
 fn compile<C>(
     db: Snapshot<C>,
     input: InternedInput,
+    app: Arc<ApplicationMetadata>,
 ) -> Result<Option<CompiledModule>, ErrorReported>
 where
     C: CompilerQueryGroup + ParallelDatabase,
 {
     debug!("spawning worker for {:?}", input);
 
-    // Genereate an LLVM IR module for this input, or None, if only earlier stages are requested
+    // Generate an LLVM IR module for this input, or None, if only earlier stages are requested
     let thread_id = thread::current().id();
-    let result = db.compile(thread_id, input);
+    let result = db.compile(thread_id, input, app);
     if result.is_err() {
         let diagnostics = db.diagnostics();
         let input_info = db.lookup_intern_input(input);

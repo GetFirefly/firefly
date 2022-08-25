@@ -45,7 +45,7 @@ impl FunctionName {
     /// Returns true if this represents a locally-qualified name
     #[inline]
     pub fn is_local(&self) -> bool {
-        self.module.is_some()
+        self.module.is_none()
     }
 
     /// Returns the fully-qualified version of this function name, using the given module

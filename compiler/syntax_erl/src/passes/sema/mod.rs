@@ -4,16 +4,19 @@ mod inject;
 mod records;
 mod verify;
 
-use std::collections::{BTreeMap, HashMap, HashSet};
-
 use liblumen_diagnostics::*;
 use liblumen_intern::Ident;
 use liblumen_pass::Pass;
+use liblumen_syntax_base::ApplicationMetadata;
 
-use crate::ast::{self, *};
+use crate::ast;
 
 use self::inject::AddAutoImports;
 use self::verify::{VerifyCalls, VerifyNifs, VerifyOnLoadFunctions, VerifyTypeSpecs};
+
+pub use self::attributes::analyze_attribute;
+pub use self::functions::analyze_function;
+pub use self::records::analyze_record;
 
 /// This pass is responsible for taking a set of top-level forms and
 /// analyzing them in the context of a new module to produce a fully
@@ -31,63 +34,26 @@ use self::verify::{VerifyCalls, VerifyNifs, VerifyOnLoadFunctions, VerifyTypeSpe
 /// * Errors on redefined functions
 ///
 /// And a few other similar lints
-pub struct SemanticAnalysis {
+pub struct SemanticAnalysis<'app> {
     reporter: Reporter,
-    span: SourceSpan,
-    name: Ident,
+    app: &'app ApplicationMetadata,
 }
-impl SemanticAnalysis {
-    pub fn new(reporter: Reporter, span: SourceSpan, name: Ident) -> Self {
-        Self {
-            reporter,
-            span,
-            name,
-        }
+impl<'app> SemanticAnalysis<'app> {
+    pub fn new(reporter: Reporter, app: &'app ApplicationMetadata) -> Self {
+        Self { reporter, app }
     }
 }
-impl Pass for SemanticAnalysis {
-    type Input<'a> = Vec<TopLevel>;
+impl<'app> Pass for SemanticAnalysis<'app> {
+    type Input<'a> = ast::Module;
     type Output<'a> = ast::Module;
 
-    fn run<'a>(&mut self, mut forms: Self::Input<'a>) -> anyhow::Result<Self::Output<'a>> {
-        let mut module = Module {
-            span: self.span,
-            name: self.name,
-            vsn: None,
-            author: None,
-            on_load: None,
-            nifs: HashSet::new(),
-            compile: None,
-            imports: HashMap::new(),
-            exports: HashSet::new(),
-            removed: HashMap::new(),
-            types: HashMap::new(),
-            exported_types: HashSet::new(),
-            specs: HashMap::new(),
-            behaviours: HashSet::new(),
-            callbacks: HashMap::new(),
-            records: HashMap::new(),
-            attributes: HashMap::new(),
-            functions: BTreeMap::new(),
-            deprecation: None,
-            deprecations: HashSet::new(),
-        };
-
-        for form in forms.drain(0..) {
-            match form {
-                TopLevel::Attribute(attr) => self.analyze_attribute(&mut module, attr),
-                TopLevel::Record(record) => self.analyze_record(&mut module, record),
-                TopLevel::Function(function) => self.analyze_function(&mut module, function),
-                _ => panic!("unexpected top-level form: {:?}", &form),
-            }
-        }
-
+    fn run<'a>(&mut self, mut module: Self::Input<'a>) -> anyhow::Result<Self::Output<'a>> {
         let mut passes = AddAutoImports
             //.chain(DefinePseudoLocals)
             .chain(VerifyOnLoadFunctions::new(self.reporter.clone()))
             .chain(VerifyTypeSpecs::new(self.reporter.clone()))
             .chain(VerifyNifs::new(self.reporter.clone()))
-            .chain(VerifyCalls::new(self.reporter.clone()));
+            .chain(VerifyCalls::new(self.reporter.clone(), self.app));
 
         passes.run(&mut module)?;
 

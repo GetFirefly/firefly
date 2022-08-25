@@ -4,7 +4,7 @@ use liblumen_binary::BinaryEntrySpecifier;
 use liblumen_diagnostics::*;
 use liblumen_intern::{symbols, Symbol, Ident};
 use liblumen_number::{Integer, Float};
-use liblumen_syntax_base::{FunctionName, BinaryOp, UnaryOp};
+use liblumen_syntax_base::{FunctionName, BinaryOp, UnaryOp, Deprecation, DeprecatedFlag};
 
 use crate::ParserError;
 use crate::ast::*;

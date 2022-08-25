@@ -105,7 +105,14 @@ impl Ident {
         self.name.is_preprocessor_directive()
     }
 }
+impl core::ops::Deref for Ident {
+    type Target = Symbol;
 
+    #[inline]
+    fn deref(&self) -> &Symbol {
+        &self.name
+    }
+}
 impl Ord for Ident {
     fn cmp(&self, other: &Self) -> Ordering {
         self.as_str().cmp(&other.as_str())

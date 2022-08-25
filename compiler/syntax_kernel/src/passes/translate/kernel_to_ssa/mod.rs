@@ -1772,10 +1772,16 @@ impl<'m> LowerFunctionToSsa<'m> {
         match expr {
             KExpr::Var(v) => match builder.var(v.name()) {
                 Some(value) => Ok(value),
-                None => panic!(
-                    "reference to variable `{}` that has not been defined yet",
-                    v.name()
-                ),
+                None => {
+                    self.reporter.show_error(
+                        "use of undefined variable",
+                        &[(
+                            v.span(),
+                            "this variable has not been defined in this scope yet",
+                        )],
+                    );
+                    Err(anyhow!("invalid expression"))
+                }
             },
             KExpr::Literal(lit) => self.lower_literal(builder, lit),
             expr => panic!("unexpected value expression: {:#?}", &expr),

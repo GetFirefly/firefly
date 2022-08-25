@@ -134,7 +134,7 @@ impl Reporter {
     }
 
     /// A convenience method to make expressing common warning diagnostics easier
-    pub fn show_warning(&mut self, message: &str, labels: &[(SourceSpan, &str)]) {
+    pub fn show_warning(&self, message: &str, labels: &[(SourceSpan, &str)]) {
         if labels.is_empty() {
             self.diagnostic(Diagnostic::warning().with_message(message));
         } else {

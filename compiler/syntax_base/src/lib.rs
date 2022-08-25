@@ -5,6 +5,7 @@ pub use self::macros::*;
 
 mod annotations;
 pub mod bifs;
+mod deprecations;
 mod functions;
 mod literals;
 pub mod nifs;
@@ -15,15 +16,56 @@ mod types;
 mod var;
 
 pub use self::annotations::*;
+pub use self::deprecations::*;
 pub use self::functions::*;
 pub use self::literals::{Lit, Literal};
 pub use self::ops::*;
 pub use self::types::*;
 pub use self::var::Var;
 
-use std::collections::HashSet;
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 
-use liblumen_diagnostics::Span;
+use liblumen_diagnostics::{SourceSpan, Span};
+use liblumen_intern::{Ident, Symbol};
+
+/// This structure contains metadata representing an OTP application gathered during parsing and semantic analysis.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ApplicationMetadata {
+    pub name: Symbol,
+    pub modules: BTreeMap<Symbol, ModuleMetadata>,
+}
+impl ApplicationMetadata {
+    /// Returns the deprecation associated with the given module name, if one was declared
+    pub fn get_module_deprecation(&self, name: &Symbol) -> Option<Deprecation> {
+        self.modules.get(name).and_then(|m| m.deprecation)
+    }
+
+    /// Returns the deprecation associated with the given function name, if one was declared
+    pub fn get_function_deprecation(&self, name: &FunctionName) -> Option<Deprecation> {
+        let module_name = name.module.unwrap();
+        let key = Span::new(SourceSpan::default(), name.to_local());
+        let deprecation = self
+            .modules
+            .get(&module_name)
+            .and_then(|m| m.deprecations.get(&key).cloned());
+        if deprecation.is_some() {
+            deprecation
+        } else {
+            self.get_module_deprecation(&module_name)
+        }
+    }
+}
+
+/// This structure contains metadata about a module gathered during initial parsing and semantic analysis,
+/// which comes in handy during later stages of compilation where we can reason about the set of all
+/// reachable modules
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ModuleMetadata {
+    pub name: Ident,
+    pub exports: BTreeSet<Span<FunctionName>>,
+    pub deprecation: Option<Deprecation>,
+    pub deprecations: BTreeMap<FunctionName, Deprecation>,
+}
 
 /// This structure holds module-specific compiler options and configuration; it is passed through all phases of
 /// compilation alongside its associated module, and is a superset of options in CompilerSettings

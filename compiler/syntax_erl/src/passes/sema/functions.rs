@@ -8,60 +8,56 @@ use liblumen_syntax_base::*;
 use crate::ast::*;
 use crate::visit::VisitMut;
 
-use super::*;
+pub fn analyze_function(reporter: &Reporter, module: &mut Module, mut function: Function) {
+    let resolved_name = FunctionName::new(module.name(), function.name.name, function.arity);
+    let local_resolved_name = resolved_name.to_local();
+    let warn_missing_specs = module
+        .compile
+        .as_ref()
+        .map(|c| c.warn_missing_spec)
+        .unwrap_or(false);
 
-impl SemanticAnalysis {
-    pub(super) fn analyze_function(&mut self, module: &mut Module, mut function: Function) {
-        let resolved_name = FunctionName::new(module.name(), function.name.name, function.arity);
-        let local_resolved_name = resolved_name.to_local();
-        let warn_missing_specs = module
-            .compile
-            .as_ref()
-            .map(|c| c.warn_missing_spec)
-            .unwrap_or(false);
+    if let Some(spec) = module.specs.get(&resolved_name) {
+        function.spec.replace(spec.clone());
+    } else if warn_missing_specs {
+        reporter.show_warning(
+            "missing function spec",
+            &[(function.span, "expected type spec for this function")],
+        );
+    }
 
-        if let Some(spec) = module.specs.get(&resolved_name) {
-            function.spec.replace(spec.clone());
-        } else if warn_missing_specs {
-            self.reporter.show_warning(
-                "missing function spec",
-                &[(function.span, "expected type spec for this function")],
-            );
-        }
-
-        let nif_name = Span::new(function.name.span, local_resolved_name.clone());
-        if module.nifs.contains(&nif_name) {
+    let nif_name = Span::new(function.name.span, local_resolved_name.clone());
+    if module.nifs.contains(&nif_name) {
+        function.is_nif = true;
+    } else {
+        // Determine if the body of the function implicitly defines this as a NIF
+        // Such a function will have a call to erlang:nif_error/1 or /2
+        let mut is_nif = IsNifVisitor;
+        if let ControlFlow::Break(true) = is_nif.visit_mut_function(&mut function) {
+            module.nifs.insert(nif_name);
             function.is_nif = true;
-        } else {
-            // Determine if the body of the function implicitly defines this as a NIF
-            // Such a function will have a call to erlang:nif_error/1 or /2
-            let mut is_nif = IsNifVisitor;
-            if let ControlFlow::Break(true) = is_nif.visit_mut_function(&mut function) {
-                module.nifs.insert(nif_name);
-                function.is_nif = true;
-            }
         }
+    }
 
-        // If we have a local with the same name as an imported function, the import is shadowed
-        if module.imports.contains_key(&local_resolved_name) {
-            module.imports.remove(&local_resolved_name);
+    // If we have a local with the same name as an imported function, the import is shadowed
+    if module.imports.contains_key(&local_resolved_name) {
+        module.imports.remove(&local_resolved_name);
+    }
+
+    match module.functions.entry(local_resolved_name) {
+        Entry::Vacant(f) => {
+            f.insert(function);
         }
-
-        match module.functions.entry(local_resolved_name) {
-            Entry::Vacant(f) => {
-                f.insert(function);
-            }
-            Entry::Occupied(initial_def) => {
-                let def = initial_def.into_mut();
-                self.reporter.show_error(
-                    "clauses from the same function should be grouped together",
-                    &[
-                        (function.span, "found more clauses here"),
-                        (def.span, "function is first defined here"),
-                    ],
-                );
-                def.clauses.append(&mut function.clauses);
-            }
+        Entry::Occupied(initial_def) => {
+            let def = initial_def.into_mut();
+            reporter.show_error(
+                "clauses from the same function should be grouped together",
+                &[
+                    (function.span, "found more clauses here"),
+                    (def.span, "function is first defined here"),
+                ],
+            );
+            def.clauses.append(&mut function.clauses);
         }
     }
 }

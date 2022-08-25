@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use std::thread::ThreadId;
 
 use log::debug;
@@ -5,6 +6,7 @@ use log::debug;
 use liblumen_codegen::meta::CompiledModule;
 use liblumen_intern::Symbol;
 use liblumen_session::OutputType;
+use liblumen_syntax_base::ApplicationMetadata;
 
 use super::prelude::*;
 
@@ -35,6 +37,7 @@ pub(super) fn compile<C>(
     db: &C,
     thread_id: ThreadId,
     input: InternedInput,
+    app: Arc<ApplicationMetadata>,
 ) -> Result<Option<CompiledModule>, ErrorReported>
 where
     C: Compiler,
@@ -59,23 +62,21 @@ where
 
     // Bail early if we don't have artifacts to codegen
     if !options.output_types.should_generate_mlir() {
-        // However, since production of AST/Kernel/SSA IR is driven by
+        // However, since production of Core/Kernel/SSA IR is driven by
         // queries for MLIR, we need to check if either of those
         // types were requested, and if so, execute the appropriate
         // query
         if options.output_types.should_generate_ssa() {
-            db.input_ssa(input)?;
+            db.input_ssa(input, app)?;
         } else if options.output_types.contains_key(&OutputType::Kernel) {
-            db.input_kernel(input)?;
+            db.input_kernel(input, app)?;
         } else if options.output_types.contains_key(&OutputType::Core) {
-            db.input_core(input)?;
-        } else if options.output_types.contains_key(&OutputType::AST) {
-            db.input_ast(input)?;
+            db.input_core(input, app)?;
         }
         return Ok(None);
     }
 
-    let module = db.input_mlir(thread_id, input)?;
+    let module = db.input_mlir(thread_id, input, app)?;
 
     // Bail prior to lowering CIR dialect to LLVM dialect if we aren't
     // going to generate LLVM IR

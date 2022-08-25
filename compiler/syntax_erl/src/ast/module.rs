@@ -161,29 +161,49 @@ impl Module {
     ///
     pub fn new_with_forms(
         reporter: &Reporter,
-        codemap: Arc<CodeMap>,
+        _codemap: Arc<CodeMap>,
         span: SourceSpan,
         name: Ident,
-        body: Vec<TopLevel>,
+        mut forms: Vec<TopLevel>,
     ) -> Self {
-        use crate::passes::{CanonicalizeSyntax, SemanticAnalysis};
-        use liblumen_pass::Pass;
+        use crate::passes::sema;
 
-        let mut passes = SemanticAnalysis::new(reporter.clone(), span, name)
-            .chain(CanonicalizeSyntax::new(reporter.clone(), codemap));
-        match passes.run(body) {
-            Ok(module) => module,
-            Err(reason) => {
-                let reason = reason.to_string();
-                reporter.diagnostic(
-                    Diagnostic::error()
-                        .with_message(&reason)
-                        .with_labels(vec![Label::primary(name.span.source_id(), name.span)
-                            .with_message("error occurred while compiling this module")]),
-                );
-                Self::new(name, span)
+        let mut module = Self {
+            span,
+            name,
+            vsn: None,
+            author: None,
+            on_load: None,
+            nifs: HashSet::new(),
+            compile: None,
+            imports: HashMap::new(),
+            exports: HashSet::new(),
+            removed: HashMap::new(),
+            types: HashMap::new(),
+            exported_types: HashSet::new(),
+            specs: HashMap::new(),
+
+            behaviours: HashSet::new(),
+            callbacks: HashMap::new(),
+            records: HashMap::new(),
+            attributes: HashMap::new(),
+            functions: BTreeMap::new(),
+            deprecation: None,
+            deprecations: HashSet::new(),
+        };
+
+        for form in forms.drain(0..) {
+            match form {
+                TopLevel::Attribute(attr) => sema::analyze_attribute(reporter, &mut module, attr),
+                TopLevel::Record(record) => sema::analyze_record(reporter, &mut module, record),
+                TopLevel::Function(function) => {
+                    sema::analyze_function(reporter, &mut module, function)
+                }
+                _ => panic!("unexpected top-level form: {:?}", &form),
             }
         }
+
+        module
     }
 }
 impl Eq for Module {}

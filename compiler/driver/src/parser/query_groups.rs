@@ -5,6 +5,7 @@ use std::thread::ThreadId;
 use liblumen_llvm as llvm;
 use liblumen_mlir as mlir;
 use liblumen_session::{InputType, Options};
+use liblumen_syntax_base::ApplicationMetadata;
 use liblumen_syntax_core as syntax_core;
 use liblumen_syntax_erl::{self as syntax_erl, ParseConfig};
 use liblumen_syntax_kernel as syntax_kernel;
@@ -61,21 +62,33 @@ pub trait Parser: CompilerOutput {
     /// If the input is not compatible with producing a syntax_core module, or an
     /// error occurs during parsing of the module, the result will be Err(ErrorReported).
     #[salsa::invoke(queries::input_core)]
-    fn input_core(&self, input: InternedInput) -> Result<syntax_core::Module, ErrorReported>;
+    fn input_core(
+        &self,
+        input: InternedInput,
+        app: Arc<ApplicationMetadata>,
+    ) -> Result<syntax_core::Module, ErrorReported>;
 
     /// Gets the syntax_kernel module associated with the given input, if it exists
     ///
     /// If the input is not compatible with producing a syntax_kernel module, or an
     /// error occurs during parsing of the module, the result will be Err(ErrorReported).
     #[salsa::invoke(queries::input_kernel)]
-    fn input_kernel(&self, input: InternedInput) -> Result<syntax_kernel::Module, ErrorReported>;
+    fn input_kernel(
+        &self,
+        input: InternedInput,
+        app: Arc<ApplicationMetadata>,
+    ) -> Result<syntax_kernel::Module, ErrorReported>;
 
     /// Gets the SSA IR module associated with the given input, if it exists
     ///
     /// If the input is not compatible with producing a SSA IR module, or an
     /// error occurs during parsing of the module, the result will be Err(ErrorReported).
     #[salsa::invoke(queries::input_ssa)]
-    fn input_ssa(&self, input: InternedInput) -> Result<syntax_ssa::Module, ErrorReported>;
+    fn input_ssa(
+        &self,
+        input: InternedInput,
+        app: Arc<ApplicationMetadata>,
+    ) -> Result<syntax_ssa::Module, ErrorReported>;
 
     /// Gets the mlir module associated with the given input, if it exists
     ///
@@ -88,5 +101,6 @@ pub trait Parser: CompilerOutput {
         &self,
         thread_id: ThreadId,
         input: InternedInput,
+        app: Arc<ApplicationMetadata>,
     ) -> Result<mlir::OwnedModule, ErrorReported>;
 }

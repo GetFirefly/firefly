@@ -1,4 +1,4 @@
-mod sema;
+pub mod sema;
 mod transforms;
 mod translate;
 

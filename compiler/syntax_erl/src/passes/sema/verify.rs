@@ -1,10 +1,10 @@
 use core::ops::ControlFlow;
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use liblumen_diagnostics::*;
 use liblumen_intern::Symbol;
 use liblumen_pass::Pass;
-use liblumen_syntax_base::FunctionName;
+use liblumen_syntax_base::{ApplicationMetadata, Deprecation, FunctionName};
 
 use crate::ast::*;
 use crate::visit::{self, VisitMut};
@@ -112,15 +112,16 @@ impl Pass for VerifyTypeSpecs {
     }
 }
 
-pub struct VerifyCalls {
+pub struct VerifyCalls<'app> {
     reporter: Reporter,
+    app: &'app ApplicationMetadata,
 }
-impl VerifyCalls {
-    pub fn new(reporter: Reporter) -> Self {
-        Self { reporter }
+impl<'app> VerifyCalls<'app> {
+    pub fn new(reporter: Reporter, app: &'app ApplicationMetadata) -> Self {
+        Self { reporter, app }
     }
 }
-impl Pass for VerifyCalls {
+impl<'app> Pass for VerifyCalls<'app> {
     type Input<'a> = &'a mut Module;
     type Output<'a> = &'a mut Module;
 
@@ -128,11 +129,16 @@ impl Pass for VerifyCalls {
         // Check for orphaned type specs
         let module_name = module.name.name;
         let locals = module.functions.keys().copied().collect::<BTreeSet<_>>();
-        let imports = module.imports.keys().copied().collect::<BTreeSet<_>>();
+        let imports = module
+            .imports
+            .iter()
+            .map(|(name, sig)| (*name, sig.mfa()))
+            .collect::<BTreeMap<FunctionName, FunctionName>>();
 
         for (_, function) in module.functions.iter_mut() {
             let mut visitor = VerifyCallsVisitor {
                 reporter: self.reporter.clone(),
+                app: self.app,
                 module: module_name,
                 locals: &locals,
                 imports: &imports,
@@ -145,9 +151,10 @@ impl Pass for VerifyCalls {
 
 struct VerifyCallsVisitor<'a> {
     reporter: Reporter,
+    app: &'a ApplicationMetadata,
     module: Symbol,
     locals: &'a BTreeSet<FunctionName>,
-    imports: &'a BTreeSet<FunctionName>,
+    imports: &'a BTreeMap<FunctionName, FunctionName>,
 }
 impl<'a> VisitMut<()> for VerifyCallsVisitor<'a> {
     fn visit_mut_apply(&mut self, apply: &mut Apply) -> ControlFlow<()> {
@@ -158,31 +165,95 @@ impl<'a> VisitMut<()> for VerifyCallsVisitor<'a> {
         let arity = apply.args.len() as u8;
         match apply.callee.as_ref() {
             Expr::Remote(Remote {
-                module, function, ..
-            }) => match (module.as_atom_symbol(), function.as_atom_symbol()) {
-                (Some(m), Some(f)) if m == self.module => {
-                    let name = FunctionName::new_local(f, arity);
+                span: rspan,
+                module,
+                function,
+                ..
+            }) => match (module.as_atom(), function.as_atom()) {
+                (Some(m), Some(f)) if m.name == self.module => {
+                    let name = FunctionName::new_local(f.name, arity);
                     if !self.locals.contains(&name) {
                         let message =
                             format!("the function {} is not defined in this module", &name);
                         self.reporter.show_error(
                             "reference to undefined function",
-                            &[(span, message.as_str())],
+                            &[(*rspan, message.as_str())],
                         );
                     }
                     ControlFlow::Continue(())
                 }
+                (Some(m), Some(f)) => {
+                    let name = FunctionName::new(m.name, f.name, arity);
+                    match self.app.get_function_deprecation(&name) {
+                        None => ControlFlow::Continue(()),
+                        Some(Deprecation::Module { span: dspan, flag }) => {
+                            let note = format!("this module will be deprecated {}", &flag);
+                            self.reporter.show_warning(
+                                "use of deprecated module",
+                                &[
+                                    (m.span, note.as_str()),
+                                    (dspan, "deprecation declared here"),
+                                ],
+                            );
+                            ControlFlow::Continue(())
+                        }
+                        Some(Deprecation::Function {
+                            span: dspan, flag, ..
+                        }) => {
+                            let note = format!("this function will be deprecated {}", &flag);
+                            self.reporter.show_warning(
+                                "use of deprecated function",
+                                &[
+                                    (f.span, note.as_str()),
+                                    (dspan, "deprecation declared here"),
+                                ],
+                            );
+                            ControlFlow::Continue(())
+                        }
+                    }
+                }
                 (None, Some(f)) => {
-                    let name = FunctionName::new_local(f, arity);
-                    if !self.locals.contains(&name) && !self.imports.contains(&name) {
-                        let message = format!(
-                            "the function {} is not defined or imported in this module",
-                            &name
-                        );
-                        self.reporter.show_error(
-                            "reference to undefined function",
-                            &[(span, message.as_str())],
-                        );
+                    let name = FunctionName::new_local(f.name, arity);
+                    if !self.locals.contains(&name) {
+                        match self.imports.get(&name) {
+                            None => {
+                                let message = format!(
+                                    "the function {} is not defined or imported in this module",
+                                    &name
+                                );
+                                self.reporter.show_error(
+                                    "reference to undefined function",
+                                    &[(f.span, message.as_str())],
+                                );
+                            }
+                            Some(imported) => match self.app.get_function_deprecation(&imported) {
+                                None => (),
+                                Some(Deprecation::Module { span: dspan, flag }) => {
+                                    let note =
+                                        format!("this function will be deprecated {}", &flag);
+                                    self.reporter.show_warning(
+                                        "use of deprecated module",
+                                        &[
+                                            (f.span, note.as_str()),
+                                            (dspan, "deprecation declared here"),
+                                        ],
+                                    );
+                                }
+                                Some(Deprecation::Function {
+                                    span: dspan, flag, ..
+                                }) => {
+                                    let note =
+                                        format!("this function will be deprecated {}", &flag);
+                                    self.reporter.show_warning(
+                                        "use of deprecated function",
+                                        &[
+                                            (f.span, note.as_str()),
+                                            (dspan, "deprecation declared here"),
+                                        ],
+                                    );
+                                }
+                            },
+                        }
                     }
                     ControlFlow::Continue(())
                 }
@@ -190,14 +261,40 @@ impl<'a> VisitMut<()> for VerifyCallsVisitor<'a> {
             },
             Expr::FunctionVar(FunctionVar::Resolved(name)) => {
                 if name.module == Some(self.module) {
-                    let name = name.item.to_local();
-                    if !self.locals.contains(&name) {
+                    let local_name = name.item.to_local();
+                    if !self.locals.contains(&local_name) {
                         let message =
-                            format!("the function {} is not defined in this module", &name);
+                            format!("the function {} is not defined in this module", &local_name);
                         self.reporter.show_error(
                             "reference to undefined function",
-                            &[(span, message.as_str())],
+                            &[(name.span(), message.as_str())],
                         );
+                    }
+                } else {
+                    match self.app.get_function_deprecation(&name) {
+                        None => (),
+                        Some(Deprecation::Module { span: dspan, flag }) => {
+                            let note = format!("this function will be deprecated {}", &flag);
+                            self.reporter.show_warning(
+                                "use of deprecated module",
+                                &[
+                                    (name.span(), note.as_str()),
+                                    (dspan, "deprecation declared here"),
+                                ],
+                            );
+                        }
+                        Some(Deprecation::Function {
+                            span: dspan, flag, ..
+                        }) => {
+                            let note = format!("this function will be deprecated {}", &flag);
+                            self.reporter.show_warning(
+                                "use of deprecated function",
+                                &[
+                                    (name.span(), note.as_str()),
+                                    (dspan, "deprecation declared here"),
+                                ],
+                            );
+                        }
                     }
                 }
                 if name.arity > arity {
@@ -219,15 +316,38 @@ impl<'a> VisitMut<()> for VerifyCallsVisitor<'a> {
             }
             Expr::FunctionVar(FunctionVar::PartiallyResolved(name)) => {
                 let local_name = FunctionName::new_local(name.function, arity);
-                if !self.locals.contains(&local_name) && !self.imports.contains(&local_name) {
-                    let message = format!(
-                        "the function {} is not defined or imported in this module",
-                        &local_name
-                    );
-                    self.reporter.show_error(
-                        "reference to undefined function",
-                        &[(span, message.as_str())],
-                    );
+                if !self.locals.contains(&local_name) {
+                    match self.imports.get(&local_name) {
+                        None => {
+                            let message = format!(
+                                "the function {} is not defined or imported in this module",
+                                &local_name
+                            );
+                            self.reporter.show_error(
+                                "reference to undefined function",
+                                &[(span, message.as_str())],
+                            );
+                        }
+                        Some(imported) => match self.app.get_function_deprecation(&imported) {
+                            None => (),
+                            Some(Deprecation::Module { span: dspan, flag }) => {
+                                let note = format!("this module will be deprecated {}", &flag);
+                                self.reporter.show_warning(
+                                    "use of deprecated module",
+                                    &[(span, note.as_str()), (dspan, "deprecation declared here")],
+                                );
+                            }
+                            Some(Deprecation::Function {
+                                span: dspan, flag, ..
+                            }) => {
+                                let note = format!("this function will be deprecated {}", &flag);
+                                self.reporter.show_warning(
+                                    "use of deprecated function",
+                                    &[(span, note.as_str()), (dspan, "deprecation declared here")],
+                                );
+                            }
+                        },
+                    }
                 }
 
                 if name.arity > arity {
@@ -248,17 +368,66 @@ impl<'a> VisitMut<()> for VerifyCallsVisitor<'a> {
                 ControlFlow::Continue(())
             }
             Expr::FunctionVar(FunctionVar::Unresolved(name)) => {
-                if let Name::Atom(a) = name.function {
-                    let name = FunctionName::new_local(a.name, arity);
-                    if !self.locals.contains(&name) && !self.imports.contains(&name) {
-                        let message = format!(
-                            "the function {} is not defined or imported in this module",
-                            &name
-                        );
-                        self.reporter.show_error(
-                            "reference to undefined function",
-                            &[(span, message.as_str())],
-                        );
+                if let Some(Name::Atom(m)) = name.module {
+                    match self.app.get_module_deprecation(&m.name) {
+                        Some(Deprecation::Module { span: dspan, flag }) => {
+                            let note = format!("this module will be deprecated {}", &flag);
+                            self.reporter.show_warning(
+                                "use of deprecated module",
+                                &[(span, note.as_str()), (dspan, "deprecation declared here")],
+                            );
+                        }
+                        _ => (),
+                    }
+                }
+                if name.module.is_none() {
+                    if let Name::Atom(a) = name.function {
+                        let name = FunctionName::new_local(a.name, arity);
+                        if !self.locals.contains(&name) {
+                            match self.imports.get(&name) {
+                                None => {
+                                    let message = format!(
+                                        "the function {} is not defined or imported in this module",
+                                        &name
+                                    );
+                                    self.reporter.show_error(
+                                        "reference to undefined function",
+                                        &[(span, message.as_str())],
+                                    );
+                                }
+                                Some(imported) => {
+                                    match self.app.get_function_deprecation(&imported) {
+                                        None => (),
+                                        Some(Deprecation::Module { span: dspan, flag }) => {
+                                            let note =
+                                                format!("this module will be deprecated {}", &flag);
+                                            self.reporter.show_warning(
+                                                "use of deprecated module",
+                                                &[
+                                                    (span, note.as_str()),
+                                                    (dspan, "deprecation declared here"),
+                                                ],
+                                            );
+                                        }
+                                        Some(Deprecation::Function {
+                                            span: dspan, flag, ..
+                                        }) => {
+                                            let note = format!(
+                                                "this function will be deprecated {}",
+                                                &flag
+                                            );
+                                            self.reporter.show_warning(
+                                                "use of deprecated function",
+                                                &[
+                                                    (span, note.as_str()),
+                                                    (dspan, "deprecation declared here"),
+                                                ],
+                                            );
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
                 match name.arity {
@@ -284,12 +453,36 @@ impl<'a> VisitMut<()> for VerifyCallsVisitor<'a> {
             }
             Expr::Literal(Literal::Atom(id)) => {
                 let name = FunctionName::new_local(id.name, arity);
-                if !self.locals.contains(&name) && !self.imports.contains(&name) {
-                    let message = format!("{} is not defined or imported in this module", &name);
-                    self.reporter.show_error(
-                        "reference to undefined function",
-                        &[(span, message.as_str())],
-                    );
+                if !self.locals.contains(&name) {
+                    match self.imports.get(&name) {
+                        None => {
+                            let message =
+                                format!("{} is not defined or imported in this module", &name);
+                            self.reporter.show_error(
+                                "reference to undefined function",
+                                &[(span, message.as_str())],
+                            );
+                        }
+                        Some(imported) => match self.app.get_function_deprecation(&imported) {
+                            None => (),
+                            Some(Deprecation::Module { span: dspan, flag }) => {
+                                let note = format!("this module will be deprecated {}", &flag);
+                                self.reporter.show_warning(
+                                    "use of deprecated module",
+                                    &[(span, note.as_str()), (dspan, "deprecation declared here")],
+                                );
+                            }
+                            Some(Deprecation::Function {
+                                span: dspan, flag, ..
+                            }) => {
+                                let note = format!("this function will be deprecated {}", &flag);
+                                self.reporter.show_warning(
+                                    "use of deprecated function",
+                                    &[(span, note.as_str()), (dspan, "deprecation declared here")],
+                                );
+                            }
+                        },
+                    }
                 }
                 ControlFlow::Continue(())
             }

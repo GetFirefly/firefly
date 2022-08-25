@@ -8,6 +8,7 @@ use liblumen_diagnostics::{Reporter, ToDiagnostic};
 use liblumen_llvm as llvm;
 use liblumen_mlir as mlir;
 use liblumen_session::{Input, InputType};
+use liblumen_syntax_base::ApplicationMetadata;
 use liblumen_syntax_core as syntax_core;
 use liblumen_syntax_erl::{self as syntax_erl, ParseConfig};
 use liblumen_syntax_kernel as syntax_kernel;
@@ -228,12 +229,13 @@ where
 pub(crate) fn input_core<P>(
     db: &P,
     input: InternedInput,
+    app: Arc<ApplicationMetadata>,
 ) -> Result<syntax_core::Module, ErrorReported>
 where
     P: Parser,
 {
     use liblumen_pass::Pass;
-    use liblumen_syntax_erl::passes::AstToCore;
+    use liblumen_syntax_erl::passes::{AstToCore, CanonicalizeSyntax, SemanticAnalysis};
 
     // Get Erlang AST
     let ast = db.input_ast(input)?;
@@ -246,7 +248,11 @@ where
     } else {
         Reporter::new()
     };
-    let mut passes = AstToCore::new(reporter.clone());
+
+    let mut passes = SemanticAnalysis::new(reporter.clone(), &app)
+        .chain(CanonicalizeSyntax::new(reporter.clone(), codemap.clone()))
+        .chain(AstToCore::new(reporter.clone()));
+
     let module = unwrap_or_bail!(db, reporter, &codemap, passes.run(ast));
 
     db.maybe_emit_file(input, &module)?;
@@ -257,6 +263,7 @@ where
 pub(crate) fn input_kernel<P>(
     db: &P,
     input: InternedInput,
+    app: Arc<ApplicationMetadata>,
 ) -> Result<syntax_kernel::Module, ErrorReported>
 where
     P: Parser,
@@ -265,7 +272,7 @@ where
     use liblumen_syntax_kernel::passes::CoreToKernel;
 
     // Get Core AST
-    let ast = db.input_core(input)?;
+    let ast = db.input_core(input, app)?;
 
     // Run lowering passes
     let options = db.options();
@@ -286,6 +293,7 @@ where
 pub(crate) fn input_ssa<P>(
     db: &P,
     input: InternedInput,
+    app: Arc<ApplicationMetadata>,
 ) -> Result<syntax_ssa::Module, ErrorReported>
 where
     P: Parser,
@@ -294,7 +302,7 @@ where
     use liblumen_syntax_kernel::passes::KernelToSsa;
 
     // Get Kernel Erlang module
-    let cst = db.input_kernel(input)?;
+    let cst = db.input_kernel(input, app)?;
 
     // Run lowering passes
     let options = db.options();
@@ -317,6 +325,7 @@ pub(crate) fn input_mlir<P>(
     db: &P,
     thread_id: ThreadId,
     input: InternedInput,
+    app: Arc<ApplicationMetadata>,
 ) -> Result<mlir::OwnedModule, ErrorReported>
 where
     P: Parser,
@@ -344,7 +353,7 @@ where
         }
         InputType::Erlang | InputType::AbstractErlang | InputType::SSA => {
             debug!("generating mlir for {:?} on {:?}", input, thread_id);
-            let module = db.input_ssa(input)?;
+            let module = db.input_ssa(input, app)?;
             let codemap = db.codemap();
             let context = db.mlir_context(thread_id);
 

@@ -1,31 +1,16 @@
-//! ```cargo
-//! [dependencies]
-//! cargo_metadata = "0.15"
-//! serde = { version = "1.0", features = ["derive"] }
-//! serde_json = "1.0"
-//! walkdir = "*"
-//! ```
-#![feature(drain_filter)]
-#![feature(slice_internals)]
-#![feature(slice_concat_trait)]
-#![allow(non_snake_case)]
-
-extern crate core;
-extern crate serde;
-extern crate serde_json;
-extern crate walkdir;
-extern crate cargo_metadata;
-
 use std::collections::{HashMap, HashSet};
 use std::env;
 use std::fs;
 use std::io::{self, BufReader, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::sync::OnceLock;
 
+use anyhow::bail;
+use cargo_metadata::{Message, MetadataCommand};
+use clap::Args;
 use serde::Deserialize;
 use walkdir::{DirEntry, WalkDir};
-use cargo_metadata::{Message, MetadataCommand};
 
 #[derive(Deserialize)]
 struct TargetSpec {
@@ -33,59 +18,186 @@ struct TargetSpec {
     llvm_target: String,
 }
 
-fn main() -> Result<(), ()> {
-    let cargo_profile = env::var("LUMEN_BUILD_PROFILE").unwrap();
-    let toolchain_name = env::var("CARGO_MAKE_TOOLCHAIN").unwrap();
-    let rust_target_triple = env::var("CARGO_MAKE_RUST_TARGET_TRIPLE").unwrap();
-    let target_triple = get_llvm_target(&toolchain_name, &rust_target_triple);
-    let target_vendor = env::var("CARGO_MAKE_RUST_TARGET_VENDOR").unwrap();
-    let target_os = env::var("CARGO_MAKE_RUST_TARGET_OS").unwrap();
-    let build_type = env::var("LUMEN_BUILD_TYPE").unwrap();
-    let target_dir = PathBuf::from(env::var("CARGO_TARGET_DIR").unwrap());
-    let bin_dir = PathBuf::from(&env::var("LUMEN_BIN_DIR").unwrap());
-    let install_dir = PathBuf::from(&env::var("LUMEN_INSTALL_DIR").unwrap());
-    let install_bin_dir = install_dir.join("bin");
-    let install_host_lib_dir = install_dir.join("lib");
-    let install_target_lib_dir = install_dir.join(&format!("lib/lumenlib/{}/lib", &target_triple));
-    let rust_sysroot = get_rust_sysroot();
-    let toolchain_target_dir = rust_sysroot.join("lib/rustlib").join(&rust_target_triple);
-    let llvm_prefix = PathBuf::from(&env::var("LLVM_PREFIX").unwrap());
-    let enable_lto = env::var("LUMEN_BUILD_LTO").unwrap_or(String::new()) == "true";
-    let verbose = env::var("VERBOSE").is_ok() || env::var("CARGO_MAKE_CI") == Ok("true".to_string());
-    let cwd = env::var("CARGO_MAKE_WORKING_DIRECTORY").unwrap();
+#[derive(Args)]
+pub struct Config {
+    /// The working directory for the build
+    #[clap(hide(true), long, env("CARGO_MAKE_WORKING_DIRECTORY"))]
+    cwd: Option<PathBuf>,
+    /// The path to the root of your LLVM installation, e.g. ~/.local/share/llvm/
+    ///
+    /// The given path should contain include/ and lib/ directories
+    #[clap(long("llvm"), alias("llvm-prefix"), env("LLVM_PREFIX"))]
+    llvm_prefix: PathBuf,
+    /// Enables more informational output during the build
+    ///
+    /// This is enabled by default in CI
+    #[clap(short, long, env("VERBOSE"))]
+    verbose: bool,
+    /// When true, this build is being run under CI
+    #[clap(hide(true), long, env("CI"))]
+    ci: bool,
+    /// Enables link-time optimization of the build
+    #[clap(long, env("LUMEN_BUILD_LTO"))]
+    lto: bool,
+    /// The cargo profile to build with
+    #[clap(long, env("LUMEN_BUILD_PROFILE"), default_value = "debug")]
+    profile: String,
+    #[clap(hide(true), long, env("LUMEN_BUILD_TYPE"), default_value = "dynamic")]
+    build_type: String,
+    /// Whether this build should be statically linked
+    #[clap(long("static"))]
+    link_static: bool,
+    /// Whether this build should be dynamically linked
+    #[clap(long("dynamic"), conflicts_with("link-static"))]
+    link_dynamic: bool,
+    /// If provided, enables building the compiler with the given sanitizer
+    #[clap(long, env("SANITIZER"))]
+    sanitizer: Option<String>,
+    /// The name of the cargo toolchain to use
+    #[clap(long, env("CARGO_MAKE_TOOLCHAIN"), default_value = "nightly")]
+    toolchain: String,
+    /// The name of the target platform to build for
+    #[clap(long, env("CARGO_MAKE_RUST_TARGET_TRIPLE"))]
+    target_triple: String,
+    /// The vendor value of the current Rust target
+    #[clap(long, env("CARGO_MAKE_RUST_TARGET_VENDOR"))]
+    target_vendor: Option<String>,
+    /// The os value of the current Rust target
+    #[clap(long, env("CARGO_MAKE_RUST_TARGET_OS"))]
+    target_os: Option<String>,
+    /// The directory in which cargo will produce its build output
+    #[clap(long, env("CARGO_TARGET_DIR"))]
+    target_dir: Option<PathBuf>,
+    /// The location where the compiler binaries should be symlinked
+    #[clap(long, env("LUMEN_BIN_DIR"), default_value = "./bin")]
+    bin_dir: PathBuf,
+    /// The location where the compiler toolchain should be installed
+    #[clap(long, env("LUMEN_INSTALL_DIR"), default_value = "./_build")]
+    install_dir: PathBuf,
+}
+impl Config {
+    pub fn working_directory(&self) -> PathBuf {
+        self.cwd
+            .clone()
+            .unwrap_or_else(|| std::env::current_dir().unwrap())
+    }
+
+    pub fn llvm_prefix(&self) -> &Path {
+        self.llvm_prefix.as_path()
+    }
+
+    pub fn verbose(&self) -> bool {
+        self.verbose || self.ci
+    }
+
+    pub fn lto(&self) -> bool {
+        self.lto
+    }
+
+    pub fn profile(&self) -> &str {
+        self.profile.as_str()
+    }
+
+    pub fn link_static(&self) -> bool {
+        self.link_static || self.build_type == "static" || !self.link_dynamic
+    }
+
+    pub fn link_dynamic(&self) -> bool {
+        self.link_dynamic || self.build_type == "dynamic"
+    }
+
+    pub fn sanitizer(&self) -> Option<&str> {
+        self.sanitizer.as_deref()
+    }
+
+    pub fn toolchain(&self) -> &str {
+        self.toolchain.as_str()
+    }
+
+    pub fn rust_target(&self) -> &str {
+        self.target_triple.as_str()
+    }
+
+    pub fn llvm_target(&self) -> &str {
+        get_llvm_target(self.toolchain(), self.rust_target())
+    }
+
+    pub fn is_darwin(&self) -> bool {
+        let is_apple = self
+            .target_vendor
+            .as_ref()
+            .map(|v| v == "apple")
+            .unwrap_or_else(|| self.rust_target().contains("apple"));
+        let is_macos = self
+            .target_os
+            .as_ref()
+            .map(|os| os == "macos")
+            .unwrap_or_else(|| self.rust_target().contains("macos"));
+        is_apple || is_macos
+    }
+
+    pub fn is_windows(&self) -> bool {
+        self.target_os
+            .as_ref()
+            .map(|os| os == "windows")
+            .unwrap_or_else(|| self.rust_target().contains("windows"))
+    }
+
+    pub fn is_linux(&self) -> bool {
+        !self.is_darwin() && !self.is_windows()
+    }
+
+    pub fn bin_dir(&self) -> &Path {
+        self.bin_dir.as_path()
+    }
+
+    pub fn install_dir(&self) -> &Path {
+        self.install_dir.as_path()
+    }
+
+    pub fn sysroot(&self) -> &Path {
+        get_rust_sysroot()
+    }
+
+    pub fn toolchain_target_dir(&self) -> PathBuf {
+        self.sysroot().join("lib/rustlib").join(self.rust_target())
+    }
+}
+
+pub fn run(config: &Config) -> anyhow::Result<()> {
+    let cwd = config.working_directory();
+    let target_dir = config
+        .target_dir
+        .clone()
+        .unwrap_or_else(|| cwd.join("target"));
 
     let mut build_link_args = vec!["-Wl".to_owned()];
     let mut extra_cargo_flags = vec![];
-    let mut rustflags = env::var("RUSTFLAGS").unwrap_or(String::new())
+    let mut rustflags = env::var("RUSTFLAGS")
+        .unwrap_or(String::new())
         .split(' ')
         .map(|flag| flag.to_string())
         .collect::<Vec<_>>();
 
-
-    let verbose_flags = env::var("CARGO_MAKE_CARGO_VERBOSE_FLAGS");
-    if let Ok(f) = verbose_flags {
+    if let Ok(f) = env::var("CARGO_MAKE_CARGO_VERBOSE_FLAGS") {
         if !f.is_empty() {
             extra_cargo_flags.push(f.to_owned());
         }
     }
 
-    let sanitizer = env::var("SANITIZER");
-    if let Ok(sanitizer) = sanitizer {
+    if let Some(sanitizer) = config.sanitizer() {
         if !sanitizer.is_empty() {
             rustflags.push("-Z".to_owned());
             rustflags.push(format!("sanitizer={}", sanitizer));
         }
     }
 
-    let is_darwin = target_vendor == "apple";
-    let is_linux = target_os != "macos" && target_os != "windows";
-
-    if is_linux && build_type != "static" {
+    if config.is_linux() && config.link_dynamic() {
         build_link_args.push("-rpath".to_owned());
         build_link_args.push("$ORIGIN/../lib".to_owned());
     }
 
-    let target_subdir = match cargo_profile.as_str() {
+    let target_subdir = match config.profile() {
         "release" => {
             extra_cargo_flags.push("--release".to_owned());
             "release"
@@ -99,16 +211,16 @@ fn main() -> Result<(), ()> {
         }
     };
 
-    if build_type == "static" {
+    if config.link_static() {
         rustflags.push("-C".to_owned());
         rustflags.push("prefer-dynamic=no".to_owned());
     }
 
-    if is_darwin {
+    if config.is_darwin() {
         build_link_args.push("-headerpad_max_install_names".to_owned());
     }
 
-    if enable_lto {
+    if config.lto() {
         build_link_args.push("-flto=thin".to_owned());
         rustflags.push("-C".to_owned());
         rustflags.push("embed-bitcode=yes".to_owned());
@@ -125,30 +237,32 @@ fn main() -> Result<(), ()> {
     let cargo_args = extra_cargo_flags.iter().collect::<Vec<_>>();
     let rustflags = rustflags.as_slice().join(" ");
 
-    let path_var = env::var("PATH").unwrap();
-    let path = format!("{}/bin:{}", llvm_prefix.display(), &path_var);
-
     println!("Starting build..");
 
-    let metadata = MetadataCommand::new()
-        .exec()
-        .unwrap();
+    let metadata = MetadataCommand::new().exec().unwrap();
 
-    let workspace_members = metadata.workspace_members.iter().cloned().collect::<HashSet<_>>();
+    let workspace_members = metadata
+        .workspace_members
+        .iter()
+        .cloned()
+        .collect::<HashSet<_>>();
+
+    let path_var = env::var("PATH").unwrap();
+    let path = format!("{}/bin:{}", config.llvm_prefix().display(), &path_var);
 
     let mut cargo_cmd = Command::new("rustup");
     let cargo_cmd = cargo_cmd
         .arg("run")
-        .arg(&toolchain_name)
+        .arg(config.toolchain())
         .args(&["cargo", "rustc"])
         .args(&["-p", "lumen"])
         .arg("--target")
-        .arg(rust_target_triple.as_str())
+        .arg(config.rust_target())
         .args(&["--message-format=json-diagnostic-rendered-ansi", "-vv"])
         .args(cargo_args.as_slice())
         .arg("--")
         .arg("--remap-path-prefix")
-        .arg(&format!("{}=.", &cwd))
+        .arg(&format!("{}=.", cwd.display()))
         .arg(link_args_string.as_str())
         .env("PATH", path.as_str())
         .env("RUSTFLAGS", rustflags.as_str());
@@ -156,13 +270,12 @@ fn main() -> Result<(), ()> {
     let cmd = format!("{:?}", &cargo_cmd);
 
     // Print more verbose output when requested/in CI
+    let verbose = config.verbose();
     cargo_cmd.stdout(Stdio::piped());
     if !verbose {
         cargo_cmd.stderr(Stdio::null());
     }
-    let mut child = cargo_cmd
-        .spawn()
-        .unwrap();
+    let mut child = cargo_cmd.spawn().unwrap();
 
     let mut deps: HashMap<String, Vec<String>> = HashMap::new();
     {
@@ -180,9 +293,9 @@ fn main() -> Result<(), ()> {
                         DiagnosticLevel::Ice
                         | DiagnosticLevel::Error
                         | DiagnosticLevel::FailureNote => {
-                          if let Some(msg) = msg.message.rendered.as_ref() {
-                              handle.write_all(msg.as_bytes()).unwrap();
-                          }
+                            if let Some(msg) = msg.message.rendered.as_ref() {
+                                handle.write_all(msg.as_bytes()).unwrap();
+                            }
                         }
                         _ if workspace_members.contains(&msg.package_id) || verbose => {
                             // This message is relevant to one of our crates
@@ -192,22 +305,27 @@ fn main() -> Result<(), ()> {
                         }
                         _ => continue,
                     }
-                },
-                Message::CompilerArtifact(artifact) if artifact.target.name == "build-script-build" => {
+                }
+                Message::CompilerArtifact(artifact)
+                    if artifact.target.name == "build-script-build" =>
+                {
                     let message = format!("Building {}\n", &artifact.package_id.repr);
                     handle.write_all(message.as_bytes()).unwrap();
-                },
+                }
                 Message::CompilerArtifact(mut artifact) => {
                     let message = format!("Compiled {}\n", &artifact.package_id.repr);
                     handle.write_all(message.as_bytes()).unwrap();
                     // Track the artifacts for workspace members as we need them later
                     if workspace_members.contains(&artifact.package_id) {
-                        let files = artifact.filenames
+                        let files = artifact
+                            .filenames
                             .drain_filter(|f| {
                                 let p = f.as_path();
                                 let ext = p.extension();
                                 ext == Some("a") || ext == Some("rlib")
-                            }).map(|f| f.into_string()).collect::<Vec<_>>();
+                            })
+                            .map(|f| f.into_string())
+                            .collect::<Vec<_>>();
                         if !files.is_empty() {
                             deps.insert(artifact.target.name.clone(), files);
                         }
@@ -215,13 +333,15 @@ fn main() -> Result<(), ()> {
                 }
                 Message::BuildScriptExecuted(_script) => {
                     continue;
-                },
+                }
                 Message::BuildFinished(result) if result.success => {
-                    handle.write_all(b"Build completed successfully!\n").unwrap();
-                },
+                    handle
+                        .write_all(b"Build completed successfully!\n")
+                        .unwrap();
+                }
                 Message::BuildFinished(_) => {
                     handle.write_all(b"Build finished with errors!\n").unwrap();
-                },
+                }
                 Message::TextLine(s) => {
                     // Unknown message content
                     handle.write_all(s.as_bytes()).unwrap();
@@ -237,13 +357,19 @@ fn main() -> Result<(), ()> {
 
     let output = child.wait().unwrap();
     if !output.success() {
-        eprintln!(
+        bail!(
             "command did not execute successfully: {}\n\
             expected success, got: {}",
-            cmd, output
+            cmd,
+            output
         );
-        return Err(());
     }
+
+    let llvm_target = config.llvm_target();
+    let install_dir = config.install_dir();
+    let install_bin_dir = install_dir.join("bin");
+    let install_host_lib_dir = install_dir.join("lib");
+    let install_target_lib_dir = install_dir.join(&format!("lib/lumenlib/{}/lib", &llvm_target));
 
     println!("Preparing to install Lumen to {}", install_dir.display());
 
@@ -271,7 +397,10 @@ fn main() -> Result<(), ()> {
 
     println!("Installing Lumen..");
 
-    let src_lumen_exe = target_dir.join(&rust_target_triple).join(target_subdir).join("lumen");
+    let src_lumen_exe = target_dir
+        .join(config.rust_target())
+        .join(target_subdir)
+        .join("lumen");
     if !src_lumen_exe.exists() {
         panic!(
             "Expected build to place Lumen executable at {}",
@@ -285,9 +414,9 @@ fn main() -> Result<(), ()> {
     }
     fs::copy(src_lumen_exe, &lumen_exe).unwrap();
 
-    symlink(&lumen_exe, &bin_dir.join("lumen"));
+    symlink(&lumen_exe, config.bin_dir().join("lumen"));
 
-    if is_darwin {
+    if config.is_darwin() {
         println!("Patching runtime path..");
 
         let mut install_name_tool_cmd = Command::new("install_name_tool");
@@ -310,7 +439,7 @@ fn main() -> Result<(), ()> {
     println!("Installing runtime dependencies..");
 
     let rustlibs = &["libpanic_abort", "libpanic_unwind"];
-    let walker = WalkDir::new(toolchain_target_dir.join("lib")).into_iter();
+    let walker = WalkDir::new(config.toolchain_target_dir().join("lib")).into_iter();
     for entry in walker.filter_entry(|e| is_dir_or_matching_rlib(e, rustlibs)) {
         let entry = entry.unwrap();
         let ty = entry.file_type();
@@ -342,10 +471,10 @@ fn main() -> Result<(), ()> {
         }
     }
 
-    if build_type != "static" {
+    if config.link_dynamic() {
         match env::var_os("LLVM_LINK_LLVM_DYLIB") {
             Some(val) if val == "ON" => {
-                let walker = WalkDir::new(llvm_prefix.join("lib")).into_iter();
+                let walker = WalkDir::new(config.llvm_prefix().join("lib")).into_iter();
                 let mut symlinks = HashMap::new();
                 for entry in walker.filter_entry(|e| is_dir_or_llvm_lib(e)) {
                     let entry = entry.unwrap();
@@ -383,7 +512,7 @@ fn main() -> Result<(), ()> {
                 for (link_name, file_name) in symlinks.iter() {
                     let src = install_host_lib_dir.join(file_name);
                     let dst = install_host_lib_dir.join(link_name);
-                    symlink(&src, &dst);
+                    symlink(&src, dst);
                 }
             }
             _ => {}
@@ -391,49 +520,62 @@ fn main() -> Result<(), ()> {
     }
 
     println!("Install complete!");
-    return Ok(());
+    Ok(())
 }
 
-fn get_llvm_target(toolchain_name: &str, target: &str) -> String {
-   let mut rustc_cmd = Command::new("rustup");
-    let rustc_cmd = rustc_cmd
-        .arg("run")
-        .arg(toolchain_name)
-        .args(&["rustc"])
-        .args(&["-Z", "unstable-options"])
-        .args(&["--print", "target-spec-json", "--target"])
-        .arg(target);
+static LLVM_TARGET: OnceLock<String> = OnceLock::new();
 
-    let output = rustc_cmd
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .output()
-        .unwrap();
+fn get_llvm_target(toolchain_name: &str, target: &str) -> &'static str {
+    let target = LLVM_TARGET.get_or_init(|| {
+        let mut rustc_cmd = Command::new("rustup");
+        let rustc_cmd = rustc_cmd
+            .arg("run")
+            .arg(toolchain_name)
+            .args(&["rustc"])
+            .args(&["-Z", "unstable-options"])
+            .args(&["--print", "target-spec-json", "--target"])
+            .arg(target);
 
-    if !output.status.success() {
-        panic!("unable to determine llvm target triple!: {}", String::from_utf8(output.stderr).unwrap());
-    }
+        let output = rustc_cmd
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .output()
+            .unwrap();
 
-    let spec: TargetSpec = serde_json::from_slice(output.stdout.as_slice()).unwrap();
-    spec.llvm_target
+        if !output.status.success() {
+            panic!(
+                "unable to determine llvm target triple!: {}",
+                String::from_utf8(output.stderr).unwrap()
+            );
+        }
+
+        let spec: TargetSpec = serde_json::from_slice(output.stdout.as_slice()).unwrap();
+        spec.llvm_target
+    });
+    target.as_str()
 }
 
-fn get_rust_sysroot() -> PathBuf {
-    let mut rustc_cmd = Command::new("rustc");
-    let rustc_cmd = rustc_cmd.args(&["--print", "sysroot"]);
-    let output = rustc_cmd
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .output()
-        .unwrap();
-    if !output.status.success() {
-        panic!("unable to determine rust sysroot!");
-    }
+static RUST_SYSROOT: OnceLock<PathBuf> = OnceLock::new();
 
-    let s = String::from_utf8(output.stdout).unwrap();
-    PathBuf::from(s.trim().to_owned())
+fn get_rust_sysroot() -> &'static Path {
+    let path = RUST_SYSROOT.get_or_init(|| {
+        let mut rustc_cmd = Command::new("rustc");
+        let rustc_cmd = rustc_cmd.args(&["--print", "sysroot"]);
+        let output = rustc_cmd
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .output()
+            .unwrap();
+        if !output.status.success() {
+            panic!("unable to determine rust sysroot!");
+        }
+
+        let s = String::from_utf8(output.stdout).unwrap();
+        PathBuf::from(s.trim().to_owned())
+    });
+    path.as_path()
 }
 
 fn is_dir_or_llvm_lib(entry: &DirEntry) -> bool {
@@ -487,17 +629,17 @@ fn is_dir_or_library_file(entry: &DirEntry) -> bool {
 }
 
 #[cfg(unix)]
-fn symlink(src: &Path, dst: &Path) {
+fn symlink(src: &Path, dst: PathBuf) {
     use std::os::unix;
 
-    fs::remove_file(dst).ok();
-    unix::fs::symlink(src, dst).unwrap()
+    fs::remove_file(dst.as_path()).ok();
+    unix::fs::symlink(src, dst.as_path()).unwrap()
 }
 
 #[cfg(windows)]
-fn symlink(src: &Path, dst: &Path) {
+fn symlink(src: &Path, dst: PathBuf) {
     use std::os::windows::fs::symlink_file;
 
-    fs::remove_file(dst).ok();
-    symlink_file(src, dst).unwrap()
+    fs::remove_file(dst.as_path()).ok();
+    symlink_file(src, dst.as_path()).unwrap()
 }

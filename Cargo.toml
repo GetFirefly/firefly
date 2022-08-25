@@ -20,7 +20,8 @@ exclude = [
   "runtimes/core",
   "runtimes/full",
   "runtimes/minimal",
-  "examples"
+  "examples",
+  "tools"
 ]
 
 [profile.release]

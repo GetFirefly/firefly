@@ -266,8 +266,8 @@ dependencies = [
 category = "Test"
 description = "Runs file-based checks using lit"
 env = { RUSTFLAGS = "-Z unstable-options -C link-args=-Wl,-rpath,${LLVM_PREFIX}/lib" }
-script_runner = "@rust"
-script = { file = "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/scripts/lit.rs", absolute_path = true }
+command = "bin/firefly-make"
+args = ["lit", "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/test/lit"]
 dependencies = [
   "lumen",
 ]
@@ -330,12 +330,20 @@ category = "Build"
 description = "Builds the Lumen compiler"
 condition = { env = { "BUILD_LUMEN" = "true" } }
 env = { RUSTFLAGS = "-Z unstable-options -C link-args=-Wl,-rpath,${LLVM_PREFIX}/lib" }
-script_runner = "@rust"
-script = { file = "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/scripts/lumen.rs", absolute_path = true }
+command = "bin/firefly-make"
+args = ["build", "@@remove-empty(CARGO_MAKE_CARGO_VERBOSE_FLAGS)"]
 dependencies = [
   "require-ninja",
   "require-cmake",
+  "firefly-make",
 ]
+
+[tasks.firefly-make]
+category = "Build"
+description = "Builds the firefly-make helper"
+command = "rustup"
+env = { CARGO_TARGET_DIR = "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/tools/firefly-make/target" }
+args = ["run", "${CARGO_MAKE_TOOLCHAIN}", "cargo", "-Z", "unstable-options", "build", "--manifest-path", "tools/firefly-make/Cargo.toml", "--release", "--out-dir", "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/bin"]
 
 [tasks.require-ninja]
 private = true

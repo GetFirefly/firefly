@@ -1,4 +1,11 @@
-pub mod atoms;
+#[cfg_attr(rustfmt, rustfmt_skip)]
+#[allow(nonstandard_style, non_upper_case_globals)]
+pub mod atoms {
+    // During the build step, `build.rs` will output the generated atoms to `OUT_DIR` to avoid
+    // adding it to the source directory, so we just directly include the generated code here.
+    include!(concat!(env!("OUT_DIR"), "/atoms.rs"));
+}
+
 mod table;
 
 pub use self::table::AtomData;

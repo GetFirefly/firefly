@@ -205,6 +205,12 @@ where
                 }
                 Ok(replacement.into())
             }
+            MacroDef::Atom(s) => Ok(vec![LexicalToken(
+                span.start(),
+                Token::Atom(s.clone()),
+                span.end(),
+            )]
+            .into()),
             MacroDef::String(s) => Ok(vec![LexicalToken(
                 span.start(),
                 Token::String(s.clone()),
@@ -319,7 +325,7 @@ where
             Directive::Module(ref d) => {
                 self.macros.insert(
                     MacroIdent::Const(symbols::MODULE),
-                    MacroDef::String(d.name.symbol()),
+                    MacroDef::Atom(d.name.symbol()),
                 );
                 self.macros.insert(
                     MacroIdent::Const(symbols::MODULE_STRING),

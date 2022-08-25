@@ -32,7 +32,7 @@ impl Pass for CanonicalizeSyntax {
             // Prepare function for translation to CST
             let mut pipeline = ExpandRecords::new(&module)
                 .chain(ExpandUnqualifiedCalls::new(&module))
-                .chain(ExpandSubstitutions);
+                .chain(ExpandSubstitutions::new(module.name));
             pipeline.run(&mut function)?;
 
             functions.insert(key, function);

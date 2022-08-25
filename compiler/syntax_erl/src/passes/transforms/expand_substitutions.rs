@@ -14,13 +14,20 @@ use crate::visit::{self as visit, VisitMut};
 ///
 /// * All `Expr::DelayedSubstitution` nodes have been replaced with `Expr::Literal` nodes
 #[derive(Debug)]
-pub struct ExpandSubstitutions;
+pub struct ExpandSubstitutions {
+    module: Ident,
+}
+impl ExpandSubstitutions {
+    pub fn new(module: Ident) -> Self {
+        Self { module }
+    }
+}
 impl Pass for ExpandSubstitutions {
     type Input<'a> = &'a mut Function;
     type Output<'a> = &'a mut Function;
 
     fn run<'a>(&mut self, f: Self::Input<'a>) -> anyhow::Result<Self::Output<'a>> {
-        let mut visitor = ExpandSubstitutionsVisitor::new(f);
+        let mut visitor = ExpandSubstitutionsVisitor::new(self.module, f);
         match visitor.visit_mut_function(f) {
             ControlFlow::Continue(_) => Ok(f),
             ControlFlow::Break(err) => Err(err),
@@ -29,12 +36,14 @@ impl Pass for ExpandSubstitutions {
 }
 
 struct ExpandSubstitutionsVisitor {
+    module: Ident,
     name: Ident,
     arity: u8,
 }
 impl ExpandSubstitutionsVisitor {
-    fn new(f: &Function) -> Self {
+    fn new(module: Ident, f: &Function) -> Self {
         Self {
+            module,
             name: f.name,
             arity: f.arity,
         }
@@ -43,6 +52,8 @@ impl ExpandSubstitutionsVisitor {
     fn fix(&mut self, span: &SourceSpan, sub: DelayedSubstitution) -> Expr {
         // It shouldn't be possible for this expression to exist outside of a function context
         match sub {
+            DelayedSubstitution::Module => Expr::Literal(Literal::Atom(self.module)),
+            DelayedSubstitution::ModuleString => Expr::Literal(Literal::String(self.module)),
             DelayedSubstitution::FunctionName => Expr::Literal(Literal::Atom(self.name)),
             DelayedSubstitution::FunctionArity => {
                 Expr::Literal(Literal::Integer(span.clone(), self.arity.into()))

@@ -127,6 +127,7 @@ impl MacroContainer {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MacroDef {
     Boolean(bool),
+    Atom(Symbol),
     String(Symbol),
     Static(Define),
     Dynamic(Vec<LexicalToken>),
@@ -138,6 +139,7 @@ impl MacroDef {
         match *self {
             MacroDef::Static(ref d) => d.variables.is_some(),
             MacroDef::Dynamic(_) => false,
+            MacroDef::Atom(_) => false,
             MacroDef::String(_) => false,
             MacroDef::Boolean(_) => false,
             MacroDef::DelayedSubstitution(_) => false,

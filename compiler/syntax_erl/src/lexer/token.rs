@@ -269,12 +269,16 @@ impl fmt::Display for SymbolToken {
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum DelayedSubstitution {
+    Module,
+    ModuleString,
     FunctionName,
     FunctionArity,
 }
 impl fmt::Display for DelayedSubstitution {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
+            Self::Module => f.write_str("?MODULE"),
+            Self::ModuleString => f.write_str("?MODULE_STRING"),
             Self::FunctionName => f.write_str("?FUNCTION_NAME"),
             Self::FunctionArity => f.write_str("?FUNCTION_ARITY"),
         }
@@ -514,7 +518,9 @@ impl fmt::Display for Token {
             Token::Error(_) => write!(f, "ERROR"),
             Token::Comment => write!(f, "COMMENT"),
             Token::Edoc => write!(f, "EDOC"),
-            Token::DelayedSubstitution(DelayedSubstitution::FunctionName) => write!(f, "STRING"),
+            Token::DelayedSubstitution(DelayedSubstitution::Module) => write!(f, "ATOM"),
+            Token::DelayedSubstitution(DelayedSubstitution::ModuleString) => write!(f, "STRING"),
+            Token::DelayedSubstitution(DelayedSubstitution::FunctionName) => write!(f, "ATOM"),
             Token::DelayedSubstitution(DelayedSubstitution::FunctionArity) => write!(f, "INTEGER"),
             // Literals
             Token::Char(ref c) => write!(f, "{}", c),

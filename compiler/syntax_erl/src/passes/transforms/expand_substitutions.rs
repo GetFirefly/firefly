@@ -1,7 +1,8 @@
 use core::ops::ControlFlow;
 
-use liblumen_diagnostics::SourceSpan;
-use liblumen_intern::Ident;
+use liblumen_diagnostics::{CodeMap, SourceSpan};
+use liblumen_intern::{symbols, Ident, Symbol};
+use liblumen_number::Integer;
 use liblumen_pass::Pass;
 
 use crate::ast::*;
@@ -14,20 +15,21 @@ use crate::visit::{self as visit, VisitMut};
 ///
 /// * All `Expr::DelayedSubstitution` nodes have been replaced with `Expr::Literal` nodes
 #[derive(Debug)]
-pub struct ExpandSubstitutions {
+pub struct ExpandSubstitutions<'cm> {
     module: Ident,
+    codemap: &'cm CodeMap,
 }
-impl ExpandSubstitutions {
-    pub fn new(module: Ident) -> Self {
-        Self { module }
+impl<'cm> ExpandSubstitutions<'cm> {
+    pub fn new(module: Ident, codemap: &'cm CodeMap) -> Self {
+        Self { module, codemap }
     }
 }
-impl Pass for ExpandSubstitutions {
+impl<'cm> Pass for ExpandSubstitutions<'cm> {
     type Input<'a> = &'a mut Function;
     type Output<'a> = &'a mut Function;
 
     fn run<'a>(&mut self, f: Self::Input<'a>) -> anyhow::Result<Self::Output<'a>> {
-        let mut visitor = ExpandSubstitutionsVisitor::new(self.module, f);
+        let mut visitor = ExpandSubstitutionsVisitor::new(self.module, self.codemap, f);
         match visitor.visit_mut_function(f) {
             ControlFlow::Continue(_) => Ok(f),
             ControlFlow::Break(err) => Err(err),
@@ -35,14 +37,16 @@ impl Pass for ExpandSubstitutions {
     }
 }
 
-struct ExpandSubstitutionsVisitor {
+struct ExpandSubstitutionsVisitor<'cm> {
+    codemap: &'cm CodeMap,
     module: Ident,
     name: Ident,
     arity: u8,
 }
-impl ExpandSubstitutionsVisitor {
-    fn new(module: Ident, f: &Function) -> Self {
+impl<'cm> ExpandSubstitutionsVisitor<'cm> {
+    fn new(module: Ident, codemap: &'cm CodeMap, f: &Function) -> Self {
         Self {
+            codemap,
             module,
             name: f.name,
             arity: f.arity,
@@ -56,12 +60,30 @@ impl ExpandSubstitutionsVisitor {
             DelayedSubstitution::ModuleString => Expr::Literal(Literal::String(self.module)),
             DelayedSubstitution::FunctionName => Expr::Literal(Literal::Atom(self.name)),
             DelayedSubstitution::FunctionArity => {
-                Expr::Literal(Literal::Integer(span.clone(), self.arity.into()))
+                Expr::Literal(Literal::Integer(*span, self.arity.into()))
+            }
+            DelayedSubstitution::File => {
+                let span = *span;
+                if let Ok(filename) = self.codemap.name_for_span(span) {
+                    let file = Ident::new(Symbol::intern(&filename.to_string()), span);
+                    Expr::Literal(Literal::String(file))
+                } else {
+                    Expr::Literal(Literal::String(Ident::new(symbols::Empty, span)))
+                }
+            }
+            DelayedSubstitution::Line => {
+                let span = *span;
+                if let Ok(loc) = self.codemap.location_for_span(span) {
+                    let line = loc.line.number().to_usize() as i64;
+                    Expr::Literal(Literal::Integer(span, Integer::Small(line)))
+                } else {
+                    Expr::Literal(Literal::Integer(span, Integer::Small(0)))
+                }
             }
         }
     }
 }
-impl VisitMut<anyhow::Error> for ExpandSubstitutionsVisitor {
+impl<'cm> VisitMut<anyhow::Error> for ExpandSubstitutionsVisitor<'cm> {
     fn visit_mut_expr(&mut self, expr: &mut Expr) -> ControlFlow<anyhow::Error> {
         if let Expr::DelayedSubstitution(ref span, sub) = expr {
             *expr = self.fix(span, *sub);

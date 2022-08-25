@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use liblumen_binary::BinaryEntrySpecifier;
 use liblumen_diagnostics::*;
 use liblumen_intern::{Symbol, Ident};
@@ -9,7 +11,7 @@ use crate::ast::*;
 use crate::lexer::{Token, DelayedSubstitution};
 use crate::parser::binary::specifier_from_parsed;
 
-grammar<'a>(reporter: &Reporter);
+grammar<'a>(reporter: &Reporter, codemap: &Arc<CodeMap>);
 
 // The following are _not_ non-terminals, but macros
 // which can be identified by the generic type parameter,
@@ -61,7 +63,7 @@ pub Module: Module = {
             None => Vec::new(),
             Some(body) => body,
         };
-        Module::new_with_forms(reporter, span!(l, r), name, body)
+        Module::new_with_forms(reporter, codemap.clone(), span!(l, r), name, body)
     }
 };
 

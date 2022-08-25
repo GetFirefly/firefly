@@ -54,6 +54,14 @@ where
             MacroIdent::Const(Symbol::intern("FUNCTION_ARITY")),
             MacroDef::DelayedSubstitution(DelayedSubstitution::FunctionArity),
         );
+        macros.insert(
+            MacroIdent::Func(Symbol::intern("FEATURE_AVAILABLE"), 1),
+            MacroDef::Dynamic(vec![]),
+        );
+        macros.insert(
+            MacroIdent::Func(Symbol::intern("FEATURE_ENABLED"), 1),
+            MacroDef::Dynamic(vec![]),
+        );
 
         Preprocessor {
             reporter,
@@ -150,7 +158,7 @@ where
         Ok(None)
     }
 
-    fn expand_macro(&self, call: MacroCall) -> PResult<VecDeque<LexicalToken>> {
+    fn expand_macro(&mut self, call: MacroCall) -> PResult<VecDeque<LexicalToken>> {
         if let Some(expanded) = self.try_expand_predefined_macro(&call)? {
             Ok(vec![expanded].into())
         } else {
@@ -158,7 +166,7 @@ where
         }
     }
 
-    fn try_expand_predefined_macro(&self, call: &MacroCall) -> PResult<Option<LexicalToken>> {
+    fn try_expand_predefined_macro(&mut self, call: &MacroCall) -> PResult<Option<LexicalToken>> {
         let expanded = match call.name().as_str().get() {
             "FILE" => {
                 let span = call.span();
@@ -185,16 +193,100 @@ where
                 let current = span.start();
                 LexicalToken(current, Token::Atom(Symbol::intern("Lumen")), span.end())
             }
+            "OTP_RELEASE" => {
+                let span = call.span();
+                let current = span.start();
+                LexicalToken(
+                    current,
+                    Token::Integer(crate::otp_release().into()),
+                    span.end(),
+                )
+            }
+            "FEATURE_AVAILABLE" => {
+                let span = call.span();
+                match call.args.as_ref() {
+                    Some(args) if args.len() == 1 => {
+                        let mut iter = args.iter();
+                        let arg = iter.next().unwrap();
+                        match arg.tokens.as_slice() {
+                            [LexicalToken(_, Token::Atom(feature), _)] => {
+                                match crate::features::get(feature) {
+                                    Some(_) => LexicalToken(
+                                        span.start(),
+                                        Token::Atom(symbols::True),
+                                        span.end(),
+                                    ),
+                                    None => LexicalToken(
+                                        span.start(),
+                                        Token::Atom(symbols::False),
+                                        span.end(),
+                                    ),
+                                }
+                            }
+                            _ => {
+                                self.reporter.show_warning("invalid call to ?FEATURE_AVAILABLE", &[(span, "expected feature name to be an atom, this feature will be considered unavailable")]);
+                                LexicalToken(span.start(), Token::Atom(symbols::False), span.end())
+                            }
+                        }
+                    }
+                    None | Some(_) => {
+                        self.reporter.show_warning("invalid call to ?FEATURE_AVAILABLE", &[(span, "this macro requires a single feature name as its argument, this feature will be considered unavailable")]);
+                        LexicalToken(span.start(), Token::Atom(symbols::False), span.end())
+                    }
+                }
+            }
+            "FEATURE_ENABLED" => {
+                let span = call.span();
+                match call.args.as_ref() {
+                    Some(args) if args.len() == 1 => {
+                        let mut iter = args.iter();
+                        let arg = iter.next().unwrap();
+                        match arg.tokens.as_slice() {
+                            [LexicalToken(_, Token::Atom(feature), _)] => {
+                                match crate::features::get(feature) {
+                                    Some(feat) if feat.enabled => LexicalToken(
+                                        span.start(),
+                                        Token::Atom(symbols::True),
+                                        span.end(),
+                                    ),
+                                    Some(_) => LexicalToken(
+                                        span.start(),
+                                        Token::Atom(symbols::False),
+                                        span.end(),
+                                    ),
+                                    _ => {
+                                        let msg = format!("unrecognized feature {}", &feature);
+                                        self.reporter.show_warning(msg.as_str(), &[(span, "this is not a recognized feature, it may be unimplemented, or may be a typo, defaulting to disabled")]);
+                                        LexicalToken(
+                                            span.start(),
+                                            Token::Atom(symbols::False),
+                                            span.end(),
+                                        )
+                                    }
+                                }
+                            }
+                            _ => {
+                                self.reporter.show_warning("invalid call to ?FEATURE_ENABLED", &[(span, "expected feature name to be an atom, this feature will be considered disabled")]);
+                                LexicalToken(span.start(), Token::Atom(symbols::False), span.end())
+                            }
+                        }
+                    }
+                    None | Some(_) => {
+                        self.reporter.show_warning("invalid call to ?FEATURE_ENABLED", &[(span, "this macro requires a single feature name as its argument, this feature will be considered disabled")]);
+                        LexicalToken(span.start(), Token::Atom(symbols::False), span.end())
+                    }
+                }
+            }
             _ => return Ok(None),
         };
         Ok(Some(expanded))
     }
 
-    fn expand_userdefined_macro(&self, call: MacroCall) -> PResult<VecDeque<LexicalToken>> {
+    fn expand_userdefined_macro(&mut self, call: MacroCall) -> PResult<VecDeque<LexicalToken>> {
         let span = call.span();
         let definition = match self.macros.get(&call) {
             None => return Err(PreprocessorError::UndefinedMacro { call }),
-            Some(def) => def,
+            Some(def) => def.clone(),
         };
         match definition {
             MacroDef::Dynamic(replacement) => {
@@ -234,7 +326,7 @@ where
                     );
                     return Err(PreprocessorError::BadMacroCall {
                         call,
-                        def: definition.clone(),
+                        def: MacroDef::Static(def),
                         reason: err,
                     });
                 }
@@ -258,7 +350,7 @@ where
             }
             MacroDef::DelayedSubstitution(subst) => Ok(vec![LexicalToken(
                 span.start(),
-                Token::DelayedSubstitution(*subst),
+                Token::DelayedSubstitution(subst),
                 span.end(),
             )]
             .into()),
@@ -266,7 +358,7 @@ where
     }
 
     fn expand_replacement(
-        &self,
+        &mut self,
         bindings: HashMap<Symbol, &[LexicalToken]>,
         replacement: &[LexicalToken],
     ) -> PResult<VecDeque<LexicalToken>> {
@@ -442,7 +534,7 @@ where
 
         let result = {
             let pp = self.clone_with(condition);
-            Expr::parse_tokens(self.reporter.clone(), pp).map_err(|e| {
+            Expr::parse_tokens(self.reporter.clone(), self.codemap.clone(), pp).map_err(|e| {
                 PreprocessorError::ParseError {
                     span,
                     inner: Box::new(e),

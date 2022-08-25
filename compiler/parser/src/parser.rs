@@ -73,7 +73,11 @@ pub trait Parse<T = Self> {
         S: Source;
 
     /// Implemented by each parser, which should parse the token stream and produce a T
-    fn parse_tokens<S>(reporter: Reporter, tokens: S) -> Result<T, Self::Error>
+    fn parse_tokens<S>(
+        reporter: Reporter,
+        codemap: Arc<CodeMap>,
+        tokens: S,
+    ) -> Result<T, Self::Error>
     where
         S: IntoIterator<Item = Self::Token>;
 }

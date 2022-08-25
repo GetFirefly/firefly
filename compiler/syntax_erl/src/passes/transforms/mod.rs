@@ -3,6 +3,7 @@ mod expand_substitutions;
 mod expand_unqualified_calls;
 
 use std::collections::BTreeMap;
+use std::sync::Arc;
 
 use liblumen_diagnostics::*;
 use liblumen_pass::Pass;
@@ -16,10 +17,11 @@ use self::expand_unqualified_calls::ExpandUnqualifiedCalls;
 pub struct CanonicalizeSyntax {
     #[allow(dead_code)]
     reporter: Reporter,
+    codemap: Arc<CodeMap>,
 }
 impl CanonicalizeSyntax {
-    pub fn new(reporter: Reporter) -> Self {
-        Self { reporter }
+    pub fn new(reporter: Reporter, codemap: Arc<CodeMap>) -> Self {
+        Self { reporter, codemap }
     }
 }
 impl Pass for CanonicalizeSyntax {
@@ -32,7 +34,7 @@ impl Pass for CanonicalizeSyntax {
             // Prepare function for translation to CST
             let mut pipeline = ExpandRecords::new(&module)
                 .chain(ExpandUnqualifiedCalls::new(&module))
-                .chain(ExpandSubstitutions::new(module.name));
+                .chain(ExpandSubstitutions::new(module.name, &self.codemap));
             pipeline.run(&mut function)?;
 
             functions.insert(key, function);

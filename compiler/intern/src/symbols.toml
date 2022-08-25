@@ -167,6 +167,9 @@ closure = {}
 id = {}
 raw_stack = {}
 
+[features]
+maybe_expr = {}
+
 [common]
 all = {}
 attributes = {}

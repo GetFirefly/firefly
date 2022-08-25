@@ -273,6 +273,8 @@ pub enum DelayedSubstitution {
     ModuleString,
     FunctionName,
     FunctionArity,
+    File,
+    Line,
 }
 impl fmt::Display for DelayedSubstitution {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -281,6 +283,8 @@ impl fmt::Display for DelayedSubstitution {
             Self::ModuleString => f.write_str("?MODULE_STRING"),
             Self::FunctionName => f.write_str("?FUNCTION_NAME"),
             Self::FunctionArity => f.write_str("?FUNCTION_ARITY"),
+            Self::File => f.write_str("?FILE"),
+            Self::Line => f.write_str("?LINE"),
         }
     }
 }
@@ -522,6 +526,8 @@ impl fmt::Display for Token {
             Token::DelayedSubstitution(DelayedSubstitution::ModuleString) => write!(f, "STRING"),
             Token::DelayedSubstitution(DelayedSubstitution::FunctionName) => write!(f, "ATOM"),
             Token::DelayedSubstitution(DelayedSubstitution::FunctionArity) => write!(f, "INTEGER"),
+            Token::DelayedSubstitution(DelayedSubstitution::File) => write!(f, "STRING"),
+            Token::DelayedSubstitution(DelayedSubstitution::Line) => write!(f, "INTEGER"),
             // Literals
             Token::Char(ref c) => write!(f, "{}", c),
             Token::Integer(ref i) => write!(f, "{}", i),

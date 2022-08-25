@@ -31,8 +31,9 @@ mod errors;
 
 use std::collections::VecDeque;
 use std::path::PathBuf;
+use std::sync::Arc;
 
-use liblumen_diagnostics::{Diagnostic, Reporter};
+use liblumen_diagnostics::{CodeMap, Diagnostic, Reporter};
 use liblumen_parser::{Parse as GParse, Parser as GParser};
 use liblumen_parser::{Scanner, Source};
 
@@ -90,14 +91,15 @@ impl GParse for ast::Module {
         let scanner = Scanner::new(source);
         let lexer = Lexer::new(scanner);
         let tokens = Preprocessor::new(parser, lexer, reporter.clone());
-        Self::parse_tokens(reporter, tokens)
+        Self::parse_tokens(reporter, parser.codemap.clone(), tokens)
     }
 
     fn parse_tokens<S: IntoIterator<Item = Preprocessed>>(
         reporter: Reporter,
+        codemap: Arc<CodeMap>,
         tokens: S,
     ) -> Result<Self, Self::Error> {
-        let result = Self::Parser::new().parse(&reporter, tokens);
+        let result = Self::Parser::new().parse(&reporter, &codemap, tokens);
         to_parse_result(reporter, result)
     }
 }
@@ -119,14 +121,15 @@ impl GParse for ast::Expr {
         let scanner = Scanner::new(source);
         let lexer = Lexer::new(scanner);
         let tokens = Preprocessor::new(parser, lexer, reporter.clone());
-        Self::parse_tokens(reporter, tokens)
+        Self::parse_tokens(reporter, parser.codemap.clone(), tokens)
     }
 
     fn parse_tokens<S: IntoIterator<Item = Preprocessed>>(
         reporter: Reporter,
+        codemap: Arc<CodeMap>,
         tokens: S,
     ) -> Result<Self, ParserError> {
-        let result = Self::Parser::new().parse(&reporter, tokens);
+        let result = Self::Parser::new().parse(&reporter, &codemap, tokens);
         to_parse_result(reporter, result)
     }
 }
@@ -201,9 +204,16 @@ mod test {
     macro_rules! module {
         ($codemap:expr, $name:expr, $body:expr) => {{
             let mut errs = Reporter::new();
-            let module = Module::new_with_forms(&mut errs, SourceSpan::UNKNOWN, $name, $body);
+            let codemap = $codemap;
+            let module = Module::new_with_forms(
+                &mut errs,
+                codemap.clone(),
+                SourceSpan::UNKNOWN,
+                $name,
+                $body,
+            );
             if errs.is_failed() {
-                fail_with(errs, $codemap, "failed to create expected module!");
+                fail_with(errs, codemap, "failed to create expected module!");
             }
             module
         }};

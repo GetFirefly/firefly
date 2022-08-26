@@ -6,7 +6,7 @@ use core::fmt;
 use core::hash::{Hash, Hasher};
 
 use anyhow::anyhow;
-use liblumen_alloc::gc::GcBox;
+use firefly_alloc::gc::GcBox;
 use rpds::HashTrieMap;
 
 pub use rpds::map::hash_trie_map::{Iter, IterKeys, IterValues};

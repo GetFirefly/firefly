@@ -1,5 +1,5 @@
 [package]
-name = "liblumen_pass"
+name = "firefly_pass"
 version = "0.1.0"
 authors = ["Paul Schoenfelder <paulschoenfelder@gmail.com>"]
 readme = "README.md"

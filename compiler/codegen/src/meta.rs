@@ -1,11 +1,11 @@
 use std::borrow::Borrow;
 use std::path::{Path, PathBuf};
 
-use liblumen_intern::Symbol;
-use liblumen_llvm as llvm;
-use liblumen_session::Options;
-use liblumen_target::spec::PanicStrategy;
-use liblumen_util::fs::NativeLibraryKind;
+use firefly_intern::Symbol;
+use firefly_llvm as llvm;
+use firefly_session::Options;
+use firefly_target::spec::PanicStrategy;
+use firefly_util::fs::NativeLibraryKind;
 
 use crate::linker;
 
@@ -57,7 +57,7 @@ impl ProjectInfo {
         info.exported_symbols = linker::exported_symbols(options);
 
         // We always add dependencies on our core runtime crates
-        let lumenlib_dir = options
+        let fireflylib_dir = options
             .target_tlib_path
             .as_ref()
             .map(|t| t.dir.clone())
@@ -67,11 +67,11 @@ impl ProjectInfo {
             .push(match options.target.options.panic_strategy {
                 PanicStrategy::Abort => Dependency {
                     name: Symbol::intern("panic_abort"),
-                    source: Some(lumenlib_dir.join(&format!("{}panic_abort.rlib", prefix))),
+                    source: Some(fireflylib_dir.join(&format!("{}panic_abort.rlib", prefix))),
                 },
                 PanicStrategy::Unwind => Dependency {
                     name: Symbol::intern("panic_unwind"),
-                    source: Some(lumenlib_dir.join(&format!("{}panic_unwind.rlib", prefix))),
+                    source: Some(fireflylib_dir.join(&format!("{}panic_unwind.rlib", prefix))),
                 },
             });
         if options.target.options.is_like_wasm {
@@ -80,30 +80,30 @@ impl ProjectInfo {
                     bundle: None,
                     whole_archive: None,
                 },
-                name: Some("lumen_web".to_string()),
+                name: Some("firefly_web".to_string()),
                 verbatim: None,
             });
         } else {
             info.used_deps.push(Dependency {
                 name: Symbol::intern("panic"),
-                source: Some(lumenlib_dir.join(&format!("{}panic.rlib", prefix))),
+                source: Some(fireflylib_dir.join(&format!("{}panic.rlib", prefix))),
             });
             info.used_deps.push(Dependency {
                 name: Symbol::intern("unwind"),
-                source: Some(lumenlib_dir.join(&format!("{}unwind.rlib", prefix))),
+                source: Some(fireflylib_dir.join(&format!("{}unwind.rlib", prefix))),
             });
             info.used_libraries.push(NativeLibrary {
                 kind: NativeLibraryKind::Static {
                     bundle: None,
                     whole_archive: Some(true),
                 },
-                name: Some("lumen_rt_tiny".to_string()),
+                name: Some("firefly_rt_tiny".to_string()),
                 verbatim: None,
             });
             /*
             info.used_deps.push(Dependency {
-                name: Symbol::intern("liblumen_otp"),
-                source: Some(lumenlib_dir.join(&format!("{}liblumen_otp.rlib", prefix))),
+                name: Symbol::intern("firefly_otp"),
+                source: Some(fireflylib_dir.join(&format!("{}firefly_otp.rlib", prefix))),
             });
             */
         }

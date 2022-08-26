@@ -1,5 +1,5 @@
 [package]
-name = "liblumen_diagnostics_macros"
+name = "firefly_diagnostics_macros"
 version = "0.1.0"
 authors = ["Paul Schoenfelder <paulschoenfelder@gmail.com>"]
 edition = "2021"

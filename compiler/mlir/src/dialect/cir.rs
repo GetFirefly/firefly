@@ -1,9 +1,9 @@
 use std::fmt;
 use std::ops::Deref;
 
-use liblumen_binary::{BinaryEntrySpecifier, Endianness};
-use liblumen_intern::Symbol;
-use liblumen_number::{BigInt, Sign};
+use firefly_binary::{BinaryEntrySpecifier, Endianness};
+use firefly_intern::Symbol;
+use firefly_number::{BigInt, Sign};
 use paste::paste;
 
 use crate::dialect::llvm;

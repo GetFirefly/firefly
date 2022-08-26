@@ -1,8 +1,8 @@
 use std::sync::Arc;
 use std::thread::ThreadId;
 
-use liblumen_codegen::meta::CompiledModule;
-use liblumen_syntax_base::ApplicationMetadata;
+use firefly_codegen::meta::CompiledModule;
+use firefly_syntax_base::ApplicationMetadata;
 
 use crate::compiler::queries;
 use crate::diagnostics::ErrorReported;

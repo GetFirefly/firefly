@@ -1,10 +1,10 @@
 use core::ops::ControlFlow;
 use std::collections::{BTreeMap, BTreeSet};
 
-use liblumen_diagnostics::*;
-use liblumen_intern::Symbol;
-use liblumen_pass::Pass;
-use liblumen_syntax_base::{ApplicationMetadata, Deprecation, FunctionName};
+use firefly_diagnostics::*;
+use firefly_intern::Symbol;
+use firefly_pass::Pass;
+use firefly_syntax_base::{ApplicationMetadata, Deprecation, FunctionName};
 
 use crate::ast::*;
 use crate::visit::{self, VisitMut};

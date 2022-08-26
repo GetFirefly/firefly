@@ -1,9 +1,9 @@
 use std::fmt;
 use std::mem::MaybeUninit;
 
-use liblumen_session::Options;
-use liblumen_util as util;
-use liblumen_util::diagnostics::{FileName, InFlightDiagnostic, Severity};
+use firefly_session::Options;
+use firefly_util as util;
+use firefly_util::diagnostics::{FileName, InFlightDiagnostic, Severity};
 
 use crate::ir::{Context, Function, Value, ValueBase};
 use crate::support::*;
@@ -17,10 +17,10 @@ pub type DiagnosticHandler = unsafe extern "C" fn(DiagnosticBase, *mut core::ffi
 /// Initializes the diagnostic system for use
 pub fn init() {
     extern "C" {
-        fn LLVMLumenInstallFatalErrorHandler();
+        fn LLVMFireflyInstallFatalErrorHandler();
     }
     unsafe {
-        LLVMLumenInstallFatalErrorHandler();
+        LLVMFireflyInstallFatalErrorHandler();
     }
 }
 
@@ -150,9 +150,9 @@ pub trait Diagnostic {
     /// Return the kind of diagnostic this is
     fn kind(&self) -> DiagnosticKind {
         extern "C" {
-            fn LLVMLumenGetDiagInfoKind(info: DiagnosticBase) -> DiagnosticKind;
+            fn LLVMFireflyGetDiagInfoKind(info: DiagnosticBase) -> DiagnosticKind;
         }
-        unsafe { LLVMLumenGetDiagInfoKind(self.base()) }
+        unsafe { LLVMFireflyGetDiagInfoKind(self.base()) }
     }
 
     fn report(
@@ -213,39 +213,39 @@ pub struct OptimizationDiagnostic(DiagnosticBase);
 impl OptimizationDiagnostic {
     fn is_verbose(&self) -> bool {
         extern "C" {
-            fn LLVMLumenOptimizationDiagnosticIsVerbose(d: OptimizationDiagnostic) -> bool;
+            fn LLVMFireflyOptimizationDiagnosticIsVerbose(d: OptimizationDiagnostic) -> bool;
         }
-        unsafe { LLVMLumenOptimizationDiagnosticIsVerbose(*self) }
+        unsafe { LLVMFireflyOptimizationDiagnosticIsVerbose(*self) }
     }
 
     fn pass_name(&self) -> StringRef {
         extern "C" {
-            fn LLVMLumenOptimizationDiagnosticPassName(d: OptimizationDiagnostic) -> StringRef;
+            fn LLVMFireflyOptimizationDiagnosticPassName(d: OptimizationDiagnostic) -> StringRef;
         }
-        unsafe { LLVMLumenOptimizationDiagnosticPassName(*self) }
+        unsafe { LLVMFireflyOptimizationDiagnosticPassName(*self) }
     }
 
     fn remark_name(&self) -> StringRef {
         extern "C" {
-            fn LLVMLumenOptimizationDiagnosticRemarkName(d: OptimizationDiagnostic) -> StringRef;
+            fn LLVMFireflyOptimizationDiagnosticRemarkName(d: OptimizationDiagnostic) -> StringRef;
         }
-        unsafe { LLVMLumenOptimizationDiagnosticRemarkName(*self) }
+        unsafe { LLVMFireflyOptimizationDiagnosticRemarkName(*self) }
     }
 
     fn message(&self) -> OwnedStringRef {
         extern "C" {
-            fn LLVMLumenOptimizationDiagnosticMessage(
+            fn LLVMFireflyOptimizationDiagnosticMessage(
                 d: OptimizationDiagnostic,
             ) -> *const std::os::raw::c_char;
         }
-        unsafe { OwnedStringRef::from_ptr(LLVMLumenOptimizationDiagnosticMessage(*self)) }
+        unsafe { OwnedStringRef::from_ptr(LLVMFireflyOptimizationDiagnosticMessage(*self)) }
     }
 
     fn code_region(&self) -> Option<ValueBase> {
         extern "C" {
-            fn LLVMLumenOptimizationDiagnosticCodeRegion(d: OptimizationDiagnostic) -> ValueBase;
+            fn LLVMFireflyOptimizationDiagnosticCodeRegion(d: OptimizationDiagnostic) -> ValueBase;
         }
-        let value = unsafe { LLVMLumenOptimizationDiagnosticCodeRegion(*self) };
+        let value = unsafe { LLVMFireflyOptimizationDiagnosticCodeRegion(*self) };
         if value.is_null() {
             None
         } else {
@@ -255,16 +255,16 @@ impl OptimizationDiagnostic {
 
     fn function(&self) -> Function {
         extern "C" {
-            fn LLVMLumenDiagnosticWithLocFunction(d: DiagnosticBase) -> Function;
+            fn LLVMFireflyDiagnosticWithLocFunction(d: DiagnosticBase) -> Function;
         }
-        let function = unsafe { LLVMLumenDiagnosticWithLocFunction(self.0) };
+        let function = unsafe { LLVMFireflyDiagnosticWithLocFunction(self.0) };
         assert!(!function.is_null());
         function
     }
 
     fn source_location(&self) -> Option<SourceLoc> {
         extern "C" {
-            fn LLVMLumenDiagnosticWithLocSourceLoc(
+            fn LLVMFireflyDiagnosticWithLocSourceLoc(
                 d: DiagnosticBase,
                 path: *mut StringRef,
                 line: *mut u32,
@@ -275,7 +275,7 @@ impl OptimizationDiagnostic {
         let mut line = MaybeUninit::uninit();
         let mut col = MaybeUninit::uninit();
         let valid = unsafe {
-            LLVMLumenDiagnosticWithLocSourceLoc(
+            LLVMFireflyDiagnosticWithLocSourceLoc(
                 self.0,
                 path.as_mut_ptr(),
                 line.as_mut_ptr(),
@@ -366,9 +366,9 @@ pub struct ISelFallbackDiagnostic(DiagnosticBase);
 impl ISelFallbackDiagnostic {
     fn function(&self) -> Function {
         extern "C" {
-            fn LLVMLumenISelFallbackDiagnosticFunction(d: DiagnosticBase) -> Function;
+            fn LLVMFireflyISelFallbackDiagnosticFunction(d: DiagnosticBase) -> Function;
         }
-        unsafe { LLVMLumenISelFallbackDiagnosticFunction(self.0) }
+        unsafe { LLVMFireflyISelFallbackDiagnosticFunction(self.0) }
     }
 }
 impl Diagnostic for ISelFallbackDiagnostic {

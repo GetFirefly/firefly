@@ -2,13 +2,13 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::path::Path;
 
-use liblumen_beam::beam::chunk::Chunk;
-use liblumen_beam::serialization::etf;
-use liblumen_beam::serialization::etf::pattern::{Ascii, Str, Unicode};
-use liblumen_beam::serialization::etf::pattern::{Cons, FixList, Nil, VarList};
-use liblumen_beam::serialization::etf::pattern::{Or, Union2, Union3};
-use liblumen_beam::serialization::etf::pattern::{Pattern, Unmatch};
-use liblumen_beam::serialization::etf::pattern::{Uint, F64, I32, U32, U64};
+use firefly_beam::beam::chunk::Chunk;
+use firefly_beam::serialization::etf;
+use firefly_beam::serialization::etf::pattern::{Ascii, Str, Unicode};
+use firefly_beam::serialization::etf::pattern::{Cons, FixList, Nil, VarList};
+use firefly_beam::serialization::etf::pattern::{Or, Union2, Union3};
+use firefly_beam::serialization::etf::pattern::{Pattern, Unmatch};
+use firefly_beam::serialization::etf::pattern::{Uint, F64, I32, U32, U64};
 
 use crate::ast::*;
 use crate::errors::*;

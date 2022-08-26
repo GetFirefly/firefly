@@ -1,10 +1,10 @@
 use std::str::FromStr;
 
-use liblumen_diagnostics::*;
-use liblumen_intern::Symbol;
-use liblumen_number::{Float, Integer};
-use liblumen_parser::{Scanner, Source};
-use liblumen_syntax_erl::LexicalError;
+use firefly_diagnostics::*;
+use firefly_intern::Symbol;
+use firefly_number::{Float, Integer};
+use firefly_parser::{Scanner, Source};
+use firefly_syntax_erl::LexicalError;
 
 use super::{LexicalToken, Token};
 

@@ -2,7 +2,7 @@ use std::borrow::Cow;
 use std::fmt;
 use std::path::{Path, PathBuf};
 
-use liblumen_util::diagnostics::FileName;
+use firefly_util::diagnostics::FileName;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum InputType {

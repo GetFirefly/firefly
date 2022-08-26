@@ -8,9 +8,9 @@ use std::sync::OnceLock;
 
 use anyhow::anyhow;
 
-use liblumen_arena::DroplessArena;
-use liblumen_binary::{BinaryFlags, Encoding};
-use liblumen_rt::term::BinaryData;
+use firefly_arena::DroplessArena;
+use firefly_binary::{BinaryFlags, Encoding};
+use firefly_rt::term::BinaryData;
 
 static ARGV: OnceLock<EnvTable> = OnceLock::new();
 

@@ -793,8 +793,8 @@ impl Chunk for DocsChunk {
 /// A representation of commonly used chunk.
 ///
 /// ```
-/// use liblumen_beam::beam::chunk::{Chunk, StandardChunk};
-/// use liblumen_beam::beam::reader::BeamFile;
+/// use firefly_beam::beam::chunk::{Chunk, StandardChunk};
+/// use firefly_beam::beam::reader::BeamFile;
 ///
 /// let beam = BeamFile::<StandardChunk>::from_file("tests/testdata/reader/test.beam").unwrap();
 /// assert_eq!(

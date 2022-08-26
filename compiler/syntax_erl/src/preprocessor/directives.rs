@@ -2,10 +2,10 @@ use std::collections::VecDeque;
 use std::fmt;
 use std::path::{Component, PathBuf};
 
-use liblumen_diagnostics::{Diagnostic, Label, SourceSpan, ToDiagnostic};
-use liblumen_intern::{symbols, Symbol};
-use liblumen_parser::substitute_path_variables;
-use liblumen_parser::PathVariableSubstituteError;
+use firefly_diagnostics::{Diagnostic, Label, SourceSpan, ToDiagnostic};
+use firefly_intern::{symbols, Symbol};
+use firefly_parser::substitute_path_variables;
+use firefly_parser::PathVariableSubstituteError;
 
 use crate::lexer::{AtomToken, IntegerToken, StringToken, SymbolToken};
 use crate::lexer::{Lexed, LexicalToken, Token};

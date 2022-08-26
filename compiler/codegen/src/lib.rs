@@ -9,11 +9,11 @@ pub mod linker;
 pub mod meta;
 pub mod passes;
 
-use liblumen_llvm as llvm;
-use liblumen_mlir as mlir;
+use firefly_llvm as llvm;
+use firefly_mlir as mlir;
 
 /// Perform initialization of MLIR/LLVM for code generation
-pub fn init(options: &liblumen_session::Options) -> anyhow::Result<()> {
+pub fn init(options: &firefly_session::Options) -> anyhow::Result<()> {
     mlir::init(options)?;
     llvm::init(options)?;
 

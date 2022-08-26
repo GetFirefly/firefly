@@ -1,23 +1,23 @@
-# Lumen - A new compiler and runtime for BEAM languages
+# Firefly - A new compiler and runtime for BEAM languages
 
 | Machine | Vendor  | Operating System | Host  |Subgroup      | Status |
 |---------|---------|------------------|-------|--------------|--------|
-| wasm32  | unknown | unknown          | macOS | N/A          | [![wasm32-unknown-unknown (macOS)](https://github.com/lumen/lumen/workflows/wasm32-unknown-unknown%20%28macOS%29/badge.svg?branch=develop)](https://github.com/lumen/lumen/actions?query=workflow%3A%22wasm32-unknown-unknown%22+branch%3Adevelop) |
-| wasm32  | unknown | unknown          | Linux | N/A          | [![wasm32-unknown-unknown (Linux)](https://github.com/lumen/lumen/workflows/wasm32-unknown-unknown%20(Linux)/badge.svg?branch=develop)](https://github.com/lumen/lumen/actions?query=workflow%3A%22wasm32-unknown-unknown+%28Linux%29%22+branch%3Adevelop) |
-| x86_64  | apple   | darwin           | macOS | compiler     | [![x86_64-apple-darwin compiler](https://github.com/lumen/lumen/workflows/x86_64-apple-darwin%20compiler/badge.svg?branch=develop)](https://github.com/lumen/lumen/actions?query=workflow%3A%22x86_64-apple-darwin+compiler%22+branch%3Adevelop)
-| x86_64  | apple   | darwin           | macOS | libraries    | [![x86_64-apple-darwin Libraries](https://github.com/lumen/lumen/workflows/x86_64-apple-darwin%20Libraries/badge.svg?branch=develop)](https://github.com/lumen/lumen/actions?query=workflow%3A%22x86_64-apple-darwin+Libraries%22+branch%3Adevelop)
-| x86_64  | apple   | darwin           | macOS | lumen/otp    | [![x86_64-apple-darwin lumen/otp](https://github.com/lumen/lumen/workflows/x86_64-apple-darwin%20lumen%2Fotp/badge.svg?branch=develop)](https://github.com/lumen/lumen/actions?query=workflow%3A%22x86_64-apple-darwin+lumen%2Fotp%22+branch%3Adevelop)
-| x86_64  | apple   | darwin           | macOS | runtime full | [![x86_64-apple-darwin Runtime Full](https://github.com/lumen/lumen/workflows/x86_64-apple-darwin%20Runtime%20Full/badge.svg?branch=develop)](https://github.com/lumen/lumen/actions?query=workflow%3A%22x86_64-apple-darwin+Runtime+Full%22+branch%3Adevelop)
-| x86_64  | unknown | linux-gnu        | Linux | libraries    | [![x86_64-unknown-linux-gnu Libraries](https://github.com/lumen/lumen/workflows/x86_64-unknown-linux-gnu%20Libraries/badge.svg?branch=develop)](https://github.com/lumen/lumen/actions?query=workflow%3A%22x86_64-unknown-linux-gnu+Libraries%22+branch%3Adevelop)
-| x86_64  | unknown | linux-gnu        | Linux | lumen/otp    | [![x86_64-unknown-linux-gnu lumen/otp](https://github.com/lumen/lumen/workflows/x86_64-unknown-linux-gnu%20lumen%2Fotp/badge.svg?branch=develop)](https://github.com/lumen/lumen/actions?query=workflow%3A%22x86_64-unknown-linux-gnu+lumen%2Fotp%22+branch%3Adevelop)
-| x86_64  | unknown | linux-gnu        | Linux | runtime full | [![x86_64-unknown-linux-gnu Runtime Full](https://github.com/lumen/lumen/workflows/x86_64-unknown-linux-gnu%20Runtime%20Full/badge.svg?branch=develop)](https://github.com/lumen/lumen/actions?query=workflow%3A%22x86_64-unknown-linux-gnu+Runtime+Full%22+branch%3Adevelop)
+| wasm32  | unknown | unknown          | macOS | N/A          | [![wasm32-unknown-unknown (macOS)](https://github.com/lumen/firefly/workflows/wasm32-unknown-unknown%20%28macOS%29/badge.svg?branch=develop)](https://github.com/lumen/firefly/actions?query=workflow%3A%22wasm32-unknown-unknown%22+branch%3Adevelop) |
+| wasm32  | unknown | unknown          | Linux | N/A          | [![wasm32-unknown-unknown (Linux)](https://github.com/lumen/firefly/workflows/wasm32-unknown-unknown%20(Linux)/badge.svg?branch=develop)](https://github.com/lumen/firefly/actions?query=workflow%3A%22wasm32-unknown-unknown+%28Linux%29%22+branch%3Adevelop) |
+| x86_64  | apple   | darwin           | macOS | compiler     | [![x86_64-apple-darwin compiler](https://github.com/lumen/firefly/workflows/x86_64-apple-darwin%20compiler/badge.svg?branch=develop)](https://github.com/lumen/firefly/actions?query=workflow%3A%22x86_64-apple-darwin+compiler%22+branch%3Adevelop)
+| x86_64  | apple   | darwin           | macOS | libraries    | [![x86_64-apple-darwin Libraries](https://github.com/lumen/firefly/workflows/x86_64-apple-darwin%20Libraries/badge.svg?branch=develop)](https://github.com/lumen/firefly/actions?query=workflow%3A%22x86_64-apple-darwin+Libraries%22+branch%3Adevelop)
+| x86_64  | apple   | darwin           | macOS | firefly/otp    | [![x86_64-apple-darwin firefly/otp](https://github.com/lumen/firefly/workflows/x86_64-apple-darwin%20firefly%2Fotp/badge.svg?branch=develop)](https://github.com/lumen/firefly/actions?query=workflow%3A%22x86_64-apple-darwin+firefly%2Fotp%22+branch%3Adevelop)
+| x86_64  | apple   | darwin           | macOS | runtime full | [![x86_64-apple-darwin Runtime Full](https://github.com/lumen/firefly/workflows/x86_64-apple-darwin%20Runtime%20Full/badge.svg?branch=develop)](https://github.com/lumen/firefly/actions?query=workflow%3A%22x86_64-apple-darwin+Runtime+Full%22+branch%3Adevelop)
+| x86_64  | unknown | linux-gnu        | Linux | libraries    | [![x86_64-unknown-linux-gnu Libraries](https://github.com/lumen/firefly/workflows/x86_64-unknown-linux-gnu%20Libraries/badge.svg?branch=develop)](https://github.com/lumen/firefly/actions?query=workflow%3A%22x86_64-unknown-linux-gnu+Libraries%22+branch%3Adevelop)
+| x86_64  | unknown | linux-gnu        | Linux | firefly/otp    | [![x86_64-unknown-linux-gnu firefly/otp](https://github.com/lumen/firefly/workflows/x86_64-unknown-linux-gnu%20firefly%2Fotp/badge.svg?branch=develop)](https://github.com/lumen/firefly/actions?query=workflow%3A%22x86_64-unknown-linux-gnu+firefly%2Fotp%22+branch%3Adevelop)
+| x86_64  | unknown | linux-gnu        | Linux | runtime full | [![x86_64-unknown-linux-gnu Runtime Full](https://github.com/lumen/firefly/workflows/x86_64-unknown-linux-gnu%20Runtime%20Full/badge.svg?branch=develop)](https://github.com/lumen/firefly/actions?query=workflow%3A%22x86_64-unknown-linux-gnu+Runtime+Full%22+branch%3Adevelop)
 
 * [Contributing](#contributing)
   * [Tools](#contrib-tools)
-  * [Building Lumen](#contrib-building-lumen)
+  * [Building Firefly](#contrib-building-firefly)
   * [Project Structure](#contrib-project)
   * [Making Changes](#contrib-changes)
-* [About Lumen](#about)
+* [About Firefly](#about)
 * [Goals](#goals)
 * [Non-Goals](#non-goals)
 * [Architecture](#architecture)
@@ -26,7 +26,7 @@
 
 ## Contributing
 
-In order to build Lumen, or make changes to it, you'll need the following installed:
+In order to build Firefly, or make changes to it, you'll need the following installed:
 
 <a name="contrib-tools"/>
 
@@ -35,7 +35,7 @@ In order to build Lumen, or make changes to it, you'll need the following instal
 First, you will need to install [rustup](https://rustup.rs/). Follow the instructions at that link.
 
 Once you have installed `rustup`, you will need to install the nightly version
-of Rust (currently our CI builds against the 2021-01-29 nightly). We require
+of Rust (currently our CI builds against the 2022-07-12 nightly, specifically). We require
 nightly due to a large number of nightly features we use, as well as some
 dependencies for the WebAssembly targets that we make use of.
 
@@ -43,7 +43,7 @@ dependencies for the WebAssembly targets that we make use of.
     rustup default nightly
     
     # or, in case of issues, install the 2022-07-12 nightly to match our CI
-    rustup default nightly-2021-07-12
+    rustup default nightly-2022-07-12
     export CARGO_MAKE_TOOLCHAIN=nightly-2022-07-12
 
 In order to run various build tasks in the project, you'll need the [cargo-make](https://github.com/sagiegurari/cargo-make) plugin for Cargo. You can install it with:
@@ -55,17 +55,17 @@ You can see what tasks are available with `cargo make --print-steps`.
 You may also want to install the following tools for editor support (`rustfmt` will be required on
 all pull requests!):
 
-    rustup component add rls rustfmt clippy
+    rustup component add rustfmt clippy
 
-Next, you will need to install the `wasm32` targets for the toolchain:
+Next, for wasm32 support, you will need to install the `wasm32` targets for the Rust toolchain:
 
     rustup target add wasm32-unknown-unknown --toolchain <name of nightly you chose in the previous step>
 
 #### LLVM
 
-LLVM (with our modifications) is used by Lumen's code generation backend. It is needed to build the
-compiler. Typically, you'd need to build this yourself, which we have
-instructions for below; but we also provide prebuilt distributions that have everything needed.
+LLVM (with some patches of our own) is used internally for the final code generation stage. In order to build
+the compiler, you must have our LLVM installed somewhere locally. Typically, you'd need to build this yourself, which we have
+instructions for below; but we also produce prebuilt packages that have everything needed.
 
 ##### Installing Prebuilt Distributions (Recommended)
 
@@ -78,19 +78,19 @@ the usual default for this XDG variable.
 
     mkdir -p $XDG_DATA_HOME/llvm/
     cd $XDG_DATA_HOME/llvm/
-    wget https://github.com/lumen/llvm-project/releases/download/lumen-12.0.0-dev_2020-10-22/clang+llvm-12.0.0-x86_64-linux-gnu.tar.gz
-    tar -xz --strip-components 1 -f clang+llvm-12.0.0-x86_64-linux-gnu.tar.gz
-    rm clang+llvm-12.0.0-x86_64-linux-gnu.tar.gz
+    wget https://github.com/lumen/llvm-project/releases/download/firefly-15.0.0-dev_2022-07-22/clang+llvm-15.0.0-x86_64-linux-gnu.tar.gz
+    tar -xz --strip-components 1 -f clang+llvm-15.0.0-x86_64-linux-gnu.tar.gz
+    rm clang+llvm-15.0.0-x86_64-linux-gnu.tar.gz
     cd -
 
 ###### MacOS
 
     mkdir -p $XDG_DATA_HOME/llvm/
     cd $XDG_DATA_HOME/llvm/
-    wget https://github.com/lumen/llvm-project/releases/download/lumen-15.0.0-dev_2022-07-22/clang+llvm-15.0.0-x86_64-apple-darwin21.5.0.tar.gz
+    wget https://github.com/lumen/llvm-project/releases/download/firefly-15.0.0-dev_2022-07-22/clang+llvm-15.0.0-x86_64-apple-darwin21.5.0.tar.gz
     tar -xzf clang+llvm-15.0.0-x86_64-apple-darwin21.5.0.tar.gz
     rm clang+llvm-15.0.0-x86_64-apple-darwin21.5.0.tar.gz
-    mv clang+llvm-15.0.0-x86_64-apple-darwin21.5.0 lumen
+    mv clang+llvm-15.0.0-x86_64-apple-darwin21.5.0 firefly
     cd -
 
 ###### Other
@@ -110,99 +110,112 @@ We have the build more or less fully automated, just three simple steps:
 
     git clone https://github.com/lumen/llvm-project
     cd llvm-project
+    git checkout firefly
     make llvm-shared
 
-This will install LLVM to `$XDG_DATA_HOME/llvm/lumen`, or
-`$HOME/.local/share/llvm/lumen`, if `$XDG_DATA_HOME` is not set. It assumes that Ninja and
+This will install LLVM to `$XDG_DATA_HOME/llvm/firefly`, or
+`$HOME/.local/share/llvm/firefly`, if `$XDG_DATA_HOME` is not set. It assumes that Ninja and
 CCache are installed, but you can customize the `llvm` target in the `Makefile` to
 use `make` instead by removing `-G Ninja` from the invocation of `cmake`,
 likewise you can change the setting to use CCache by removing that option as well.
 
 **NOTE:** Building LLVM the first time will take a long time, so grab a coffee, smoke 'em if you got 'em, etc.
 
-<a name="contrib-building-lumen"/>
+<a name="contrib-building-firefly"/>
 
-### Building Lumen
+### Building Firefly
 
-Once LLVM is installed/built, you can build the `lumen` executable:
+Once LLVM is installed/built, you can build the `firefly` executable:
 
-    LLVM_PREFIX=$XDG_DATA_HOME/llvm/lumen cargo make
+    LLVM_PREFIX=$XDG_DATA_HOME/llvm/firefly FIREFLY_BUILD_TYPE=static cargo make firefly
     
 This will create the compiler executable and associated toolchain for the host
-machine under `bin` in the root of the project. You can invoke `lumen` via the
-symlink `bin/lumen`, e.g.:
+machine under `bin` in the root of the project. You can invoke `firefly` via the
+symlink `bin/firefly`, e.g.:
 
-    bin/lumen --help
+    bin/firefly --help
     
-You can compile an Erlang file to an executable (on x86_64 only, currently):
+You can compile an Erlang file to an executable (currently only on x86_64/AArch64):
 
-    bin/lumen compile --output-dir _build <path/to/source> [<more paths>..]
+    bin/firefly compile [<path/to/file_or_directory>..]
     
 This will produce an executable with the same name as the source file in the
-current working directory with the `.out` or `.exe` extension, depending on your
-platform.
+current working directory with no extension (except on Windows, where it will
+have the `.exe` extension).
 
-**NOTE:** The compiler/runtime are still in experimental stages, so stability is
-not guaranteed, and you may need to provide additional compiler flags if the
-linker warns about missing symbols, e.g. `-lpthread`.
+**NOTE:** Firefly is still in a very experimental stage of development, so stability is not guaranteed.
 
 <a name="contrib-project"/>
 
 ### Project Structure
 
-Lumen is currently divided into a few major components:
+Firefly is currently divided into three major components:
 
 - Compiler
-- Interpreter
-- Runtime(s)
+- Libraries
+- Runtimes
 
-Lumen's frontend and diagnostics libraries were moved into the [EIR
-Project]([https://github.com/eirproject/eir]), which includes both the Erlang
-parser and the high-level intermediate representation EIR, short for _Erlang
-Intermediate Representation_. Lumen depends on the EIR libraries for those
-components.
+There are some crates in the root of the project that are in the process of being cleaned up/removed,
+so for the most part, the crates in `compiler/`, `library/` and `runtimes/` are those of interest.
 
 #### Compiler
 
-The Lumen compiler is composed of the following sub-libraries/components:
+The Firefly compiler is composed of many small components, but the few most interesting are:
 
-- `liblumen_target`, contains target platform metadata and configuration
-- `liblumen_session`, contains state and configuration for a single
-  instantiation of the compiler, or "session". This is where you can find the
-  bulk of option processing, input/output generation, and related items.
-- `liblumen_compiler`, contains the core of the compiler driver and incremental compilation engine (built on `salsa`), as well as all
-  of the higher level queries for generating artifacts from parsed sources.
-- `liblumen_codegen`, contains the code generation backend, which is divided
-  into two primary phases: the first handles translation from EIR to 
-  our own dialect of [MLIR](https://mlir.llvm.org/) (or, in some cases, LLVM IR
-  directly). This translation mostly aims to preserve the level of abstraction
-  found in EIR, while preparing for conversion to LLVM IR. The second phase is
-  conversion of our MLIR dialect to LLVM, which is where the bulk of the codegen
-  work occurs.
-- `liblumen_term`, contains the essential parts of our term encoding scheme, and
-  is shared with the runtime libraries. The compiler requires this in order to
-  handle encoding constant terms during compilation.
+- `firefly_compiler`, handles orchestrating the compiler itself, if you are looking for the driver of the compiler,
+this is it.
+- `firefly_syntax_base`, contains common types and metadata used across multiple stages of the compiler
+- `firefly_syntax_erl`, contains the abstract syntax tree, grammar, parser, and passes for performing
+semantic analysis, transformations on the AST, and lowering to Core. This is the primary frontend
+of the compiler, as it handles with user-provided Erlang code.
+- `firefly_syntax_core`, defines an intermediate representation that is based on an extended lambda calculus form, 
+this is where a number of initial normalizations/transformations occur and corresponds to Core Erlang in the BEAM
+compiler.
+- `firefly_syntax_kernel`, defines an intermediate representation that is tailored towards pattern match compilation
+and code generation, it is flat relative to Core, funs/closures have been lifted, all variables have been made unique 
+within their containing function, pattern matching has been compiled, and all calls have been transformed into static 
+form and candiates for tail call optimization have been identified.
+- `firefly_syntax_ssa`, defines an SSA intermediate representation that is used for code generation; once transformed
+into SSA, performing codegen is very straightforward.
+- `firefly_codegen`, handles code generation from our SSA IR using MLIR/LLVM, and also contains the code responsible for
+linking objects/libraries/executables.
 
-#### Runtime(s)
+The other crates are all important as well, but are much smaller and tailored to a specific task, and so
+should be straightforward to grasp their function.
 
-The runtime is broken up into multiple libraries:
+#### Libraries
 
-- `liblumen_core`, contains the essential APIs for interacting with the system,
-  performing allocations, as well as various common types used throughout Lumen.
-- `liblumen_alloc`, contains the bulk of the Erlang Runtime System core data
-  types and APIs
-- `liblumen_crt`, acts as the core runtime entry point for executables, handles
-  bootstrapping the runtime system. This is linked in to all compiler-generated executables
-- `lumen_rt_core`, (wip) the core runtime library used across all
-  target-specific runtimes
-- `lumen_rt_minimal` (wip) an experimental runtime library built on top of
-  `lumen_rt_core`, designed for x86_64 platforms. Currently used as the runtime
-  for executables generated by the compiler.
-- `lumen_web`, original WebAssembly runtime, builds on `lumen_rt_full`
-- `lumen_rt_full`, original runtime library for all targets. This is slowly
-  being broken up into smaller pieces, either merged into `lumen_rt_core`, or
-  new more target-specific runtime crates. Currently used by the interpreter,
-  and contains all of the BIF functions implemented so far.
+There are a number of core libraries that are used by the runtime, but are also in some cases shared
+with the compiler (namely `firefly_binary` and `firefly_number`). These are designed to either be optional
+components, or part of a tiered system of crates that build up functionality for the various runtime crates.
+
+- `firefly_system`, provides abstractions over platform-specific implementation details that most of the runtime
+code doesn't need to know about. This primarily handles unifying low-level platform APIs.
+- `firefly_alloc`, provides abstractions for memory allocation and types which are allocator-aware, this is where
+our GC primitives are defined, as well as useful constructs like heap fragments.
+- `firefly_rt`, this is the primary core runtime library, hence the name, and provides the implementations of all the
+term types and their native APIs, as well as establishing things like the calling convention for Erlang functions,
+exceptions and backtraces, and other universal runtime concerns that cannot be delegated to a higher-level runtime crate.
+- `firefly_arena`, this is a helper crate that provides an implementation of a typed arena used in both the runtime
+and the compiler.
+- `firefly_binary`, this crate provides all the pieces for implementing binaries/bitstrings, including pattern matching 
+primitives and constructors.
+- `firefly_number`, this crate provides the internal implementation of numeric types for both the compiler and runtime
+- `firefly_beam`, this crate provides native APIs for working with BEAM files, largely unused at the moment
+
+#### Runtimes
+
+The runtime is intended to be pluggable, but some parts are intended to always be included alongside those libraries:
+
+- `firefly_crt`, contains the primary entry point of Firefly-compiled executables, and is responsible
+for setting up the atom table, and the symbol table for dynamic dispatch.
+- `firefly_tiny`, contains our experimental runtime for development work
+
+We have more robust runtime libraries that much time was invested into, but those are currently being
+reworked now that the compiler is done:
+
+- `firefly_core`, contains functionality useful across high-level runtimes, e.g. timer wheels
+- `firefly_minimal`, a richer version of `firefly_tiny` used with a previous iteration of the compiler
 
 The above collection of libraries correspond to ERTS in the BEAM virtual machine.
 
@@ -210,14 +223,12 @@ The above collection of libraries correspond to ERTS in the BEAM virtual machine
 
 ### Making Changes
 
-Before making any major changes, please open an issue tagged "RFC" with the problem you need to
-solve, your proposed solution, and any outstanding questions you have in terms of implementation.
-The core team (and you) will use that issue to talk through the changes and either green light the
-proposal, or request changes. In some cases, a proposal may request changes that are either
-incompatible with the project's goals, or impose too high of a maintenance or complexity burden, and
-will be turned down. The importance of having the RFC discussion first is that it prevents someone
-from doing a bunch of work that will ultimately not be upstreamed, and allows the core team or the
-community to provide feedback that may make the work simpler, or better in the end.
+At this stage of the project, it is important that any changes you wish to contribute are communicated
+with us first, as there is a good chance we are working on those areas of the code, or have plans around
+them that will impact your implementation. Please open an issue tagged appropriately based on the part of
+the project you are contributing to, with an explanation of the issue/change and how you'd like to approach
+implementation. If there are no conflicts/everything looks good, we'll make sure to avoid stepping on your
+toes and provide any help you need.
 
 For smaller changes/bug fixes, feel free to open an issue first if you are new to the project and
 want some guidance on working through the fix. Otherwise, it is acceptable to just open a PR
@@ -235,32 +246,32 @@ their questions answered, and hopefully work together to make this project bette
 
 <a name="about"/>
 
-## About Lumen
+## About Firefly
 
-Lumen is not only a compiler, but a runtime as well. It consists of two parts:
+Firefly is not only a compiler, but a runtime as well. It consists of two parts:
 
 * A compiler for Erlang to native code for a given target (x86, ARM, WebAssembly)
 * An Erlang runtime, implemented in Rust, which provides the core functionality
   needed to implement OTP
 
-The primary motivator for Lumen's development was the ability to compile Elixir
+The primary motivator for Firefly's development was the ability to compile Elixir
 applications that could target WebAssembly, enabling use of Elixir as a language
-for frontend development. It is also possible to use Lumen to target other
+for frontend development. It is also possible to use Firefly to target other
 platforms as well, by producing self-contained executables on platforms such as x86.
 
-Lumen is different than BEAM in the following ways:
+Firefly is different than BEAM in the following ways:
 
 * It is an ahead-of-time compiler, rather than a virtual machine that operates
   on bytecode
 * It has some additional restrictions to allow more powerful optimizations to
   take place, in particular hot code reloading is not supported
-* The runtime library provided by Lumen is written in Rust, and while very
+* The runtime library provided by Firefly is written in Rust, and while very
   similar, differs in mostly transparent ways. One of the goals is to provide a
-  better foundation for learning how the runtime is implemented, and to take
+  better foundation for learning how the BEAM runtime is implemented, and to take
   advantage of Rust's more powerful static analysis to catch bugs early.
-* It has support for targeting WebAssembly, as well as other targets.
+* It is designed to support targeting WebAssembly, as well as many other types of targets.
 
-The result of compiling a BEAM application via Lumen is a static executable. This differs
+The result of compiling a BEAM application via Firefly is a static executable. This differs
 significantly from how deployment on the BEAM works today (i.e. via OTP releases). While we
 sacrifice the ability to perform hot upgrades/downgrades, we make huge gains in cross-platform
 compatibility, and ease of use. Simply drop the executable on a compatible platform, and run it, no
@@ -271,7 +282,7 @@ or Go applications works today.
 
 ## Goals
 
-- Support WebAssembly as a build target
+- Support WebAssembly/embedded systems as a first-class platforms
 - Produce easy-to-deploy static executables as build artifacts
 - Integrate with tooling provided by BEAM languages
 - More efficient execution by removing the need for an interpreter at runtime
@@ -284,11 +295,11 @@ or Go applications works today.
 - Support for hot upgrades/downgrades
 - Support for dynamic code loading
 
-Lumen _is_ an alternative implementation of Erlang/OTP, so as a result it is not as battle tested, or necessarily
+Firefly _is_ an alternative implementation of Erlang/OTP, so as a result it is not as battle tested, or necessarily
 as performant as the BEAM itself. Until we have a chance to run some benchmarks, it is hard to know
 what the difference between the two in terms of performance actually is.
 
-Lumen is _not_ intended to replace BEAM at this point in time. At a minimum, the stated non-goals
+Firefly is _not_ intended to replace BEAM at this point in time. At a minimum, the stated non-goals
 of this project mean that for at least some percentage of projects, some required functionality would
 be missing. However, it is meant to be a drop-in replacement for applications which are better served
 by its feature set.
@@ -300,29 +311,23 @@ by its feature set.
 ### Compiler
 
 The compiler frontend accepts Erlang source files. This is parsed into an
-abstract syntax tree, lowered into EIR (Erlang Intermediate Representation),
-then finally lowered to LLVM IR where codegen is performed.
+abstract syntax tree, then lowered through four middle tiers where different
+types of analysis, transformation, or optimization are performed: 
 
-Internally, the compiler represents Erlang/Elixir code in a form very similar to
-continuation-passing style. Continuations are a powerful construct that enable
-straightforward implementations of non-local returns/exceptions, green
-threading, and more. Optimizations are primarily performed on this
-representation, prior to lowering to LLVM IR. See
-[eirproject/eir](https://github.com/eirproject/eir) for more information on the
-compiler frontend and EIR itself.
+- Core IR (similar to Core Erlang)
+- Kernel IR (similar to Kernel Erlang)
+- SSA IR (a transformation of Kernel IR in preparation for codegen)
+- MLIR (the final stage where optimizations and certain transformations occur)
 
-During lowering to LLVM IR, the continuation representation is stripped away,
-and platform-specific methods for implementing various constructs are generated.
-For example, on x86_64, hand-written assembly is used to perform extremely cheap
+The final stage of the compiler lowers MLIR to LLVM IR and then LLVM handles
+generating object files from that. Our linker then takes those object files and
+produces a shared library or executable (the default).
+
+In MLIR, and particularly during the lowering to LLVM IR, all high-level abstractions
+around certain operations are stripped away and platform-specific details take shape.
+For example, on x86_64/AArch64, hand-written assembly is used to perform extremely cheap
 stack switching by the scheduler, and to provide dynamic function application
-facilities for the implementation of `apply`. Currently, the C++-style zero-cost 
-exception model is used for implementing exceptions. There are some future
-proposals in progress for WebAssembly that may allow us to use continuations for
-exceptions, but that is not yet stabilized or implemented in browsers.
-
-The compiler produces object files, and handles linking objects
-together into an executable. It can also dump all of the intermediate artifacts,
-such as the AST, EIR, MLIR in various forms, LLVM IR, LLVM bitcode, and plain assembly.
+facilities for the implementation of `apply`. 
 
 ### Runtime
 
@@ -341,13 +346,9 @@ behavior rock solid before we circle back to add in more capabilities.
 
 ### NIFs
 
-NIFs will be able to be defined in any language with C FFI, and will need to be compiled to object
-files and then passed via linker flags to the compiler. The compiler will then ensure that the NIFs
-are linked into the executable.
-
-The design of the FFI is still up in the air - we will likely have a compatibility layer which will
-mimic the existing `erl_nif.h` interface, but since the runtime is different, there may be
-opportunities to provide more direct hooks to parts of the system.
+Currently it is straightforward to define NIFs in Rust without the overhead of erl_nif, but we don't
+yet have an abstraction that allows us to take existing NIFs designed around erl_nif and make them work.
+This is something in the pipeline, but is not yet a high priority for us.
 
 ## License
 

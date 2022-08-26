@@ -25,8 +25,8 @@ pub use self::var::Var;
 
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 
-use liblumen_diagnostics::{SourceSpan, Span};
-use liblumen_intern::{Ident, Symbol};
+use firefly_diagnostics::{SourceSpan, Span};
+use firefly_intern::{Ident, Symbol};
 
 /// This structure contains metadata representing an OTP application gathered during parsing and semantic analysis.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

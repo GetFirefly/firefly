@@ -1,4 +1,4 @@
-use liblumen_diagnostics::*;
+use firefly_diagnostics::*;
 
 #[derive(thiserror::Error, Debug)]
 pub enum ParseError {

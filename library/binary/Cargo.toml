@@ -1,5 +1,6 @@
 [package]
-name = "liblumen_binary"
+name = "firefly_binary"
+description = "Provides the runtime for Erlang-style binary pattern matching/construction"
 version = "0.1.0"
 authors = ["Paul Schoenfelder <paulschoenfelder@gmail.com>"]
 edition = "2021"

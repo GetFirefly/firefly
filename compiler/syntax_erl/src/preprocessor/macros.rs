@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 use std::fmt;
 
-use liblumen_diagnostics::SourceSpan;
-use liblumen_intern::Symbol;
+use firefly_diagnostics::SourceSpan;
+use firefly_intern::Symbol;
 
 use crate::lexer::{DelayedSubstitution, LexicalToken, Token};
 use crate::lexer::{IdentToken, SymbolToken};

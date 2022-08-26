@@ -4,9 +4,9 @@ use std::ops::{Deref, DerefMut};
 use cranelift_entity::entity_impl;
 use intrusive_collections::{intrusive_adapter, LinkedListLink, UnsafeRef};
 
-use liblumen_binary::BinaryEntrySpecifier;
-use liblumen_diagnostics::{Span, Spanned};
-use liblumen_syntax_base::Type;
+use firefly_binary::BinaryEntrySpecifier;
+use firefly_diagnostics::{Span, Spanned};
+use firefly_syntax_base::Type;
 
 use super::*;
 

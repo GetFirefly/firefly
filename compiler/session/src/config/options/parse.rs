@@ -4,12 +4,12 @@ use std::str::FromStr;
 
 use clap::{ArgMatches, ErrorKind};
 
-use liblumen_target as target;
-use liblumen_target::spec::{
+use firefly_target as target;
+use firefly_target::spec::{
     CodeModel, LinkerFlavor, MergeFunctions, PanicStrategy, RelocModel, RelroLevel, SplitDebugInfo,
     Target, TargetError, TlsModel,
 };
-use liblumen_util::diagnostics::ColorArg;
+use firefly_util::diagnostics::ColorArg;
 
 use super::OptionInfo;
 

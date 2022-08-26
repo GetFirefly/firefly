@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 
 use log::debug;
 
-use liblumen_util as util;
+use firefly_util as util;
 
 use crate::search_paths::{PathKind, SearchPath};
 
@@ -93,10 +93,10 @@ impl<'a> FileSearch<'a> {
 
 // Returns a list of directories where target-specific tool binaries are located.
 pub fn get_tools_search_paths(sysroot: &Path, self_contained: bool) -> Vec<PathBuf> {
-    let lumenlib_path = target_lumenlib_path(sysroot, liblumen_target::host_triple());
+    let fireflylib_path = target_fireflylib_path(sysroot, firefly_target::host_triple());
     let p = PathBuf::from_iter([
         Path::new(sysroot),
-        Path::new(&lumenlib_path),
+        Path::new(&fireflylib_path),
         Path::new("bin"),
     ]);
     if self_contained {
@@ -107,8 +107,8 @@ pub fn get_tools_search_paths(sysroot: &Path, self_contained: bool) -> Vec<PathB
 }
 
 pub fn make_target_lib_path(sysroot: &Path, target_triple: &str) -> PathBuf {
-    let lumenlib_path = target_lumenlib_path(sysroot, target_triple);
-    PathBuf::from_iter([sysroot, Path::new(&lumenlib_path), Path::new("lib")])
+    let fireflylib_path = target_fireflylib_path(sysroot, target_triple);
+    PathBuf::from_iter([sysroot, Path::new(&fireflylib_path), Path::new("lib")])
 }
 
 pub fn get_or_default_sysroot() -> PathBuf {
@@ -136,8 +136,8 @@ pub fn get_or_default_sysroot() -> PathBuf {
     }
 
     // Use env::args().next() to get the path of the executable without
-    // following symlinks/canonicalizing any component. This makes the lumen
-    // binary able to locate Lumen libraries in systems using content-addressable
+    // following symlinks/canonicalizing any component. This makes the firefly
+    // binary able to locate firefly libraries in systems using content-addressable
     // storage (CAS).
     fn from_env_args_next() -> Option<PathBuf> {
         match env::args_os().next() {
@@ -156,10 +156,10 @@ pub fn get_or_default_sysroot() -> PathBuf {
                 // Pop off `bin/rustc`, obtaining the suspected sysroot.
                 p.pop();
                 p.pop();
-                // Look for the target lumenlib directory in the suspected sysroot.
-                let mut lumenlib_path = target_lumenlib_path(&p, "dummy");
-                lumenlib_path.pop(); // pop off the dummy target.
-                if lumenlib_path.exists() {
+                // Look for the target fireflylib directory in the suspected sysroot.
+                let mut fireflylib_path = target_fireflylib_path(&p, "dummy");
+                fireflylib_path.pop(); // pop off the dummy target.
+                if fireflylib_path.exists() {
                     Some(p)
                 } else {
                     None
@@ -174,25 +174,25 @@ pub fn get_or_default_sysroot() -> PathBuf {
     from_env_args_next().unwrap_or_else(from_current_exe)
 }
 
-/// Returns a `lumenlib` path for this particular target, relative to the provided sysroot.
+/// Returns a `fireflylib` path for this particular target, relative to the provided sysroot.
 ///
 /// For example: `target_sysroot_path("/usr", "x86_64-unknown-linux-gnu")` =>
-/// `"lib*/lumenlib/x86_64-unknown-linux-gnu"`.
-pub fn target_lumenlib_path(sysroot: &Path, target_triple: &str) -> PathBuf {
+/// `"lib*/fireflylib/x86_64-unknown-linux-gnu"`.
+pub fn target_fireflylib_path(sysroot: &Path, target_triple: &str) -> PathBuf {
     let libdir = find_libdir(sysroot);
     PathBuf::from_iter([
         Path::new(libdir.as_ref()),
-        Path::new(LUMEN_LIB_DIR),
+        Path::new(FIREFLY_LIB_DIR),
         Path::new(target_triple),
     ])
 }
 
-// The name of the directory lumen expects libraries to be located.
+// The name of the directory firefly expects libraries to be located.
 fn find_libdir(sysroot: &Path) -> Cow<'static, str> {
-    // FIXME: This is a quick hack to make the lumen binary able to locate
-    // Lumen libraries in Linux environments where libraries might be installed
+    // FIXME: This is a quick hack to make the firefly binary able to locate
+    // Firefly libraries in Linux environments where libraries might be installed
     // to lib64/lib32. This would be more foolproof by basing the sysroot off
-    // of the directory where liblumen is located, rather than where the lumen
+    // of the directory where libfirefly is located, rather than where the firefly
     // binary is.
     // If --libdir is set during configuration to the value other than
     // "lib" (i.e., non-default), this value is used (see issue #16552).
@@ -207,7 +207,7 @@ fn find_libdir(sysroot: &Path) -> Cow<'static, str> {
 
     match option_env!("CFG_LIBDIR_RELATIVE") {
         None | Some("lib") => {
-            if sysroot.join(PRIMARY_LIB_DIR).join(LUMEN_LIB_DIR).exists() {
+            if sysroot.join(PRIMARY_LIB_DIR).join(FIREFLY_LIB_DIR).exists() {
                 PRIMARY_LIB_DIR.into()
             } else {
                 SECONDARY_LIB_DIR.into()
@@ -217,5 +217,5 @@ fn find_libdir(sysroot: &Path) -> Cow<'static, str> {
     }
 }
 
-// The name of lumen's own place to organize libraries.
-const LUMEN_LIB_DIR: &str = "lumenlib";
+// The name of firefly's own place to organize libraries.
+const FIREFLY_LIB_DIR: &str = "fireflylib";

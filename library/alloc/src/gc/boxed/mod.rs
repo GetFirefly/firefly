@@ -4,7 +4,7 @@ pub use self::gcbox::*;
 
 use core::ptr::Pointee;
 
-use liblumen_binary::{Aligned, Binary, BinaryFlags, Bitstring, ByteIter, Encoding};
+use firefly_binary::{Aligned, Binary, BinaryFlags, Bitstring, ByteIter, Encoding};
 
 impl<T> Bitstring for GcBox<T>
 where

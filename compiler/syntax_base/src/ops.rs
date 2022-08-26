@@ -1,4 +1,4 @@
-use liblumen_intern::{symbols, Symbol};
+use firefly_intern::{symbols, Symbol};
 
 use crate::FunctionName;
 

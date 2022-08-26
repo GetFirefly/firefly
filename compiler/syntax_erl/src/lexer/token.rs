@@ -2,9 +2,9 @@ use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::mem;
 
-use liblumen_diagnostics::{SourceIndex, SourceSpan};
-use liblumen_intern::Symbol;
-use liblumen_number::{Float, Integer, ToPrimitive};
+use firefly_diagnostics::{SourceIndex, SourceSpan};
+use firefly_intern::Symbol;
+use firefly_number::{Float, Integer, ToPrimitive};
 
 use super::{LexicalError, TokenConvertError, TokenConvertResult};
 
@@ -78,7 +78,7 @@ impl TryFrom<LexicalToken> for AtomToken {
     type Error = TokenConvertError;
 
     fn try_from(t: LexicalToken) -> TokenConvertResult<AtomToken> {
-        use liblumen_intern::symbols;
+        use firefly_intern::symbols;
 
         match t {
             LexicalToken(start, tok @ Token::Atom(_), end) => {

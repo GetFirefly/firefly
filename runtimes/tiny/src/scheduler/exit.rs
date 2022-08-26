@@ -1,8 +1,8 @@
 use std::ptr::NonNull;
 
-use liblumen_rt::error::{self, ErlangException};
-use liblumen_rt::process::Process;
-use liblumen_rt::term::{atoms, Term};
+use firefly_rt::error::{self, ErlangException};
+use firefly_rt::process::Process;
+use firefly_rt::term::{atoms, Term};
 
 pub fn log_exit(process: &Process, ptr: NonNull<ErlangException>) -> bool {
     let exception = unsafe { ptr.as_ref() };

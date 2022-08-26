@@ -1,5 +1,5 @@
-#ifndef LUMEN_DIAGNOSTICS_H
-#define LUMEN_DIAGNOSTICS_H
+#ifndef FIREFLY_DIAGNOSTICS_H
+#define FIREFLY_DIAGNOSTICS_H
 
 #include "llvm/IR/DiagnosticInfo.h"
 
@@ -7,7 +7,7 @@ namespace llvm {
 enum DiagnosticKind;
 }
 
-namespace lumen {
+namespace firefly {
 enum class DiagnosticKind {
   InlineAsm,
   ResourceLimit,
@@ -37,6 +37,6 @@ enum class DiagnosticKind {
 
 static DiagnosticKind toDiagnosticKind(llvm::DiagnosticKind Kind);
 
-} // namespace lumen
+} // namespace firefly
 
 #endif

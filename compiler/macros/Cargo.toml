@@ -1,7 +1,7 @@
 [package]
-name = "liblumen_compiler_macros"
+name = "firefly_compiler_macros"
 version = "0.1.0"
-authors = ["Lumen Developers"]
+authors = ["Firefly Developers"]
 edition = "2021"
 publish = false
 

@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
-use liblumen_diagnostics::Reporter;
-use liblumen_intern::Ident;
+use firefly_diagnostics::Reporter;
+use firefly_intern::Ident;
 
 use crate::ast::*;
 

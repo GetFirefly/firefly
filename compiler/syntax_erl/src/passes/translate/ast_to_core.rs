@@ -61,16 +61,16 @@ use std::cell::UnsafeCell;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::rc::Rc;
 
-use liblumen_binary::{BinaryEntrySpecifier, BitVec};
-use liblumen_diagnostics::*;
-use liblumen_intern::{symbols, Ident, Symbol};
-use liblumen_number::Integer;
-use liblumen_pass::Pass;
-use liblumen_syntax_base::*;
-use liblumen_syntax_core::passes::{
+use firefly_binary::{BinaryEntrySpecifier, BitVec};
+use firefly_diagnostics::*;
+use firefly_intern::{symbols, Ident, Symbol};
+use firefly_number::Integer;
+use firefly_pass::Pass;
+use firefly_syntax_base::*;
+use firefly_syntax_core::passes::{
     AnnotateVariableUsage, FunctionContext, RewriteExports, RewriteReceivePrimitives,
 };
-use liblumen_syntax_core::*;
+use firefly_syntax_core::*;
 
 use crate::ast;
 use crate::evaluator;
@@ -2509,7 +2509,7 @@ impl TranslateAst {
         &mut self,
         element: ast::BinaryElement,
     ) -> Result<(Vec<IBitstring>, Vec<IExpr>), Vec<IExpr>> {
-        use liblumen_binary::BinaryEntrySpecifier as S;
+        use firefly_binary::BinaryEntrySpecifier as S;
 
         let span = element.span;
         let size_opt = element.bit_size;

@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 
-use liblumen_parser::Source;
+use firefly_parser::Source;
 
 use crate::lexer::{Lexed, Lexer};
 

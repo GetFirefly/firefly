@@ -1,4 +1,4 @@
-#include "lumen/llvm/Target.h"
+#include "firefly/llvm/Target.h"
 
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringRef.h"
@@ -44,7 +44,7 @@ DEFINE_STDCXX_CONVERSION_FUNCTIONS(ModulePassManager, ModulePassManagerRef);
 DEFINE_STDCXX_CONVERSION_FUNCTIONS(FunctionPassManager, FunctionPassManagerRef);
 DEFINE_STDCXX_CONVERSION_FUNCTIONS(TargetMachine, LLVMTargetMachineRef);
 
-extern "C" void LLVMLumenInitializePasses() {
+extern "C" void LLVMFireflyInitializePasses() {
   thread_local bool initialized = false;
   if (initialized)
     return;
@@ -65,7 +65,7 @@ extern "C" void LLVMLumenInitializePasses() {
 
 extern "C" void LLVMTimeTraceProfilerInitialize() {
   llvm::timeTraceProfilerInitialize(/*timeTraceGranularity*/ 0,
-                                    /*procName*/ "lumen");
+                                    /*procName*/ "firefly");
 }
 
 extern "C" void LLVMTimeTraceProfilerFinish(const char *fileName) {
@@ -77,10 +77,10 @@ extern "C" void LLVMTimeTraceProfilerFinish(const char *fileName) {
   llvm::timeTraceProfilerCleanup();
 }
 
-extern "C" void LLVMLumenPrintPasses() {
-  LLVMLumenInitializePasses();
+extern "C" void LLVMFireflyPrintPasses() {
+  LLVMFireflyInitializePasses();
 
-  struct LumenPassListener : llvm::PassRegistrationListener {
+  struct FireflyPassListener : llvm::PassRegistrationListener {
     void passEnumerate(const llvm::PassInfo *Info) {
       auto passArg = Info->getPassArgument();
       auto passName = Info->getPassName();
@@ -98,11 +98,11 @@ extern "C" void LLVMLumenPrintPasses() {
   registry->enumerateWith(&listener);
 }
 
-extern "C" typedef void (*LLVMLumenSelfProfileBeforePassCallback)(
+extern "C" typedef void (*LLVMFireflySelfProfileBeforePassCallback)(
     void *,        // profiler
     const char *,  // pass name
     const char *); // IR name
-extern "C" typedef void (*LLVMLumenSelfProfileAfterPassCallback)(
+extern "C" typedef void (*LLVMFireflySelfProfileAfterPassCallback)(
     /*profiler*/ void *);
 
 std::string getWrappedIRName(const llvm::Any &wrappedIR) {
@@ -119,8 +119,8 @@ std::string getWrappedIRName(const llvm::Any &wrappedIR) {
 
 void LLVMSelfProfileInitializeCallbacks(
     PassInstrumentationCallbacks &pic, void *selfProfiler,
-    LLVMLumenSelfProfileBeforePassCallback beforePassCallback,
-    LLVMLumenSelfProfileAfterPassCallback afterPassCallback) {
+    LLVMFireflySelfProfileBeforePassCallback beforePassCallback,
+    LLVMFireflySelfProfileAfterPassCallback afterPassCallback) {
   pic.registerBeforeNonSkippedPassCallback(
       [selfProfiler, beforePassCallback](StringRef pass, llvm::Any ir) {
         std::string passName = pass.str();
@@ -153,7 +153,7 @@ void LLVMSelfProfileInitializeCallbacks(
       });
 }
 
-namespace LLVMLumenPassBuilderOptLevel {
+namespace LLVMFireflyPassBuilderOptLevel {
 enum Level {
   O0 = 0,
   O1,
@@ -164,19 +164,19 @@ enum Level {
 };
 }
 
-static OptimizationLevel fromRust(LLVMLumenPassBuilderOptLevel::Level level) {
+static OptimizationLevel fromRust(LLVMFireflyPassBuilderOptLevel::Level level) {
   switch (level) {
-  case LLVMLumenPassBuilderOptLevel::O0:
+  case LLVMFireflyPassBuilderOptLevel::O0:
     return OptimizationLevel::O0;
-  case LLVMLumenPassBuilderOptLevel::O1:
+  case LLVMFireflyPassBuilderOptLevel::O1:
     return OptimizationLevel::O1;
-  case LLVMLumenPassBuilderOptLevel::O2:
+  case LLVMFireflyPassBuilderOptLevel::O2:
     return OptimizationLevel::O2;
-  case LLVMLumenPassBuilderOptLevel::O3:
+  case LLVMFireflyPassBuilderOptLevel::O3:
     return OptimizationLevel::O3;
-  case LLVMLumenPassBuilderOptLevel::Os:
+  case LLVMFireflyPassBuilderOptLevel::Os:
     return OptimizationLevel::Os;
-  case LLVMLumenPassBuilderOptLevel::Oz:
+  case LLVMFireflyPassBuilderOptLevel::Oz:
     return OptimizationLevel::Oz;
   default:
     llvm::report_fatal_error("invalid PassBuilder optimization level");
@@ -207,7 +207,7 @@ inline static bool sanitizerEnabled(SanitizerOptions &opts) {
 
 struct OptimizerConfig {
   const char *passPipeline;
-  LLVMLumenPassBuilderOptLevel::Level optLevel;
+  LLVMFireflyPassBuilderOptLevel::Level optLevel;
   OptStage::Stage stage;
   SanitizerOptions sanitizer;
   bool debug;
@@ -218,11 +218,11 @@ struct OptimizerConfig {
   bool emitModuleHash;
   bool preserveUseListOrder;
   void *profiler;
-  LLVMLumenSelfProfileBeforePassCallback beforePass;
-  LLVMLumenSelfProfileAfterPassCallback afterPass;
+  LLVMFireflySelfProfileBeforePassCallback beforePass;
+  LLVMFireflySelfProfileAfterPassCallback afterPass;
 };
 
-extern "C" bool LLVMLumenOptimize(LLVMModuleRef m, LLVMTargetMachineRef tm,
+extern "C" bool LLVMFireflyOptimize(LLVMModuleRef m, LLVMTargetMachineRef tm,
                                   OptimizerConfig *conf, char **errorMessage) {
   TargetMachine *targetMachine = unwrap(tm);
   Module *mod = unwrap(m);

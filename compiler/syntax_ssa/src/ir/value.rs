@@ -1,7 +1,7 @@
 use cranelift_entity::{self as entity, entity_impl};
 
-use liblumen_diagnostics::SourceSpan;
-use liblumen_syntax_base::Type;
+use firefly_diagnostics::SourceSpan;
+use firefly_syntax_base::Type;
 
 use super::{Block, Inst};
 

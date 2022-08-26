@@ -3,10 +3,10 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::hash::{Hash, Hasher};
 
-use liblumen_binary::BitVec;
-use liblumen_diagnostics::{SourceSpan, Spanned};
-use liblumen_intern::Symbol;
-use liblumen_number::{Float, Integer};
+use firefly_binary::BitVec;
+use firefly_diagnostics::{SourceSpan, Spanned};
+use firefly_intern::Symbol;
+use firefly_number::{Float, Integer};
 
 use crate::*;
 

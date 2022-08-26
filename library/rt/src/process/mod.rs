@@ -5,7 +5,7 @@ use alloc::alloc::{AllocError, Allocator, Layout};
 use core::cell::UnsafeCell;
 use core::ptr::NonNull;
 
-use liblumen_alloc::heap::Heap;
+use firefly_alloc::heap::Heap;
 
 use crate::error::ErlangException;
 use crate::function::ModuleFunctionArity;

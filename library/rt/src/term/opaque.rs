@@ -81,9 +81,9 @@ use core::ptr::{self, NonNull, Pointee};
 
 use super::{atoms, Atom, BinaryData, Cons, Float, Term, Tuple};
 
-use liblumen_alloc::gc::{self, GcBox};
-use liblumen_alloc::rc::{self, Rc, Weak};
-use liblumen_binary::BinaryFlags;
+use firefly_alloc::gc::{self, GcBox};
+use firefly_alloc::rc::{self, Rc, Weak};
+use firefly_binary::BinaryFlags;
 
 use crate::function::ErlangResult;
 
@@ -494,7 +494,7 @@ impl OpaqueTerm {
     /// For closures, it is the number of elements in the closure environment.
     /// FOr binaries/bitstrings, it is the size in bytes.
     pub fn size(self) -> usize {
-        use liblumen_binary::Bitstring;
+        use firefly_binary::Bitstring;
         match self.into() {
             Term::Tuple(tup) => unsafe { tup.as_ref().len() },
             Term::Closure(fun) => fun.env_size(),
@@ -801,8 +801,8 @@ mod tests {
     use core::num::NonZeroU32;
     use core::ptr::NonNull;
 
-    use liblumen_arena::DroplessArena;
-    use liblumen_binary::{BinaryFlags, Bitstring, Encoding, Selection};
+    use firefly_arena::DroplessArena;
+    use firefly_binary::{BinaryFlags, Bitstring, Encoding, Selection};
 
     use crate::term::*;
 

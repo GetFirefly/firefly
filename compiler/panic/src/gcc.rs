@@ -61,7 +61,7 @@ impl Exception {
 pub unsafe fn panic(data: *mut ErlangPanic) -> u32 {
     let exception = Box::new(Exception {
         _uwe: uw::_Unwind_Exception {
-            exception_class: lumen_exception_class(),
+            exception_class: firefly_exception_class(),
             exception_cleanup,
             private: [0; uw::unwinder_private_data_size],
         },
@@ -84,7 +84,7 @@ pub unsafe fn panic(data: *mut ErlangPanic) -> u32 {
 // Entry point for re-raising an exception, just delegates to the platform-specific implementation.
 #[allow(unreachable_code)]
 #[no_mangle]
-pub unsafe extern "C-unwind" fn __lumen_rethrow(ptr: *mut u8) -> ! {
+pub unsafe extern "C-unwind" fn __firefly_rethrow(ptr: *mut u8) -> ! {
     let exception = &mut *(ptr as *mut Exception);
 
     // If this is non-forced and a stopping place was found, then this is a
@@ -108,11 +108,11 @@ pub unsafe fn cause(ptr: *mut u8) -> *mut ErlangPanic {
     exception.cause
 }
 
-// Lumen's exception class identifier.  This is used by personality routines to
+// Firefly's exception class identifier.  This is used by personality routines to
 // determine whether the exception was thrown by their own runtime.
-fn lumen_exception_class() -> uw::_Unwind_Exception_Class {
-    // D Y \0 L U M E N -- vendor, language
-    0x4459_00_4c554d454e
+fn firefly_exception_class() -> uw::_Unwind_Exception_Class {
+    // D Y \0 F I R E F -- vendor, language
+    0x4459_00_4649524546
 }
 
 // Register ids were lifted from LLVM's TargetLowering::getExceptionPointerRegister()
@@ -159,7 +159,7 @@ cfg_if::cfg_if! {
         //
         // iOS uses the default routine instead since it uses SjLj unwinding.
         #[no_mangle]
-        pub unsafe extern "C" fn lumen_eh_personality(state: uw::_Unwind_State,
+        pub unsafe extern "C" fn firefly_eh_personality(state: uw::_Unwind_State,
                                                   exception_object: *mut uw::_Unwind_Exception,
                                                   context: *mut uw::_Unwind_Context)
                                                   -> uw::_Unwind_Reason_Code {
@@ -196,7 +196,7 @@ cfg_if::cfg_if! {
             // directly, bypassing DWARF compatibility functions.
 
             let exception_class = (*exception_object).exception_class;
-            let foreign_exception = exception_class != lumen_exception_class();
+            let foreign_exception = exception_class != firefly_exception_class();
             let eh_action = match find_eh_action(context, foreign_exception) {
                 Ok(action) => action,
                 Err(_) => return uw::_URC_FAILURE,
@@ -251,7 +251,7 @@ cfg_if::cfg_if! {
         // Default personality routine, which is used directly on most targets
         // and indirectly on Windows x86_64 via SEH.
         #[allow(unused)]
-        unsafe extern "C" fn lumen_eh_personality_impl(version: c_int,
+        unsafe extern "C" fn firefly_eh_personality_impl(version: c_int,
                                                        actions: uw::_Unwind_Action,
                                                        exception_class: uw::_Unwind_Exception_Class,
                                                        exception_object: *mut uw::_Unwind_Exception,
@@ -260,7 +260,7 @@ cfg_if::cfg_if! {
             if version != 1 {
                 return uw::_URC_FATAL_PHASE1_ERROR;
             }
-            let foreign_exception = exception_class != lumen_exception_class();
+            let foreign_exception = exception_class != firefly_exception_class();
             let eh_action = match find_eh_action(context, foreign_exception) {
                 Ok(action) => action,
                 Err(_) => return uw::_URC_FATAL_PHASE1_ERROR,
@@ -294,7 +294,7 @@ cfg_if::cfg_if! {
                 // handler data (aka LSDA) uses GCC-compatible encoding.
                 #[allow(nonstandard_style)]
                 #[no_mangle]
-                pub unsafe extern "C" fn lumen_eh_personality(exceptionRecord: *mut uw::EXCEPTION_RECORD,
+                pub unsafe extern "C" fn firefly_eh_personality(exceptionRecord: *mut uw::EXCEPTION_RECORD,
                         establisherFrame: uw::LPVOID,
                         contextRecord: *mut uw::CONTEXT,
                         dispatcherContext: *mut uw::DISPATCHER_CONTEXT)
@@ -303,18 +303,18 @@ cfg_if::cfg_if! {
                                              establisherFrame,
                                              contextRecord,
                                              dispatcherContext,
-                                             lumen_eh_personality_impl)
+                                             firefly_eh_personality_impl)
                 }
             } else {
                 // The personality routine for most of our targets.
                 #[no_mangle]
-                pub unsafe extern "C" fn lumen_eh_personality(version: c_int,
+                pub unsafe extern "C" fn firefly_eh_personality(version: c_int,
                         actions: uw::_Unwind_Action,
                         exception_class: uw::_Unwind_Exception_Class,
                         exception_object: *mut uw::_Unwind_Exception,
                         context: *mut uw::_Unwind_Context)
                         -> uw::_Unwind_Reason_Code {
-                    lumen_eh_personality_impl(version,
+                    firefly_eh_personality_impl(version,
                                               actions,
                                               exception_class,
                                               exception_object,
@@ -351,7 +351,7 @@ unsafe fn find_eh_action(
     target_env = "gnu"
 ))]
 #[no_mangle]
-pub unsafe extern "C-unwind" fn lumen_eh_unwind_resume(panic_ctx: *mut u8) -> ! {
+pub unsafe extern "C-unwind" fn firefly_eh_unwind_resume(panic_ctx: *mut u8) -> ! {
     uw::_Unwind_Resume(panic_ctx as *mut uw::_Unwind_Exception);
 }
 
@@ -379,12 +379,12 @@ pub mod eh_frame_registry {
     }
 
     #[no_mangle]
-    pub unsafe extern "C" fn lumen_eh_register_frames(eh_frame_begin: *const u8, object: *mut u8) {
+    pub unsafe extern "C" fn firefly_eh_register_frames(eh_frame_begin: *const u8, object: *mut u8) {
         __register_frame_info(eh_frame_begin, object);
     }
 
     #[no_mangle]
-    pub unsafe extern "C" fn lumen_eh_unregister_frames(
+    pub unsafe extern "C" fn firefly_eh_unregister_frames(
         eh_frame_begin: *const u8,
         object: *mut u8,
     ) {

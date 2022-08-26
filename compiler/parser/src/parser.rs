@@ -2,7 +2,7 @@ use std::error::Error;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use liblumen_diagnostics::*;
+use firefly_diagnostics::*;
 
 use crate::{FileMapSource, Source};
 

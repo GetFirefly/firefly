@@ -2,12 +2,12 @@
 
 use std::path::{Path, PathBuf};
 
-use liblumen_session::{OptLevel, Options};
+use firefly_session::{OptLevel, Options};
 
 use crate::ir::*;
 use crate::support::StringRef;
 
-const PRODUCER: &'static str = "lumen";
+const PRODUCER: &'static str = "firefly";
 const RUNTIME_VERSION: u32 = 0;
 const DWO_ID: u32 = 0;
 

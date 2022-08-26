@@ -1,7 +1,7 @@
 use std::fmt::{self, Write};
 
-use liblumen_binary::{BinaryEntrySpecifier, Endianness};
-use liblumen_syntax_base::*;
+use firefly_binary::{BinaryEntrySpecifier, Endianness};
+use firefly_syntax_base::*;
 
 use crate::*;
 

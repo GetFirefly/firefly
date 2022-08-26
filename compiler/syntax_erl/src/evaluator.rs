@@ -1,11 +1,11 @@
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
 
-use liblumen_binary::{BinaryEntrySpecifier, BitVec, Bitstring};
-use liblumen_diagnostics::{Diagnostic, Label, SourceSpan, Spanned, ToDiagnostic};
-use liblumen_intern::{symbols, Ident};
-use liblumen_number::{f16, Integer, Number, ToPrimitive};
-use liblumen_syntax_base::{BinaryOp, UnaryOp};
+use firefly_binary::{BinaryEntrySpecifier, BitVec, Bitstring};
+use firefly_diagnostics::{Diagnostic, Label, SourceSpan, Spanned, ToDiagnostic};
+use firefly_intern::{symbols, Ident};
+use firefly_number::{f16, Integer, Number, ToPrimitive};
+use firefly_syntax_base::{BinaryOp, UnaryOp};
 
 use crate::ast::{self, BinaryElement, Expr, Literal};
 
@@ -19,7 +19,7 @@ pub enum EvalError {
 
     #[error("invalid float: {ty}")]
     FloatError {
-        ty: liblumen_number::FloatError,
+        ty: firefly_number::FloatError,
         #[span]
         span: SourceSpan,
     },

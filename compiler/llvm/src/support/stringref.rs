@@ -4,7 +4,7 @@ use std::fmt::{self, Debug, Display};
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
 
-use liblumen_intern::Symbol;
+use firefly_intern::Symbol;
 
 /// OwnedStringRef's represent a null-terminated string allocated by LLVM
 /// over which ownership is our responsibility. In all respects these behave

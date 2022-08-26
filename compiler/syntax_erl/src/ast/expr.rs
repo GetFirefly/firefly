@@ -3,11 +3,11 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::hash::{Hash, Hasher};
 
-use liblumen_binary::{BinaryEntrySpecifier, BitVec, Bitstring};
-use liblumen_diagnostics::{SourceSpan, Spanned};
-use liblumen_intern::{symbols, Ident, Symbol};
-use liblumen_number::{Float, Integer, Number};
-use liblumen_syntax_base::{self as syntax_base, Annotations, BinaryOp, FunctionName, UnaryOp};
+use firefly_binary::{BinaryEntrySpecifier, BitVec, Bitstring};
+use firefly_diagnostics::{SourceSpan, Spanned};
+use firefly_intern::{symbols, Ident, Symbol};
+use firefly_number::{Float, Integer, Number};
+use firefly_syntax_base::{self as syntax_base, Annotations, BinaryOp, FunctionName, UnaryOp};
 
 use super::{Arity, Fun, FunctionVar, Guard, Name, Type};
 

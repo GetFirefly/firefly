@@ -12,7 +12,7 @@
             ],
             "options": {
                 "env": {
-                    "LLVM_SYS_90_PREFIX": "${env:HOME}/.local/share/llvm/lumen"
+                    "LLVM_PREFIX": "${env:HOME}/.local/share/llvm/firefly"
                 }
             }
         },
@@ -25,7 +25,7 @@
             ],
             "options": {
                 "env": {
-                    "LLVM_SYS_90_PREFIX": "${env:HOME}/.local/share/llvm/lumen"
+                    "LLVM_PREFIX": "${env:HOME}/.local/share/llvm/firefly"
                 }
             }
         },
@@ -38,7 +38,7 @@
             ],
             "options": {
                 "env": {
-                    "LLVM_SYS_90_PREFIX": "${env:HOME}/.local/share/llvm/lumen"
+                    "LLVM_PREFIX": "${env:HOME}/.local/share/llvm/firefly"
                 }
             }
         },

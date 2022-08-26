@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use liblumen_diagnostics::{Diagnostic, Label, SourceIndex, SourceSpan, ToDiagnostic};
+use firefly_diagnostics::{Diagnostic, Label, SourceIndex, SourceSpan, ToDiagnostic};
 
 #[derive(thiserror::Error, Debug, Clone, PartialEq, Eq)]
 pub enum EscapeStmError<D: Debug> {

@@ -5,8 +5,8 @@ use alloc::vec::Vec;
 use core::iter::FusedIterator;
 use core::ptr::NonNull;
 
-use liblumen_alloc::fragment::HeapFragment;
-use liblumen_system::cell::ThreadLocalCell;
+use firefly_alloc::fragment::HeapFragment;
+use firefly_system::cell::ThreadLocalCell;
 
 use crate::function::ModuleFunctionArity;
 use crate::term::{Cons, OpaqueTerm, Term};

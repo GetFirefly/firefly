@@ -5,7 +5,7 @@
 //! Decodes an atom:
 //!
 //!     use std::io::Cursor;
-//!     use liblumen_beam::serialization::etf::{Term, Atom};
+//!     use firefly_beam::serialization::etf::{Term, Atom};
 //!
 //!     let bytes = vec![131, 100, 0, 3, 102, 111, 111];
 //!     let term = Term::decode(Cursor::new(&bytes)).unwrap();
@@ -13,7 +13,7 @@
 //!
 //! Encodes an atom:
 //!
-//!     use liblumen_beam::serialization::etf::{Term, Atom};
+//!     use firefly_beam::serialization::etf::{Term, Atom};
 //!
 //!     let mut buf = Vec::new();
 //!     let term = Term::from(Atom::from("foo"));

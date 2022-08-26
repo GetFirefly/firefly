@@ -13,8 +13,8 @@ use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 /// A BEAM File
 ///
 /// ```
-/// use liblumen_beam::beam::chunk::{Chunk, RawChunk};
-/// use liblumen_beam::beam::reader::BeamFile;
+/// use firefly_beam::beam::chunk::{Chunk, RawChunk};
+/// use firefly_beam::beam::reader::BeamFile;
 ///
 /// let beam = BeamFile::<RawChunk>::from_file("tests/testdata/reader/test.beam").unwrap();
 /// assert_eq!(
@@ -56,9 +56,9 @@ impl<C: Chunk> BeamFile<C> {
     }
     /// Returns a specific chunk from the BEAM file by id
     ///
-    ///     use liblumen_beam::beam::chunk::AtomChunk;
-    ///     use liblumen_beam::beam::reader::StandardBeamFile;
-    ///     use liblumen_beam::beam::reader::chunk::StandardChunk;
+    ///     use firefly_beam::beam::chunk::AtomChunk;
+    ///     use firefly_beam::beam::reader::StandardBeamFile;
+    ///     use firefly_beam::beam::reader::chunk::StandardChunk;
     ///
     ///     let beam = StandardBeamFile::from_file("tests/testdata/reader/test.beam").unwrap();
     ///     match beam.get_chunk(b"Atom") {

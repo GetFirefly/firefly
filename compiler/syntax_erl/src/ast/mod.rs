@@ -4,8 +4,8 @@ mod functions;
 mod module;
 mod types;
 
-use liblumen_diagnostics::{SourceIndex, Spanned};
-use liblumen_intern::{Ident, Symbol};
+use firefly_diagnostics::{SourceIndex, Spanned};
+use firefly_intern::{Ident, Symbol};
 
 pub use self::attributes::*;
 pub use self::expr::*;

@@ -3,8 +3,8 @@ use std::mem;
 use std::path::{Path, PathBuf};
 use std::str;
 
-use liblumen_llvm::archives::*;
-use liblumen_session::Options;
+use firefly_llvm::archives::*;
+use firefly_session::Options;
 
 use super::ArchiveBuilder;
 

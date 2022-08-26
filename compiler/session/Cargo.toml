@@ -1,5 +1,5 @@
 [package]
-name = "liblumen_session"
+name = "firefly_session"
 version = "0.1.0"
 authors = ["Paul Schoenfelder <paulschoenfelder@gmail.com>"]
 edition = "2021"
@@ -13,7 +13,7 @@ thiserror = "1.0"
 logos = "0.12"
 logos-derive = "0.12"
 
-liblumen_compiler_macros = { path = "../macros" }
-liblumen_intern = { path = "../intern" }
-liblumen_target = { path = "../target" }
-liblumen_util = { path = "../util" }
+firefly_compiler_macros = { path = "../macros" }
+firefly_intern = { path = "../intern" }
+firefly_target = { path = "../target" }
+firefly_util = { path = "../util" }

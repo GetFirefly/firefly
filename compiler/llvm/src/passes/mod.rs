@@ -9,10 +9,10 @@ use crate::codegen::{CodeGenOptLevel, CodeGenOptSize};
 /// Initializes all LLVM/MLIR passes
 pub fn init() {
     extern "C" {
-        fn LLVMLumenInitializePasses();
+        fn LLVMFireflyInitializePasses();
     }
     unsafe {
-        LLVMLumenInitializePasses();
+        LLVMFireflyInitializePasses();
     }
 }
 
@@ -21,10 +21,10 @@ pub fn init() {
 /// NOTE: Can be called without initializing LLVM
 pub fn print() {
     extern "C" {
-        fn LLVMLumenPrintPasses();
+        fn LLVMFireflyPrintPasses();
     }
     unsafe {
-        LLVMLumenPrintPasses();
+        LLVMFireflyPrintPasses();
     }
 }
 

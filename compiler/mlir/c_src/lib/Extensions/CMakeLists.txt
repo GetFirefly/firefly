@@ -1,4 +1,4 @@
-add_mlir_dialect_library(MLIRLumenExtensions
+add_mlir_dialect_library(MLIRFireflyExtensions
   Builder.cpp
   Diagnostics.cpp
   Helpers.cpp

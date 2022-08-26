@@ -1,5 +1,5 @@
 [package]
-name = "liblumen_mlir"
+name = "firefly_mlir"
 version = "0.1.0"
 authors = ["Paul Schoenfelder <paulschoenfelder@fastmail.com>"]
 edition = "2021"
@@ -12,16 +12,16 @@ links = "mlir"
 [dependencies]
 anyhow = "1.0"
 thiserror = "1.0"
-liblumen_binary = { path = "../binary" }
-liblumen_number = { path = "../number" }
-liblumen_intern = { path = "../intern" }
-liblumen_llvm = { path = "../llvm" }
-liblumen_session = { path = "../session" }
-liblumen_target = { path = "../target" }
-liblumen_util = { path = "../util" }
-liblumen_pass = { path = "../pass" }
-liblumen_diagnostics = { path = "../diagnostics" }
-liblumen_compiler_macros = { path = "../macros" }
+firefly_binary = { path = "../../library/binary" }
+firefly_number = { path = "../../library/number" }
+firefly_intern = { path = "../intern" }
+firefly_llvm = { path = "../llvm" }
+firefly_session = { path = "../session" }
+firefly_target = { path = "../target" }
+firefly_util = { path = "../util" }
+firefly_pass = { path = "../pass" }
+firefly_diagnostics = { path = "../diagnostics" }
+firefly_compiler_macros = { path = "../macros" }
 paste = "1.0"
 rand = "0.8"
 
@@ -29,4 +29,4 @@ rand = "0.8"
 anyhow = "1.0"
 cmake = "0.1"
 which = "4.0"
-liblumen_llvm = { path = "../llvm" }
+firefly_llvm = { path = "../llvm" }

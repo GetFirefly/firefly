@@ -1,7 +1,7 @@
 use std::env;
 use std::path::{Path, PathBuf};
 
-use liblumen_diagnostics::Diagnostic;
+use firefly_diagnostics::Diagnostic;
 
 #[derive(Debug, thiserror::Error)]
 pub enum PathVariableSubstituteError {

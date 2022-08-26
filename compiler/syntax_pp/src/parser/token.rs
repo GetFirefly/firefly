@@ -1,9 +1,9 @@
 use std::fmt;
 
-use liblumen_diagnostics::SourceIndex;
-use liblumen_intern::Symbol;
-use liblumen_number::{Float, Integer};
-use liblumen_syntax_erl::LexicalError;
+use firefly_diagnostics::SourceIndex;
+use firefly_intern::Symbol;
+use firefly_number::{Float, Integer};
+use firefly_syntax_erl::LexicalError;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LexicalToken(pub SourceIndex, pub Token, pub SourceIndex);

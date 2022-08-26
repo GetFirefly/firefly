@@ -9,10 +9,10 @@ use std::sync::Arc;
 
 use smallvec::SmallVec;
 
-use liblumen_rt::backtrace::Trace;
-use liblumen_rt::error::ErlangException;
-use liblumen_rt::function::{self, ErlangResult, ModuleFunctionArity};
-use liblumen_rt::term::*;
+use firefly_rt::backtrace::Trace;
+use firefly_rt::error::ErlangException;
+use firefly_rt::function::{self, ErlangResult, ModuleFunctionArity};
+use firefly_rt::term::*;
 
 use crate::scheduler;
 

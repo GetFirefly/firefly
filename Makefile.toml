@@ -7,9 +7,9 @@ if is_empty "${llvm_prefix}"
    data_home = get_env XDG_DATA_HOME
    if is_empty "${data_home}"
       home = get_env HOME
-      llvm_prefix = set "${home}/.local/share/llvm/lumen"
+      llvm_prefix = set "${home}/.local/share/llvm/firefly"
    else
-      llvm_prefix = set "${data_home}/llvm/lumen"
+      llvm_prefix = set "${data_home}/llvm/firefly"
    end
 end
 
@@ -20,16 +20,16 @@ else
    exit 1
 end
 
-set_env BUILD_LUMEN false
+set_env BUILD_FIREFLY false
 
 task_name = get_env CARGO_MAKE_TASK
-if eq "${task_name}" lumen
-   set_env BUILD_LUMEN true
-   set_env CARGO_MAKE_CARGO_PACKAGE lumen
+if eq "${task_name}" firefly
+   set_env BUILD_FIREFLY true
+   set_env CARGO_MAKE_CARGO_PACKAGE firefly
    exit 0
 elseif eq "${task_name}" default
-   set_env BUILD_LUMEN true
-   set_env CARGO_MAKE_CARGO_PACKAGE lumen
+   set_env BUILD_FIREFLY true
+   set_env CARGO_MAKE_CARGO_PACKAGE firefly
    exit 0
 end
 
@@ -49,8 +49,8 @@ for i in ${indices}
     end
     if "${package}"
       set_env CARGO_MAKE_CARGO_PACKAGE "${package}"
-      if eq "${package}" lumen
-        set_env BUILD_LUMEN true
+      if eq "${package}" firefly
+        set_env BUILD_FIREFLY true
       end
       exit 0
     end
@@ -78,15 +78,15 @@ BACKTRACE_DEFAULT = { source = "${CARGO_MAKE_CI}", mapping = { "true" = "1", "fa
 RUST_BACKTRACE = { value = "${BACKTRACE_DEFAULT}", condition = { env_not_set = ["RUST_BACKTRACE"] } }
 GECKODRIVER_VERSION = "0.27.0"
 CHROMEDRIVER_VERSION = "85.0.4183.87"
-LUMEN_BUILD_PROFILE = { source = "${CARGO_MAKE_PROFILE}", default_value = "dev", mapping = { "development" = "dev", "production" = "release" } }
-LUMEN_BUILD_TYPE = { value = "dynamic", condition = { env_not_set = ["LUMEN_BUILD_TYPE"] } }
-LUMEN_BUILD_LTO = { source = "${LUMEN_BUILD_PROFILE}", default_value = "false", mapping = { "dev" = "false", "release" = "true" } }
-LUMEN_LLVM_LTO = { source = "${LUMEN_BUILD_LTO}", default_value = "OFF", mapping = { "false" = "OFF", "true" = "ON" } }
-LUMEN_BIN_DIR = "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/bin"
-LUMEN_INSTALL_DIR = "${LUMEN_BIN_DIR}/${CARGO_MAKE_RUST_TARGET_TRIPLE}"
-LLVM_BUILD_STATIC = { source = "${LUMEN_BUILD_TYPE}", default_value = "OFF", mapping = { "dynamic" = "OFF", "static" = "ON" } }
+FIREFLY_BUILD_PROFILE = { source = "${CARGO_MAKE_PROFILE}", default_value = "dev", mapping = { "development" = "dev", "production" = "release" } }
+FIREFLY_BUILD_TYPE = { value = "dynamic", condition = { env_not_set = ["FIREFLY_BUILD_TYPE"] } }
+FIREFLY_BUILD_LTO = { source = "${FIREFLY_BUILD_PROFILE}", default_value = "false", mapping = { "dev" = "false", "release" = "true" } }
+FIREFLY_LLVM_LTO = { source = "${FIREFLY_BUILD_LTO}", default_value = "OFF", mapping = { "false" = "OFF", "true" = "ON" } }
+FIREFLY_BIN_DIR = "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/bin"
+FIREFLY_INSTALL_DIR = "${FIREFLY_BIN_DIR}/${CARGO_MAKE_RUST_TARGET_TRIPLE}"
+LLVM_BUILD_STATIC = { source = "${FIREFLY_BUILD_TYPE}", default_value = "OFF", mapping = { "dynamic" = "OFF", "static" = "ON" } }
 LLVM_USE_LIBCXX = { source = "${CARGO_MAKE_RUST_TARGET_VENDOR}", default_value = "OFF", mapping = { "apple" = "ON" } }
-LLVM_LINK_LLVM_DYLIB = { source = "${LUMEN_BUILD_TYPE}", default_value = "ON", mapping = { "dynamic" = "ON", "static" = "OFF" } }
+LLVM_LINK_LLVM_DYLIB = { source = "${FIREFLY_BUILD_TYPE}", default_value = "ON", mapping = { "dynamic" = "ON", "static" = "OFF" } }
 LLVM_USE_SANITIZER = { source = "${SANITIZER}", default_value = "", mapping = { "address" = "Address", "memory" = "Memory" }, condition = { env_set = ["SANITIZER"] } }
 
 [tasks.init]
@@ -95,7 +95,7 @@ run_task = "print-env"
 [tasks.default]
 category = "Build"
 description = "Default task builds the compiler"
-alias = "lumen"
+alias = "firefly"
 
 [tasks.print-env]
 category = "Tools"
@@ -113,17 +113,17 @@ echo "    Task Arguments: ${CARGO_MAKE_TASK_ARGS}"
 echo "    Command: ${CARGO_MAKE_COMMAND}"
 echo "    Working Directory: ${CARGO_MAKE_WORKING_DIRECTORY}"
 echo "    Target Directory: ${CARGO_TARGET_DIR}"
-echo "    Profile: ${LUMEN_BUILD_PROFILE}"
-echo "    Build Type: ${LUMEN_BUILD_TYPE}"
-echo "    LTO Enabled: ${LUMEN_BUILD_LTO}"
-echo "    Bin Directory: ${LUMEN_BIN_DIR}"
-echo "    Install Directory: ${LUMEN_INSTALL_DIR}"
+echo "    Profile: ${FIREFLY_BUILD_PROFILE}"
+echo "    Build Type: ${FIREFLY_BUILD_TYPE}"
+echo "    LTO Enabled: ${FIREFLY_BUILD_LTO}"
+echo "    Bin Directory: ${FIREFLY_BIN_DIR}"
+echo "    Install Directory: ${FIREFLY_INSTALL_DIR}"
 echo "    Target Triple: ${CARGO_MAKE_RUST_TARGET_TRIPLE}"
 echo ""
 echo "    RUST_BACKTRACE: ${RUST_BACKTRACE}"
 echo "    GECKODRIVER_VERSION: ${GECKODRIVER_VERSION}"
 echo "    CHROMEDRIVER_VERSION: ${CHROMEDRIVER_VERSION}"
-echo "    LUMEN_LLVM_LTO: ${LUMEN_LLVM_LTO}"
+echo "    FIREFLY_LLVM_LTO: ${FIREFLY_LLVM_LTO}"
 echo "    LLVM_BUILD_STATIC: ${LLVM_BUILD_STATIC}"
 echo "    LLVM_USE_LIBCXX: ${LLVM_USE_LIBCXX}"
 echo "    LLVM_LINK_LLVM_DYLIB: ${LLVM_LINK_LLVM_DYLIB}"
@@ -269,7 +269,7 @@ env = { RUSTFLAGS = "-Z unstable-options -C link-args=-Wl,-rpath,${LLVM_PREFIX}/
 command = "bin/firefly-make"
 args = ["lit", "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/test/lit"]
 dependencies = [
-  "lumen",
+  "firefly",
 ]
 
 [tasks.test-cleanup]
@@ -289,13 +289,13 @@ dependencies = ["clean", "build"]
 
 [tasks.check-build]
 category = "Build"
-description = "Ensures code is formatted, builds Lumen, and runs tests"
-run_task = { name = ["check-format", "lumen", "test"] }
+description = "Ensures code is formatted, builds firefly, and runs tests"
+run_task = { name = ["check-format", "firefly", "test"] }
 
 [tasks.check]
 category = "Build"
 description = "Runs cargo check"
-condition = { env = {"BUILD_LUMEN" = "false" } }
+condition = { env = {"BUILD_FIREFLY" = "false" } }
 env = { RUSTFLAGS = "-C link-args=-Wl,-rpath,${LLVM_PREFIX}/lib" }
 command = "rustup"
 args = ["run", "${CARGO_MAKE_TOOLCHAIN}", "cargo", "-Z", "extra-link-arg", "check", "${@}"]
@@ -307,10 +307,10 @@ dependencies = [
 [tasks.build]
 category = "Build"
 description = "Build a package"
-condition = { env_set = ["CARGO_MAKE_CARGO_PACKAGE", "BUILD_LUMEN"] }
+condition = { env_set = ["CARGO_MAKE_CARGO_PACKAGE", "BUILD_FIREFLY"] }
 run_task = [
-  { name = "build-package", condition = { env = { "BUILD_LUMEN" = "false" } } },
-  { name = "lumen", condition = { env = { "BUILD_LUMEN" = "true" } } }
+  { name = "build-package", condition = { env = { "BUILD_FIREFLY" = "false" } } },
+  { name = "firefly", condition = { env = { "BUILD_FIREFLY" = "true" } } }
 ]
 
 [tasks.build-package]
@@ -325,10 +325,10 @@ dependencies = [
   "require-cmake",
 ]
 
-[tasks.lumen]
+[tasks.firefly]
 category = "Build"
-description = "Builds the Lumen compiler"
-condition = { env = { "BUILD_LUMEN" = "true" } }
+description = "Builds the Firefly compiler"
+condition = { env = { "BUILD_FIREFLY" = "true" } }
 env = { RUSTFLAGS = "-Z unstable-options -C link-args=-Wl,-rpath,${LLVM_PREFIX}/lib" }
 command = "bin/firefly-make"
 args = ["build", "@@remove-empty(CARGO_MAKE_CARGO_VERBOSE_FLAGS)"]
@@ -390,7 +390,7 @@ end
 
 [tasks.docker]
 category = "Tools"
-description = "Build the Lumen development Docker image"
+description = "Build the Firefly development Docker image"
 cwd = "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/.github/workflows"
 command = "docker"
 args = ["build", "--squash", "--force-rm", "-t", "kronicdeth/lumen-development:latest", "-f", "Dockerfile", "."]
@@ -410,16 +410,16 @@ args = [
     "--privileged",
     "--rm",
     "-v",
-    "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}:/opt/lumen",
+    "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}:/opt/firefly",
     "-v",
     "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}../llvm-project:/tmp/sources",
     "-e",
-    "CARGO_TARGET_DIR=/var/lumen",
+    "CARGO_TARGET_DIR=/var/firefly",
     "-it",
     "kronicdeth/lumen-development:latest",
     "bash",
     "-c",
-    "cd /opt/lumen; exec bash"
+    "cd /opt/firefly; exec bash"
 ]
 dependencies = ["prepare-docker-target-dir"]
 
@@ -528,46 +528,3 @@ run_task = { name = [
     "install-chrome-driver",
     "enable-safari-driver",
   ], parallel = true }
-
-[tasks.test-web]
-category = "Test"
-description = "Runs the web test suite"
-command = "wasm-pack"
-args = ["test", "--headless", "${@}", "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/native_implemented/web"]
-dependencies = ["wasm-toolchain"]
-
-[tasks.checkout-interpreter]
-private = true
-category = "Examples"
-condition = { files_not_exist = ["${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/interpreter"] }
-command = "git"
-args = ["clone", "--depth", "1", "--single-branch", "https://github.com/lumen/interpreter", "interpreter"]
-
-[tasks.checkout-examples]
-private = true
-category = "Examples"
-condition = { files_not_exist = ["${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/examples"] }
-command = "git"
-args = ["clone", "--depth", "1", "--branch", "develop", "https://github.com/lumen/examples", "examples"]
-
-[tasks.spawn-chain-web]
-category = "Examples"
-description = "Builds spawn-chain example program (wasm32)"
-command = "wasm-pack"
-args = ["build", "examples/spawn-chain/wasm"]
-dependencies = ["checkout-interpreter", "checkout-examples"]
-
-[tasks.test-spawn-chain]
-category = "Examples"
-description = "Tests spawn-chain example program (x86_64)"
-cwd = "examples/spawn-chain/cli"
-command = "make"
-args = ["test"]
-dependencies = ["checkout-interpreter", "checkout-examples"]
-
-[tasks.test-spawn-chain-wasm]
-category = "Test"
-description = "Runs the spawn-chain example tests"
-command = "wasm-pack"
-args = ["test", "--headless", "${@}", "examples/spawn-chain/wasm"]
-dependencies = ["spawn-chain-web"]

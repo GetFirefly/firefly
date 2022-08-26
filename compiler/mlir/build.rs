@@ -3,15 +3,15 @@ extern crate cmake;
 use std::env;
 use std::path::PathBuf;
 
-const ENV_LLVM_CORE_INCLUDE: &'static str = "DEP_LUMEN_LLVM_CORE_INCLUDE";
-const ENV_LLVM_PREFIX: &'static str = "DEP_LUMEN_LLVM_CORE_PREFIX";
-const ENV_LLVM_LINK_STATIC: &'static str = "DEP_LUMEN_LLVM_CORE_LINK_STATIC";
-const ENV_LLVM_LINK_LLVM_DYLIB: &'static str = "DEP_LUMEN_LLVM_CORE_LINK_LLVM_DYLIB";
-const ENV_LLVM_LTO: &'static str = "DEP_LUMEN_LLVM_CORE_LTO";
+const ENV_LLVM_CORE_INCLUDE: &'static str = "DEP_FIREFLY_LLVM_CORE_INCLUDE";
+const ENV_LLVM_PREFIX: &'static str = "DEP_FIREFLY_LLVM_CORE_PREFIX";
+const ENV_LLVM_LINK_STATIC: &'static str = "DEP_FIREFLY_LLVM_CORE_LINK_STATIC";
+const ENV_LLVM_LINK_LLVM_DYLIB: &'static str = "DEP_FIREFLY_LLVM_CORE_LINK_LLVM_DYLIB";
+const ENV_LLVM_LTO: &'static str = "DEP_FIREFLY_LLVM_CORE_LTO";
 const ENV_LLVM_USE_SANITIZER: &'static str = "LLVM_USE_SANITIZER";
 
 fn main() {
-    let lumen_llvm_include_dir = env::var(ENV_LLVM_CORE_INCLUDE).unwrap();
+    let firefly_llvm_include_dir = env::var(ENV_LLVM_CORE_INCLUDE).unwrap();
     let llvm_prefix = PathBuf::from(env::var(ENV_LLVM_PREFIX).unwrap());
     let mlir_dir = llvm_prefix.join("lib/cmake/mlir");
     let llvm_dir = llvm_prefix.join("lib/cmake/llvm");
@@ -41,7 +41,7 @@ fn main() {
         .env("LLVM_PREFIX", &llvm_prefix)
         .define("LLVM_DIR", llvm_dir)
         .define("MLIR_DIR", mlir_dir)
-        .cxxflag(&format!("-I{}", lumen_llvm_include_dir))
+        .cxxflag(&format!("-I{}", firefly_llvm_include_dir))
         .configure_arg("-Wno-dev");
 
     if link_lto == "true" {
@@ -256,7 +256,7 @@ fn main() {
     ]);
 
     println!("cargo:rustc-link-search=native={}", search_path.display());
-    println!("cargo:rustc-link-lib=static=MLIRLumenExtensions");
+    println!("cargo:rustc-link-lib=static=MLIRFireflyExtensions");
     println!("cargo:rustc-link-lib=static=CIR");
     println!("cargo:rustc-link-lib=static=CIRCAPI");
 }

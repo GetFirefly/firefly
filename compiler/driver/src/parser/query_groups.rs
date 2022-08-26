@@ -2,14 +2,14 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::thread::ThreadId;
 
-use liblumen_llvm as llvm;
-use liblumen_mlir as mlir;
-use liblumen_session::{InputType, Options};
-use liblumen_syntax_base::ApplicationMetadata;
-use liblumen_syntax_core as syntax_core;
-use liblumen_syntax_erl::{self as syntax_erl, ParseConfig};
-use liblumen_syntax_kernel as syntax_kernel;
-use liblumen_syntax_ssa as syntax_ssa;
+use firefly_llvm as llvm;
+use firefly_mlir as mlir;
+use firefly_session::{InputType, Options};
+use firefly_syntax_base::ApplicationMetadata;
+use firefly_syntax_core as syntax_core;
+use firefly_syntax_erl::{self as syntax_erl, ParseConfig};
+use firefly_syntax_kernel as syntax_kernel;
+use firefly_syntax_ssa as syntax_ssa;
 
 use super::queries;
 use crate::diagnostics::ErrorReported;

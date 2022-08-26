@@ -6,8 +6,8 @@ use std::os::raw::c_char;
 
 use anyhow::anyhow;
 
-use liblumen_util as util;
-use liblumen_util::emit::Emit;
+use firefly_util as util;
+use firefly_util::emit::Emit;
 
 use super::*;
 use crate::support::{OwnedStringRef, StringRef};

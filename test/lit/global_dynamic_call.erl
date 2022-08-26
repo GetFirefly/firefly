@@ -1,4 +1,4 @@
-%% RUN: @lumen compile -o @tempfile @file && @tempfile hello world
+%% RUN: @firefly compile -o @tempfile @file && @tempfile hello world
 
 %% CHECK: {alice, says, hello, to, bob}
 %% CHECK: {eve, overhears}

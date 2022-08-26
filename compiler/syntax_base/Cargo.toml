@@ -1,5 +1,5 @@
 [package]
-name = "liblumen_syntax_base"
+name = "firefly_syntax_base"
 version = "0.1.0"
 authors = ["Paul Schoenfelder <paulschoenfelder@gmail.com>"]
 readme = "README.md"
@@ -8,11 +8,11 @@ edition = "2021"
 license = "MIT OR Apache-2.0"
 
 [dependencies]
-liblumen_binary = { path = "../binary" }
-liblumen_compiler_macros = { path = "../macros" }
-liblumen_diagnostics = { path = "../diagnostics" }
-liblumen_intern = { path = "../intern" }
-liblumen_number = { path = "../number" }
+firefly_binary = { path = "../../library/binary" }
+firefly_compiler_macros = { path = "../macros" }
+firefly_diagnostics = { path = "../diagnostics" }
+firefly_intern = { path = "../intern" }
+firefly_number = { path = "../../library/number" }
 
 bitflags = "1.3"
 lazy_static = "1.4"

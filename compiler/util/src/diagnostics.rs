@@ -3,16 +3,16 @@ use std::ops::Deref;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
-pub type DisplayConfig = liblumen_diagnostics::term::Config;
-pub type DisplayStyle = liblumen_diagnostics::term::DisplayStyle;
-pub type DisplayChars = liblumen_diagnostics::term::Chars;
+pub type DisplayConfig = firefly_diagnostics::term::Config;
+pub type DisplayStyle = firefly_diagnostics::term::DisplayStyle;
+pub type DisplayChars = firefly_diagnostics::term::Chars;
 
-pub use liblumen_diagnostics::term::termcolor::*;
-pub use liblumen_diagnostics::term::{ColorArg, Styles};
-pub use liblumen_diagnostics::{
+pub use firefly_diagnostics::term::termcolor::*;
+pub use firefly_diagnostics::term::{ColorArg, Styles};
+pub use firefly_diagnostics::{
     ByteIndex, CodeMap, FileName, Files, SourceFile, SourceId, SourceIndex, SourceSpan,
 };
-pub use liblumen_diagnostics::{Diagnostic, Label, LabelStyle, Severity};
+pub use firefly_diagnostics::{Diagnostic, Label, LabelStyle, Severity};
 
 use crate::error::{FatalError, Verbosity};
 
@@ -112,7 +112,7 @@ impl<'h> InFlightDiagnostic<'h> {
     /// diagnostics in-flight by formatting functions which do
     /// not know what the current diagnostic configuration is
     pub fn verbose(&self) -> bool {
-        use liblumen_diagnostics::term::DisplayStyle;
+        use firefly_diagnostics::term::DisplayStyle;
         match self.handler.display.display_style {
             DisplayStyle::Rich => true,
             _ => false,
@@ -341,7 +341,7 @@ impl DiagnosticsHandler {
     /// Emits the given diagnostic
     #[inline(always)]
     pub fn emit(&self, diagnostic: &Diagnostic) {
-        use liblumen_diagnostics::term;
+        use firefly_diagnostics::term;
 
         let mut buffer = self.emitter.buffer();
         term::emit(&mut buffer, &self.display, self.codemap.deref(), diagnostic).unwrap();

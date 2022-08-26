@@ -60,11 +60,11 @@ use std::rc::Rc;
 
 use rpds::{rbt_set, RedBlackTreeSet};
 
-use liblumen_binary::BinaryEntrySpecifier;
-use liblumen_diagnostics::*;
-use liblumen_intern::{symbols, Ident};
-use liblumen_pass::Pass;
-use liblumen_syntax_base::*;
+use firefly_binary::BinaryEntrySpecifier;
+use firefly_diagnostics::*;
+use firefly_intern::{symbols, Ident};
+use firefly_pass::Pass;
+use firefly_syntax_base::*;
 
 use crate::{passes::FunctionContext, *};
 

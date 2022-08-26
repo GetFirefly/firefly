@@ -67,7 +67,7 @@ macro_rules! list_with_span {
 macro_rules! cons {
     ($head:expr, $tail:expr) => {
         crate::ast::Expr::Cons(crate::ast::Cons {
-            span: liblumen_diagnostics::SourceSpan::default(),
+            span: firefly_diagnostics::SourceSpan::default(),
             head: Box::new($head),
             tail: Box::new($tail),
         })
@@ -86,7 +86,7 @@ macro_rules! cons {
 macro_rules! nil {
     () => {
         crate::ast::Expr::Literal(crate::ast::Literal::Nil(
-            liblumen_diagnostics::SourceSpan::default(),
+            firefly_diagnostics::SourceSpan::default(),
         ))
     };
 
@@ -100,7 +100,7 @@ macro_rules! nil {
 macro_rules! tuple {
     ($($element:expr),*) => {
         crate::ast::Expr::Tuple(crate::ast::Tuple{
-            span: liblumen_diagnostics::SourceSpan::default(),
+            span: firefly_diagnostics::SourceSpan::default(),
             elements: vec![$($element),*],
         })
     };
@@ -121,7 +121,7 @@ macro_rules! tuple_with_span {
 macro_rules! int {
     ($i:expr) => {
         crate::ast::Expr::Literal(crate::ast::Literal::Integer(
-            liblumen_diagnostics::SourceSpan::default(),
+            firefly_diagnostics::SourceSpan::default(),
             $i,
         ))
     };
@@ -135,7 +135,7 @@ macro_rules! int {
 macro_rules! atom {
     ($sym:ident) => {
         crate::ast::Expr::Literal(crate::ast::Literal::Atom(
-            liblumen_intern::Ident::with_empty_span(liblumen_intern::Symbol::intern(stringify!(
+            firefly_intern::Ident::with_empty_span(firefly_intern::Symbol::intern(stringify!(
                 $sym
             ))),
         ))
@@ -143,19 +143,19 @@ macro_rules! atom {
 
     ($sym:expr) => {
         crate::ast::Expr::Literal(crate::ast::Literal::Atom(
-            liblumen_intern::Ident::with_empty_span($sym),
+            firefly_intern::Ident::with_empty_span($sym),
         ))
     };
 
     ($span:expr, $sym:ident) => {
-        crate::ast::Expr::Literal(crate::ast::Literal::Atom(liblumen_intern::Ident::new(
-            liblumen_intern::Symbol::intern(stringify!($sym)),
+        crate::ast::Expr::Literal(crate::ast::Literal::Atom(firefly_intern::Ident::new(
+            firefly_intern::Symbol::intern(stringify!($sym)),
             $span,
         )))
     };
 
     ($span:expr, $sym:expr) => {
-        crate::ast::Expr::Literal(crate::ast::Literal::Atom(liblumen_intern::Ident::new(
+        crate::ast::Expr::Literal(crate::ast::Literal::Atom(firefly_intern::Ident::new(
             $sym, $span,
         )))
     };
@@ -173,13 +173,13 @@ macro_rules! atom_from_ident {
 #[allow(unused_macros)]
 macro_rules! ident {
     ($sym:ident) => {
-        liblumen_intern::Ident::with_empty_span(liblumen_intern::Symbol::intern(stringify!($sym)))
+        firefly_intern::Ident::with_empty_span(firefly_intern::Symbol::intern(stringify!($sym)))
     };
     ($sym:expr) => {
-        liblumen_intern::Ident::with_empty_span(liblumen_intern::Symbol::intern($sym))
+        firefly_intern::Ident::with_empty_span(firefly_intern::Symbol::intern($sym))
     };
     (_) => {
-        liblumen_intern::Ident::with_empty_span(liblumen_intern::Symbol::intern("_"))
+        firefly_intern::Ident::with_empty_span(firefly_intern::Symbol::intern("_"))
     };
 }
 
@@ -188,18 +188,18 @@ macro_rules! ident {
 #[allow(unused_macros)]
 macro_rules! ident_opt {
     ($sym:ident) => {
-        Some(liblumen_intern::Ident::with_empty_span(
-            liblumen_intern::Symbol::intern(stringify!($sym)),
+        Some(firefly_intern::Ident::with_empty_span(
+            firefly_intern::Symbol::intern(stringify!($sym)),
         ))
     };
     ($sym:expr) => {
-        Some(liblumen_intern::Ident::with_empty_span(
-            liblumen_intern::Symbol::intern($sym),
+        Some(firefly_intern::Ident::with_empty_span(
+            firefly_intern::Symbol::intern($sym),
         ))
     };
     (_) => {
-        Some(liblumen_intern::Ident::with_empty_span(
-            liblumen_intern::Symbol::intern("_"),
+        Some(firefly_intern::Ident::with_empty_span(
+            firefly_intern::Symbol::intern("_"),
         ))
     };
 }
@@ -219,7 +219,7 @@ macro_rules! var {
 #[allow(unused_macros)]
 macro_rules! symbol {
     ($sym:ident) => {
-        liblumen_intern::Symbol::intern(stringify!($sym))
+        firefly_intern::Symbol::intern(stringify!($sym))
     };
 }
 
@@ -267,14 +267,14 @@ macro_rules! fun {
             let patterns = vec![$(var!($params)),*];
             let arity = patterns.len().try_into().unwrap();
             crate::ast::Function {
-                span: liblumen_diagnostics::SourceSpan::default(),
+                span: firefly_diagnostics::SourceSpan::default(),
                 name: ident!($name),
                 arity,
                 clauses: vec![
                     (
                         Some(crate::ast::Name::Atom(ident!($name))),
                         crate::ast::Clause{
-                            span: liblumen_diagnostics::SourceSpan::default(),
+                            span: firefly_diagnostics::SourceSpan::default(),
                             patterns,
                             guards: vec![],
                             body: vec![$body],
@@ -296,7 +296,7 @@ macro_rules! fun {
                 clauses.push((
                     Some(crate::ast::Name::Atom(ident!($name))),
                     crate::ast::Clause {
-                    span: liblumen_diagnostics::SourceSpan::default(),
+                    span: firefly_diagnostics::SourceSpan::default(),
                     patterns: vec![$($params),*],
                     guards: vec![],
                     body: vec![$body],
@@ -305,7 +305,7 @@ macro_rules! fun {
             )*
             let arity = clauses.first().as_ref().map(|(_, c)| c.patterns.len()).unwrap().try_into().unwrap();
             crate::ast::Function {
-                span: liblumen_diagnostics::SourceSpan::default(),
+                span: firefly_diagnostics::SourceSpan::default(),
                 name: ident!($name),
                 arity,
                 clauses,

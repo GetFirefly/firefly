@@ -1,4 +1,4 @@
-use liblumen_session::Input;
+use firefly_session::Input;
 
 /// Maps to an interned instance of Input
 #[derive(Copy, Clone, Debug, Hash, PartialEq, Eq)]

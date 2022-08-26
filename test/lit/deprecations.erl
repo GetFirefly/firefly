@@ -1,4 +1,4 @@
-%% RUN: @lumen compile -o @tempfile @file @cwd/deprecated_module.erl && @tempfile
+%% RUN: @firefly compile -o @tempfile @file @cwd/deprecated_module.erl && @tempfile
 
 %% CHECK: warning: use of deprecated module
 %% CHECK: deprecated_module:display

@@ -18,17 +18,17 @@ use super::DynamicCallee;
 
 extern "C-unwind" {
     #[allow(improper_ctypes)]
-    #[link_name = "__lumen_dynamic_apply"]
+    #[link_name = "__firefly_dynamic_apply"]
     pub fn apply(f: DynamicCallee, argv: *const OpaqueTerm, argc: usize) -> ErlangResult;
 }
 
 cfg_if! {
     if #[cfg(all(target_os = "macos", target_arch = "x86_64"))] {
-        global_asm!(include_str!("asm/lumen_dynamic_apply_macos.s"));
+        global_asm!(include_str!("asm/dynamic_apply_macos.s"));
     } else if #[cfg(all(target_os = "macos", target_arch = "aarch64"))] {
-        global_asm!(include_str!("asm/lumen_dynamic_apply_macos_aarch64.s"));
+        global_asm!(include_str!("asm/dynamic_apply_macos_aarch64.s"));
     } else if #[cfg(target_arch = "x86_64")] {
-        global_asm!(include_str!("asm/lumen_dynamic_apply_linux.s"));
+        global_asm!(include_str!("asm/dynamic_apply_linux.s"));
     } else {
         compile_error!("dynamic calls have not been implemented for this platform!");
     }

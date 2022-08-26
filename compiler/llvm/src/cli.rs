@@ -1,7 +1,7 @@
 use std::ffi::CString;
 
-use liblumen_session::{MlirDebugPrinting, Options};
-use liblumen_target::MergeFunctions;
+use firefly_session::{MlirDebugPrinting, Options};
+use firefly_target::MergeFunctions;
 
 /// Configures LLVM/MLIR using passed-through command-line arguments, or generated from our own
 /// compiler options that translate to known LLVM arguments.

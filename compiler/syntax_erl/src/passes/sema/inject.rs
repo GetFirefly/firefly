@@ -1,6 +1,6 @@
-use liblumen_diagnostics::*;
-use liblumen_pass::Pass;
-use liblumen_syntax_base::*;
+use firefly_diagnostics::*;
+use firefly_pass::Pass;
+use firefly_syntax_base::*;
 
 use crate::ast::*;
 

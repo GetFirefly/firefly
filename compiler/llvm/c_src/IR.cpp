@@ -12,7 +12,7 @@
 using namespace llvm;
 
 extern "C" LLVMValueRef
-LLVMLumenBuildMemCpy(LLVMBuilderRef b, LLVMValueRef dst, unsigned dstAlign,
+LLVMFireflyBuildMemCpy(LLVMBuilderRef b, LLVMValueRef dst, unsigned dstAlign,
                      LLVMValueRef src, unsigned srcAlign, LLVMValueRef size,
                      bool isVolatile) {
   return wrap(unwrap(b)->CreateMemCpy(unwrap(dst), MaybeAlign(dstAlign),
@@ -21,7 +21,7 @@ LLVMLumenBuildMemCpy(LLVMBuilderRef b, LLVMValueRef dst, unsigned dstAlign,
 }
 
 extern "C" LLVMValueRef
-LLVMLumenBuildMemMove(LLVMBuilderRef b, LLVMValueRef dst, unsigned dstAlign,
+LLVMFireflyBuildMemMove(LLVMBuilderRef b, LLVMValueRef dst, unsigned dstAlign,
                       LLVMValueRef src, unsigned srcAlign, LLVMValueRef size,
                       bool isVolatile) {
   return wrap(unwrap(b)->CreateMemMove(unwrap(dst), MaybeAlign(dstAlign),
@@ -30,24 +30,24 @@ LLVMLumenBuildMemMove(LLVMBuilderRef b, LLVMValueRef dst, unsigned dstAlign,
 }
 
 extern "C" LLVMValueRef
-LLVMLumenBuildMemSet(LLVMBuilderRef b, LLVMValueRef dst, unsigned dstAlign,
+LLVMFireflyBuildMemSet(LLVMBuilderRef b, LLVMValueRef dst, unsigned dstAlign,
                      LLVMValueRef val, LLVMValueRef size, bool isVolatile) {
   return wrap(unwrap(b)->CreateMemSet(unwrap(dst), unwrap(val), unwrap(size),
                                       MaybeAlign(dstAlign), isVolatile));
 }
 
 extern "C" OperandBundleDef *
-LLVMLumenBuildOperandBundleDef(const char *name, unsigned nameLen,
+LLVMFireflyBuildOperandBundleDef(const char *name, unsigned nameLen,
                                LLVMValueRef *inputs, unsigned numInputs) {
   return new OperandBundleDef(std::string(name, nameLen),
                               makeArrayRef(unwrap(inputs), numInputs));
 }
 
-extern "C" void LLVMLumenFreeOperandBundleDef(OperandBundleDef *Bundle) {
+extern "C" void LLVMFireflyFreeOperandBundleDef(OperandBundleDef *Bundle) {
   delete Bundle;
 }
 
-extern "C" LLVMValueRef LLVMLumenBuildCall(LLVMBuilderRef b,
+extern "C" LLVMValueRef LLVMFireflyBuildCall(LLVMBuilderRef b,
                                            LLVMValueRef calleeValue,
                                            LLVMTypeRef calleeType,
                                            LLVMValueRef *args, unsigned numArgs,
@@ -60,7 +60,7 @@ extern "C" LLVMValueRef LLVMLumenBuildCall(LLVMBuilderRef b,
       calleeTy, callee, makeArrayRef(unwrap(args), numArgs), bundles));
 }
 
-extern "C" LLVMValueRef LLVMLumenBuildInvoke(
+extern "C" LLVMValueRef LLVMFireflyBuildInvoke(
     LLVMBuilderRef b, LLVMValueRef calleeValue, LLVMTypeRef calleeType,
     LLVMValueRef *args, unsigned numArgs, LLVMBasicBlockRef thenBlk,
     LLVMBasicBlockRef catchBlk, OperandBundleDef *bundle, const char *name) {

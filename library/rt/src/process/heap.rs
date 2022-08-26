@@ -3,7 +3,7 @@ use core::cell::UnsafeCell;
 use core::mem;
 use core::ptr::{self, NonNull};
 
-use liblumen_alloc::heap::Heap;
+use firefly_alloc::heap::Heap;
 
 use crate::term::Term;
 

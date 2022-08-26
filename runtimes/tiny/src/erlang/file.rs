@@ -1,5 +1,5 @@
-use liblumen_rt::function::ErlangResult;
-use liblumen_rt::term::*;
+use firefly_rt::function::ErlangResult;
+use firefly_rt::term::*;
 
 #[export_name = "file:native_name_encoding/0"]
 #[allow(improper_ctypes_definitions)]

@@ -541,7 +541,7 @@ impl ToString for Endianness {
     }
 }
 
-/// Everything `lumen` knows about how to compile for a specific target.
+/// Everything Firefly knows about how to compile for a specific target.
 ///
 /// Every field here must be specified, and has no default value.
 #[derive(PartialEq, Clone, Debug)]
@@ -616,7 +616,7 @@ pub struct TargetOptions {
     pub linker_flavor: LinkerFlavor,
     /// Linker to invoke
     pub linker: Option<Cow<'static, str>>,
-    /// LLD flavor used if `lld` (or `lumen-lld`) is specified as a linker without clarifying its flavor
+    /// LLD flavor used if `lld` (or `firefly-lld`) is specified as a linker without clarifying its flavor
     pub lld_flavor: LldFlavor,
 
     /// Linker arguments that are passed *before* any user-defined libraries.
@@ -637,9 +637,9 @@ pub struct TargetOptions {
     /// libraries that should be always be linked to, usually go here.
     pub late_link_args: LinkArgs,
     /// Linker arguments used in addition to `late_link_args` if at least one
-    /// Lumen dependency is dynamically linked.
+    /// dependency is dynamically linked.
     pub late_link_args_dynamic: LinkArgs,
-    /// Linker arguments used in addition to `late_link_args` if all Lumen
+    /// Linker arguments used in addition to `late_link_args` if all
     /// dependencies are statically linked.
     pub late_link_args_static: LinkArgs,
     /// Linker arguments that are unconditionally passed *after* any

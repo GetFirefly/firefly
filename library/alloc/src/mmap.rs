@@ -4,7 +4,7 @@ mod fallback {
     use alloc::alloc::{AllocError, Layout};
     use core::ptr::NonNull;
 
-    use liblumen_system::arch as sys;
+    use firefly_system::arch as sys;
 
     /// Creates a memory mapping for the given `Layout`
     #[inline]
@@ -59,7 +59,7 @@ mod real {
     use alloc::alloc::{AllocError, Layout};
     use core::ptr::NonNull;
 
-    use liblumen_system::arch as sys;
+    use firefly_system::arch as sys;
 
     /// Creates a memory mapping for the given `Layout`
     #[inline]

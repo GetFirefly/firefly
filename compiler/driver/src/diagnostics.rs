@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use liblumen_util::diagnostics::{CodeMap, Diagnostic, DiagnosticsHandler};
+use firefly_util::diagnostics::{CodeMap, Diagnostic, DiagnosticsHandler};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ErrorReported;

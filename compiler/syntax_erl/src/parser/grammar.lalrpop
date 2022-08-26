@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
-use liblumen_binary::BinaryEntrySpecifier;
-use liblumen_diagnostics::*;
-use liblumen_intern::{symbols, Symbol, Ident};
-use liblumen_number::{Integer, Float};
-use liblumen_syntax_base::{FunctionName, BinaryOp, UnaryOp, Deprecation, DeprecatedFlag};
+use firefly_binary::BinaryEntrySpecifier;
+use firefly_diagnostics::*;
+use firefly_intern::{symbols, Symbol, Ident};
+use firefly_number::{Integer, Float};
+use firefly_syntax_base::{FunctionName, BinaryOp, UnaryOp, Deprecation, DeprecatedFlag};
 
 use crate::ParserError;
 use crate::ast::*;

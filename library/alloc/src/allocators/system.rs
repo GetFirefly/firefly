@@ -1,7 +1,7 @@
 use alloc::alloc::{AllocError, Allocator, GlobalAlloc, Layout};
 use core::ptr::{self, NonNull};
 
-use liblumen_system::arch::alloc as sys_alloc;
+use firefly_system::arch::alloc as sys_alloc;
 
 /// This allocator acts as the system allocator.
 ///

@@ -1,9 +1,9 @@
 [package]
-name = "liblumen_crt"
+name = "firefly_crt"
 version = "0.1.0"
-authors = ["Lumen Developers"]
+authors = ["Firefly Developers"]
 publish = false
 edition = "2021"
 
 [dependencies]
-liblumen_rt = { path = "../../library/rt" }
+firefly_rt = { path = "../../library/rt" }

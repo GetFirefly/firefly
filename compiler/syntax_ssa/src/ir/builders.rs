@@ -1,8 +1,8 @@
-use liblumen_binary::{BinaryEntrySpecifier, BitVec};
-use liblumen_diagnostics::SourceSpan;
-use liblumen_intern::{Ident, Symbol};
-use liblumen_number::{BigInt, Integer};
-use liblumen_syntax_base::{PrimitiveType, TermType, Type};
+use firefly_binary::{BinaryEntrySpecifier, BitVec};
+use firefly_diagnostics::SourceSpan;
+use firefly_intern::{Ident, Symbol};
+use firefly_number::{BigInt, Integer};
+use firefly_syntax_base::{PrimitiveType, TermType, Type};
 
 use super::*;
 
@@ -376,7 +376,7 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
 
     fn zext_imm<I>(self, imm: I, ty: PrimitiveType, span: SourceSpan) -> Value
     where
-        I: liblumen_number::PrimInt,
+        I: firefly_number::PrimInt,
         Immediate: From<I>,
     {
         let (inst, dfg) = self.UnaryImm(
@@ -401,7 +401,7 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
 
     fn icmp_eq_imm<I>(self, lhs: Value, rhs: I, span: SourceSpan) -> Value
     where
-        I: liblumen_number::PrimInt,
+        I: firefly_number::PrimInt,
         Immediate: From<I>,
     {
         let (inst, dfg) = self.BinaryImm(
@@ -427,7 +427,7 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
 
     fn icmp_neq_imm<I>(self, lhs: Value, rhs: I, span: SourceSpan) -> Value
     where
-        I: liblumen_number::PrimInt,
+        I: firefly_number::PrimInt,
         Immediate: From<I>,
     {
         let (inst, dfg) = self.BinaryImm(
@@ -453,7 +453,7 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
 
     fn icmp_gt_imm<I>(self, lhs: Value, rhs: I, span: SourceSpan) -> Value
     where
-        I: liblumen_number::PrimInt,
+        I: firefly_number::PrimInt,
         Immediate: From<I>,
     {
         let (inst, dfg) = self.BinaryImm(
@@ -479,7 +479,7 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
 
     fn icmp_gte_imm<I>(self, lhs: Value, rhs: I, span: SourceSpan) -> Value
     where
-        I: liblumen_number::PrimInt,
+        I: firefly_number::PrimInt,
         Immediate: From<I>,
     {
         let (inst, dfg) = self.BinaryImm(
@@ -505,7 +505,7 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
 
     fn icmp_lt_imm<I>(self, lhs: Value, rhs: I, span: SourceSpan) -> Value
     where
-        I: liblumen_number::PrimInt,
+        I: firefly_number::PrimInt,
         Immediate: From<I>,
     {
         let (inst, dfg) = self.BinaryImm(
@@ -531,7 +531,7 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
 
     fn icmp_lte_imm<I>(self, lhs: Value, rhs: I, span: SourceSpan) -> Value
     where
-        I: liblumen_number::PrimInt,
+        I: firefly_number::PrimInt,
         Immediate: From<I>,
     {
         let (inst, dfg) = self.BinaryImm(

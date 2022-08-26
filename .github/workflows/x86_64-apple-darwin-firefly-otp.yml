@@ -1,4 +1,4 @@
-name: x86_64-apple-darwin lumen/otp
+name: x86_64-apple-darwin firefly/otp
 
 on: push
 
@@ -6,7 +6,8 @@ env:
   TOOLCHAIN: nightly-2022-07-12
 
 jobs:
-  lumen-otp:
+  firefly-otp:
+    if: ${{ false }} # disable
     runs-on: macos-12
 
     steps:
@@ -32,48 +33,48 @@ jobs:
         id: cache-llvm
         uses: actions/cache@v2
         with:
-          path: ~/.local/share/llvm/lumen
-          key: lumen-15.0.0-dev_2022-07-22-apple-darwin21.5.0
+          path: ~/.local/share/llvm/firefly
+          key: firefly-15.0.0-dev_2022-07-22-apple-darwin21.5.0
       - name: Install LLVM
         if: steps.cache-llvm.outputs.cache-hit != 'true'
         run: |
           mkdir -p ~/.local/share/llvm
           pushd ~/.local/share/llvm
-          wget https://github.com/lumen/llvm-project/releases/download/lumen-15.0.0-dev_2022-07-22/clang+llvm-15.0.0-x86_64-apple-darwin21.5.0.tar.gz
+          wget https://github.com/lumen/llvm-project/releases/download/firefly-15.0.0-dev_2022-07-22/clang+llvm-15.0.0-x86_64-apple-darwin21.5.0.tar.gz
           tar xvfz clang+llvm-15.0.0-x86_64-apple-darwin21.5.0.tar.gz
-          mv clang+llvm-15.0.0-x86_64-apple-darwin21.5.0 lumen
+          mv clang+llvm-15.0.0-x86_64-apple-darwin21.5.0 firefly
           popd
       - name: Set LLVM_PREFIX
-        run: echo "LLVM_PREFIX=$HOME/.local/share/llvm/lumen" >> $GITHUB_ENV
+        run: echo "LLVM_PREFIX=$HOME/.local/share/llvm/firefly" >> $GITHUB_ENV
       - name: Install Ninja
         run: brew install ninja
       - name: Build Compiler
         uses: actions-rs/cargo@v1
         with:
           command: make
-          args: lumen
-      - name: lumen/otp Checkout
+          args: firefly
+      - name: firefly/otp Checkout
         run: |
           cd ..
           git init otp
           cd otp
           echo "ERL_TOP=$PWD" >> $GITHUB_ENV
           git remote add origin https://github.com/lumen/otp
-          git fetch --no-tags --prune --progress --depth=1 origin +ca83f680aab717fe65634247d16f18a8cbfc6d8d:refs/remotes/origin/lumen
-          git checkout --progress --force -B lumen refs/remotes/origin/lumen
-      - name: lumen/otp autoconf
+          git fetch --no-tags --prune --progress --depth=1 origin +ca83f680aab717fe65634247d16f18a8cbfc6d8d:refs/remotes/origin/firefly
+          git checkout --progress --force -B firefly refs/remotes/origin/firefly
+      - name: firefly/otp autoconf
         run: |
           cd ../otp
           ./otp_build autoconf
-      - name: lumen/otp configure
+      - name: firefly/otp configure
         run: |
           cd ../otp
           ./configure
       - name: Install Erlang
         run: brew install erlang
-      - name: Test compiling lumen/otp against liblumen_otp
+      - name: Test compiling firefly/otp against firefly_otp
         uses: actions-rs/cargo@v1
         with:
           command: make
           args: |
-            test -- --package liblumen_otp lumen::otp::
+            test -- --package firefly_otp firefly::otp::

@@ -1,4 +1,4 @@
-#include "lumen/llvm/Diagnostics.h"
+#include "firefly/llvm/Diagnostics.h"
 
 #include "mlir-c/Support.h"
 #include "mlir/CAPI/Support.h"
@@ -12,86 +12,86 @@
 
 using namespace llvm;
 
-lumen::DiagnosticKind lumen::toDiagnosticKind(llvm::DiagnosticKind kind) {
+firefly::DiagnosticKind firefly::toDiagnosticKind(llvm::DiagnosticKind kind) {
   switch (kind) {
   case llvm::DK_InlineAsm:
-    return lumen::DiagnosticKind::InlineAsm;
+    return firefly::DiagnosticKind::InlineAsm;
   case llvm::DK_ResourceLimit:
-    return lumen::DiagnosticKind::ResourceLimit;
+    return firefly::DiagnosticKind::ResourceLimit;
   case llvm::DK_StackSize:
-    return lumen::DiagnosticKind::StackSize;
+    return firefly::DiagnosticKind::StackSize;
   case llvm::DK_Linker:
-    return lumen::DiagnosticKind::Linker;
+    return firefly::DiagnosticKind::Linker;
   case llvm::DK_Lowering:
-    return lumen::DiagnosticKind::Lowering;
+    return firefly::DiagnosticKind::Lowering;
   case llvm::DK_DebugMetadataVersion:
-    return lumen::DiagnosticKind::DebugMetadataVersion;
+    return firefly::DiagnosticKind::DebugMetadataVersion;
   case llvm::DK_DebugMetadataInvalid:
-    return lumen::DiagnosticKind::DebugMetadataInvalid;
+    return firefly::DiagnosticKind::DebugMetadataInvalid;
   case llvm::DK_ISelFallback:
-    return lumen::DiagnosticKind::ISelFallback;
+    return firefly::DiagnosticKind::ISelFallback;
   case llvm::DK_SampleProfile:
-    return lumen::DiagnosticKind::SampleProfile;
+    return firefly::DiagnosticKind::SampleProfile;
   case llvm::DK_OptimizationRemark:
-    return lumen::DiagnosticKind::OptimizationRemark;
+    return firefly::DiagnosticKind::OptimizationRemark;
   case llvm::DK_OptimizationRemarkMissed:
-    return lumen::DiagnosticKind::OptimizationRemarkMissed;
+    return firefly::DiagnosticKind::OptimizationRemarkMissed;
   case llvm::DK_OptimizationRemarkAnalysis:
-    return lumen::DiagnosticKind::OptimizationRemarkAnalysis;
+    return firefly::DiagnosticKind::OptimizationRemarkAnalysis;
   case llvm::DK_OptimizationRemarkAnalysisFPCommute:
-    return lumen::DiagnosticKind::OptimizationRemarkAnalysisFPCommute;
+    return firefly::DiagnosticKind::OptimizationRemarkAnalysisFPCommute;
   case llvm::DK_OptimizationRemarkAnalysisAliasing:
-    return lumen::DiagnosticKind::OptimizationRemarkAnalysisAliasing;
+    return firefly::DiagnosticKind::OptimizationRemarkAnalysisAliasing;
   case llvm::DK_MachineOptimizationRemark:
-    return lumen::DiagnosticKind::MachineOptimizationRemark;
+    return firefly::DiagnosticKind::MachineOptimizationRemark;
   case llvm::DK_MachineOptimizationRemarkMissed:
-    return lumen::DiagnosticKind::MachineOptimizationRemarkMissed;
+    return firefly::DiagnosticKind::MachineOptimizationRemarkMissed;
   case llvm::DK_MachineOptimizationRemarkAnalysis:
-    return lumen::DiagnosticKind::MachineOptimizationRemarkAnalysis;
+    return firefly::DiagnosticKind::MachineOptimizationRemarkAnalysis;
   case llvm::DK_MIRParser:
-    return lumen::DiagnosticKind::MIRParser;
+    return firefly::DiagnosticKind::MIRParser;
   case llvm::DK_PGOProfile:
-    return lumen::DiagnosticKind::PGOProfile;
+    return firefly::DiagnosticKind::PGOProfile;
   case llvm::DK_Unsupported:
-    return lumen::DiagnosticKind::Unsupported;
+    return firefly::DiagnosticKind::Unsupported;
   case llvm::DK_SrcMgr:
-    return lumen::DiagnosticKind::SrcMgr;
+    return firefly::DiagnosticKind::SrcMgr;
   case llvm::DK_DontCall:
-    return lumen::DiagnosticKind::DontCall;
+    return firefly::DiagnosticKind::DontCall;
   default:
-    return lumen::DiagnosticKind::Other;
+    return firefly::DiagnosticKind::Other;
   }
 }
 
-extern "C" lumen::DiagnosticKind
-LLVMLumenGetDiagInfoKind(LLVMDiagnosticInfoRef di) {
+extern "C" firefly::DiagnosticKind
+LLVMFireflyGetDiagInfoKind(LLVMDiagnosticInfoRef di) {
   llvm::DiagnosticInfo *info = unwrap(di);
-  return lumen::toDiagnosticKind((llvm::DiagnosticKind)info->getKind());
+  return firefly::toDiagnosticKind((llvm::DiagnosticKind)info->getKind());
 }
 
 extern "C" bool
-LLVMLumenOptimizationDiagnosticIsVerbose(LLVMDiagnosticInfoRef d) {
+LLVMFireflyOptimizationDiagnosticIsVerbose(LLVMDiagnosticInfoRef d) {
   llvm::DiagnosticInfoOptimizationBase *opt =
       static_cast<llvm::DiagnosticInfoOptimizationBase *>(unwrap(d));
   return opt->isVerbose();
 }
 
 extern "C" MlirStringRef
-LLVMLumenOptimizationDiagnosticPassName(LLVMDiagnosticInfoRef d) {
+LLVMFireflyOptimizationDiagnosticPassName(LLVMDiagnosticInfoRef d) {
   llvm::DiagnosticInfoOptimizationBase *opt =
       static_cast<llvm::DiagnosticInfoOptimizationBase *>(unwrap(d));
   return wrap(opt->getPassName());
 }
 
 extern "C" MlirStringRef
-LLVMLumenOptimizationDiagnosticRemarkName(LLVMDiagnosticInfoRef d) {
+LLVMFireflyOptimizationDiagnosticRemarkName(LLVMDiagnosticInfoRef d) {
   llvm::DiagnosticInfoOptimizationBase *opt =
       static_cast<llvm::DiagnosticInfoOptimizationBase *>(unwrap(d));
   return wrap(opt->getRemarkName());
 }
 
 extern "C" const char *
-LLVMLumenOptimizationDiagnosticMessage(LLVMDiagnosticInfoRef d) {
+LLVMFireflyOptimizationDiagnosticMessage(LLVMDiagnosticInfoRef d) {
   llvm::DiagnosticInfoOptimizationBase *opt =
       static_cast<llvm::DiagnosticInfoOptimizationBase *>(unwrap(d));
   auto msg = opt->getMsg();
@@ -99,7 +99,7 @@ LLVMLumenOptimizationDiagnosticMessage(LLVMDiagnosticInfoRef d) {
 }
 
 extern "C" LLVMValueRef
-LLVMLumenOptimizationDiagnosticCodeRegion(LLVMDiagnosticInfoRef d) {
+LLVMFireflyOptimizationDiagnosticCodeRegion(LLVMDiagnosticInfoRef d) {
   llvm::DiagnosticInfoOptimizationBase *opt =
       static_cast<llvm::DiagnosticInfoOptimizationBase *>(unwrap(d));
   if (auto irOpt = dyn_cast_or_null<llvm::DiagnosticInfoIROptimization>(opt))
@@ -109,13 +109,13 @@ LLVMLumenOptimizationDiagnosticCodeRegion(LLVMDiagnosticInfoRef d) {
 }
 
 extern "C" LLVMValueRef
-LLVMLumenDiagnosticWithLocFunction(LLVMDiagnosticInfoRef d) {
+LLVMFireflyDiagnosticWithLocFunction(LLVMDiagnosticInfoRef d) {
   llvm::DiagnosticInfoWithLocationBase *opt =
       static_cast<llvm::DiagnosticInfoWithLocationBase *>(unwrap(d));
   return wrap(&opt->getFunction());
 }
 
-extern "C" bool LLVMLumenDiagnosticWithLocSourceLoc(LLVMDiagnosticInfoRef d,
+extern "C" bool LLVMFireflyDiagnosticWithLocSourceLoc(LLVMDiagnosticInfoRef d,
                                                     MlirStringRef *relativePath,
                                                     unsigned *line,
                                                     unsigned *col) {
@@ -133,7 +133,7 @@ extern "C" bool LLVMLumenDiagnosticWithLocSourceLoc(LLVMDiagnosticInfoRef d,
 }
 
 extern "C" LLVMValueRef
-LLVMLumenISelFallbackDiagnosticFunction(LLVMDiagnosticInfoRef di) {
+LLVMFireflyISelFallbackDiagnosticFunction(LLVMDiagnosticInfoRef di) {
   llvm::DiagnosticInfoISelFallback *opt =
       static_cast<llvm::DiagnosticInfoISelFallback *>(unwrap(di));
 
@@ -141,7 +141,7 @@ LLVMLumenISelFallbackDiagnosticFunction(LLVMDiagnosticInfoRef di) {
 }
 
 extern "C" const char *
-LLVMLumenUnsupportedDiagnosticMessage(LLVMDiagnosticInfoRef di) {
+LLVMFireflyUnsupportedDiagnosticMessage(LLVMDiagnosticInfoRef di) {
   llvm::DiagnosticInfoUnsupported *opt =
       static_cast<llvm::DiagnosticInfoUnsupported *>(unwrap(di));
 

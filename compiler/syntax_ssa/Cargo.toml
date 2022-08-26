@@ -1,5 +1,5 @@
 [package]
-name = "liblumen_syntax_ssa"
+name = "firefly_syntax_ssa"
 version = "0.1.0"
 authors = ["Paul Schoenfelder <paulschoenfelder@gmail.com>"]
 readme = "README.md"
@@ -8,13 +8,13 @@ edition = "2021"
 license = "MIT OR Apache-2.0"
 
 [dependencies]
-liblumen_arena = { path = "../../library/arena" }
-liblumen_binary = { path = "../binary" }
-liblumen_diagnostics = { path = "../diagnostics" }
-liblumen_intern = { path = "../intern" }
-liblumen_number = { path = "../number" }
-liblumen_util = { path = "../util" }
-liblumen_syntax_base = { path = "../syntax_base" }
+firefly_arena = { path = "../../library/arena" }
+firefly_binary = { path = "../../library/binary" }
+firefly_diagnostics = { path = "../diagnostics" }
+firefly_intern = { path = "../intern" }
+firefly_number = { path = "../../library/number" }
+firefly_util = { path = "../util" }
+firefly_syntax_base = { path = "../syntax_base" }
 
 anyhow = "1.0"
 cranelift-entity = "0.81"

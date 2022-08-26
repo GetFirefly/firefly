@@ -1,5 +1,5 @@
 [package]
-name = "liblumen_intern"
+name = "firefly_intern"
 version = "0.1.0"
 authors = ["Paul Schoenfelder <paulschoenfelder@gmail.com>", "Hans Elias B. Josephsen <me@hansihe.com>"]
 edition = "2021"
@@ -8,8 +8,8 @@ license = "MIT OR Apache-2.0"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-liblumen_diagnostics = { path = "../diagnostics" }
-liblumen_diagnostics_macros = { path = "../diagnostics_macros" }
+firefly_diagnostics = { path = "../diagnostics" }
+firefly_diagnostics_macros = { path = "../diagnostics_macros" }
 
 rustc-hash = "1.1"
 lazy_static = "1.4"

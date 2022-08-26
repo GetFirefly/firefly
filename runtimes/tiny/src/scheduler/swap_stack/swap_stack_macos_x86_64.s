@@ -1,6 +1,6 @@
     .p2align 4
-    .global ___lumen_swap_stack
-___lumen_swap_stack:
+    .global ___firefly_swap_stack
+___firefly_swap_stack:
     .cfi_startproc
     .cfi_personality 155, _rust_eh_personality
     .cfi_lsda 255
@@ -86,18 +86,18 @@ ___lumen_swap_stack:
     .cfi_offset rbp, -16
 
     # Now that the frames are linked, we can call the entry point. For now, this
-    # is __lumen_trap_exceptions, which expects to receive two arguments: the function
+    # is __firefly_trap_exceptions, which expects to receive two arguments: the function
     # being wrapped by the exception handler, and the value of the closure environment,
     # _if_ it is a closure being called, otherwise the value of that argument is Term::NONE
     mov  rdi, r12
 
     # We have already set up the stack precisely, so we don't use call here, instead
     # we go ahead and jump straight to the beginning of the entry function.
-    # NOTE: This call never truly returns, as the exception handler calls __lumen_builtin_exit
+    # NOTE: This call never truly returns, as the exception handler calls __firefly_builtin_exit
     # with the return value of the 'real' entry function, or with an exception if one
     # is caught. However, swap_stack _does_ return for all other swaps, just not the first.
     call r14
-    jmp ___lumen_builtin_exit
+    jmp ___firefly_builtin_exit
 
 L_resume:
     # We land here only on a context switch, and since the last switch _away_ from

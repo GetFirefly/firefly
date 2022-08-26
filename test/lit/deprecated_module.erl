@@ -1,5 +1,3 @@
-%% RUN: @lumen compile -o @tempfile @file && @tempfile
-
 -module(deprecated_module).
 
 -export([display/1]).

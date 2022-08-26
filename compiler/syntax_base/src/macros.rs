@@ -16,27 +16,27 @@ macro_rules! annotated {
 #[macro_export]
 macro_rules! lit_atom {
     ($span:expr, $sym:expr) => {
-        liblumen_syntax_base::Literal::atom($span, $sym)
+        firefly_syntax_base::Literal::atom($span, $sym)
     };
 }
 
 #[macro_export]
 macro_rules! lit_int {
     ($span:expr, $i:expr) => {
-        liblumen_syntax_base::Literal::integer($span, $i)
+        firefly_syntax_base::Literal::integer($span, $i)
     };
 }
 
 #[macro_export]
 macro_rules! lit_tuple {
     ($span:expr, $($element:expr),*) => {
-        liblumen_syntax_base::Literal::tuple($span, vec![$($element),*])
+        firefly_syntax_base::Literal::tuple($span, vec![$($element),*])
     };
 }
 
 #[macro_export]
 macro_rules! lit_nil {
     ($span:expr) => {
-        liblumen_syntax_base::Literal::nil($span)
+        firefly_syntax_base::Literal::nil($span)
     };
 }

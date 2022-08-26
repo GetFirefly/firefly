@@ -15,7 +15,7 @@ pub use codespan_reporting::diagnostic::{LabelStyle, Severity};
 pub use codespan_reporting::files::{Error, Files};
 pub use codespan_reporting::term;
 
-pub use liblumen_diagnostics_macros::*;
+pub use firefly_diagnostics_macros::*;
 
 pub use self::codemap::CodeMap;
 pub use self::filename::FileName;

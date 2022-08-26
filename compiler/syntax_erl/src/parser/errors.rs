@@ -1,7 +1,7 @@
 use std::convert::From;
 
-use liblumen_diagnostics::*;
-use liblumen_parser::SourceError;
+use firefly_diagnostics::*;
+use firefly_parser::SourceError;
 
 use crate::lexer::Token;
 use crate::preprocessor::PreprocessorError;

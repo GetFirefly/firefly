@@ -14,7 +14,7 @@ pub use self::errors::PreprocessorError;
 pub use self::macros::{MacroCall, MacroContainer, MacroDef, MacroIdent};
 pub use self::preprocessor::Preprocessor;
 
-use liblumen_diagnostics::SourceIndex;
+use firefly_diagnostics::SourceIndex;
 
 use crate::lexer::Token;
 

@@ -6,7 +6,7 @@
 #![feature(let_else)]
 #![feature(iterator_try_collect)]
 
-extern crate liblumen_crt;
+extern crate firefly_crt;
 
 mod env;
 mod erlang;
@@ -20,7 +20,7 @@ use std::process::ExitCode;
 
 use self::sys::break_handler::{self, Signal};
 
-#[export_name = "lumen_entry"]
+#[export_name = "firefly_entry"]
 pub unsafe extern "C" fn main() -> i32 {
     use std::process::Termination;
 

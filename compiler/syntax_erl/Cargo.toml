@@ -1,5 +1,5 @@
 [package]
-name = "liblumen_syntax_erl"
+name = "firefly_syntax_erl"
 version = "0.1.0"
 authors = ["Paul Schoenfelder <paulschoenfelder@gmail.com>"]
 readme = "README.md"
@@ -10,15 +10,15 @@ license = "MIT OR Apache-2.0"
 build = "build.rs"
 
 [dependencies]
-liblumen_binary = { path = "../binary" }
-liblumen_diagnostics = { path = "../diagnostics" }
-liblumen_intern = { path = "../intern" }
-liblumen_number = { path = "../number" }
-liblumen_pass = { path = "../pass" }
-liblumen_parser = { path = "../parser" }
-liblumen_syntax_base = { path = "../syntax_base" }
-liblumen_syntax_core = { path = "../syntax_core" }
-liblumen_util = { path = "../util" }
+firefly_binary = { path = "../../library/binary" }
+firefly_diagnostics = { path = "../diagnostics" }
+firefly_intern = { path = "../intern" }
+firefly_number = { path = "../../library/number" }
+firefly_pass = { path = "../pass" }
+firefly_parser = { path = "../parser" }
+firefly_syntax_base = { path = "../syntax_base" }
+firefly_syntax_core = { path = "../syntax_core" }
+firefly_util = { path = "../util" }
 
 anyhow = "1.0"
 itertools = "0.10"

@@ -1,7 +1,7 @@
 use std::fmt::{self, Write};
 
-use liblumen_binary::Bitstring;
-use liblumen_intern::Symbol;
+use firefly_binary::Bitstring;
+use firefly_intern::Symbol;
 
 use crate::{Annotation, Lit, Literal};
 

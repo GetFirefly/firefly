@@ -1,5 +1,5 @@
 [package]
-name = "liblumen_rt"
+name = "firefly_rt"
 description = "The core runtime library, providing fundamental types and functionality"
 version = "0.1.0"
 authors = ["Paul Schoenfelder <paulschoenfelder@gmail.com>"]
@@ -8,17 +8,17 @@ edition = "2021"
 
 [features]
 default = ["std"]
-std = ["anyhow/std", "backtrace/std", "num-bigint/std", "rpds/std", "termcolor", "liblumen_binary/std"]
+std = ["anyhow/std", "backtrace/std", "num-bigint/std", "rpds/std", "termcolor", "firefly_binary/std"]
 no_std = ["lazy_static/spin_no_std"]
 
 [dependencies]
 cfg-if = "1.0"
 hashbrown = "0.12"
 lazy_static = "1.4"
-liblumen_alloc = { path = "../alloc" }
-liblumen_arena = { path = "../arena" }
-liblumen_system = { path = "../system" }
-liblumen_binary = { path = "../../compiler/binary" }
+firefly_alloc = { path = "../alloc" }
+firefly_arena = { path = "../arena" }
+firefly_system = { path = "../system" }
+firefly_binary = { path = "../binary" }
 paste = "1.0"
 rustc-demangle = "0.1"
 seq-macro = "0.3"

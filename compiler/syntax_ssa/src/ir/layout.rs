@@ -4,7 +4,7 @@ use std::ptr::NonNull;
 use cranelift_entity::EntityRef;
 use intrusive_collections::linked_list::{Cursor, CursorMut, LinkedList};
 use intrusive_collections::{intrusive_adapter, LinkedListLink, UnsafeRef};
-use liblumen_arena::TypedArena;
+use firefly_arena::TypedArena;
 
 /// This struct holds the data for each node in an ArenaMap/OrderedArenaMap
 #[derive(Clone)]

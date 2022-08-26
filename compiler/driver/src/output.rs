@@ -5,8 +5,8 @@ use anyhow::*;
 
 use thiserror::private::PathAsDisplay;
 
-use liblumen_session::{Options, OutputType};
-use liblumen_util::emit::Emit;
+use firefly_session::{Options, OutputType};
+use firefly_util::emit::Emit;
 
 use crate::diagnostics::*;
 use crate::interner::{InternedInput, Interner};

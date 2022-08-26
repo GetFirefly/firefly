@@ -3,7 +3,7 @@
 #![feature(extern_types)]
 // Used for various LLVM enumerations
 #![feature(arbitrary_enum_discriminant)]
-// Used for liblumen_pass::Pass
+// Used for firefly_pass::Pass
 #![feature(generic_associated_types)]
 
 pub mod archives;
@@ -25,7 +25,7 @@ pub use self::support::{OwnedStringRef, StringRef};
 use std::sync::Once;
 
 use anyhow::anyhow;
-use liblumen_session::Options;
+use firefly_session::Options;
 
 static INIT: Once = Once::new();
 
@@ -34,11 +34,11 @@ static INIT: Once = Once::new();
 /// NOTE: Can be called without initializing LLVM
 pub fn version() -> String {
     extern "C" {
-        fn LLVMLumenVersionMajor() -> u32;
-        fn LLVMLumenVersionMinor() -> u32;
+        fn LLVMFireflyVersionMajor() -> u32;
+        fn LLVMFireflyVersionMinor() -> u32;
     }
 
-    unsafe { format!("{}.{}", LLVMLumenVersionMajor(), LLVMLumenVersionMinor()) }
+    unsafe { format!("{}.{}", LLVMFireflyVersionMajor(), LLVMFireflyVersionMinor()) }
 }
 
 /// Performs one-time initialization of LLVM

@@ -1,9 +1,7 @@
 [package]
-name = "liblumen_compiler"
+name = "firefly_compiler"
 version = "0.1.0"
 authors = ["Paul Schoenfelder <paulschoenfelder@gmail.com>"]
-homepage = "https://github.com/lumen/lumen"
-repository = "https://github.com/lumen/lumen"
 license = "Apache-2.0"
 edition = "2021"
 publish = false
@@ -24,21 +22,21 @@ futures = "0.3.21"
 async-task = "1.3"
 parking_lot = "0.11.1"
 
-liblumen_diagnostics = { path = "../diagnostics" }
-liblumen_session = { path = "../session" }
-liblumen_target = { path = "../target" }
-liblumen_codegen = { path = "../codegen" }
-liblumen_util = { path = "../util" }
-liblumen_intern = { path = "../intern" }
-liblumen_llvm = { path = "../llvm" }
-liblumen_mlir = { path = "../mlir" }
-liblumen_pass = { path = "../pass" }
-liblumen_parser = { path = "../parser" }
-liblumen_syntax_base = { path = "../syntax_base" }
-liblumen_syntax_erl = { path = "../syntax_erl" }
-liblumen_syntax_core = { path = "../syntax_core" }
-liblumen_syntax_ssa = { path = "../syntax_ssa" }
-liblumen_syntax_kernel = { path = "../syntax_kernel" }
+firefly_diagnostics = { path = "../diagnostics" }
+firefly_session = { path = "../session" }
+firefly_target = { path = "../target" }
+firefly_codegen = { path = "../codegen" }
+firefly_util = { path = "../util" }
+firefly_intern = { path = "../intern" }
+firefly_llvm = { path = "../llvm" }
+firefly_mlir = { path = "../mlir" }
+firefly_pass = { path = "../pass" }
+firefly_parser = { path = "../parser" }
+firefly_syntax_base = { path = "../syntax_base" }
+firefly_syntax_erl = { path = "../syntax_erl" }
+firefly_syntax_core = { path = "../syntax_core" }
+firefly_syntax_ssa = { path = "../syntax_ssa" }
+firefly_syntax_kernel = { path = "../syntax_kernel" }
 
 [build-dependencies]
 which = "4.0"

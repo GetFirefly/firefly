@@ -1,6 +1,6 @@
 #if defined(_WIN32)
 
-#include "lumen/llvm/raw_win32_handle_ostream.h"
+#include "firefly/llvm/raw_win32_handle_ostream.h"
 
 #include "Windows/WindowsSupport.h"
 #include "llvm/ADT/SmallVector.h"

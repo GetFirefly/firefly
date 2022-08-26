@@ -5,9 +5,9 @@ use std::fs;
 use std::path::Path;
 use std::sync::Arc;
 
-use liblumen_diagnostics::{CodeMap, SourceSpan};
-use liblumen_intern::Symbol;
-use liblumen_parser::{FileMapSource, Scanner, Source};
+use firefly_diagnostics::{CodeMap, SourceSpan};
+use firefly_intern::Symbol;
+use firefly_parser::{FileMapSource, Scanner, Source};
 
 use crate::lexer::{AtomToken, SymbolToken, TokenConvertError};
 use crate::lexer::{Lexed, Lexer, LexicalToken, Token};

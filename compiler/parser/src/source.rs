@@ -3,7 +3,7 @@ use std::ops::Range;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use liblumen_diagnostics::*;
+use firefly_diagnostics::*;
 
 pub type SourceResult<T> = std::result::Result<T, SourceError>;
 

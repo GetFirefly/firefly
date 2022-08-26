@@ -5,7 +5,7 @@
 //! Read a BEAM file:
 //!
 //!
-//!     use liblumen_beam::beam::{StandardBeamFile, Chunk};
+//!     use firefly_beam::beam::{StandardBeamFile, Chunk};
 //!
 //!     let beam = StandardBeamFile::from_file("tests/testdata/reader/test.beam").unwrap();
 //!
@@ -17,7 +17,7 @@
 //! Write a BEAM file:
 //!
 //!
-//!     use liblumen_beam::beam::{RawBeamFile, Chunk, RawChunk};
+//!     use firefly_beam::beam::{RawBeamFile, Chunk, RawChunk};
 //!
 //!     // NOTE: The following chunk is malformed
 //!     let chunk = RawChunk{id: *b"Atom", data: Vec::new()};

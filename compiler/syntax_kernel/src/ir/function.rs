@@ -1,5 +1,5 @@
-use liblumen_diagnostics::{SourceSpan, Spanned};
-use liblumen_syntax_base::*;
+use firefly_diagnostics::{SourceSpan, Spanned};
+use firefly_syntax_base::*;
 
 use super::Expr;
 

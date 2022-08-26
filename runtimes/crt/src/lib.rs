@@ -7,12 +7,12 @@ mod symbols;
 extern "C" {
     /// The target-defined entry point for the generated executable.
     ///
-    /// Each target has its own runtime crate, which uses `#[entry]` from
-    /// the `liblumen_core` crate to specify its entry point. This is
-    /// called after the atom table, and any other core runtime functionality,
-    /// is initialized and ready for use.
-    #[link_name = "lumen_entry"]
-    fn lumen_entry() -> i32;
+    /// Each target has its own runtime crate, with its own entry point
+    /// exposed as `firefly_entry`, the core runtime (this crate) calls
+    /// into that entry after global initialization of target-agnostic
+    /// resources is complete.
+    #[link_name = "firefly_entry"]
+    fn firefly_entry() -> i32;
 
     #[allow(improper_ctypes)]
     #[link_name = env!("LANG_START_SYMBOL_NAME")]
@@ -24,7 +24,7 @@ pub extern "C" fn main(argc: i32, argv: *const *const std::os::raw::c_char) -> i
     unsafe { lang_start(&move || main_internal(), argc as isize, argv) as i32 }
 }
 
-/// The primary entry point for the Lumen runtime
+/// The primary entry point for the Firefly runtime
 ///
 /// This function is responsible for setting up any core functionality required
 /// by the higher-level runtime, e.g. initializing the atom table. Once initialized,
@@ -43,5 +43,5 @@ pub fn main_internal() -> i32 {
     }
 
     // Invoke platform-specific entry point
-    unsafe { lumen_entry() }
+    unsafe { firefly_entry() }
 }

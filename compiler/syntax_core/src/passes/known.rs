@@ -1,6 +1,6 @@
 use rpds::{RedBlackTreeSet, Vector};
 
-use liblumen_intern::Ident;
+use firefly_intern::Ident;
 
 /// Here follows an abstract data structure to help us handle Erlang's
 /// implicit matching that occurs when a variable is bound more than

@@ -5,8 +5,8 @@ mod expand_unqualified_calls;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use liblumen_diagnostics::*;
-use liblumen_pass::Pass;
+use firefly_diagnostics::*;
+use firefly_pass::Pass;
 
 use crate::ast;
 

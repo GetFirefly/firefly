@@ -2,7 +2,7 @@
 #![feature(arbitrary_enum_discriminant)]
 // Used to represent FFI-opaque types
 #![feature(extern_types)]
-// Used with liblumen_pass::Pass
+// Used with firefly_pass::Pass
 #![feature(generic_associated_types)]
 // Allow overlapping implementations of certain IR traits
 #![feature(min_specialization)]
@@ -26,7 +26,7 @@ pub use self::support::{LogicalResult, OwnedStringRef, StringRef};
 /// NOTE: It is important this is called before invoking any MLIR APIs, as it
 /// guarantees that MLIR is properly configured. Without this, MLIR may behave
 /// differently than expected, or raise an error due to unregistered passes.
-pub fn init(_options: &liblumen_session::Options) -> anyhow::Result<()> {
+pub fn init(_options: &firefly_session::Options) -> anyhow::Result<()> {
     extern "C" {
         #[link_name = "mlirRegisterCommandLineOptions"]
         fn register_mlir_cli_options();

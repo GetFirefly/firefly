@@ -9,7 +9,7 @@ using ::llvm::Attribute;
 using ::llvm::StringRef;
 using ::llvm::unwrap;
 
-namespace lumen {
+namespace firefly {
 namespace Attribute {
 enum AttrKind {
   AlwaysInline = 0,
@@ -41,69 +41,69 @@ enum AttrKind {
   ReturnsTwice = 26,
 };
 }
-} // namespace lumen
+} // namespace firefly
 
-static Attribute::AttrKind fromRust(lumen::Attribute::AttrKind kind) {
+static Attribute::AttrKind fromRust(firefly::Attribute::AttrKind kind) {
   switch (kind) {
-  case lumen::Attribute::AlwaysInline:
+  case firefly::Attribute::AlwaysInline:
     return Attribute::AlwaysInline;
-  case lumen::Attribute::ByVal:
+  case firefly::Attribute::ByVal:
     return Attribute::ByVal;
-  case lumen::Attribute::Cold:
+  case firefly::Attribute::Cold:
     return Attribute::Cold;
-  case lumen::Attribute::InlineHint:
+  case firefly::Attribute::InlineHint:
     return Attribute::InlineHint;
-  case lumen::Attribute::MinSize:
+  case firefly::Attribute::MinSize:
     return Attribute::MinSize;
-  case lumen::Attribute::Naked:
+  case firefly::Attribute::Naked:
     return Attribute::Naked;
-  case lumen::Attribute::NoAlias:
+  case firefly::Attribute::NoAlias:
     return Attribute::NoAlias;
-  case lumen::Attribute::NoCapture:
+  case firefly::Attribute::NoCapture:
     return Attribute::NoCapture;
-  case lumen::Attribute::NoInline:
+  case firefly::Attribute::NoInline:
     return Attribute::NoInline;
-  case lumen::Attribute::NonNull:
+  case firefly::Attribute::NonNull:
     return Attribute::NonNull;
-  case lumen::Attribute::NoRedZone:
+  case firefly::Attribute::NoRedZone:
     return Attribute::NoRedZone;
-  case lumen::Attribute::NoReturn:
+  case firefly::Attribute::NoReturn:
     return Attribute::NoReturn;
-  case lumen::Attribute::NoUnwind:
+  case firefly::Attribute::NoUnwind:
     return Attribute::NoUnwind;
-  case lumen::Attribute::OptimizeForSize:
+  case firefly::Attribute::OptimizeForSize:
     return Attribute::OptimizeForSize;
-  case lumen::Attribute::ReadOnly:
+  case firefly::Attribute::ReadOnly:
     return Attribute::ReadOnly;
-  case lumen::Attribute::ArgMemOnly:
+  case firefly::Attribute::ArgMemOnly:
     return Attribute::ArgMemOnly;
-  case lumen::Attribute::SExt:
+  case firefly::Attribute::SExt:
     return Attribute::SExt;
-  case lumen::Attribute::StructRet:
+  case firefly::Attribute::StructRet:
     return Attribute::StructRet;
-  case lumen::Attribute::UWTable:
+  case firefly::Attribute::UWTable:
     return Attribute::UWTable;
-  case lumen::Attribute::ZExt:
+  case firefly::Attribute::ZExt:
     return Attribute::ZExt;
-  case lumen::Attribute::InReg:
+  case firefly::Attribute::InReg:
     return Attribute::InReg;
-  case lumen::Attribute::SanitizeThread:
+  case firefly::Attribute::SanitizeThread:
     return Attribute::SanitizeThread;
-  case lumen::Attribute::SanitizeAddress:
+  case firefly::Attribute::SanitizeAddress:
     return Attribute::SanitizeAddress;
-  case lumen::Attribute::SanitizeMemory:
+  case firefly::Attribute::SanitizeMemory:
     return Attribute::SanitizeMemory;
-  case lumen::Attribute::NonLazyBind:
+  case firefly::Attribute::NonLazyBind:
     return Attribute::NonLazyBind;
-  case lumen::Attribute::OptimizeNone:
+  case firefly::Attribute::OptimizeNone:
     return Attribute::OptimizeNone;
-  case lumen::Attribute::ReturnsTwice:
+  case firefly::Attribute::ReturnsTwice:
     return Attribute::ReturnsTwice;
   }
   llvm::report_fatal_error("invalid attribute kind");
 }
 
-extern "C" void LLVMLumenAddAlignmentCallSiteAttr(LLVMValueRef instr,
+extern "C" void LLVMFireflyAddAlignmentCallSiteAttr(LLVMValueRef instr,
                                                   unsigned index,
                                                   uint32_t bytes) {
   auto call = unwrap<llvm::CallBase>(instr);
@@ -113,7 +113,7 @@ extern "C" void LLVMLumenAddAlignmentCallSiteAttr(LLVMValueRef instr,
       call->getAttributes().addAttributesAtIndex(call->getContext(), index, b));
 }
 
-extern "C" void LLVMLumenAddDereferenceableCallSiteAttr(LLVMValueRef instr,
+extern "C" void LLVMFireflyAddDereferenceableCallSiteAttr(LLVMValueRef instr,
                                                         unsigned index,
                                                         uint64_t bytes) {
   auto call = unwrap<llvm::CallBase>(instr);
@@ -124,7 +124,7 @@ extern "C" void LLVMLumenAddDereferenceableCallSiteAttr(LLVMValueRef instr,
 }
 
 extern "C" void
-LLVMLumenAddDereferenceableOrNullCallSiteAttr(LLVMValueRef instr,
+LLVMFireflyAddDereferenceableOrNullCallSiteAttr(LLVMValueRef instr,
                                               unsigned index, uint64_t bytes) {
   auto call = unwrap<llvm::CallBase>(instr);
   AttrBuilder b(call->getContext());
@@ -133,14 +133,14 @@ LLVMLumenAddDereferenceableOrNullCallSiteAttr(LLVMValueRef instr,
       call->getAttributes().addAttributesAtIndex(call->getContext(), index, b));
 }
 
-extern "C" void LLVMLumenAddByValCallSiteAttr(LLVMValueRef instr,
+extern "C" void LLVMFireflyAddByValCallSiteAttr(LLVMValueRef instr,
                                               unsigned index, LLVMTypeRef ty) {
   auto call = unwrap<llvm::CallBase>(instr);
   Attribute attr = Attribute::getWithByValType(call->getContext(), unwrap(ty));
   call->addAttributeAtIndex(index, attr);
 }
 
-extern "C" void LLVMLumenAddAlignmentAttr(LLVMValueRef fn, unsigned index,
+extern "C" void LLVMFireflyAddAlignmentAttr(LLVMValueRef fn, unsigned index,
                                           uint32_t bytes) {
   auto *f = unwrap<llvm::Function>(fn);
   AttrBuilder b(f->getContext());
@@ -148,7 +148,7 @@ extern "C" void LLVMLumenAddAlignmentAttr(LLVMValueRef fn, unsigned index,
   f->addParamAttrs(index, b);
 }
 
-extern "C" void LLVMLumenAddDereferenceableAttr(LLVMValueRef fn, unsigned index,
+extern "C" void LLVMFireflyAddDereferenceableAttr(LLVMValueRef fn, unsigned index,
                                                 uint64_t bytes) {
   auto *f = unwrap<llvm::Function>(fn);
   AttrBuilder b(f->getContext());
@@ -156,7 +156,7 @@ extern "C" void LLVMLumenAddDereferenceableAttr(LLVMValueRef fn, unsigned index,
   f->addParamAttrs(index, b);
 }
 
-extern "C" void LLVMLumenAddDereferenceableOrNullAttr(LLVMValueRef fn,
+extern "C" void LLVMFireflyAddDereferenceableOrNullAttr(LLVMValueRef fn,
                                                       unsigned index,
                                                       uint64_t bytes) {
   auto *f = unwrap<llvm::Function>(fn);
@@ -165,7 +165,7 @@ extern "C" void LLVMLumenAddDereferenceableOrNullAttr(LLVMValueRef fn,
   f->addParamAttrs(index, b);
 }
 
-extern "C" void LLVMLumenAddByValAttr(LLVMValueRef fn, unsigned index,
+extern "C" void LLVMFireflyAddByValAttr(LLVMValueRef fn, unsigned index,
                                       LLVMTypeRef ty) {
   auto *f = unwrap<llvm::Function>(fn);
   Attribute attr = Attribute::getWithByValType(f->getContext(), unwrap(ty));

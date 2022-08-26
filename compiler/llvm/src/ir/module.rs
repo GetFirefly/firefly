@@ -4,7 +4,7 @@ use std::mem::MaybeUninit;
 use std::ops::Deref;
 
 use anyhow::anyhow;
-use liblumen_util::{self as util, emit::Emit};
+use firefly_util::{self as util, emit::Emit};
 
 use crate::codegen::CodeGenFileType;
 use crate::support::*;

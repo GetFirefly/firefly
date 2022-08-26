@@ -7,7 +7,7 @@ use std::ops::{Deref, Range};
 use std::path::{Path, PathBuf};
 
 use anyhow::{anyhow, bail};
-use liblumen_intern::Symbol;
+use firefly_intern::Symbol;
 use logos::Logos;
 
 /// Metadata about an Erlang application

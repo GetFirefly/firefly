@@ -7,7 +7,7 @@ use core::ptr::{self, NonNull};
 use intrusive_collections::intrusive_adapter;
 use intrusive_collections::{LinkedListLink, UnsafeRef};
 
-use liblumen_system::arch::MIN_ALIGN;
+use firefly_system::arch::MIN_ALIGN;
 
 use crate::heap::Heap;
 

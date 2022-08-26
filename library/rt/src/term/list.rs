@@ -7,10 +7,10 @@ use core::hash::{Hash, Hasher};
 use core::marker::PhantomData;
 use core::ptr::NonNull;
 
-use liblumen_alloc::gc::GcBox;
-use liblumen_alloc::heap::Heap;
-use liblumen_alloc::rc::Rc;
-use liblumen_binary::{BinaryFlags, BitVec, Bitstring, Encoding};
+use firefly_alloc::gc::GcBox;
+use firefly_alloc::heap::Heap;
+use firefly_alloc::rc::Rc;
+use firefly_binary::{BinaryFlags, BitVec, Bitstring, Encoding};
 
 use super::{BinaryData, OpaqueTerm, Term, TupleIndex};
 

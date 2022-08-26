@@ -7,6 +7,7 @@ env:
 
 jobs:
   formatted:
+    if: ${{ false }} # disable
     runs-on: ubuntu-latest
     container: kronicdeth/lumen-development@sha256:2809805464d685940b58765a634fa23a5fd1a62c65710cfa43a8791cd50fbecd
 
@@ -26,6 +27,7 @@ jobs:
           args: check-format
 
   libraries:
+    if: ${{ false }} # disable
     runs-on: ubuntu-latest
     container: kronicdeth/lumen-development@sha256:2809805464d685940b58765a634fa23a5fd1a62c65710cfa43a8791cd50fbecd
 
@@ -38,18 +40,28 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
           key: ${{ github.workflow }}-${{ github.job }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      - name: Run liblumen_arena tests
+      - name: firefly_arena
         uses: actions-rs/cargo@v1
         with:
           command: make
-          args: test -- --package liblumen_arena
-      - name: Run liblumen_core tests
+          args: test -- --package firefly_arena
+      - name: firefly_alloc
         uses: actions-rs/cargo@v1
         with:
           command: make
-          args: test -- --package liblumen_core
-      - name: Run liblumen_alloc tests
+          args: test -- --package firefly_alloc
+      - name: firefly_binary
         uses: actions-rs/cargo@v1
         with:
           command: make
-          args: test -- --package liblumen_alloc
+          args: test -- --package firefly_binary
+      - name: firefly_system
+        uses: actions-rs/cargo@v1
+        with:
+          command: make
+          args: test -- --package firefly_system
+      - name: firefly_rt
+        uses: actions-rs/cargo@v1
+        with:
+          command: make
+          args: test -- --package firefly_rt

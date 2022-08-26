@@ -13,10 +13,10 @@ use std::path::{Path, PathBuf};
 
 use log::{debug, warn};
 
-use liblumen_session::{DebugInfo, LinkerPluginLto, OptLevel, Options, ProjectType, Strip};
-use liblumen_target::spec::LinkOutputKind;
-use liblumen_target::{LinkerFlavor, LldFlavor};
-use liblumen_util::diagnostics::DiagnosticsHandler;
+use firefly_session::{DebugInfo, LinkerPluginLto, OptLevel, Options, ProjectType, Strip};
+use firefly_target::spec::LinkOutputKind;
+use firefly_target::{LinkerFlavor, LldFlavor};
+use firefly_util::diagnostics::DiagnosticsHandler;
 
 use self::command::Command;
 pub use self::link::link_binary;
@@ -976,7 +976,7 @@ impl<'a> Linker for MsvcLinker<'a> {
                 self.cmd.arg("/DEBUG");
 
                 // This will cause the Microsoft linker to embed .natvis info into the PDB file
-                let natvis_dir_path = self.options.sysroot.join("lib\\lumenlib\\etc");
+                let natvis_dir_path = self.options.sysroot.join("lib\\fireflylib\\etc");
                 if let Ok(natvis_dir) = fs::read_dir(&natvis_dir_path) {
                     for entry in natvis_dir {
                         match entry {

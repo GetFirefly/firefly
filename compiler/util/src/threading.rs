@@ -17,7 +17,7 @@ where
     F: FnOnce() -> R + Send,
     R: Send,
 {
-    let builder = thread::Builder::new().name("lumen".to_string());
+    let builder = thread::Builder::new().name("firefly".to_string());
 
     scoped_thread(builder, || f())
 }

@@ -4,9 +4,9 @@ pub use self::translate::{CoreToKernel, KernelToSsa};
 
 use rpds::{rbt_set, RedBlackTreeMap, RedBlackTreeSet};
 
-use liblumen_diagnostics::SourceSpan;
-use liblumen_intern::{Ident, Symbol};
-use liblumen_syntax_base::{Annotations, FunctionName, Var};
+use firefly_diagnostics::SourceSpan;
+use firefly_intern::{Ident, Symbol};
+use firefly_syntax_base::{Annotations, FunctionName, Var};
 
 use crate::{Expr, Function, Name};
 

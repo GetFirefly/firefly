@@ -34,11 +34,11 @@ use core::fmt;
 use core::ptr::NonNull;
 
 use anyhow::anyhow;
-use liblumen_alloc::fragment::HeapFragment;
-use liblumen_alloc::gc::GcBox;
-use liblumen_alloc::heap::Heap;
-use liblumen_alloc::rc::{Rc, Weak};
-use liblumen_binary::{Binary, Bitstring, Encoding};
+use firefly_alloc::fragment::HeapFragment;
+use firefly_alloc::gc::GcBox;
+use firefly_alloc::heap::Heap;
+use firefly_alloc::rc::{Rc, Weak};
+use firefly_binary::{Binary, Bitstring, Encoding};
 
 /// `Term` is two things:
 ///

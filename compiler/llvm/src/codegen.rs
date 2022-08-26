@@ -70,8 +70,8 @@ impl fmt::Display for CodeGenOptSize {
 }
 
 /// Converts the unified OptLevel enum from the frontend to the speed/size opt level enums for LLVM
-pub fn to_llvm_opt_settings(cfg: liblumen_session::OptLevel) -> (CodeGenOptLevel, CodeGenOptSize) {
-    use liblumen_session::OptLevel;
+pub fn to_llvm_opt_settings(cfg: firefly_session::OptLevel) -> (CodeGenOptLevel, CodeGenOptSize) {
+    use firefly_session::OptLevel;
     match cfg {
         OptLevel::No => (CodeGenOptLevel::None, CodeGenOptSize::None),
         OptLevel::Less => (CodeGenOptLevel::Less, CodeGenOptSize::None),

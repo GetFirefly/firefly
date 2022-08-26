@@ -63,14 +63,14 @@ impl Archive {
     /// raised.
     pub fn open(dst: &Path) -> anyhow::Result<OwnedArchive> {
         extern "C" {
-            fn LLVMLumenOpenArchive(
+            fn LLVMFireflyOpenArchive(
                 path: StringRef,
                 error: *mut *mut std::os::raw::c_char,
             ) -> Archive;
         }
         let mut error = MaybeUninit::zeroed();
         let dst = StringRef::from(dst);
-        let archive = unsafe { LLVMLumenOpenArchive(dst, error.as_mut_ptr()) };
+        let archive = unsafe { LLVMFireflyOpenArchive(dst, error.as_mut_ptr()) };
         if archive.is_null() {
             unsafe {
                 let error = error.assume_init();
@@ -95,7 +95,7 @@ impl Archive {
         kind: ArchiveKind,
     ) -> anyhow::Result<()> {
         extern "C" {
-            fn LLVMLumenWriteArchive(
+            fn LLVMFireflyWriteArchive(
                 dst: StringRef,
                 num_members: usize,
                 members: *const *const LlvmNewArchiveMember,
@@ -107,7 +107,7 @@ impl Archive {
         let dst = StringRef::from(dst);
         let mut error = MaybeUninit::zeroed();
         let success = unsafe {
-            LLVMLumenWriteArchive(
+            LLVMFireflyWriteArchive(
                 dst,
                 members.len(),
                 members.as_ptr().cast(),
@@ -149,10 +149,10 @@ impl Deref for OwnedArchive {
 impl Drop for OwnedArchive {
     fn drop(&mut self) {
         extern "C" {
-            fn LLVMLumenDestroyArchive(archive: Archive);
+            fn LLVMFireflyDestroyArchive(archive: Archive);
         }
         unsafe {
-            LLVMLumenDestroyArchive(self.0);
+            LLVMFireflyDestroyArchive(self.0);
         }
     }
 }
@@ -171,14 +171,14 @@ impl<'a> ArchiveMember<'a> {
     /// Returns the name of this archive member, which may or may not be set
     pub fn name(&self) -> Option<StringRef> {
         extern "C" {
-            fn LLVMLumenArchiveChildName(
+            fn LLVMFireflyArchiveChildName(
                 child: *mut LlvmArchiveMember,
                 error: *mut *mut std::os::raw::c_char,
             ) -> StringRef;
         }
 
         let mut error = MaybeUninit::zeroed();
-        let name = unsafe { LLVMLumenArchiveChildName(self.ptr, error.as_mut_ptr()) };
+        let name = unsafe { LLVMFireflyArchiveChildName(self.ptr, error.as_mut_ptr()) };
         if name.is_null() {
             let error = unsafe { error.assume_init() };
             if error.is_null() {
@@ -195,14 +195,14 @@ impl<'a> ArchiveMember<'a> {
     /// Returns the data contained in this archive member
     pub fn data(&self) -> &[u8] {
         extern "C" {
-            fn LLVMLumenArchiveChildData(
+            fn LLVMFireflyArchiveChildData(
                 child: *mut LlvmArchiveMember,
                 error: *mut *mut std::os::raw::c_char,
             ) -> StringRef;
         }
 
         let mut error = MaybeUninit::zeroed();
-        let data = unsafe { LLVMLumenArchiveChildData(self.ptr, error.as_mut_ptr()) };
+        let data = unsafe { LLVMFireflyArchiveChildData(self.ptr, error.as_mut_ptr()) };
         if data.is_null() {
             let error = unsafe { error.assume_init() };
             if error.is_null() {
@@ -219,10 +219,10 @@ impl<'a> ArchiveMember<'a> {
 impl<'a> Drop for ArchiveMember<'a> {
     fn drop(&mut self) {
         extern "C" {
-            fn LLVMLumenArchiveChildFree(child: *mut LlvmArchiveMember);
+            fn LLVMFireflyArchiveChildFree(child: *mut LlvmArchiveMember);
         }
         unsafe {
-            LLVMLumenArchiveChildFree(self.ptr);
+            LLVMFireflyArchiveChildFree(self.ptr);
         }
     }
 }
@@ -246,7 +246,7 @@ impl<'a> NewArchiveMember<'a> {
     /// Creates an archive member that references an existing archive member
     pub fn from_child<S: Into<StringRef>>(name: S, child: ArchiveMember<'a>) -> Self {
         extern "C" {
-            fn LLVMLumenNewArchiveMemberFromChild(
+            fn LLVMFireflyNewArchiveMemberFromChild(
                 name: StringRef,
                 child: *mut LlvmArchiveMember,
             ) -> *const LlvmNewArchiveMember;
@@ -256,7 +256,7 @@ impl<'a> NewArchiveMember<'a> {
             !name.empty(),
             "an archive member must be named with a non-empty string"
         );
-        let ptr = unsafe { LLVMLumenNewArchiveMemberFromChild(name, child.ptr) };
+        let ptr = unsafe { LLVMFireflyNewArchiveMemberFromChild(name, child.ptr) };
         Self {
             ptr,
             _marker: core::marker::PhantomData,
@@ -266,7 +266,7 @@ impl<'a> NewArchiveMember<'a> {
     /// Creates an archive member that references the given file
     pub fn from_path<S: Into<StringRef>>(name: S, path: &Path) -> Self {
         extern "C" {
-            fn LLVMLumenNewArchiveMemberFromFile(
+            fn LLVMFireflyNewArchiveMemberFromFile(
                 name: StringRef,
                 filename: StringRef,
             ) -> *const LlvmNewArchiveMember;
@@ -277,7 +277,7 @@ impl<'a> NewArchiveMember<'a> {
             "an archive member must be named with a non-empty string"
         );
         let path = StringRef::from(path);
-        let ptr = unsafe { LLVMLumenNewArchiveMemberFromFile(name, path) };
+        let ptr = unsafe { LLVMFireflyNewArchiveMemberFromFile(name, path) };
         Self {
             ptr,
             _marker: core::marker::PhantomData,
@@ -287,9 +287,9 @@ impl<'a> NewArchiveMember<'a> {
 impl<'a> Drop for NewArchiveMember<'a> {
     fn drop(&mut self) {
         extern "C" {
-            fn LLVMLumenNewArchiveMemberFree(member: *const LlvmNewArchiveMember);
+            fn LLVMFireflyNewArchiveMemberFree(member: *const LlvmNewArchiveMember);
         }
-        unsafe { LLVMLumenNewArchiveMemberFree(self.ptr) }
+        unsafe { LLVMFireflyNewArchiveMemberFree(self.ptr) }
     }
 }
 
@@ -302,13 +302,13 @@ pub struct ArchiveIter<'a> {
 impl<'a> ArchiveIter<'a> {
     fn new(archive: &'a Archive) -> anyhow::Result<Self> {
         extern "C" {
-            fn LLVMLumenArchiveIteratorNew(
+            fn LLVMFireflyArchiveIteratorNew(
                 archive: *const LlvmArchive,
                 error: *mut *mut std::os::raw::c_char,
             ) -> *mut LlvmArchiveIterator;
         }
         let mut error = MaybeUninit::zeroed();
-        let iterator = unsafe { LLVMLumenArchiveIteratorNew(archive.0, error.as_mut_ptr()) };
+        let iterator = unsafe { LLVMFireflyArchiveIteratorNew(archive.0, error.as_mut_ptr()) };
         if iterator.is_null() {
             let error = unsafe { error.assume_init() };
             assert!(!error.is_null());
@@ -326,9 +326,9 @@ impl<'a> ArchiveIter<'a> {
 impl<'a> Drop for ArchiveIter<'a> {
     fn drop(&mut self) {
         extern "C" {
-            fn LLVMLumenArchiveIteratorFree(i: *mut LlvmArchiveIterator);
+            fn LLVMFireflyArchiveIteratorFree(i: *mut LlvmArchiveIterator);
         }
-        unsafe { LLVMLumenArchiveIteratorFree(self.iterator) }
+        unsafe { LLVMFireflyArchiveIteratorFree(self.iterator) }
     }
 }
 impl<'a> Iterator for ArchiveIter<'a> {
@@ -336,7 +336,7 @@ impl<'a> Iterator for ArchiveIter<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         extern "C" {
-            fn LLVMLumenArchiveIteratorNext(
+            fn LLVMFireflyArchiveIteratorNext(
                 iter: *mut LlvmArchiveIterator,
                 error: *mut *mut std::os::raw::c_char,
             ) -> *mut LlvmArchiveMember;
@@ -347,7 +347,7 @@ impl<'a> Iterator for ArchiveIter<'a> {
         }
 
         let mut error = MaybeUninit::zeroed();
-        let ptr = unsafe { LLVMLumenArchiveIteratorNext(self.iterator, error.as_mut_ptr()) };
+        let ptr = unsafe { LLVMFireflyArchiveIteratorNext(self.iterator, error.as_mut_ptr()) };
         if ptr.is_null() {
             let error = unsafe { error.assume_init() };
             self.done = true;

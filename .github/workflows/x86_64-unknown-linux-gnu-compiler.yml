@@ -7,6 +7,7 @@ env:
 
 jobs:
   compiler:
+    if: ${{ false }} # disable
     runs-on: ubuntu-latest
     container: kronicdeth/lumen-development@sha256:2809805464d685940b58765a634fa23a5fd1a62c65710cfa43a8791cd50fbecd
 
@@ -23,7 +24,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: make
-          args: lumen
+          args: firefly
       - name: Add Compiler To Path
         run: |
           if [ -n "${GITHUB_PATH}" ]; then
@@ -35,13 +36,13 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: make
-          args: test -- --package lumen
-      - name: Run liblumen_otp integration tests
+          args: test-lit
+      - name: Run firefly_otp integration tests
         uses: actions-rs/cargo@v1
         with:
           command: make
           args: |
-            test -- --package liblumen_otp lib:: -- --skip lumen::otp
+            test -- --package firefly_otp lib:: -- --skip firefly::otp
       - name: Run spawn-chain tests
         uses: actions-rs/cargo@v1
         with:

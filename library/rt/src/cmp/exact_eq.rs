@@ -1,5 +1,5 @@
 ///! This module defines a trait which represents the idea of equality without
-///! the possibility of coercion. Its usage in Lumen is to extend the behavior
+///! the possibility of coercion. Its usage in Firefly is to extend the behavior
 ///! of `Eq` for terms to respect the semantics of the `=:=` and `=/=` operators.
 
 /// This trait extends the notion of equality provided by `Eq` to cover the distinction

@@ -2,7 +2,7 @@ use core::any::TypeId;
 use core::fmt;
 use core::hash::{Hash, Hasher};
 
-use liblumen_binary::{Bitstring, Selection};
+use firefly_binary::{Bitstring, Selection};
 
 use crate::term::OpaqueTerm;
 

@@ -1,10 +1,10 @@
 use std::collections::HashSet;
 use std::fmt;
 
-use liblumen_diagnostics::{SourceSpan, Span, Spanned};
-use liblumen_intern::Ident;
-use liblumen_syntax_base::*;
-use liblumen_util::emit::Emit;
+use firefly_diagnostics::{SourceSpan, Span, Spanned};
+use firefly_intern::Ident;
+use firefly_syntax_base::*;
+use firefly_util::emit::Emit;
 
 use crate::printer::PrettyPrinter;
 

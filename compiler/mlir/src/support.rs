@@ -1,4 +1,4 @@
-pub use liblumen_llvm::support::*;
+pub use firefly_llvm::support::*;
 
 /// Corresponds to `mlir::LogicalResult`, used to indicate
 /// success/failure of an operation

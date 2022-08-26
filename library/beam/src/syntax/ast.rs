@@ -8,7 +8,7 @@
 //!
 //! # Examples
 //!
-//!     use liblumen_beam::syntax::ast::AST;
+//!     use firefly_beam::syntax::ast::AST;
 //!
 //!     let ast = AST::from_beam_file("tests/testdata/ast/test.beam").unwrap();
 //!     println!("{:?}", ast);

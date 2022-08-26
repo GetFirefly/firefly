@@ -359,15 +359,15 @@ pub enum Type {
     Function(FunctionType),
     // This type is equivalent to Rust's Never/! type, i.e. it indicates that a function never returns
     NoReturn,
-    // This type maps to ErlangException in liblumen_rt
+    // This type maps to ErlangException in firefly_rt
     Exception,
-    // This type maps to Trace in liblumen_rt
+    // This type maps to Trace in firefly_rt
     ExceptionTrace,
-    // This type maps to ReceiveContext in lumen_rt_tiny
+    // This type maps to ReceiveContext in firefly_rt_tiny
     RecvContext,
-    // This type maps to ReceiveState in lumen_rt_tiny
+    // This type maps to ReceiveState in firefly_rt_tiny
     RecvState,
-    // This type maps to BinaryBuilder in liblumen_rt
+    // This type maps to BinaryBuilder in firefly_rt
     BinaryBuilder,
     // This type maps to a match context
     MatchContext,

@@ -10,10 +10,10 @@ pub use self::token::Token;
 /// Used in the grammar for easy span creation
 macro_rules! span {
     ($l:expr, $r:expr) => {
-        liblumen_diagnostics::SourceSpan::new($l, $r)
+        firefly_diagnostics::SourceSpan::new($l, $r)
     };
     ($i:expr) => {
-        liblumen_diagnostics::SourceSpan::new($i, $i)
+        firefly_diagnostics::SourceSpan::new($i, $i)
     };
 }
 
@@ -34,15 +34,15 @@ pub(crate) mod grammar {
     include!(concat!(env!("OUT_DIR"), "/grammar.rs"));
 }
 
-use liblumen_beam::beam::AbstractCode;
-use liblumen_diagnostics::{ToDiagnostic, Diagnostic, Label, Reporter, SourceSpan};
-use liblumen_parser::{Parse, Parser, Scanner, Source};
+use firefly_beam::beam::AbstractCode;
+use firefly_diagnostics::{ToDiagnostic, Diagnostic, Label, Reporter, SourceSpan};
+use firefly_parser::{Parse, Parser, Scanner, Source};
 
 use crate::ast::{self, Form};
 
 /// Parses forms from the given AbstractCode object
 pub from_abstract_code(code: &AbstractCode) -> anyhow::Result<Form> {
-    use liblumen_beam::serialization::etf::pattern::VarList;
+    use firefly_beam::serialization::etf::pattern::VarList;
 
     let (_, form) = code
         .code()
@@ -92,8 +92,8 @@ impl Parse for ast::Root {
 mod test {
     use std::sync::Arc;
 
-    use liblumen_diagnostics::*;
-    use liblumen_parser::{Parse, Parser};
+    use firefly_diagnostics::*;
+    use firefly_parser::{Parse, Parser};
 
     use super::*;
 

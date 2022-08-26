@@ -23,7 +23,7 @@ MLIR_DECLARE_CAPI_DIALECT_REGISTRATION(Arithmetic, arith);
 /// Types
 //===----------------------------------------------------------------------===//
 
-/// Maps to the Endianness enum in liblumen_binary
+/// Maps to the Endianness enum in firefly_binary
 typedef uint8_t CirEndianness;
 
 /// Creates a cir.none type

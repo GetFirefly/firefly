@@ -1,7 +1,6 @@
-use std::convert::Into;
 use std::ops::Range;
 
-use liblumen_diagnostics::*;
+use firefly_diagnostics::*;
 
 use super::source::Source;
 

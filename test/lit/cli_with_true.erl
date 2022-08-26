@@ -1,3 +1,3 @@
-%% RUN: @lumen compile -o @tempfile @tests/cli.erl && @tempfile true
+%% RUN: @firefly compile -o @tempfile @tests/cli.erl && @tempfile true
 
 %% CHECK: <<"Hello, world!">>

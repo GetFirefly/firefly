@@ -1,7 +1,7 @@
-use liblumen_rt::function::FunctionSymbol;
+use firefly_rt::function::FunctionSymbol;
 
 extern "C-unwind" {
-    #[link_name = "__lumen_initialize_dispatch_table"]
+    #[link_name = "__firefly_initialize_dispatch_table"]
     pub fn init(start: *const FunctionSymbol, end: *const FunctionSymbol) -> bool;
 }
 

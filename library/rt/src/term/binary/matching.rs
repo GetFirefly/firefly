@@ -4,8 +4,8 @@ use core::fmt;
 use core::ptr::NonNull;
 use core::slice;
 
-use liblumen_alloc::gc::GcBox;
-use liblumen_binary::{Matcher, Selection};
+use firefly_alloc::gc::GcBox;
+use firefly_binary::{Matcher, Selection};
 
 use crate::term::{OpaqueTerm, Term};
 

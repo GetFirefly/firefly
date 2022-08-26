@@ -17,7 +17,7 @@ use rustc_hash::FxHashMap;
 use crate::arena::DroplessArena;
 use crate::symbols;
 
-use liblumen_diagnostics::{SourceSpan, Spanned};
+use firefly_diagnostics::{SourceSpan, Spanned};
 
 lazy_static! {
     /// A globally accessible symbol table

@@ -2,7 +2,7 @@ use alloc::boxed::Box;
 use alloc::sync::Arc;
 use core::ptr::NonNull;
 
-use liblumen_alloc::fragment::HeapFragment;
+use firefly_alloc::fragment::HeapFragment;
 
 use crate::backtrace::Trace;
 use crate::term::{Atom, OpaqueTerm, Term};

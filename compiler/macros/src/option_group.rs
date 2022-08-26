@@ -40,7 +40,7 @@ pub fn generate_option_group(
 
 {{unified}}
 
-Run with 'lumen -{} OPT[=VALUE]'
+Run with 'firefly -{} OPT[=VALUE]'
 
 {{after-help}}
 ",
@@ -51,7 +51,7 @@ Run with 'lumen -{} OPT[=VALUE]'
         "You may only set one option at a time with '-{}'. \n\
          To set multiple options, you may pass '-{}' multiple times, \
          once for each option you need to set.\n\n\
-         For more information, see the developer documentation at https:://github.com/lumen/lumen",
+         For more information, see the developer documentation at https:://github.com/lumen/firefly",
         option_group_prefix, option_group_prefix
     );
     let expanded = quote! {

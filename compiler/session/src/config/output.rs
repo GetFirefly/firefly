@@ -9,8 +9,8 @@ use std::str::FromStr;
 use clap::ArgMatches;
 use thiserror::Error;
 
-use liblumen_util::diagnostics::FileName;
-use liblumen_util::fs;
+use firefly_util::diagnostics::FileName;
+use firefly_util::fs;
 
 use crate::{Input, OptionInfo, Options, ParseOption};
 

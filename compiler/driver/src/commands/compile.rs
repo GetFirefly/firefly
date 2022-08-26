@@ -8,14 +8,14 @@ use clap::ArgMatches;
 use log::debug;
 use salsa::{ParallelDatabase, Snapshot};
 
-use liblumen_codegen as codegen;
-use liblumen_codegen::linker;
-use liblumen_codegen::meta::{CodegenResults, CompiledModule, ProjectInfo};
-use liblumen_diagnostics::{CodeMap, Diagnostic, Label};
-use liblumen_session::{CodegenOptions, DebuggingOptions, Options};
-use liblumen_syntax_base::{ApplicationMetadata, Deprecation, FunctionName, ModuleMetadata};
-use liblumen_util::diagnostics::Emitter;
-use liblumen_util::time::HumanDuration;
+use firefly_codegen as codegen;
+use firefly_codegen::linker;
+use firefly_codegen::meta::{CodegenResults, CompiledModule, ProjectInfo};
+use firefly_diagnostics::{CodeMap, Diagnostic, Label};
+use firefly_session::{CodegenOptions, DebuggingOptions, Options};
+use firefly_syntax_base::{ApplicationMetadata, Deprecation, FunctionName, ModuleMetadata};
+use firefly_util::diagnostics::Emitter;
+use firefly_util::time::HumanDuration;
 
 use crate::commands::*;
 use crate::compiler::prelude::{Compiler as CompilerQueryGroup, *};

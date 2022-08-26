@@ -3,10 +3,10 @@
 ///! The final CST never contains these expression types.
 use std::fmt;
 
-use liblumen_binary::BinaryEntrySpecifier;
-use liblumen_diagnostics::{SourceSpan, Spanned};
-use liblumen_intern::{symbols, Ident, Symbol};
-use liblumen_syntax_base::*;
+use firefly_binary::BinaryEntrySpecifier;
+use firefly_diagnostics::{SourceSpan, Spanned};
+use firefly_intern::{symbols, Ident, Symbol};
+use firefly_syntax_base::*;
 
 #[derive(Debug, Clone, Spanned, PartialEq, Eq)]
 pub enum IExpr {

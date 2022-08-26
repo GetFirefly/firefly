@@ -1,8 +1,8 @@
 use std::cmp::Ordering;
 use std::fmt;
 
-use liblumen_diagnostics::Spanned;
-use liblumen_intern::{symbols, Ident, Symbol};
+use firefly_diagnostics::Spanned;
+use firefly_intern::{symbols, Ident, Symbol};
 
 use crate::*;
 

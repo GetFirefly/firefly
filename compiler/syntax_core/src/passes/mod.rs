@@ -1,6 +1,6 @@
-use liblumen_diagnostics::SourceSpan;
-use liblumen_intern::{Ident, Symbol};
-use liblumen_syntax_base::*;
+use firefly_diagnostics::SourceSpan;
+use firefly_intern::{Ident, Symbol};
+use firefly_syntax_base::*;
 
 mod annotate;
 mod known;

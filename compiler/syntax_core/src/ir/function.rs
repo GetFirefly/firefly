@@ -1,5 +1,5 @@
-use liblumen_diagnostics::Spanned;
-use liblumen_syntax_base::*;
+use firefly_diagnostics::Spanned;
+use firefly_syntax_base::*;
 
 use super::Fun;
 

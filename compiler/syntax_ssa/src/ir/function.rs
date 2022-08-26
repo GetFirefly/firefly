@@ -5,8 +5,8 @@ use std::rc::Rc;
 
 use cranelift_entity::{entity_impl, PrimaryMap};
 
-use liblumen_diagnostics::{SourceSpan, Spanned};
-use liblumen_syntax_base::{FunctionName, Signature};
+use firefly_diagnostics::{SourceSpan, Spanned};
+use firefly_syntax_base::{FunctionName, Signature};
 
 use super::*;
 

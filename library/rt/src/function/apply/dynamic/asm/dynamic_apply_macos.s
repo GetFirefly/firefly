@@ -1,6 +1,6 @@
     .p2align 4
-    .global ___lumen_dynamic_apply
-___lumen_dynamic_apply:
+    .global ___firefly_dynamic_apply
+___firefly_dynamic_apply:
 L_dyn_call_begin:
     .cfi_startproc
     .cfi_personality 155, _rust_eh_personality

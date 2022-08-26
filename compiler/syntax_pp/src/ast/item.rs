@@ -1,6 +1,6 @@
-use liblumen_diagnostics::{Spanned, SourceSpan};
-use liblumen_intern::Ident;
-use liblumen_number::{Integer, Float};
+use firefly_diagnostics::{Spanned, SourceSpan};
+use firefly_intern::Ident;
+use firefly_number::{Integer, Float};
 
 #[derive(Debug)]
 pub struct Root {

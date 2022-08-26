@@ -98,7 +98,7 @@ pub fn options() -> TargetOptions {
         limit_rdylib_exports: false,
 
         // we use the LLD shipped with our toolchain by default
-        linker: Some("lumen-lld".into()),
+        linker: Some("firefly-lld".into()),
         lld_flavor: LldFlavor::Wasm,
         linker_is_gnu: false,
 

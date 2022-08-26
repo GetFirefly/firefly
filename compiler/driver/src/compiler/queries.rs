@@ -3,10 +3,10 @@ use std::thread::ThreadId;
 
 use log::debug;
 
-use liblumen_codegen::meta::CompiledModule;
-use liblumen_intern::Symbol;
-use liblumen_session::OutputType;
-use liblumen_syntax_base::ApplicationMetadata;
+use firefly_codegen::meta::CompiledModule;
+use firefly_intern::Symbol;
+use firefly_session::OutputType;
+use firefly_syntax_base::ApplicationMetadata;
 
 use super::prelude::*;
 
@@ -42,10 +42,10 @@ pub(super) fn compile<C>(
 where
     C: Compiler,
 {
-    use liblumen_llvm::passes::PassManagerPass;
-    use liblumen_mlir::translations::TranslateMLIRToLLVMIR;
-    use liblumen_mlir::{PassManager, PassManagerOptions};
-    use liblumen_pass::Pass;
+    use firefly_llvm::passes::PassManagerPass;
+    use firefly_mlir::translations::TranslateMLIRToLLVMIR;
+    use firefly_mlir::{PassManager, PassManagerOptions};
+    use firefly_pass::Pass;
 
     let options = db.options();
     let input_info = db.lookup_intern_input(input);
@@ -101,15 +101,15 @@ where
     let pm_opts = PassManagerOptions::new(&options);
     let mut pm = PassManager::new(**mlir_context, &pm_opts);
     //let mpm = pm.nest("builtin.module");
-    //mpm.add(liblumen_mlir::conversions::ConvertCIRToLLVMPass::new());
-    liblumen_mlir::conversions::ConvertCIRToLLVMPass::register();
+    //mpm.add(firefly_mlir::conversions::ConvertCIRToLLVMPass::new());
+    firefly_mlir::conversions::ConvertCIRToLLVMPass::register();
     pm.parse_pipeline("convert-cir-to-llvm,reconcile-unrealized-casts")
         .unwrap();
 
     // Lower to LLVM dialect
     let successful = pm.run(&module);
     if !successful {
-        use liblumen_mlir::Operation;
+        use firefly_mlir::Operation;
         module.as_ref().dump();
 
         db.report_error(format!(

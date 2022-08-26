@@ -8,7 +8,7 @@ use std::process::{Command, Stdio};
 const ENV_LLVM_PREFIX: &'static str = "LLVM_PREFIX";
 const ENV_LLVM_BUILD_STATIC: &'static str = "LLVM_BUILD_STATIC";
 const ENV_LLVM_LINK_LLVM_DYLIB: &'static str = "LLVM_LINK_LLVM_DYLIB";
-const ENV_LUMEN_LLVM_LTO: &'static str = "LUMEN_LLVM_LTO";
+const ENV_FIREFLY_LLVM_LTO: &'static str = "FIREFLY_LLVM_LTO";
 const ENV_LLVM_USE_SANITIZER: &'static str = "LLVM_USE_SANITIZER";
 
 fn main() {
@@ -19,7 +19,7 @@ fn main() {
     println!("cargo:rerun-if-env-changed={}", ENV_LLVM_PREFIX);
     println!("cargo:rerun-if-env-changed={}", ENV_LLVM_BUILD_STATIC);
     println!("cargo:rerun-if-env-changed={}", ENV_LLVM_LINK_LLVM_DYLIB);
-    println!("cargo:rerun-if-env-changed={}", ENV_LUMEN_LLVM_LTO);
+    println!("cargo:rerun-if-env-changed={}", ENV_FIREFLY_LLVM_LTO);
     println!("cargo:rerun-if-env-changed={}", ENV_LLVM_USE_SANITIZER);
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed=c_src");
@@ -106,7 +106,7 @@ fn main() {
         cfg.define(&flag, None);
     }
 
-    if env::var(ENV_LUMEN_LLVM_LTO).unwrap_or("OFF".to_string()) == "ON" {
+    if env::var(ENV_FIREFLY_LLVM_LTO).unwrap_or("OFF".to_string()) == "ON" {
         println!("cargo:lto=true");
         cfg.flag("-flto=thin");
     } else {
@@ -143,7 +143,7 @@ fn main() {
        .static_flag(true)
        .cpp(true)
        .cpp_link_stdlib(None) // we handle this below
-       .compile("lumen_llvm_core");
+       .compile("firefly_llvm_core");
 
     let (llvm_kind, llvm_link_arg) = detect_llvm_link();
     let link_static = llvm_kind == "static";
@@ -238,7 +238,7 @@ fn main() {
     }
 
     // Some LLVM linker flags (-L and -l) may be needed even when linking
-    // liblumen_llvm, for example when using static libc++, we may need to
+    // firefly_llvm, for example when using static libc++, we may need to
     // manually specify the library search path and -ldl -lpthread as link
     // dependencies.
     let llvm_linker_flags = env::var_os("LLVM_LINKER_FLAGS");
@@ -329,9 +329,9 @@ fn detect_llvm_prefix() -> PathBuf {
         if llvm_bin.exists() {
             return llvm_prefix;
         }
-        let lumen = llvm_prefix.as_path().join("lumen");
-        if lumen.exists() {
-            return lumen.to_path_buf();
+        let firefly = llvm_prefix.as_path().join("firefly");
+        if firefly.exists() {
+            return firefly.to_path_buf();
         }
     }
 

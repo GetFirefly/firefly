@@ -248,10 +248,10 @@ fn define_bif_internal(spec: BifSpec, is_guard: bool) -> TokenStream {
         ),
     };
     let module = if spec.mfa.module == "erlang" {
-        quote!(liblumen_intern::symbols::Erlang)
+        quote!(firefly_intern::symbols::Erlang)
     } else {
         let m = spec.mfa.module;
-        quote!(liblumen_intern::Symbol::intern(stringify!(#m)))
+        quote!(firefly_intern::Symbol::intern(stringify!(#m)))
     };
     let params = spec
         .params
@@ -266,14 +266,14 @@ fn define_bif_internal(spec: BifSpec, is_guard: bool) -> TokenStream {
             visibility: #visibility,
             cc: crate::CallConv::Erlang,
             module: #module,
-            name: liblumen_intern::Symbol::intern(#name_lit),
+            name: firefly_intern::Symbol::intern(#name_lit),
             ty: crate::FunctionType::new(vec![#params], vec![crate::Type::Primitive(crate::PrimitiveType::I1), #result_ty]),
         }
     };
     TokenStream::from(quoted)
 }
 
-/// Convert some common Erlang type names to their equivalent representation as a liblumen_syntax_ssa::Type variant
+/// Convert some common Erlang type names to their equivalent representation as a firefly_syntax_ssa::Type variant
 fn erlang_types_to_core_type_enum(pair: Pair<Ident, Token![,]>) -> Pair<Expr, Token![,]> {
     let (ident, punct) = pair.into_tuple();
     let expr = erlang_type_to_core_type_enum(ident.clone());
@@ -321,7 +321,7 @@ fn erlang_type_to_core_type_enum(ident: Ident) -> Expr {
     }
 }
 
-/// Convert the given string to a path representing the instantiation of a liblumen_syntax_ssa::Type variant
+/// Convert the given string to a path representing the instantiation of a firefly_syntax_ssa::Type variant
 fn core_enum_variant(name: &str, span: Span) -> Expr {
     use syn::PathArguments;
 

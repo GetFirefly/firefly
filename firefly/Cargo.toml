@@ -1,0 +1,28 @@
+[package]
+name = "firefly"
+version = "0.1.0"
+authors = ["Firefly Developers"]
+homepage = "https://github.com/lumen/firefly"
+repository = "https://github.com/lumen/firefly"
+license = "Apache-2.0"
+readme = "README.md"
+publish = false
+edition = "2021"
+
+build = "build.rs"
+
+[dependencies]
+anyhow = "1.0"
+clap = "2.34"
+env_logger = "0.9"
+human-panic = "1.0"
+firefly_util = { path = "../compiler/util" }
+firefly_compiler = { path = "../compiler/driver" }
+firefly_session = { path = "../compiler/session" }
+log = "0.4"
+
+[build-dependencies]
+unwind = { path = "../compiler/unwind" }
+panic = { path = "../compiler/panic" }
+firefly_crt = { path = "../runtimes/crt" }
+firefly_rt_tiny = { path = "../runtimes/tiny" }

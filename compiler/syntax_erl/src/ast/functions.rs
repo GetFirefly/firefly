@@ -2,10 +2,10 @@ use std::cmp::Ordering;
 use std::fmt;
 use std::hash::{Hash, Hasher};
 
-use liblumen_diagnostics::{Diagnostic, Label, Reporter, SourceSpan, Span, Spanned};
-use liblumen_intern::Symbol;
-use liblumen_number::Integer;
-use liblumen_syntax_base::FunctionName;
+use firefly_diagnostics::{Diagnostic, Label, Reporter, SourceSpan, Span, Spanned};
+use firefly_intern::Symbol;
+use firefly_number::Integer;
+use firefly_syntax_base::FunctionName;
 
 use super::{Arity, Clause, Expr, Ident, Literal, Name, TypeSpec, Var};
 use crate::ParserError;

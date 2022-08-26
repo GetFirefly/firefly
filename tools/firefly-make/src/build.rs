@@ -37,12 +37,12 @@ pub struct Config {
     #[clap(hide(true), long, env("CI"))]
     ci: bool,
     /// Enables link-time optimization of the build
-    #[clap(long, env("LUMEN_BUILD_LTO"))]
+    #[clap(long, env("FIREFLY_BUILD_LTO"))]
     lto: bool,
     /// The cargo profile to build with
-    #[clap(long, env("LUMEN_BUILD_PROFILE"), default_value = "debug")]
+    #[clap(long, env("FIREFLY_BUILD_PROFILE"), default_value = "debug")]
     profile: String,
-    #[clap(hide(true), long, env("LUMEN_BUILD_TYPE"), default_value = "dynamic")]
+    #[clap(hide(true), long, env("FIREFLY_BUILD_TYPE"), default_value = "dynamic")]
     build_type: String,
     /// Whether this build should be statically linked
     #[clap(long("static"))]
@@ -69,10 +69,10 @@ pub struct Config {
     #[clap(long, env("CARGO_TARGET_DIR"))]
     target_dir: Option<PathBuf>,
     /// The location where the compiler binaries should be symlinked
-    #[clap(long, env("LUMEN_BIN_DIR"), default_value = "./bin")]
+    #[clap(long, env("FIREFLY_BIN_DIR"), default_value = "./bin")]
     bin_dir: PathBuf,
     /// The location where the compiler toolchain should be installed
-    #[clap(long, env("LUMEN_INSTALL_DIR"), default_value = "./_build")]
+    #[clap(long, env("FIREFLY_INSTALL_DIR"), default_value = "./_build")]
     install_dir: PathBuf,
 }
 impl Config {
@@ -255,7 +255,7 @@ pub fn run(config: &Config) -> anyhow::Result<()> {
         .arg("run")
         .arg(config.toolchain())
         .args(&["cargo", "rustc"])
-        .args(&["-p", "lumen"])
+        .args(&["-p", "firefly"])
         .arg("--target")
         .arg(config.rust_target())
         .args(&["--message-format=json-diagnostic-rendered-ansi", "-vv"])
@@ -369,9 +369,9 @@ pub fn run(config: &Config) -> anyhow::Result<()> {
     let install_dir = config.install_dir();
     let install_bin_dir = install_dir.join("bin");
     let install_host_lib_dir = install_dir.join("lib");
-    let install_target_lib_dir = install_dir.join(&format!("lib/lumenlib/{}/lib", &llvm_target));
+    let install_target_lib_dir = install_dir.join(&format!("lib/fireflylib/{}/lib", &llvm_target));
 
-    println!("Preparing to install Lumen to {}", install_dir.display());
+    println!("Preparing to install Firefly to {}", install_dir.display());
 
     if !install_bin_dir.exists() {
         fs::create_dir_all(&install_bin_dir).expect("failed to create install bin directory");
@@ -395,26 +395,26 @@ pub fn run(config: &Config) -> anyhow::Result<()> {
         fs::remove_file(entry.path()).unwrap();
     }
 
-    println!("Installing Lumen..");
+    println!("Installing Firefly..");
 
-    let src_lumen_exe = target_dir
+    let src_firefly_exe = target_dir
         .join(config.rust_target())
         .join(target_subdir)
-        .join("lumen");
-    if !src_lumen_exe.exists() {
+        .join("firefly");
+    if !src_firefly_exe.exists() {
         panic!(
-            "Expected build to place Lumen executable at {}",
-            src_lumen_exe.display()
+            "Expected build to place Firefly executable at {}",
+            src_firefly_exe.display()
         );
     }
 
-    let lumen_exe = install_bin_dir.join("lumen");
-    if lumen_exe.exists() {
-        fs::remove_file(&lumen_exe).expect("failed to remove existing lumen executable");
+    let firefly_exe = install_bin_dir.join("firefly");
+    if firefly_exe.exists() {
+        fs::remove_file(&firefly_exe).expect("failed to remove existing firefly executable");
     }
-    fs::copy(src_lumen_exe, &lumen_exe).unwrap();
+    fs::copy(src_firefly_exe, &firefly_exe).unwrap();
 
-    symlink(&lumen_exe, config.bin_dir().join("lumen"));
+    symlink(&firefly_exe, config.bin_dir().join("firefly"));
 
     if config.is_darwin() {
         println!("Patching runtime path..");
@@ -422,7 +422,7 @@ pub fn run(config: &Config) -> anyhow::Result<()> {
         let mut install_name_tool_cmd = Command::new("install_name_tool");
         let install_name_tool_cmd = install_name_tool_cmd
             .args(&["-add_rpath", "@executable_path/../lib"])
-            .arg(&format!("{}", lumen_exe.display()));
+            .arg(&format!("{}", firefly_exe.display()));
 
         let cmd = install_name_tool_cmd.stdin(Stdio::null()).output().unwrap();
         if !cmd.status.success() {
@@ -457,8 +457,8 @@ pub fn run(config: &Config) -> anyhow::Result<()> {
 
     println!("Installing runtime libraries..");
 
-    let lumenlibs = &["lumen_rt_tiny", "panic", "unwind"];
-    for lib in lumenlibs.iter().copied() {
+    let firefly_libs = &["firefly_rt_tiny", "panic", "unwind"];
+    for lib in firefly_libs.iter().copied() {
         if let Some(files) = deps.get(lib) {
             for file in files.iter() {
                 let path = Path::new(file).canonicalize().unwrap();

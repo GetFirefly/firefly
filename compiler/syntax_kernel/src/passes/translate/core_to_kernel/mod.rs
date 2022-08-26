@@ -57,13 +57,13 @@ use std::ops::RangeInclusive;
 
 use rpds::{rbt_set, RedBlackTreeSet};
 
-use liblumen_binary::{BinaryEntrySpecifier, BitVec, Endianness};
-use liblumen_diagnostics::*;
-use liblumen_intern::{symbols, Ident, Symbol};
-use liblumen_number::Integer;
-use liblumen_pass::Pass;
-use liblumen_syntax_base::*;
-use liblumen_syntax_core as core;
+use firefly_binary::{BinaryEntrySpecifier, BitVec, Endianness};
+use firefly_diagnostics::*;
+use firefly_intern::{symbols, Ident, Symbol};
+use firefly_number::Integer;
+use firefly_pass::Pass;
+use firefly_syntax_base::*;
+use firefly_syntax_core as core;
 
 use crate::{passes::FunctionContext, *};
 

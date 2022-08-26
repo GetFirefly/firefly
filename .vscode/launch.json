@@ -7,17 +7,12 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug executable 'lumen'",
+            "name": "Debug executable 'firefly'",
             "cargo": {
                 "args": [
-                    "build",
-                    "--bin=lumen",
-                    "--package=lumen"
+                    "make",
+                    "firefly",
                 ],
-                "filter": {
-                    "name": "lumen",
-                    "kind": "bin"
-                }
             },
             "args": [],
             "cwd": "${workspaceFolder}"
@@ -25,35 +20,16 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug unit tests in executable 'lumen'",
-            "cargo": {
-                "args": [
-                    "test",
-                    "--no-run",
-                    "--bin=lumen",
-                    "--package=lumen"
-                ],
-                "filter": {
-                    "name": "lumen",
-                    "kind": "bin"
-                }
-            },
-            "args": [],
-            "cwd": "${workspaceFolder}"
-        },
-        {
-            "type": "lldb",
-            "request": "launch",
-            "name": "Debug unit tests in library 'liblumen_compiler'",
+            "name": "Debug unit tests in library 'firefly_compiler'",
             "cargo": {
                 "args": [
                     "test",
                     "--no-run",
                     "--lib",
-                    "--package=liblumen_compiler"
+                    "--package=firefly_compiler"
                 ],
                 "filter": {
-                    "name": "liblumen_compiler",
+                    "name": "firefly_compiler",
                     "kind": "lib"
                 }
             },
@@ -63,16 +39,16 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug unit tests in library 'liblumen_beam'",
+            "name": "Debug unit tests in library 'firefly_beam'",
             "cargo": {
                 "args": [
                     "test",
                     "--no-run",
                     "--lib",
-                    "--package=liblumen_beam"
+                    "--package=firefly_beam"
                 ],
                 "filter": {
-                    "name": "liblumen_beam",
+                    "name": "firefly_beam",
                     "kind": "lib"
                 }
             },
@@ -82,16 +58,16 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug unit tests in library 'liblumen_codegen'",
+            "name": "Debug unit tests in library 'firefly_codegen'",
             "cargo": {
                 "args": [
                     "test",
                     "--no-run",
                     "--lib",
-                    "--package=liblumen_codegen"
+                    "--package=firefly_codegen"
                 ],
                 "filter": {
-                    "name": "liblumen_codegen",
+                    "name": "firefly_codegen",
                     "kind": "lib"
                 }
             },
@@ -101,16 +77,16 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug unit tests in library 'liblumen_diagnostics'",
+            "name": "Debug unit tests in library 'firefly_syntax_erl'",
             "cargo": {
                 "args": [
                     "test",
                     "--no-run",
                     "--lib",
-                    "--package=liblumen_diagnostics"
+                    "--package=firefly_syntax_erl"
                 ],
                 "filter": {
-                    "name": "liblumen_diagnostics",
+                    "name": "firefly_syntax_erl",
                     "kind": "lib"
                 }
             },
@@ -120,16 +96,16 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug unit tests in library 'liblumen_syntax'",
+            "name": "Debug unit tests in library 'firefly_arena'",
             "cargo": {
                 "args": [
                     "test",
                     "--no-run",
                     "--lib",
-                    "--package=liblumen_syntax"
+                    "--package=firefly_arena"
                 ],
                 "filter": {
-                    "name": "liblumen_syntax",
+                    "name": "firefly_arena",
                     "kind": "lib"
                 }
             },
@@ -139,111 +115,16 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug unit tests in library 'liblumen_arena'",
+            "name": "Debug unit tests in library 'firefly_alloc'",
             "cargo": {
                 "args": [
                     "test",
                     "--no-run",
                     "--lib",
-                    "--package=liblumen_arena"
+                    "--package=firefly_alloc"
                 ],
                 "filter": {
-                    "name": "liblumen_arena",
-                    "kind": "lib"
-                }
-            },
-            "args": [],
-            "cwd": "${workspaceFolder}"
-        },
-        {
-            "type": "lldb",
-            "request": "launch",
-            "name": "Debug unit tests in library 'liblumen_common'",
-            "cargo": {
-                "args": [
-                    "test",
-                    "--no-run",
-                    "--lib",
-                    "--package=liblumen_common"
-                ],
-                "filter": {
-                    "name": "liblumen_common",
-                    "kind": "lib"
-                }
-            },
-            "args": [],
-            "cwd": "${workspaceFolder}"
-        },
-        {
-            "type": "lldb",
-            "request": "launch",
-            "name": "Debug unit tests in library 'liblumen_core'",
-            "cargo": {
-                "args": [
-                    "test",
-                    "--no-run",
-                    "--lib",
-                    "--package=liblumen_core"
-                ],
-                "filter": {
-                    "name": "liblumen_core",
-                    "kind": "lib"
-                }
-            },
-            "args": [],
-            "cwd": "${workspaceFolder}"
-        },
-        {
-            "type": "lldb",
-            "request": "launch",
-            "name": "Debug unit tests in library 'lumen_rt_full'",
-            "cargo": {
-                "args": [
-                    "test",
-                    "--no-run",
-                    "--lib",
-                    "--package=lumen_rt_full"
-                ],
-                "filter": {
-                    "name": "lumen_rt_full",
-                    "kind": "lib"
-                }
-            },
-            "args": [],
-            "cwd": "${workspaceFolder}"
-        },
-        {
-            "type": "lldb",
-            "request": "launch",
-            "name": "Debug integration test 'lib'",
-            "cargo": {
-                "args": [
-                    "test",
-                    "--no-run",
-                    "--test=lib",
-                    "--package=lumen_rt_full"
-                ],
-                "filter": {
-                    "name": "lib",
-                    "kind": "test"
-                }
-            },
-            "args": [],
-            "cwd": "${workspaceFolder}"
-        },
-        {
-            "type": "lldb",
-            "request": "launch",
-            "name": "Debug unit tests in library 'liblumen_alloc'",
-            "cargo": {
-                "args": [
-                    "test",
-                    "--no-run",
-                    "--lib",
-                    "--package=liblumen_alloc"
-                ],
-                "filter": {
-                    "name": "liblumen_alloc",
+                    "name": "firefly_alloc",
                     "kind": "lib"
                 }
             },

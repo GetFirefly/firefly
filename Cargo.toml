@@ -2,18 +2,16 @@
 
 members = [ 
   "compiler/*", 
-  "liblumen_*", 
-  "lumen", 
-#  "native_implemented/*", 
+  "firefly", 
+  "library/*",
   "runtimes/*",
 ]
 
 default-members = [ 
-  "lumen" 
+  "firefly" 
 ]
 
 exclude = [
-  "library/macros",
   "liblumen_alloc",
   "liblumen_alloc_macros",
   "native_implemented/*",

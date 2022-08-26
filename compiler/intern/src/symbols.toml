@@ -219,14 +219,14 @@ utf16 = {}
 utf32 = {}
 
 [nifs]
-nif_build_stacktrace = { value = "__lumen_build_stacktrace" }
-nif_bs_init = { value = "__lumen_bs_init" }
-nif_bs_finish = { value = "__lumen_bs_finish" }
-nif_make_tuple = { value = "__lumen_make_tuple" }
-nif_tuple_size = { value = "__lumen_tuple_size" }
-nif_map_empty = { value = "__lumen_map_empty" }
-nif_map_put = { value = "__lumen_map_put" }
-nif_map_put_mut = { value = "__lumen_map_put_mut" }
-nif_map_update = { value = "__lumen_map_update" }
-nif_map_update_mut = { value = "__lumen_map_update_mut" }
-nif_map_fetch = { value = "__lumen_map_fetch" }
+nif_build_stacktrace = { value = "__firefly_build_stacktrace" }
+nif_bs_init = { value = "__firefly_bs_init" }
+nif_bs_finish = { value = "__firefly_bs_finish" }
+nif_make_tuple = { value = "__firefly_make_tuple" }
+nif_tuple_size = { value = "__firefly_tuple_size" }
+nif_map_empty = { value = "__firefly_map_empty" }
+nif_map_put = { value = "__firefly_map_put" }
+nif_map_put_mut = { value = "__firefly_map_put_mut" }
+nif_map_update = { value = "__firefly_map_update" }
+nif_map_update_mut = { value = "__firefly_map_update_mut" }
+nif_map_fetch = { value = "__firefly_map_fetch" }

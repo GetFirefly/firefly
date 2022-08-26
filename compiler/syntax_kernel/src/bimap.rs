@@ -2,8 +2,8 @@ use std::collections::HashSet;
 
 use rpds::RedBlackTreeMap;
 
-use liblumen_intern::Symbol;
-use liblumen_syntax_base::Var;
+use firefly_intern::Symbol;
+use firefly_syntax_base::Var;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Name {

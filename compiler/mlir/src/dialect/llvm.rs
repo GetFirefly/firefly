@@ -1,7 +1,7 @@
 use std::fmt;
 use std::ops::Deref;
 
-use liblumen_llvm::{Linkage, StringRef};
+use firefly_llvm::{Linkage, StringRef};
 
 use crate::{AddressSpace, Context, Location, SymbolTable, Variadic};
 use crate::{Attribute, AttributeBase, NamedAttribute};

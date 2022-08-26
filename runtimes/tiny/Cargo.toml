@@ -1,5 +1,5 @@
 [package]
-name = "lumen_rt_tiny"
+name = "firefly_rt_tiny"
 version = "0.1.0"
 authors = ["Paul Schoenfelder <paulschoenfelder@fastmail.com>"]
 publish = false
@@ -15,11 +15,11 @@ dirs = "4.0"
 signal-hook = "0.3"
 libc = "0.2"
 
-liblumen_arena = { path = "../../library/arena" }
-liblumen_alloc = { path = "../../library/alloc" }
-liblumen_binary = { path = "../../compiler/binary" }
-liblumen_crt = { path = "../crt" }
-liblumen_rt = { path = "../../library/rt" }
+firefly_arena = { path = "../../library/arena" }
+firefly_alloc = { path = "../../library/alloc" }
+firefly_binary = { path = "../../library/binary" }
+firefly_crt = { path = "../crt" }
+firefly_rt = { path = "../../library/rt" }
 
 [dependencies.num-traits]
 version = "0.2"

@@ -1,9 +1,9 @@
 use std::path::PathBuf;
 
-use liblumen_target::{CodeModel, LinkerFlavor, RelocModel, TlsModel};
-use liblumen_target::{MergeFunctions, RelroLevel};
+use firefly_target::{CodeModel, LinkerFlavor, RelocModel, TlsModel};
+use firefly_target::{MergeFunctions, RelroLevel};
 
-use liblumen_compiler_macros::option_group;
+use firefly_compiler_macros::option_group;
 
 use crate::config::*;
 
@@ -119,7 +119,7 @@ pub struct CodegenOptions {
     /// Don't pre-populate the pass manager with a list of passes
     pub no_prepopulate_passes: bool,
     #[option(hidden(true))]
-    /// When set, does not implicitly link the Lumen runtime
+    /// When set, does not implicitly link the Firefly runtime
     pub no_std: Option<bool>,
     #[option(hidden(true))]
     pub no_unique_section_names: bool,
@@ -188,10 +188,10 @@ pub struct CodegenOptions {
     )]
     pub strip: Strip,
     #[option(value_name("CPU"), takes_value(true))]
-    /// Select target processor (see `lumen print target-cpus`)
+    /// Select target processor (see `firefly print target-cpus`)
     pub target_cpu: Option<String>,
     #[option(value_name("FEATURES"), takes_value(true))]
-    /// Select target specific attributes (see `lumen print target-features`)
+    /// Select target specific attributes (see `firefly print target-features`)
     pub target_features: Option<String>,
     #[option(hidden(true))]
     /// Enable ThinLTO when possible

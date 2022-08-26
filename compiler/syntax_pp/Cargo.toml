@@ -1,5 +1,5 @@
 [package]
-name = "liblumen_syntax_pp"
+name = "firefly_syntax_pp"
 version = "0.1.0"
 authors = ["Paul Schoenfelder <paulschoenfelder@gmail.com>"]
 readme = "README.md"
@@ -10,13 +10,13 @@ license = "MIT OR Apache-2.0"
 build = "build.rs"
 
 [dependencies]
-liblumen_beam = { path = "../../library/beam" }
-liblumen_diagnostics = { path = "../diagnostics" }
-liblumen_intern = { path = "../intern" }
-liblumen_number = { path = "../number" }
-liblumen_parser = { path = "../parser" }
-liblumen_util = { path = "../util" }
-liblumen_syntax_erl = { path = "../syntax_erl" }
+firefly_beam = { path = "../../library/beam" }
+firefly_diagnostics = { path = "../diagnostics" }
+firefly_intern = { path = "../intern" }
+firefly_number = { path = "../../library/number" }
+firefly_parser = { path = "../parser" }
+firefly_util = { path = "../util" }
+firefly_syntax_erl = { path = "../syntax_erl" }
 
 anyhow = "1.0"
 lalrpop-util = "0.19"

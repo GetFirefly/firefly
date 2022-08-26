@@ -2,13 +2,13 @@ use std::assert_matches::assert_matches;
 use std::collections::HashMap;
 
 use anyhow::anyhow;
-use liblumen_binary::BinaryEntrySpecifier;
-use liblumen_diagnostics::*;
-use liblumen_intern::{symbols, Symbol};
-use liblumen_number::Integer;
-use liblumen_pass::Pass;
-use liblumen_syntax_base::*;
-use liblumen_syntax_ssa::*;
+use firefly_binary::BinaryEntrySpecifier;
+use firefly_diagnostics::*;
+use firefly_intern::{symbols, Symbol};
+use firefly_number::Integer;
+use firefly_pass::Pass;
+use firefly_syntax_base::*;
+use firefly_syntax_ssa::*;
 use log::debug;
 use rpds::Stack;
 

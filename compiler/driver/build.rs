@@ -6,8 +6,8 @@ fn main() {
     println!("cargo:rerun-if-changed=build.rs");
 
     let (hash, hash_date) = git_version();
-    println!("cargo:rustc-env=LUMEN_COMMIT_HASH={}", hash);
-    println!("cargo:rustc-env=LUMEN_COMMIT_DATE={}", hash_date);
+    println!("cargo:rustc-env=FIREFLY_COMMIT_HASH={}", hash);
+    println!("cargo:rustc-env=FIREFLY_COMMIT_DATE={}", hash_date);
 }
 
 pub fn git_version() -> (String, String) {

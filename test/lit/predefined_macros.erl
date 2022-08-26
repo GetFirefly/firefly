@@ -1,4 +1,4 @@
-%% RUN: @lumen compile -o @tempfile @file && @tempfile
+%% RUN: @firefly compile -o @tempfile @file && @tempfile
 
 %% CHECK: maybe_expr: disabled
 %% CHECK: init

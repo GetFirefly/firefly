@@ -3,11 +3,11 @@ pub(crate) mod print;
 
 use std::sync::Arc;
 
-use liblumen_util::diagnostics::{
+use firefly_util::diagnostics::{
     CodeMap, DiagnosticsConfig, DiagnosticsHandler, DisplayConfig, Emitter,
 };
 
-use liblumen_session::Options;
+use firefly_session::Options;
 
 pub(super) fn create_diagnostics_handler(
     options: &Options,
@@ -24,8 +24,8 @@ pub(super) fn create_diagnostics_handler(
 }
 
 pub(super) fn default_emitter(options: &Options) -> Arc<dyn Emitter> {
-    use liblumen_util::diagnostics::{DefaultEmitter, NullEmitter};
-    use liblumen_util::error::Verbosity;
+    use firefly_util::diagnostics::{DefaultEmitter, NullEmitter};
+    use firefly_util::error::Verbosity;
 
     match options.verbosity {
         Verbosity::Silent => Arc::new(NullEmitter::new(options.color)),
@@ -34,7 +34,7 @@ pub(super) fn default_emitter(options: &Options) -> Arc<dyn Emitter> {
 }
 
 pub(super) fn abort_on_err<T, E>(_: E) -> T {
-    use liblumen_util::error::FatalError;
+    use firefly_util::error::FatalError;
 
     FatalError.raise()
 }

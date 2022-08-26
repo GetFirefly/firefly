@@ -2,10 +2,10 @@ use std::collections::HashSet;
 
 use lazy_static::lazy_static;
 
-use liblumen_diagnostics::{SourceSpan, Spanned};
-use liblumen_intern::{Ident, Symbol};
-use liblumen_number::Integer;
-use liblumen_syntax_base::{BinaryOp, UnaryOp};
+use firefly_diagnostics::{SourceSpan, Spanned};
+use firefly_intern::{Ident, Symbol};
+use firefly_number::Integer;
+use firefly_syntax_base::{BinaryOp, UnaryOp};
 
 use crate::ast::Name;
 

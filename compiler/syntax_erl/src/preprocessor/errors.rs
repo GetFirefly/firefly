@@ -4,9 +4,9 @@ use std::path::PathBuf;
 use itertools::Itertools;
 use thiserror::Error;
 
-use liblumen_diagnostics::*;
-use liblumen_intern::Symbol;
-use liblumen_parser::SourceError;
+use firefly_diagnostics::*;
+use firefly_intern::Symbol;
+use firefly_parser::SourceError;
 
 use crate::lexer::{LexicalError, LexicalToken, TokenConvertError};
 use crate::parser::ParserError;

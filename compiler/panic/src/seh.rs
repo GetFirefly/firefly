@@ -169,7 +169,7 @@ pub struct _TypeDescriptor {
 
 // Note that we intentionally ignore name mangling rules here: we don't want C++
 // to be able to catch Rust panics by simply declaring a `struct rust_panic`.
-const TYPE_NAME: [u8; 12] = *b"lumen_panic\0";
+const TYPE_NAME: [u8; 12] = *b"firefly_panic\0";
 
 static mut THROW_INFO: _ThrowInfo = _ThrowInfo {
     attributes: 0,

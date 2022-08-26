@@ -4,7 +4,7 @@ use std::ops::Deref;
 
 use fxhash::FxHashMap;
 
-use liblumen_session::{Options, Sanitizer};
+use firefly_session::{Options, Sanitizer};
 
 use crate::codegen;
 use crate::ir::*;
@@ -696,7 +696,7 @@ impl<'ctx> ModuleBuilder<'ctx> {
         funclet: Option<&Funclet>,
     ) -> CallInst {
         extern "C" {
-            fn LLVMLumenBuildCall(
+            fn LLVMFireflyBuildCall(
                 builder: Builder,
                 callee: ValueBase,
                 callee_type: FunctionType,
@@ -714,7 +714,7 @@ impl<'ctx> ModuleBuilder<'ctx> {
             .unwrap_or_else(OperandBundle::null);
 
         unsafe {
-            LLVMLumenBuildCall(
+            LLVMFireflyBuildCall(
                 *self.builder,
                 callee,
                 callee_type,
@@ -752,7 +752,7 @@ impl<'ctx> ModuleBuilder<'ctx> {
         funclet: Option<&Funclet>,
     ) -> InvokeInst {
         extern "C" {
-            fn LLVMLumenBuildInvoke(
+            fn LLVMFireflyBuildInvoke(
                 builder: Builder,
                 callee: ValueBase,
                 callee_type: FunctionType,
@@ -772,7 +772,7 @@ impl<'ctx> ModuleBuilder<'ctx> {
             .unwrap_or_else(OperandBundle::null);
 
         unsafe {
-            LLVMLumenBuildInvoke(
+            LLVMFireflyBuildInvoke(
                 *self.builder,
                 callee,
                 callee_type,

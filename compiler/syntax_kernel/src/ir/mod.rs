@@ -1,9 +1,9 @@
 use std::fmt;
 
-use liblumen_binary::BinaryEntrySpecifier;
-use liblumen_diagnostics::{SourceSpan, Span, Spanned};
-use liblumen_intern::{symbols, Symbol};
-use liblumen_syntax_base::*;
+use firefly_binary::BinaryEntrySpecifier;
+use firefly_diagnostics::{SourceSpan, Span, Spanned};
+use firefly_intern::{symbols, Symbol};
+use firefly_syntax_base::*;
 
 macro_rules! impl_expr {
     ($t:ident) => {

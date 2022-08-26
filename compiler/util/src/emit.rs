@@ -1,7 +1,7 @@
 /// A type is emittable when there is a canonical textual/binary representation 
 /// which can be written to a file with a well-known file type.
 ///
-/// Examples of this relevant to Lumen are:
+/// Examples of this relevant to Firefly are:
 ///
 /// * MLIR IR, which has a canonical textual format, typically with the `.mlir` extension
 ///   * NOTE: MLIR IR consists of one or more dialects, each of which may use its own extension to

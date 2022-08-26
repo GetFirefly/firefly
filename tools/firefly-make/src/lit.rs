@@ -29,11 +29,11 @@ pub fn run(config: &Config) -> anyhow::Result<()> {
         .unwrap_or_else(|| std::env::current_dir().unwrap());
     let lit_dir = config.tests.as_path().to_str().unwrap();
 
-    let lumen_exe = workspace.join("bin/lumen");
-    if !lumen_exe.is_file() {
+    let firefly_exe = workspace.join("bin/firefly");
+    if !firefly_exe.is_file() {
         bail!(
             "expected to find compiler at {}, but it either doesn't exist or is not a file",
-            lumen_exe.display()
+            firefly_exe.display()
         );
     }
 
@@ -46,7 +46,7 @@ pub fn run(config: &Config) -> anyhow::Result<()> {
             .insert("tests".to_owned(), lit_dir.to_string());
         runner
             .constants
-            .insert("lumen".to_owned(), lumen_exe.to_str().unwrap().to_string());
+            .insert("firefly".to_owned(), firefly_exe.to_str().unwrap().to_string());
     })
     .map_err(|_| anyhow!("lit tests failed, see output for details"))
 }

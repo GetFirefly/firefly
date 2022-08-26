@@ -1,8 +1,8 @@
 use std::path::{Path, PathBuf};
 
-use liblumen_llvm as llvm;
-use liblumen_llvm::codegen::{CodeGenOptLevel, CodeGenOptSize};
-use liblumen_session::{MlirDebugPrinting, Options};
+use firefly_llvm as llvm;
+use firefly_llvm::codegen::{CodeGenOptLevel, CodeGenOptSize};
+use firefly_session::{MlirDebugPrinting, Options};
 
 #[repr(C)]
 #[derive(Default)]

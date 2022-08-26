@@ -1,7 +1,7 @@
 use core::fmt::{self, Write};
 
-use liblumen_binary::BinaryEntrySpecifier;
-use liblumen_syntax_base::*;
+use firefly_binary::BinaryEntrySpecifier;
+use firefly_syntax_base::*;
 
 use super::*;
 
@@ -637,7 +637,7 @@ impl<'b, 'a: 'b> PrettyPrinter<'b, 'a> {
     }
 
     fn write_spec(&mut self, spec: BinaryEntrySpecifier, is_int: bool) -> fmt::Result {
-        use liblumen_binary::Endianness;
+        use firefly_binary::Endianness;
 
         self.write_char('/')?;
         match spec {

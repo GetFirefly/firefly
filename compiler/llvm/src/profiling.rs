@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use liblumen_profiling::{SelfProfiler, StringId, TimingGuard};
+use firefly_profiling::{SelfProfiler, StringId, TimingGuard};
 
 use crate::support::StringRef;
 

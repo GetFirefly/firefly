@@ -73,7 +73,7 @@ pub unsafe fn find_eh_action(
 
     let ttype_encoding = reader.read::<u8>();
     if ttype_encoding != DW_EH_PE_omit {
-        // Lumen doesn't analyze exception types, so we don't care about the type table
+        // Firefly doesn't analyze exception types, so we don't care about the type table
         reader.read_uleb128();
     }
 

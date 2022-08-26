@@ -1,8 +1,8 @@
 use core::fmt;
 use core::hash::{Hash, Hasher};
 
-use liblumen_diagnostics::{SourceSpan, Span, Spanned};
-use liblumen_intern::Ident;
+use firefly_diagnostics::{SourceSpan, Span, Spanned};
+use firefly_intern::Ident;
 
 use crate::FunctionName;
 

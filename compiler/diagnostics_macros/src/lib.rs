@@ -50,9 +50,9 @@ fn derive_spanned_struct(
 
     let (impl_gen, ty_gen, where_clause) = generics.split_for_impl();
     let quoted = quote! {
-        impl #impl_gen ::liblumen_diagnostics::Spanned for #name #ty_gen #where_clause {
+        impl #impl_gen ::firefly_diagnostics::Spanned for #name #ty_gen #where_clause {
             #[inline]
-            fn span(&self) -> ::liblumen_diagnostics::SourceSpan {
+            fn span(&self) -> ::firefly_diagnostics::SourceSpan {
                 #span_expr
             }
         }
@@ -236,8 +236,8 @@ fn derive_spanned_enum(
 
     let (impl_gen, ty_gen, where_clause) = generics.split_for_impl();
     let quoted = quote! {
-        impl #impl_gen ::liblumen_diagnostics::Spanned for #name #ty_gen #where_clause {
-            fn span(&self) -> ::liblumen_diagnostics::SourceSpan {
+        impl #impl_gen ::firefly_diagnostics::Spanned for #name #ty_gen #where_clause {
+            fn span(&self) -> ::firefly_diagnostics::SourceSpan {
                 #span_expr
             }
         }
@@ -446,7 +446,7 @@ fn is_source_span(ty: &syn::Type) -> bool {
                 2 => {
                     let mut iter = tpath.path.segments.iter();
                     let first = iter.next().unwrap();
-                    if first.ident != "liblumen_diagnostics"
+                    if first.ident != "firefly_diagnostics"
                         || first.arguments != PathArguments::None
                     {
                         return false;

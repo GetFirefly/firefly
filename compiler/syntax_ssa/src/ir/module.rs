@@ -4,10 +4,10 @@ use std::rc::Rc;
 
 use cranelift_entity::PrimaryMap;
 
-use liblumen_diagnostics::SourceSpan;
-use liblumen_intern::{symbols, Ident, Symbol};
-use liblumen_syntax_base::*;
-use liblumen_util::emit::Emit;
+use firefly_diagnostics::SourceSpan;
+use firefly_intern::{symbols, Ident, Symbol};
+use firefly_syntax_base::*;
+use firefly_util::emit::Emit;
 
 use super::*;
 

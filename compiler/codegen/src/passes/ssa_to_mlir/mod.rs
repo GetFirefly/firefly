@@ -2,11 +2,11 @@ mod builder;
 
 use self::builder::*;
 
-use liblumen_diagnostics::CodeMap;
-use liblumen_mlir::{self as mlir, Context, OwnedContext};
-use liblumen_pass::Pass;
-use liblumen_session::Options;
-use liblumen_syntax_ssa as syntax_ssa;
+use firefly_diagnostics::CodeMap;
+use firefly_mlir::{self as mlir, Context, OwnedContext};
+use firefly_pass::Pass;
+use firefly_session::Options;
+use firefly_syntax_ssa as syntax_ssa;
 use log::debug;
 
 pub struct SsaToMlir<'a> {

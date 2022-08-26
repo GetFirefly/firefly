@@ -33,9 +33,9 @@ use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use liblumen_diagnostics::{CodeMap, Diagnostic, Reporter};
-use liblumen_parser::{Parse as GParse, Parser as GParser};
-use liblumen_parser::{Scanner, Source};
+use firefly_diagnostics::{CodeMap, Diagnostic, Reporter};
+use firefly_parser::{Parse as GParse, Parser as GParser};
+use firefly_parser::{Scanner, Source};
 
 pub type Parser = GParser<ParseConfig>;
 pub trait Parse<T> = GParse<T, Config = ParseConfig, Error = ParserError>;
@@ -159,8 +159,8 @@ mod test {
     use super::*;
     use crate::ast::*;
 
-    use liblumen_diagnostics::*;
-    use liblumen_intern::{Ident, Symbol};
+    use firefly_diagnostics::*;
+    use firefly_intern::{Ident, Symbol};
 
     use crate::preprocessor::PreprocessorError;
 

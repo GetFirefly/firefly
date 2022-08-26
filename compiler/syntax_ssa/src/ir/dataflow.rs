@@ -6,9 +6,9 @@ use std::rc::Rc;
 use cranelift_entity::{EntityRef, PrimaryMap, SecondaryMap};
 use intrusive_collections::UnsafeRef;
 
-use liblumen_diagnostics::{SourceSpan, Span};
-use liblumen_intern::Symbol;
-use liblumen_syntax_base::*;
+use firefly_diagnostics::{SourceSpan, Span};
+use firefly_intern::Symbol;
+use firefly_syntax_base::*;
 
 use super::*;
 

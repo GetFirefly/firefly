@@ -2,7 +2,7 @@ use alloc::alloc::{AllocError, Layout};
 use alloc::string::{String, ToString};
 use core::ptr;
 
-use liblumen_alloc::heap::Heap;
+use firefly_alloc::heap::Heap;
 
 use crate::function::ModuleFunctionArity;
 use crate::term::*;

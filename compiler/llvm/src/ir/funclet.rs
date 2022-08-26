@@ -94,7 +94,7 @@ impl OperandBundle {
 
     pub fn new<S: Into<StringRef>>(name: S, operands: &[ValueBase]) -> OwnedOperandBundle {
         extern "C" {
-            fn LLVMLumenBuildOperandBundle(
+            fn LLVMFireflyBuildOperandBundle(
                 name: *const u8,
                 len: usize,
                 operands: *const ValueBase,
@@ -104,7 +104,7 @@ impl OperandBundle {
 
         let name = name.into();
         unsafe {
-            LLVMLumenBuildOperandBundle(
+            LLVMFireflyBuildOperandBundle(
                 name.data,
                 name.len,
                 operands.as_ptr(),
@@ -120,11 +120,11 @@ pub struct OwnedOperandBundle(OperandBundle);
 impl Drop for OwnedOperandBundle {
     fn drop(&mut self) {
         extern "C" {
-            fn LLVMLumenFreeOperandBundle(bundle: OperandBundle);
+            fn LLVMFireflyFreeOperandBundle(bundle: OperandBundle);
         }
 
         unsafe {
-            LLVMLumenFreeOperandBundle(self.0);
+            LLVMFireflyFreeOperandBundle(self.0);
         }
     }
 }

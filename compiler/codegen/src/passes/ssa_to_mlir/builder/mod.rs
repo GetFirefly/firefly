@@ -4,17 +4,17 @@ use std::collections::{HashMap, HashSet};
 
 use log::debug;
 
-use liblumen_diagnostics::{CodeMap, SourceSpan};
-use liblumen_intern::{symbols, Symbol};
-use liblumen_llvm::Linkage;
-use liblumen_mlir as mlir;
-use liblumen_mlir::cir::{CirBuilder, DispatchTableOp};
-use liblumen_mlir::llvm::LlvmBuilder;
-use liblumen_mlir::{Builder, OpBuilder, Operation, OwnedOpBuilder, Variadic};
-use liblumen_rt::function::FunctionSymbol;
-use liblumen_session::Options;
-use liblumen_syntax_base::{self as syntax_base, Signature};
-use liblumen_syntax_ssa as syntax_ssa;
+use firefly_diagnostics::{CodeMap, SourceSpan};
+use firefly_intern::{symbols, Symbol};
+use firefly_llvm::Linkage;
+use firefly_mlir as mlir;
+use firefly_mlir::cir::{CirBuilder, DispatchTableOp};
+use firefly_mlir::llvm::LlvmBuilder;
+use firefly_mlir::{Builder, OpBuilder, Operation, OwnedOpBuilder, Variadic};
+use firefly_rt::function::FunctionSymbol;
+use firefly_session::Options;
+use firefly_syntax_base::{self as syntax_base, Signature};
+use firefly_syntax_ssa as syntax_ssa;
 
 /// This builder holds the state necessary to build an MLIR module
 /// from a CIR module.
@@ -196,7 +196,7 @@ impl<'m> ModuleBuilder<'m> {
 
     /// Builds an MLIR module from the underlying syntax_ssa module, consuming the builder
     pub fn build(mut self) -> anyhow::Result<Result<mlir::OwnedModule, mlir::OwnedModule>> {
-        use liblumen_mlir::{PassManager, PassManagerOptions};
+        use firefly_mlir::{PassManager, PassManagerOptions};
 
         let module_name = self.module.name();
         debug!("building mlir module for {}", module_name);
@@ -214,7 +214,7 @@ impl<'m> ModuleBuilder<'m> {
                 func.set_attribute_by_name(
                     "personality",
                     self.builder
-                        .get_flat_symbol_ref_attr_by_name("lumen_eh_personality"),
+                        .get_flat_symbol_ref_attr_by_name("firefly_eh_personality"),
                 );
                 //TODO: Need to re-enable when garbage collector lowering is implemented
                 //func.set_attribute_by_name("garbageCollector", self.builder.get_string_attr("erlang"));
@@ -241,7 +241,7 @@ impl<'m> ModuleBuilder<'m> {
             let i32ty = self.builder.get_i32_type();
             let llvm = LlvmBuilder::new(&self.builder);
             let ty = llvm.get_function_type(i32ty, &[], Variadic::Yes);
-            llvm.build_func(loc, "lumen_eh_personality", ty, Linkage::External, &[]);
+            llvm.build_func(loc, "firefly_eh_personality", ty, Linkage::External, &[]);
         }
 
         // Then build them out

@@ -488,6 +488,461 @@ dependencies = [
 ]
 
 [[package]]
+name = "firefly"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "env_logger",
+ "firefly_compiler",
+ "firefly_crt",
+ "firefly_rt_tiny",
+ "firefly_session",
+ "firefly_util",
+ "human-panic",
+ "log",
+ "panic",
+ "unwind",
+]
+
+[[package]]
+name = "firefly_alloc"
+version = "0.1.0"
+dependencies = [
+ "firefly_binary",
+ "firefly_system",
+ "intrusive-collections",
+ "static_assertions",
+ "thiserror",
+]
+
+[[package]]
+name = "firefly_arena"
+version = "0.1.0"
+
+[[package]]
+name = "firefly_beam"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "byteorder",
+ "failure",
+ "libflate",
+ "num",
+ "thiserror",
+]
+
+[[package]]
+name = "firefly_binary"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "half",
+ "num-bigint 0.4.3",
+ "num-traits",
+ "paste",
+ "static_assertions",
+]
+
+[[package]]
+name = "firefly_codegen"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "cc",
+ "firefly_binary",
+ "firefly_compiler_macros",
+ "firefly_diagnostics",
+ "firefly_intern",
+ "firefly_llvm",
+ "firefly_mlir",
+ "firefly_number",
+ "firefly_pass",
+ "firefly_rt",
+ "firefly_session",
+ "firefly_syntax_base",
+ "firefly_syntax_ssa",
+ "firefly_target",
+ "firefly_util",
+ "fxhash",
+ "libc",
+ "log",
+ "num-bigint 0.4.3",
+ "tempfile",
+ "thiserror",
+]
+
+[[package]]
+name = "firefly_compiler"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-task",
+ "clap",
+ "crossbeam",
+ "firefly_codegen",
+ "firefly_diagnostics",
+ "firefly_intern",
+ "firefly_llvm",
+ "firefly_mlir",
+ "firefly_parser",
+ "firefly_pass",
+ "firefly_session",
+ "firefly_syntax_base",
+ "firefly_syntax_core",
+ "firefly_syntax_erl",
+ "firefly_syntax_kernel",
+ "firefly_syntax_ssa",
+ "firefly_target",
+ "firefly_util",
+ "futures",
+ "lazy_static",
+ "log",
+ "num_cpus",
+ "parking_lot 0.11.2",
+ "rand 0.7.3",
+ "salsa",
+ "salsa-macros",
+ "thiserror",
+ "walkdir",
+ "which",
+]
+
+[[package]]
+name = "firefly_compiler_macros"
+version = "0.1.0"
+dependencies = [
+ "Inflector",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "firefly_crt"
+version = "0.1.0"
+dependencies = [
+ "firefly_rt",
+]
+
+[[package]]
+name = "firefly_diagnostics"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "codespan",
+ "codespan-reporting",
+ "dashmap",
+ "firefly_diagnostics_macros",
+ "itertools",
+ "pretty_assertions",
+ "thiserror",
+ "unicode-width",
+]
+
+[[package]]
+name = "firefly_diagnostics_macros"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "firefly_intern"
+version = "0.1.0"
+dependencies = [
+ "Inflector",
+ "firefly_diagnostics",
+ "firefly_diagnostics_macros",
+ "lazy_static",
+ "rustc-hash",
+ "toml",
+]
+
+[[package]]
+name = "firefly_llvm"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bitflags",
+ "cc",
+ "firefly_compiler_macros",
+ "firefly_intern",
+ "firefly_pass",
+ "firefly_profiling",
+ "firefly_session",
+ "firefly_target",
+ "firefly_util",
+ "fxhash",
+ "paste",
+ "thiserror",
+ "which",
+]
+
+[[package]]
+name = "firefly_mlir"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "cmake",
+ "firefly_binary",
+ "firefly_compiler_macros",
+ "firefly_diagnostics",
+ "firefly_intern",
+ "firefly_llvm",
+ "firefly_number",
+ "firefly_pass",
+ "firefly_session",
+ "firefly_target",
+ "firefly_util",
+ "paste",
+ "rand 0.8.5",
+ "thiserror",
+ "which",
+]
+
+[[package]]
+name = "firefly_number"
+version = "0.1.0"
+dependencies = [
+ "half",
+ "num-bigint 0.4.3",
+ "num-integer",
+ "num-traits",
+]
+
+[[package]]
+name = "firefly_parser"
+version = "0.1.0"
+dependencies = [
+ "firefly_diagnostics",
+ "pretty_assertions",
+ "thiserror",
+]
+
+[[package]]
+name = "firefly_pass"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+]
+
+[[package]]
+name = "firefly_profiling"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bitflags",
+ "byteorder",
+ "cfg-if 0.1.10",
+ "fxhash",
+ "log",
+ "memmap",
+ "parking_lot 0.11.2",
+]
+
+[[package]]
+name = "firefly_rt"
+version = "0.1.0"
+dependencies = [
+ "Inflector",
+ "anyhow",
+ "backtrace",
+ "cfg-if 1.0.0",
+ "firefly_alloc",
+ "firefly_arena",
+ "firefly_binary",
+ "firefly_system",
+ "hashbrown 0.12.3",
+ "lazy_static",
+ "num-bigint 0.4.3",
+ "num-traits",
+ "paste",
+ "rpds 0.11.0",
+ "rustc-demangle",
+ "seq-macro",
+ "static_assertions",
+ "termcolor",
+ "toml",
+]
+
+[[package]]
+name = "firefly_rt_tiny"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bus",
+ "dirs",
+ "firefly_alloc",
+ "firefly_arena",
+ "firefly_binary",
+ "firefly_crt",
+ "firefly_rt",
+ "half",
+ "libc",
+ "num-bigint 0.4.3",
+ "num-traits",
+ "signal-hook",
+ "smallvec",
+]
+
+[[package]]
+name = "firefly_session"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "firefly_compiler_macros",
+ "firefly_intern",
+ "firefly_target",
+ "firefly_util",
+ "log",
+ "logos",
+ "logos-derive",
+ "thiserror",
+]
+
+[[package]]
+name = "firefly_syntax_base"
+version = "0.1.0"
+dependencies = [
+ "bitflags",
+ "firefly_binary",
+ "firefly_compiler_macros",
+ "firefly_diagnostics",
+ "firefly_intern",
+ "firefly_number",
+ "lazy_static",
+ "rpds 0.12.0",
+ "thiserror",
+]
+
+[[package]]
+name = "firefly_syntax_core"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "firefly_binary",
+ "firefly_diagnostics",
+ "firefly_intern",
+ "firefly_pass",
+ "firefly_syntax_base",
+ "firefly_util",
+ "rpds 0.12.0",
+]
+
+[[package]]
+name = "firefly_syntax_erl"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "firefly_binary",
+ "firefly_diagnostics",
+ "firefly_intern",
+ "firefly_number",
+ "firefly_parser",
+ "firefly_pass",
+ "firefly_syntax_base",
+ "firefly_syntax_core",
+ "firefly_util",
+ "itertools",
+ "lalrpop",
+ "lalrpop-util",
+ "lazy_static",
+ "log",
+ "paste",
+ "pretty_assertions",
+ "thiserror",
+]
+
+[[package]]
+name = "firefly_syntax_kernel"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "cranelift-entity",
+ "firefly_binary",
+ "firefly_diagnostics",
+ "firefly_intern",
+ "firefly_number",
+ "firefly_pass",
+ "firefly_syntax_base",
+ "firefly_syntax_core",
+ "firefly_syntax_ssa",
+ "firefly_util",
+ "log",
+ "rpds 0.12.0",
+ "thiserror",
+]
+
+[[package]]
+name = "firefly_syntax_pp"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "firefly_beam",
+ "firefly_diagnostics",
+ "firefly_intern",
+ "firefly_number",
+ "firefly_parser",
+ "firefly_syntax_erl",
+ "firefly_util",
+ "lalrpop",
+ "lalrpop-util",
+ "thiserror",
+]
+
+[[package]]
+name = "firefly_syntax_ssa"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "cranelift-entity",
+ "firefly_arena",
+ "firefly_binary",
+ "firefly_diagnostics",
+ "firefly_intern",
+ "firefly_number",
+ "firefly_syntax_base",
+ "firefly_util",
+ "intrusive-collections",
+ "paste",
+]
+
+[[package]]
+name = "firefly_system"
+version = "0.1.0"
+dependencies = [
+ "dlmalloc",
+ "lazy_static",
+ "libc",
+ "parking_lot 0.12.1",
+ "winapi",
+]
+
+[[package]]
+name = "firefly_target"
+version = "0.1.0"
+dependencies = [
+ "thiserror",
+]
+
+[[package]]
+name = "firefly_util"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "atty",
+ "cfg-if 0.1.10",
+ "firefly_diagnostics",
+ "glob",
+ "libc",
+ "thiserror",
+]
+
+[[package]]
 name = "fixedbitset"
 version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -796,427 +1251,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "liblumen_alloc"
-version = "0.1.0"
-dependencies = [
- "intrusive-collections",
- "liblumen_binary",
- "liblumen_system",
- "static_assertions",
- "thiserror",
-]
-
-[[package]]
-name = "liblumen_arena"
-version = "0.1.0"
-
-[[package]]
-name = "liblumen_beam"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "byteorder",
- "failure",
- "libflate",
- "num",
- "thiserror",
-]
-
-[[package]]
-name = "liblumen_binary"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "half",
- "num-bigint 0.4.3",
- "num-traits",
- "paste",
- "static_assertions",
-]
-
-[[package]]
-name = "liblumen_codegen"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "cc",
- "fxhash",
- "libc",
- "liblumen_binary",
- "liblumen_compiler_macros",
- "liblumen_diagnostics",
- "liblumen_intern",
- "liblumen_llvm",
- "liblumen_mlir",
- "liblumen_number",
- "liblumen_pass",
- "liblumen_rt",
- "liblumen_session",
- "liblumen_syntax_base",
- "liblumen_syntax_ssa",
- "liblumen_target",
- "liblumen_util",
- "log",
- "num-bigint 0.4.3",
- "tempfile",
- "thiserror",
-]
-
-[[package]]
-name = "liblumen_compiler"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "async-task",
- "clap",
- "crossbeam",
- "futures",
- "lazy_static",
- "liblumen_codegen",
- "liblumen_diagnostics",
- "liblumen_intern",
- "liblumen_llvm",
- "liblumen_mlir",
- "liblumen_parser",
- "liblumen_pass",
- "liblumen_session",
- "liblumen_syntax_base",
- "liblumen_syntax_core",
- "liblumen_syntax_erl",
- "liblumen_syntax_kernel",
- "liblumen_syntax_ssa",
- "liblumen_target",
- "liblumen_util",
- "log",
- "num_cpus",
- "parking_lot 0.11.2",
- "rand 0.7.3",
- "salsa",
- "salsa-macros",
- "thiserror",
- "walkdir",
- "which",
-]
-
-[[package]]
-name = "liblumen_compiler_macros"
-version = "0.1.0"
-dependencies = [
- "Inflector",
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
-name = "liblumen_crt"
-version = "0.1.0"
-dependencies = [
- "liblumen_rt",
-]
-
-[[package]]
-name = "liblumen_diagnostics"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "codespan",
- "codespan-reporting",
- "dashmap",
- "itertools",
- "liblumen_diagnostics_macros",
- "pretty_assertions",
- "thiserror",
- "unicode-width",
-]
-
-[[package]]
-name = "liblumen_diagnostics_macros"
-version = "0.1.0"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
-name = "liblumen_intern"
-version = "0.1.0"
-dependencies = [
- "Inflector",
- "lazy_static",
- "liblumen_diagnostics",
- "liblumen_diagnostics_macros",
- "rustc-hash",
- "toml",
-]
-
-[[package]]
-name = "liblumen_llvm"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "bitflags",
- "cc",
- "fxhash",
- "liblumen_compiler_macros",
- "liblumen_intern",
- "liblumen_pass",
- "liblumen_profiling",
- "liblumen_session",
- "liblumen_target",
- "liblumen_util",
- "paste",
- "thiserror",
- "which",
-]
-
-[[package]]
-name = "liblumen_mlir"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "cmake",
- "liblumen_binary",
- "liblumen_compiler_macros",
- "liblumen_diagnostics",
- "liblumen_intern",
- "liblumen_llvm",
- "liblumen_number",
- "liblumen_pass",
- "liblumen_session",
- "liblumen_target",
- "liblumen_util",
- "paste",
- "rand 0.8.5",
- "thiserror",
- "which",
-]
-
-[[package]]
-name = "liblumen_number"
-version = "0.1.0"
-dependencies = [
- "half",
- "num-bigint 0.4.3",
- "num-integer",
- "num-traits",
-]
-
-[[package]]
-name = "liblumen_parser"
-version = "0.1.0"
-dependencies = [
- "liblumen_diagnostics",
- "pretty_assertions",
- "thiserror",
-]
-
-[[package]]
-name = "liblumen_pass"
-version = "0.1.0"
-dependencies = [
- "anyhow",
-]
-
-[[package]]
-name = "liblumen_profiling"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "bitflags",
- "byteorder",
- "cfg-if 0.1.10",
- "fxhash",
- "log",
- "memmap",
- "parking_lot 0.11.2",
-]
-
-[[package]]
-name = "liblumen_rt"
-version = "0.1.0"
-dependencies = [
- "Inflector",
- "anyhow",
- "backtrace",
- "cfg-if 1.0.0",
- "hashbrown 0.12.3",
- "lazy_static",
- "liblumen_alloc",
- "liblumen_arena",
- "liblumen_binary",
- "liblumen_system",
- "num-bigint 0.4.3",
- "num-traits",
- "paste",
- "rpds 0.11.0",
- "rustc-demangle",
- "seq-macro",
- "static_assertions",
- "termcolor",
- "toml",
-]
-
-[[package]]
-name = "liblumen_session"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "liblumen_compiler_macros",
- "liblumen_intern",
- "liblumen_target",
- "liblumen_util",
- "log",
- "logos",
- "logos-derive",
- "thiserror",
-]
-
-[[package]]
-name = "liblumen_syntax_base"
-version = "0.1.0"
-dependencies = [
- "bitflags",
- "lazy_static",
- "liblumen_binary",
- "liblumen_compiler_macros",
- "liblumen_diagnostics",
- "liblumen_intern",
- "liblumen_number",
- "rpds 0.12.0",
- "thiserror",
-]
-
-[[package]]
-name = "liblumen_syntax_core"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "liblumen_binary",
- "liblumen_diagnostics",
- "liblumen_intern",
- "liblumen_pass",
- "liblumen_syntax_base",
- "liblumen_util",
- "rpds 0.12.0",
-]
-
-[[package]]
-name = "liblumen_syntax_erl"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "itertools",
- "lalrpop",
- "lalrpop-util",
- "lazy_static",
- "liblumen_binary",
- "liblumen_diagnostics",
- "liblumen_intern",
- "liblumen_number",
- "liblumen_parser",
- "liblumen_pass",
- "liblumen_syntax_base",
- "liblumen_syntax_core",
- "liblumen_util",
- "log",
- "paste",
- "pretty_assertions",
- "thiserror",
-]
-
-[[package]]
-name = "liblumen_syntax_kernel"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "cranelift-entity",
- "liblumen_binary",
- "liblumen_diagnostics",
- "liblumen_intern",
- "liblumen_number",
- "liblumen_pass",
- "liblumen_syntax_base",
- "liblumen_syntax_core",
- "liblumen_syntax_ssa",
- "liblumen_util",
- "log",
- "rpds 0.12.0",
- "thiserror",
-]
-
-[[package]]
-name = "liblumen_syntax_pp"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "lalrpop",
- "lalrpop-util",
- "liblumen_beam",
- "liblumen_diagnostics",
- "liblumen_intern",
- "liblumen_number",
- "liblumen_parser",
- "liblumen_syntax_erl",
- "liblumen_util",
- "thiserror",
-]
-
-[[package]]
-name = "liblumen_syntax_ssa"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "cranelift-entity",
- "intrusive-collections",
- "liblumen_arena",
- "liblumen_binary",
- "liblumen_diagnostics",
- "liblumen_intern",
- "liblumen_number",
- "liblumen_syntax_base",
- "liblumen_util",
- "paste",
-]
-
-[[package]]
-name = "liblumen_system"
-version = "0.1.0"
-dependencies = [
- "dlmalloc",
- "lazy_static",
- "libc",
- "parking_lot 0.12.1",
- "winapi",
-]
-
-[[package]]
-name = "liblumen_target"
-version = "0.1.0"
-dependencies = [
- "thiserror",
-]
-
-[[package]]
-name = "liblumen_term"
-version = "0.1.0"
-
-[[package]]
-name = "liblumen_util"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "atty",
- "cfg-if 0.1.10",
- "glob",
- "libc",
- "liblumen_diagnostics",
- "thiserror",
-]
-
-[[package]]
 name = "libm"
 version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1262,44 +1296,6 @@ dependencies = [
  "quote",
  "regex-syntax",
  "syn",
-]
-
-[[package]]
-name = "lumen"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "env_logger",
- "human-panic",
- "liblumen_compiler",
- "liblumen_crt",
- "liblumen_session",
- "liblumen_util",
- "log",
- "lumen_rt_tiny",
- "panic",
- "unwind",
-]
-
-[[package]]
-name = "lumen_rt_tiny"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "bus",
- "dirs",
- "half",
- "libc",
- "liblumen_alloc",
- "liblumen_arena",
- "liblumen_binary",
- "liblumen_crt",
- "liblumen_rt",
- "num-bigint 0.4.3",
- "num-traits",
- "signal-hook",
- "smallvec",
 ]
 
 [[package]]

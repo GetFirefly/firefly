@@ -11,7 +11,7 @@ use core::sync::atomic::AtomicUsize;
 
 use static_assertions::assert_eq_size;
 
-use liblumen_binary::{Aligned, Binary, BinaryFlags, Bitstring, ByteIter, Encoding};
+use firefly_binary::{Aligned, Binary, BinaryFlags, Bitstring, ByteIter, Encoding};
 
 use crate::WriteCloneIntoRaw;
 

@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use anyhow::anyhow;
 use log::debug;
 
-use liblumen_session::Options;
+use firefly_session::Options;
 
 pub use self::builder::LlvmArchiveBuilder;
 

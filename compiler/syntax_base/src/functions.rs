@@ -1,6 +1,6 @@
 use std::fmt;
 
-use liblumen_intern::{symbols, Symbol};
+use firefly_intern::{symbols, Symbol};
 
 use super::types::*;
 

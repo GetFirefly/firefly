@@ -6,8 +6,8 @@ use std::time::Instant;
 
 use anyhow::{anyhow, bail};
 
-use liblumen_compiler as driver;
-use liblumen_util::time;
+use firefly_compiler as driver;
+use firefly_util::time;
 
 pub fn main() -> anyhow::Result<()> {
     // Handle unexpected panics by presenting a user-friendly bug report prompt;

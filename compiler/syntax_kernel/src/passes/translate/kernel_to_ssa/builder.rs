@@ -2,10 +2,10 @@ use std::collections::{HashMap, HashSet};
 
 use cranelift_entity::packed_option::PackedOption;
 
-use liblumen_diagnostics::SourceSpan;
-use liblumen_intern::Symbol;
-use liblumen_syntax_base::*;
-use liblumen_syntax_ssa::*;
+use firefly_diagnostics::SourceSpan;
+use firefly_intern::Symbol;
+use firefly_syntax_base::*;
+use firefly_syntax_ssa::*;
 use log::debug;
 
 pub struct IrBuilder<'a> {

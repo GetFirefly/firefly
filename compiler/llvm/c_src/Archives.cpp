@@ -10,34 +10,34 @@
 using namespace llvm;
 using namespace llvm::object;
 
-struct LumenNewArchiveMember {
+struct FireflyNewArchiveMember {
   StringRef filename;
   StringRef name;
   Archive::Child child;
 
-  LumenNewArchiveMember()
+  FireflyNewArchiveMember()
       : filename(), name(), child(nullptr, nullptr, nullptr) {}
-  ~LumenNewArchiveMember() {}
+  ~FireflyNewArchiveMember() {}
 };
 
-struct LumenArchiveIterator {
+struct FireflyArchiveIterator {
   bool first;
   Archive::child_iterator current;
   Archive::child_iterator end;
   std::unique_ptr<Error> err;
 
-  LumenArchiveIterator(Archive::child_iterator current,
+  FireflyArchiveIterator(Archive::child_iterator current,
                        Archive::child_iterator end, std::unique_ptr<Error> err)
       : first(true), current(current), end(end), err(std::move(err)) {}
 };
 
-typedef OwningBinary<Archive> *LLVMLumenArchiveRef;
-typedef LumenNewArchiveMember *LLVMLumenNewArchiveMemberRef;
-typedef Archive::Child *LLVMLumenArchiveChildRef;
-typedef Archive::Child const *LLVMLumenArchiveChildConstRef;
-typedef LumenArchiveIterator *LLVMLumenArchiveIteratorRef;
+typedef OwningBinary<Archive> *LLVMFireflyArchiveRef;
+typedef FireflyNewArchiveMember *LLVMFireflyNewArchiveMemberRef;
+typedef Archive::Child *LLVMFireflyArchiveChildRef;
+typedef Archive::Child const *LLVMFireflyArchiveChildConstRef;
+typedef FireflyArchiveIterator *LLVMFireflyArchiveIteratorRef;
 
-extern "C" LLVMLumenArchiveRef LLVMLumenOpenArchive(MlirStringRef path,
+extern "C" LLVMFireflyArchiveRef LLVMFireflyOpenArchive(MlirStringRef path,
                                                     char **error) {
   ErrorOr<std::unique_ptr<MemoryBuffer>> bufferOr =
       MemoryBuffer::getFile(unwrap(path), -1, false);
@@ -61,13 +61,13 @@ extern "C" LLVMLumenArchiveRef LLVMLumenOpenArchive(MlirStringRef path,
   return archive;
 }
 
-extern "C" void LLVMLumenDestroyArchive(LLVMLumenArchiveRef archive) {
+extern "C" void LLVMFireflyDestroyArchive(LLVMFireflyArchiveRef archive) {
   delete archive;
 }
 
-extern "C" LLVMLumenArchiveIteratorRef
-LLVMLumenArchiveIteratorNew(LLVMLumenArchiveRef lumenArchive, char **error) {
-  Archive *archive = lumenArchive->getBinary();
+extern "C" LLVMFireflyArchiveIteratorRef
+LLVMFireflyArchiveIteratorNew(LLVMFireflyArchiveRef fireflyArchive, char **error) {
+  Archive *archive = fireflyArchive->getBinary();
   std::unique_ptr<Error> err = std::make_unique<Error>(Error::success());
   auto cur = archive->child_begin(*err);
   if (*err) {
@@ -76,11 +76,11 @@ LLVMLumenArchiveIteratorNew(LLVMLumenArchiveRef lumenArchive, char **error) {
   }
   *error = nullptr;
   auto end = archive->child_end();
-  return new LumenArchiveIterator(cur, end, std::move(err));
+  return new FireflyArchiveIterator(cur, end, std::move(err));
 }
 
-extern "C" LLVMLumenArchiveChildConstRef
-LLVMLumenArchiveIteratorNext(LLVMLumenArchiveIteratorRef iter, char **error) {
+extern "C" LLVMFireflyArchiveChildConstRef
+LLVMFireflyArchiveIteratorNext(LLVMFireflyArchiveIteratorRef iter, char **error) {
   *error = nullptr;
   if (iter->current == iter->end)
     return nullptr;
@@ -109,16 +109,16 @@ LLVMLumenArchiveIteratorNext(LLVMLumenArchiveIteratorRef iter, char **error) {
   return new Archive::Child(child);
 }
 
-extern "C" void LLVMLumenArchiveChildFree(LLVMLumenArchiveChildRef child) {
+extern "C" void LLVMFireflyArchiveChildFree(LLVMFireflyArchiveChildRef child) {
   delete child;
 }
 
-extern "C" void LLVMLumenArchiveIteratorFree(LLVMLumenArchiveIteratorRef iter) {
+extern "C" void LLVMFireflyArchiveIteratorFree(LLVMFireflyArchiveIteratorRef iter) {
   delete iter;
 }
 
 extern "C" MlirStringRef
-LLVMLumenArchiveChildName(LLVMLumenArchiveChildConstRef child, char **error) {
+LLVMFireflyArchiveChildName(LLVMFireflyArchiveChildConstRef child, char **error) {
   Expected<StringRef> nameOrErr = child->getName();
   if (!nameOrErr) {
     auto errString = toString(nameOrErr.takeError());
@@ -130,7 +130,7 @@ LLVMLumenArchiveChildName(LLVMLumenArchiveChildConstRef child, char **error) {
 }
 
 extern "C" MlirStringRef
-LLVMLumenArchiveChildData(LLVMLumenArchiveChildRef child, char **error) {
+LLVMFireflyArchiveChildData(LLVMFireflyArchiveChildRef child, char **error) {
   Expected<StringRef> bufOrErr = child->getBuffer();
   if (!bufOrErr) {
     auto errString = toString(bufOrErr.takeError());
@@ -141,32 +141,32 @@ LLVMLumenArchiveChildData(LLVMLumenArchiveChildRef child, char **error) {
   return wrap(bufOrErr.get());
 }
 
-extern "C" LLVMLumenNewArchiveMemberRef
-LLVMLumenNewArchiveMemberFromFile(MlirStringRef name, MlirStringRef filename) {
-  LumenNewArchiveMember *member = new LumenNewArchiveMember;
+extern "C" LLVMFireflyNewArchiveMemberRef
+LLVMFireflyNewArchiveMemberFromFile(MlirStringRef name, MlirStringRef filename) {
+  FireflyNewArchiveMember *member = new FireflyNewArchiveMember;
   member->filename = unwrap(filename);
   member->name = unwrap(name);
   return member;
 }
 
-extern "C" LLVMLumenNewArchiveMemberRef
-LLVMLumenNewArchiveMemberFromChild(MlirStringRef name,
-                                   LLVMLumenArchiveChildRef child) {
+extern "C" LLVMFireflyNewArchiveMemberRef
+LLVMFireflyNewArchiveMemberFromChild(MlirStringRef name,
+                                   LLVMFireflyArchiveChildRef child) {
   assert(child);
-  LumenNewArchiveMember *member = new LumenNewArchiveMember;
+  FireflyNewArchiveMember *member = new FireflyNewArchiveMember;
   member->name = unwrap(name);
   member->child = *child;
   return member;
 }
 
 extern "C" void
-LLVMLumenNewArchiveMemberFree(LLVMLumenNewArchiveMemberRef member) {
+LLVMFireflyNewArchiveMemberFree(LLVMFireflyNewArchiveMemberRef member) {
   delete member;
 }
 
 extern "C" bool
-LLVMLumenWriteArchive(MlirStringRef filename, size_t numMembers,
-                      const LLVMLumenNewArchiveMemberRef *newMembers,
+LLVMFireflyWriteArchive(MlirStringRef filename, size_t numMembers,
+                      const LLVMFireflyNewArchiveMemberRef *newMembers,
                       bool writeSymbtab, Archive::Kind kind, char **error) {
   std::vector<NewArchiveMember> members;
 

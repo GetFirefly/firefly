@@ -1,6 +1,6 @@
 use std::fmt;
 
-use liblumen_diagnostics::SourceSpan;
+use firefly_diagnostics::SourceSpan;
 
 use crate::lexer::{AtomToken, LexicalToken, SymbolToken, Token};
 

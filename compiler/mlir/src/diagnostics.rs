@@ -2,8 +2,8 @@ use std::ffi::c_void;
 use std::fmt;
 use std::path::{Path, PathBuf};
 
-use liblumen_diagnostics::Severity;
-use liblumen_util::diagnostics::{DiagnosticsHandler, FileName, InFlightDiagnostic, LabelStyle};
+use firefly_diagnostics::Severity;
+use firefly_util::diagnostics::{DiagnosticsHandler, FileName, InFlightDiagnostic, LabelStyle};
 
 use crate::support::MlirStringCallback;
 use crate::*;

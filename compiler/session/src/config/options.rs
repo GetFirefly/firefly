@@ -19,12 +19,12 @@ use std::path::{Path, PathBuf};
 use anyhow::bail;
 use clap::ArgMatches;
 
-use liblumen_intern::Symbol;
-use liblumen_target::spec::{CodeModel, RelocModel, SplitDebugInfo, TlsModel};
-use liblumen_target::{self as target, Target};
-use liblumen_util::diagnostics::{ColorArg, ColorChoice, FileName};
-use liblumen_util::error::{HelpRequested, Verbosity};
-use liblumen_util::fs::NativeLibraryKind;
+use firefly_intern::Symbol;
+use firefly_target::spec::{CodeModel, RelocModel, SplitDebugInfo, TlsModel};
+use firefly_target::{self as target, Target};
+use firefly_util::diagnostics::{ColorArg, ColorChoice, FileName};
+use firefly_util::error::{HelpRequested, Verbosity};
+use firefly_util::fs::NativeLibraryKind;
 
 use super::*;
 use crate::filesearch;
@@ -394,7 +394,7 @@ impl Options {
             .unwrap_or_else(|| {
                 let mut cwd = self.current_dir.clone();
                 cwd.push("_build");
-                cwd.push("lumen");
+                cwd.push("firefly");
                 cwd.push(self.target.triple());
                 cwd
             })

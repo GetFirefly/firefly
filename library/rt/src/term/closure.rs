@@ -6,7 +6,7 @@ use core::ptr;
 
 use seq_macro::seq;
 
-use liblumen_alloc::gc::GcBox;
+use firefly_alloc::gc::GcBox;
 
 use crate::function::ErlangResult;
 

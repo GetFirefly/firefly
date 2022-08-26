@@ -4,9 +4,9 @@ use std::sync::Arc;
 
 use anyhow::anyhow;
 
-use liblumen_diagnostics::*;
-use liblumen_syntax_base::*;
-use liblumen_util::emit::Emit;
+use firefly_diagnostics::*;
+use firefly_syntax_base::*;
+use firefly_util::emit::Emit;
 
 use super::*;
 

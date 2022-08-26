@@ -84,7 +84,7 @@ bitflags::bitflags! {
     }
 }
 
-// keep this in sync with the `-Z self-profile-events` help message in liblumen_session/options.rs
+// keep this in sync with the `-Z self-profile-events` help message in firefly_session/options.rs
 const EVENT_FILTERS_BY_NAME: &[(&str, EventFilter)] = &[
     ("none", EventFilter::empty()),
     ("all", EventFilter::all()),

@@ -1,8 +1,8 @@
-use liblumen_rt::term::AtomData;
+use firefly_rt::term::AtomData;
 
 extern "C-unwind" {
-    /// This function is defined in `liblumen_alloc::erts::term::atom`
-    #[link_name = "__lumen_initialize_atom_table"]
+    /// This function is defined in `firefly_alloc::erts::term::atom`
+    #[link_name = "__firefly_initialize_atom_table"]
     pub fn init(start: *const AtomData, end: *const AtomData) -> bool;
 }
 

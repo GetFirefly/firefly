@@ -1,5 +1,5 @@
-use liblumen_pass::Pass;
-use liblumen_session::{Options, Sanitizer};
+use firefly_pass::Pass;
+use firefly_session::{Options, Sanitizer};
 
 use crate::codegen;
 use crate::target::TargetMachine;

@@ -1,6 +1,6 @@
 [package]
-authors = ["Lumen Developers"]
-name = "liblumen_target"
+authors = ["Firefly Developers"]
+name = "firefly_target"
 version = "0.1.0"
 edition = "2021"
 publish = false

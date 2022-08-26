@@ -1,8 +1,8 @@
-#include "lumen/llvm/Target.h"
+#include "firefly/llvm/Target.h"
 // On Windows we have a custom output stream type that
 // can wrap the raw file handle we get from Rust
 #if defined(_WIN32)
-#include "lumen/llvm/raw_win32_handle_ostream.h"
+#include "firefly/llvm/raw_win32_handle_ostream.h"
 #endif
 
 #include "llvm-c/Core.h"
@@ -17,7 +17,7 @@
 
 using namespace llvm;
 
-using ::lumen::TargetMachineConfig;
+using ::firefly::TargetMachineConfig;
 
 DEFINE_STDCXX_CONVERSION_FUNCTIONS(TargetMachine, LLVMTargetMachineRef);
 
@@ -60,12 +60,12 @@ extern "C" void PrintTargetFeatures(LLVMTargetMachineRef tm) {
   printf("\n");
 
   printf("Use +feature to enable a feature, or -feature to disable it.\n"
-         "For example, lumen -C -target-cpu=mycpu -C "
+         "For example, firefly -C -target-cpu=mycpu -C "
          "target-feature=+feature1,-feature2\n\n");
 }
 
 extern "C" LLVMTargetMachineRef
-LLVMLumenCreateTargetMachine(TargetMachineConfig *conf, char *error) {
+LLVMFireflyCreateTargetMachine(TargetMachineConfig *conf, char *error) {
   TargetMachineConfig config = *conf;
   StringRef targetTriple = unwrap(config.triple);
   StringRef cpu = unwrap(config.cpu);
@@ -190,64 +190,64 @@ LLVMTargetMachineEmitToFileDescriptor(LLVMTargetMachineRef t, LLVMModuleRef m,
   return false;
 }
 
-Optional<llvm::CodeModel::Model> lumen::toLLVM(lumen::CodeModel cm) {
+Optional<llvm::CodeModel::Model> firefly::toLLVM(firefly::CodeModel cm) {
   switch (cm) {
-  case lumen::CodeModel::Small:
+  case firefly::CodeModel::Small:
     return llvm::CodeModel::Small;
-  case lumen::CodeModel::Kernel:
+  case firefly::CodeModel::Kernel:
     return llvm::CodeModel::Kernel;
-  case lumen::CodeModel::Medium:
+  case firefly::CodeModel::Medium:
     return llvm::CodeModel::Medium;
-  case lumen::CodeModel::Large:
+  case firefly::CodeModel::Large:
     return llvm::CodeModel::Large;
-  case lumen::CodeModel::None:
+  case firefly::CodeModel::None:
     return llvm::None;
   default:
     llvm::report_fatal_error("invalid llvm code model");
   }
 }
 
-llvm::CodeGenOpt::Level lumen::toLLVM(lumen::OptLevel level) {
+llvm::CodeGenOpt::Level firefly::toLLVM(firefly::OptLevel level) {
   switch (level) {
-  case lumen::OptLevel::None:
+  case firefly::OptLevel::None:
     return llvm::CodeGenOpt::None;
-  case lumen::OptLevel::Less:
+  case firefly::OptLevel::Less:
     return llvm::CodeGenOpt::Less;
-  case lumen::OptLevel::Default:
+  case firefly::OptLevel::Default:
     return llvm::CodeGenOpt::Default;
-  case lumen::OptLevel::Aggressive:
+  case firefly::OptLevel::Aggressive:
     return llvm::CodeGenOpt::Aggressive;
   default:
     llvm::report_fatal_error("invalid llvm optimization level");
   }
 }
 
-unsigned lumen::toLLVM(lumen::SizeLevel level) {
+unsigned firefly::toLLVM(firefly::SizeLevel level) {
   switch (level) {
-  case lumen::SizeLevel::None:
+  case firefly::SizeLevel::None:
     return 0;
-  case lumen::SizeLevel::Less:
+  case firefly::SizeLevel::Less:
     return 1;
-  case lumen::SizeLevel::Aggressive:
+  case firefly::SizeLevel::Aggressive:
     return 2;
   default:
     llvm::report_fatal_error("invalid llvm code size level");
   }
 }
 
-llvm::Reloc::Model lumen::toLLVM(lumen::RelocModel model) {
+llvm::Reloc::Model firefly::toLLVM(firefly::RelocModel model) {
   switch (model) {
-  case lumen::RelocModel::Static:
+  case firefly::RelocModel::Static:
     return llvm::Reloc::Static;
-  case lumen::RelocModel::Pic:
+  case firefly::RelocModel::Pic:
     return llvm::Reloc::PIC_;
-  case lumen::RelocModel::DynamicNoPic:
+  case firefly::RelocModel::DynamicNoPic:
     return llvm::Reloc::DynamicNoPIC;
-  case lumen::RelocModel::Ropi:
+  case firefly::RelocModel::Ropi:
     return llvm::Reloc::ROPI;
-  case lumen::RelocModel::Rwpi:
+  case firefly::RelocModel::Rwpi:
     return llvm::Reloc::RWPI;
-  case lumen::RelocModel::RopiRwpi:
+  case firefly::RelocModel::RopiRwpi:
     return llvm::Reloc::ROPI_RWPI;
   default:
     llvm::report_fatal_error("invalid llvm reloc model");

@@ -1,4 +1,4 @@
-%% RUN: @lumen compile -o @tempfile @file && @tempfile
+%% RUN: @firefly compile -o @tempfile @file && @tempfile
 
 %% CHECK: custom_atom
 -module(init).

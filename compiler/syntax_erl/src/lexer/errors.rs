@@ -1,6 +1,6 @@
 use std::hash::{Hash, Hasher};
 
-use liblumen_diagnostics::{Diagnostic, Label, SourceIndex, SourceSpan, ToDiagnostic};
+use firefly_diagnostics::{Diagnostic, Label, SourceIndex, SourceSpan, ToDiagnostic};
 
 use crate::util::escape_stm::EscapeStmError;
 

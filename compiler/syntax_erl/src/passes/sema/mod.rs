@@ -4,10 +4,10 @@ mod inject;
 mod records;
 mod verify;
 
-use liblumen_diagnostics::*;
-use liblumen_intern::Ident;
-use liblumen_pass::Pass;
-use liblumen_syntax_base::ApplicationMetadata;
+use firefly_diagnostics::*;
+use firefly_intern::Ident;
+use firefly_pass::Pass;
+use firefly_syntax_base::ApplicationMetadata;
 
 use crate::ast;
 

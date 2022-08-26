@@ -1,5 +1,5 @@
-use liblumen_diagnostics::{SourceSpan, Span, Spanned};
-use liblumen_syntax_base::{Deprecation, FunctionName};
+use firefly_diagnostics::{SourceSpan, Span, Spanned};
+use firefly_syntax_base::{Deprecation, FunctionName};
 
 use super::{Expr, Ident, Name, Type};
 

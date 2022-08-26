@@ -1,11 +1,11 @@
 use std::ops::Range;
 use std::str::FromStr;
 
-use liblumen_diagnostics::{ByteOffset, SourceIndex, SourceSpan};
+use firefly_diagnostics::{ByteOffset, SourceIndex, SourceSpan};
 
-use liblumen_intern::Symbol;
-use liblumen_number::{Float, FloatError, Integer};
-use liblumen_parser::{Scanner, Source};
+use firefly_intern::Symbol;
+use firefly_number::{Float, FloatError, Integer};
+use firefly_parser::{Scanner, Source};
 
 use crate::util::escape_stm::{EscapeStm, EscapeStmAction};
 
@@ -803,9 +803,9 @@ fn to_integer_literal(literal: &str, radix: u32) -> Token {
 
 #[cfg(test)]
 mod test {
-    use liblumen_diagnostics::{ByteIndex, CodeMap, SourceId, SourceIndex, SourceSpan};
-    use liblumen_number::Float;
-    use liblumen_parser::{FileMapSource, Scanner, Source};
+    use firefly_diagnostics::{ByteIndex, CodeMap, SourceId, SourceIndex, SourceSpan};
+    use firefly_number::Float;
+    use firefly_parser::{FileMapSource, Scanner, Source};
     use pretty_assertions::assert_eq;
 
     use crate::lexer::*;

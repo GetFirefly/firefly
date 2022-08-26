@@ -15,13 +15,13 @@ use std::sync::Arc;
 
 use anyhow::anyhow;
 use clap::crate_version;
-use liblumen_session::{CodegenOptions, DebuggingOptions, OptionGroup, ShowOptionGroupHelp};
-use liblumen_util::diagnostics::Emitter;
-use liblumen_util::error::HelpRequested;
+use firefly_session::{CodegenOptions, DebuggingOptions, OptionGroup, ShowOptionGroupHelp};
+use firefly_util::diagnostics::Emitter;
+use firefly_util::error::HelpRequested;
 
-pub const LUMEN_RELEASE: &'static str = crate_version!();
-pub const LUMEN_COMMIT_HASH: &'static str = env!("LUMEN_COMMIT_HASH");
-pub const LUMEN_COMMIT_DATE: &'static str = env!("LUMEN_COMMIT_DATE");
+pub const FIREFLY_RELEASE: &'static str = crate_version!();
+pub const FIREFLY_COMMIT_HASH: &'static str = env!("FIREFLY_COMMIT_HASH");
+pub const FIREFLY_COMMIT_DATE: &'static str = env!("FIREFLY_COMMIT_DATE");
 
 /// Runs the compiler using the provided working directory, args iterator, and default emitter
 ///

@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
-use liblumen_compiler_macros::option_group;
-use liblumen_target::SplitDebugInfo;
+use firefly_compiler_macros::option_group;
+use firefly_target::SplitDebugInfo;
 
 use crate::config::*;
 
@@ -131,7 +131,7 @@ pub struct DebuggingOptions {
     #[option]
     pub time: bool,
     #[option]
-    /// Measure time of each lumen pass
+    /// Measure time of each Firefly pass
     pub time_passes: bool,
     #[option]
     /// Measure time of each LLVM pass

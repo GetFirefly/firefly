@@ -3,9 +3,9 @@ use std::ffi::OsString;
 use clap::crate_description;
 use clap::{App, AppSettings, Arg, ArgMatches};
 
-use liblumen_session::{CodegenOptions, DebuggingOptions, OptionGroup, OutputType};
-use liblumen_target::Target;
-use liblumen_util::diagnostics::ColorArg;
+use firefly_session::{CodegenOptions, DebuggingOptions, OptionGroup, OutputType};
+use firefly_target::Target;
+use firefly_util::diagnostics::ColorArg;
 
 /// Parses the provided arguments
 pub fn parse<'a>(args: impl Iterator<Item = OsString>) -> clap::Result<ArgMatches<'a>> {
@@ -13,8 +13,8 @@ pub fn parse<'a>(args: impl Iterator<Item = OsString>) -> clap::Result<ArgMatche
 }
 
 pub fn parser<'a, 'b>() -> App<'a, 'b> {
-    App::new("lumen")
-        .version(crate::LUMEN_RELEASE)
+    App::new("firefly")
+        .version(crate::FIREFLY_RELEASE)
         .about(crate_description!())
         .setting(AppSettings::UnifiedHelpMessage)
         .setting(AppSettings::GlobalVersion)
@@ -207,7 +207,7 @@ fn compile_command<'a, 'b>() -> App<'a, 'b> {
                     "Link the generated binary to the specified native library NAME.\n\
                      The optional KIND can be one of: static, dylib (default), or framework.\n\
                      \n\
-                     Example: `lumen compile -lc ...` will link against the system libc",
+                     Example: `firefly compile -lc ...` will link against the system libc",
                 )
                 .next_line_help(true)
                 .short("l")

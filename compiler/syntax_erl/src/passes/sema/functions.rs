@@ -1,9 +1,9 @@
 use core::ops::ControlFlow;
 use std::collections::btree_map::Entry;
 
-use liblumen_diagnostics::*;
-use liblumen_intern::symbols;
-use liblumen_syntax_base::*;
+use firefly_diagnostics::*;
+use firefly_intern::symbols;
+use firefly_syntax_base::*;
 
 use crate::ast::*;
 use crate::visit::VisitMut;

@@ -1,5 +1,5 @@
-#ifndef LUMEN_TARGET_H
-#define LUMEN_TARGET_H
+#ifndef FIREFLY_TARGET_H
+#define FIREFLY_TARGET_H
 
 #include "mlir-c/Support.h"
 #include "mlir/CAPI/Support.h"
@@ -11,7 +11,7 @@
 
 #include <stdlib.h>
 
-namespace lumen {
+namespace firefly {
 
 using CodeGenOptLevel = ::llvm::CodeGenOpt::Level;
 
@@ -75,6 +75,6 @@ llvm::CodeGenOpt::Level toLLVM(OptLevel level);
 unsigned toLLVM(SizeLevel level);
 
 llvm::Reloc::Model toLLVM(RelocModel model);
-} // namespace lumen
+} // namespace firefly
 
 #endif

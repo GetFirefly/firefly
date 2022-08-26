@@ -2,10 +2,10 @@ use std::collections::{BTreeMap, HashMap};
 use std::fmt;
 use std::hash::{Hash, Hasher};
 
-use liblumen_binary::{BitVec, Bitstring};
-use liblumen_intern::{symbols, Symbol};
-use liblumen_number::{Float, Integer};
-use liblumen_syntax_base::{PrimitiveType, TermType, Type};
+use firefly_binary::{BitVec, Bitstring};
+use firefly_intern::{symbols, Symbol};
+use firefly_number::{Float, Integer};
+use firefly_syntax_base::{PrimitiveType, TermType, Type};
 
 use cranelift_entity::entity_impl;
 

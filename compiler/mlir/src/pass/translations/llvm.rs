@@ -1,6 +1,6 @@
 use anyhow::anyhow;
-use liblumen_llvm as llvm;
-use liblumen_pass::Pass;
+use firefly_llvm as llvm;
+use firefly_pass::Pass;
 
 use crate::{Module, OwnedModule, StringRef};
 

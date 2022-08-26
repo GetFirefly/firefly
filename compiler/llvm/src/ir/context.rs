@@ -7,8 +7,8 @@ use std::sync::Arc;
 use anyhow::anyhow;
 use paste::paste;
 
-use liblumen_session::Options;
-use liblumen_util::diagnostics::DiagnosticsHandler;
+use firefly_session::Options;
+use firefly_util::diagnostics::DiagnosticsHandler;
 
 use super::*;
 use crate::builder::OwnedBuilder;

@@ -3,9 +3,9 @@ use std::convert::TryFrom;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use liblumen_diagnostics::*;
-use liblumen_intern::{symbols, Symbol};
-use liblumen_parser::Source;
+use firefly_diagnostics::*;
+use firefly_intern::{symbols, Symbol};
+use firefly_parser::Source;
 
 use crate::ast::Literal;
 use crate::evaluator;
@@ -191,7 +191,7 @@ where
             "MACHINE" => {
                 let span = call.span();
                 let current = span.start();
-                LexicalToken(current, Token::Atom(Symbol::intern("Lumen")), span.end())
+                LexicalToken(current, Token::Atom(Symbol::intern("Firefly")), span.end())
             }
             "OTP_RELEASE" => {
                 let span = call.span();

@@ -2,7 +2,7 @@ use std::fmt;
 
 use rpds::{RedBlackTreeMap, RedBlackTreeSet};
 
-use liblumen_intern::{symbols, Ident, Symbol};
+use firefly_intern::{symbols, Ident, Symbol};
 
 use crate::{Literal, Type};
 

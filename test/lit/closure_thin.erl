@@ -1,4 +1,4 @@
-%% RUN: @lumen compile -o @tempfile @file && @tempfile
+%% RUN: @firefly compile -o @tempfile @file && @tempfile
 
 %% CHECK: hello
 -module(init).

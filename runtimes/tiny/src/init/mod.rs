@@ -1,5 +1,5 @@
-use liblumen_rt::function::ErlangResult;
-use liblumen_rt::term::{ListBuilder, OpaqueTerm};
+use firefly_rt::function::ErlangResult;
+use firefly_rt::term::{ListBuilder, OpaqueTerm};
 
 use crate::env;
 use crate::scheduler;

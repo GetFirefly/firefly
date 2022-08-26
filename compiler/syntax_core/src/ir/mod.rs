@@ -1,4 +1,4 @@
-use liblumen_syntax_base::*;
+use firefly_syntax_base::*;
 
 mod function;
 mod internal;
@@ -12,9 +12,9 @@ use crate::printer::PrettyPrinter;
 
 use std::fmt;
 
-use liblumen_binary::BinaryEntrySpecifier;
-use liblumen_diagnostics::{SourceSpan, Span, Spanned};
-use liblumen_intern::{symbols, Symbol};
+use firefly_binary::BinaryEntrySpecifier;
+use firefly_diagnostics::{SourceSpan, Span, Spanned};
+use firefly_intern::{symbols, Symbol};
 
 /// A CST expression
 #[derive(Debug, Clone, Spanned, PartialEq, Eq)]

@@ -1,8 +1,8 @@
 use std::fmt;
 
-use liblumen_diagnostics::{SourceSpan, Spanned};
-use liblumen_syntax_base::*;
-use liblumen_syntax_core as syntax_core;
+use firefly_diagnostics::{SourceSpan, Spanned};
+use firefly_syntax_base::*;
+use firefly_syntax_core as syntax_core;
 
 use super::*;
 use crate::BiMap;

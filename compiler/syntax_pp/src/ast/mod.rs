@@ -8,7 +8,7 @@
 //!
 //! # Examples
 //!
-//!     use liblumen_beam::syntax::ast::AST;
+//!     use firefly_beam::syntax::ast::AST;
 //!
 //!     let ast = AST::from_beam_file("tests/testdata/ast/test.beam").unwrap();
 //!     println!("{:?}", ast);
@@ -47,7 +47,7 @@ pub struct AST {
 impl AST {
     /// Builds AST from the BEAM file
     pub fn from_beam_file<P: AsRef<Path>>(beam_file: P) -> anyhow::Result<Self> {
-        use liblumen_beam::beam::AbstractCode;
+        use firefly_beam::beam::AbstractCode;
 
         let code = AbstractCode::from_beam_file(beam_file)?;
         let forms = crate::parser::from_abstract_code(&code)?;

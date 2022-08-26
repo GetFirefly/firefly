@@ -123,7 +123,7 @@ fn write_instruction(
 
 fn write_operands(w: &mut dyn Write, dfg: &DataFlowGraph, inst: Inst) -> io::Result<()> {
     use crate::ir::*;
-    use liblumen_binary::BinaryEntrySpecifier;
+    use firefly_binary::BinaryEntrySpecifier;
 
     let pool = &dfg.value_lists;
     match dfg[inst].as_ref() {

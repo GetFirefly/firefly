@@ -13,9 +13,9 @@ use core::hash::{Hash, Hasher};
 use core::ops::{Index, IndexMut};
 use core::slice::SliceIndex;
 
-use liblumen_alloc::gc::GcBox;
-use liblumen_alloc::rc::Rc;
-use liblumen_binary::{Aligned, Binary, BinaryFlags, Bitstring, Encoding};
+use firefly_alloc::gc::GcBox;
+use firefly_alloc::rc::Rc;
+use firefly_binary::{Aligned, Binary, BinaryFlags, Bitstring, Encoding};
 
 /// This represents binary data, i.e. byte-aligned, with a number of bits
 /// divisible by 8 evenly.
@@ -149,7 +149,7 @@ impl fmt::Debug for BinaryData {
 impl fmt::Display for BinaryData {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        liblumen_binary::helpers::display_binary(self, f)
+        firefly_binary::helpers::display_binary(self, f)
     }
 }
 impl Eq for BinaryData {}

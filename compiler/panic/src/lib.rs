@@ -43,7 +43,7 @@ cfg_if::cfg_if! {
 
 mod dwarf;
 
-/// This matches the structure of ErlangException in liblumen_alloc
+/// This matches the structure of ErlangException in firefly_rt
 #[repr(C)]
 pub struct ErlangPanic {
     _header: usize,
@@ -54,19 +54,19 @@ pub struct ErlangPanic {
 }
 
 extern "C-unwind" {
-    // See `ErlangException` in liblumen_alloc
+    // See `ErlangException` in firefly_rt
     #[allow(improper_ctypes)]
-    #[link_name = "__lumen_cleanup_exception"]
+    #[link_name = "__firefly_cleanup_exception"]
     fn cleanup(ptr: *mut ErlangPanic);
 }
 
 // Entry point for raising an exception, just delegates to the platform-specific implementation.
 #[no_mangle]
-pub unsafe extern "C-unwind" fn __lumen_start_panic(payload: *mut ErlangPanic) -> u32 {
+pub unsafe extern "C-unwind" fn __firefly_start_panic(payload: *mut ErlangPanic) -> u32 {
     imp::panic(payload)
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn __lumen_get_exception(ptr: *mut u8) -> *mut ErlangPanic {
+pub unsafe extern "C" fn __firefly_get_exception(ptr: *mut u8) -> *mut ErlangPanic {
     imp::cause(ptr)
 }

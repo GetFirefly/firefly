@@ -7,7 +7,7 @@ use std::io;
 use std::mem;
 use std::process::{self, Output};
 
-use liblumen_target::LldFlavor;
+use firefly_target::LldFlavor;
 
 #[derive(Clone)]
 pub struct Command {

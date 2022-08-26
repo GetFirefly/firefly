@@ -1,5 +1,5 @@
 [package]
-name = "liblumen_number"
+name = "firefly_number"
 version = "0.1.0"
 authors = ["Hans Elias B. Josephsen <me@hansihe.com>", "Paul Schoenfelder <paulschoenfelder@gmail.com>"]
 edition = "2021"

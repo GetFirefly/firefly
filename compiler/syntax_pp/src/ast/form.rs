@@ -1,7 +1,7 @@
 //! Module Declarations and Forms
 //!
 //! See: [6.1 Module Declarations and Forms](http://erlang.org/doc/apps/erts/absform.html#id86691)
-use liblumen_beam::serialization::etf;
+use firefly_beam::serialization::etf;
 
 use super::*;
 

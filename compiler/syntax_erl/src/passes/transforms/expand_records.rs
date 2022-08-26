@@ -2,10 +2,10 @@ use core::ops::ControlFlow;
 
 use anyhow::anyhow;
 
-use liblumen_diagnostics::{SourceSpan, Span};
-use liblumen_intern::{symbols, Ident};
-use liblumen_pass::Pass;
-use liblumen_syntax_base::FunctionName;
+use firefly_diagnostics::{SourceSpan, Span};
+use firefly_intern::{symbols, Ident};
+use firefly_pass::Pass;
+use firefly_syntax_base::FunctionName;
 
 use crate::ast::*;
 use crate::visit::{self as visit, VisitMut};

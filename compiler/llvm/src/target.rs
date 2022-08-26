@@ -5,8 +5,8 @@ use std::ops::Deref;
 
 use anyhow::anyhow;
 
-use liblumen_session::{Options, ProjectType};
-use liblumen_target::{CodeModel, Endianness, RelocModel};
+use firefly_session::{Options, ProjectType};
+use firefly_target::{CodeModel, Endianness, RelocModel};
 
 use crate::codegen::{self, CodeGenFileType, CodeGenOptLevel, CodeGenOptSize};
 use crate::ir::*;
@@ -91,11 +91,11 @@ pub fn host_cpu_features() -> OwnedStringRef {
 
 /// Iterates all of the default + custom target features defined by the provided compiler options
 ///
-/// See liblumen_target for the default features defined for each supported target
+/// See firefly_target for the default features defined for each supported target
 ///
 /// In addition to those defaults, manually-specified target features can be enabled via compiler flags
 pub fn llvm_target_features(options: &Options) -> impl Iterator<Item = &str> {
-    const LUMEN_SPECIFIC_FEATURES: &[&str] = &["crt-static"];
+    const FIREFLY_SPECIFIC_FEATURES: &[&str] = &["crt-static"];
 
     let cmdline = options
         .codegen_opts
@@ -104,7 +104,7 @@ pub fn llvm_target_features(options: &Options) -> impl Iterator<Item = &str> {
         .map(|s| s.as_str())
         .unwrap_or("")
         .split(',')
-        .filter(|f| !LUMEN_SPECIFIC_FEATURES.iter().any(|s| f.contains(s)));
+        .filter(|f| !FIREFLY_SPECIFIC_FEATURES.iter().any(|s| f.contains(s)));
     options
         .target
         .options
@@ -276,12 +276,12 @@ impl TargetMachine {
     /// NOTE: This assumes the compiler options represent a valid target configuration, i.e.
     /// a target must have been selected, and the various configuration options must not be
     /// contradictory or invalid for the selected target. This is largely taken care of by the
-    /// liblumen_target crate, but it is worth calling out here. If the configuration is invalid,
+    /// firefly_target crate, but it is worth calling out here. If the configuration is invalid,
     /// creation should fail and we'll raise an error, but if there are issues in LLVM itself it
     /// may cause issues with produced binaries.
     pub fn create(options: &Options) -> anyhow::Result<OwnedTargetMachine> {
         extern "C" {
-            fn LLVMLumenCreateTargetMachine(
+            fn LLVMFireflyCreateTargetMachine(
                 config: *const TargetMachineConfig,
                 error: *mut *mut std::os::raw::c_char,
             ) -> TargetMachine;
@@ -355,7 +355,7 @@ impl TargetMachine {
         };
 
         let mut error = MaybeUninit::uninit();
-        let tm = unsafe { LLVMLumenCreateTargetMachine(&config, error.as_mut_ptr()) };
+        let tm = unsafe { LLVMFireflyCreateTargetMachine(&config, error.as_mut_ptr()) };
         if tm.is_null() {
             let error = unsafe { OwnedStringRef::from_ptr(error.assume_init()) };
             Err(anyhow!(

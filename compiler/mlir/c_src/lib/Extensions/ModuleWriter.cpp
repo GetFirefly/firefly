@@ -1,9 +1,9 @@
-#include "lumen/llvm/MemoryBuffer.h"
+#include "firefly/llvm/MemoryBuffer.h"
 
 // On Windows we have a custom output stream type that
 // can wrap the raw file handle we get from Rust
 #if defined(_WIN32)
-#include "lumen/llvm/raw_win32_handle_ostream.h"
+#include "firefly/llvm/raw_win32_handle_ostream.h"
 #endif
 
 #include "llvm-c/Core.h"

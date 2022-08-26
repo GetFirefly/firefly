@@ -1,7 +1,7 @@
 use rpds::RedBlackTreeSet;
 
 use crate::Annotated;
-use liblumen_intern::Ident;
+use firefly_intern::Ident;
 
 /// Return the set of variables that are used in at least one of the given annotated items
 pub fn used_in_any<'a, A: Annotated + 'a, I: Iterator<Item = &'a A>>(

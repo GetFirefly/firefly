@@ -1,6 +1,6 @@
     .p2align 4
-    .global ___lumen_swap_stack
-___lumen_swap_stack:
+    .global ___firefly_swap_stack
+___firefly_swap_stack:
     .cfi_startproc
     .cfi_personality 155, _rust_eh_personality
     .cfi_lsda 255
@@ -100,14 +100,14 @@ ___lumen_swap_stack:
     blr x21
 
     ; When we return to this point, the process has fully unwound and should exit, returning
-    ; back to the scheduler. We handle this by calling __lumen_builtin_exit, which sets up the
+    ; back to the scheduler. We handle this by calling __firefly_builtin_exit, which sets up the
     ; process status, and then yields to the scheduler. Control never returns here, so we hint
     ; as such by which branch instruction we use
     ;
     ; NOTE: We know that the first two registers, i.e. x0/x1 will hold the two fields of the
     ; ErlangResult struct, as these registers are also used when returning that struct. In
     ; short, we're return-calling :P
-    b ___lumen_builtin_exit
+    b ___firefly_builtin_exit
 
 L_resume:
     ; We land here only on a context switch, and since the last switch _away_ from

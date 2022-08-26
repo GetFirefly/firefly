@@ -15,18 +15,18 @@ use log::info;
 use tempfile::Builder as TempFileBuilder;
 use thiserror::private::PathAsDisplay;
 
-use liblumen_diagnostics::Severity;
-use liblumen_session::filesearch;
-use liblumen_session::search_paths::PathKind;
-use liblumen_session::{
+use firefly_diagnostics::Severity;
+use firefly_session::filesearch;
+use firefly_session::search_paths::PathKind;
+use firefly_session::{
     CFGuard, DebugInfo, LdImpl, Options, ProjectType, Sanitizer, SplitDwarfKind, Strip,
 };
-use liblumen_target::crt_objects::CrtObjectsFallback;
-use liblumen_target::{
+use firefly_target::crt_objects::CrtObjectsFallback;
+use firefly_target::{
     LinkOutputKind, LinkerFlavor, LldFlavor, PanicStrategy, RelocModel, RelroLevel, SplitDebugInfo,
 };
-use liblumen_util::diagnostics::DiagnosticsHandler;
-use liblumen_util::fs::{fix_windows_verbatim_for_gcc, NativeLibraryKind};
+use firefly_util::diagnostics::DiagnosticsHandler;
+use firefly_util::fs::{fix_windows_verbatim_for_gcc, NativeLibraryKind};
 
 use crate::linker::command::Command;
 use crate::linker::rpath::{self, RPathConfig};
@@ -60,7 +60,7 @@ pub fn link_binary(
     }
 
     let tmpdir = TempFileBuilder::new()
-        .prefix("lumen")
+        .prefix("firefly")
         .tempdir()
         .map_err(|err| anyhow!("couldn't create a temp dir: {}", err))?;
 
@@ -250,7 +250,7 @@ fn link_natively(
     diagnostics.abort_if_errors();
 
     if is_ld {
-        todo!("invoke lumen-lld");
+        todo!("invoke firefly-lld");
     } else {
         match exec_linker(options, &mut cmd, output_file, tmpdir) {
             Ok(prog) => {
@@ -473,13 +473,13 @@ fn link_sanitizer_runtime(linker: &mut dyn Linker, options: &Options, name: &str
         // LLVM will link to `@rpath/*.dylib`, so we need to specify an
         // rpath to the library as well (the rpath should be absolute, see
         // PR #41352 for details).
-        let filename = format!("lumen_rt.{}", name);
+        let filename = format!("firefly_rt.{}", name);
         let path = find_sanitizer_runtime(options, &filename);
         let rpath = path.to_str().expect("non-utf8 component in path");
         linker.args(&["-Wl,-rpath", "-Xlinker", rpath]);
         linker.link_dylib(&filename, false, true);
     } else {
-        let filename = format!("liblumen_rt.{}.a", name);
+        let filename = format!("libfirefly_rt.{}.a", name);
         let path = find_sanitizer_runtime(options, &filename).join(&filename);
         linker.link_whole_rlib(&path);
     }
@@ -546,7 +546,7 @@ pub fn linker_and_flavor(options: &Options) -> (PathBuf, LinkerFlavor) {
                     LinkerFlavor::Ld
                 } else if stem == "link" || stem == "lld-link" {
                     LinkerFlavor::Msvc
-                } else if stem == "lld" || stem == "lumen-lld" {
+                } else if stem == "lld" || stem == "firefly-lld" {
                     LinkerFlavor::Lld(options.target.options.lld_flavor)
                 } else {
                     // fall back to the value in the target spec
@@ -836,8 +836,8 @@ fn link_output_kind(options: &Options, project_type: ProjectType) -> LinkOutputK
 // Returns true if linker is located within sysroot
 fn detect_self_contained_mingw(options: &Options) -> bool {
     let (linker, _) = linker_and_flavor(options);
-    // Assume `-C linker=lumen-lld` as self-contained mode
-    if linker == Path::new("lumen-lld") {
+    // Assume `-C linker=firefly-lld` as self-contained mode
+    if linker == Path::new("firefly-lld") {
         return true;
     }
     let linker_with_extension = if cfg!(windows) && linker.extension().is_none() {
@@ -945,7 +945,7 @@ fn add_link_script(
                     .raise();
             }
 
-            let file_name = ["lumen", &options.target.llvm_target, "linkfile.ld"].join("-");
+            let file_name = ["firefly", &options.target.llvm_target, "linkfile.ld"].join("-");
 
             let path = tmpdir.join(file_name);
             if let Err(e) = fs::write(&path, script) {
@@ -1626,7 +1626,7 @@ fn add_gcc_ld_path(
                             })
                             .find(|p| p.exists())
                             .unwrap_or_else(|| {
-                                diagnostics.fatal("lumen-lld (as ld64) not found").raise()
+                                diagnostics.fatal("firefly-lld (as ld64) not found").raise()
                             });
                         cmd.cmd().arg({
                             let mut arg = OsString::from("-fuse-ld=");
@@ -1647,7 +1647,7 @@ fn add_gcc_ld_path(
                                 .exists()
                             })
                             .unwrap_or_else(|| {
-                                diagnostics.fatal("lumen-lld (as ld) not found").raise()
+                                diagnostics.fatal("firefly-lld (as ld) not found").raise()
                             });
                         cmd.cmd().arg({
                             let mut arg = OsString::from("-B");

@@ -8,9 +8,9 @@ use log::debug;
 
 use salsa::Snapshot;
 
-use liblumen_session::{Options, OutputType};
-use liblumen_util::diagnostics::{CodeMap, DiagnosticsHandler};
-use liblumen_util::emit::Emit;
+use firefly_session::{Options, OutputType};
+use firefly_util::diagnostics::{CodeMap, DiagnosticsHandler};
+use firefly_util::emit::Emit;
 
 use crate::diagnostics::*;
 use crate::interner::{InternedInput, Interner, InternerStorage};

@@ -2,8 +2,8 @@ use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::mem;
 
-use liblumen_diagnostics::SourceSpan;
-use liblumen_intern::Symbol;
+use firefly_diagnostics::SourceSpan;
+use firefly_intern::Symbol;
 
 use crate::lexer::{AtomToken, IdentToken, SymbolToken};
 use crate::lexer::{LexicalToken, Token};

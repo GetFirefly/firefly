@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use liblumen_intern::{symbols, Symbol};
+use firefly_intern::{symbols, Symbol};
 
 use lazy_static::lazy_static;
 

@@ -4,16 +4,16 @@ use std::thread::ThreadId;
 
 use log::debug;
 
-use liblumen_diagnostics::{Reporter, ToDiagnostic};
-use liblumen_llvm as llvm;
-use liblumen_mlir as mlir;
-use liblumen_session::{Input, InputType};
-use liblumen_syntax_base::ApplicationMetadata;
-use liblumen_syntax_core as syntax_core;
-use liblumen_syntax_erl::{self as syntax_erl, ParseConfig};
-use liblumen_syntax_kernel as syntax_kernel;
-use liblumen_syntax_ssa as syntax_ssa;
-use liblumen_util::diagnostics::FileName;
+use firefly_diagnostics::{Reporter, ToDiagnostic};
+use firefly_llvm as llvm;
+use firefly_mlir as mlir;
+use firefly_session::{Input, InputType};
+use firefly_syntax_base::ApplicationMetadata;
+use firefly_syntax_core as syntax_core;
+use firefly_syntax_erl::{self as syntax_erl, ParseConfig};
+use firefly_syntax_kernel as syntax_kernel;
+use firefly_syntax_ssa as syntax_ssa;
+use firefly_util::diagnostics::FileName;
 
 use super::prelude::*;
 
@@ -186,7 +186,7 @@ pub(crate) fn input_ast<P>(
 where
     P: Parser,
 {
-    use liblumen_parser as parse;
+    use firefly_parser as parse;
 
     let options = db.options();
     let codemap = db.codemap().clone();
@@ -234,8 +234,8 @@ pub(crate) fn input_core<P>(
 where
     P: Parser,
 {
-    use liblumen_pass::Pass;
-    use liblumen_syntax_erl::passes::{AstToCore, CanonicalizeSyntax, SemanticAnalysis};
+    use firefly_pass::Pass;
+    use firefly_syntax_erl::passes::{AstToCore, CanonicalizeSyntax, SemanticAnalysis};
 
     // Get Erlang AST
     let ast = db.input_ast(input)?;
@@ -268,8 +268,8 @@ pub(crate) fn input_kernel<P>(
 where
     P: Parser,
 {
-    use liblumen_pass::Pass;
-    use liblumen_syntax_kernel::passes::CoreToKernel;
+    use firefly_pass::Pass;
+    use firefly_syntax_kernel::passes::CoreToKernel;
 
     // Get Core AST
     let ast = db.input_core(input, app)?;
@@ -298,8 +298,8 @@ pub(crate) fn input_ssa<P>(
 where
     P: Parser,
 {
-    use liblumen_pass::Pass;
-    use liblumen_syntax_kernel::passes::KernelToSsa;
+    use firefly_pass::Pass;
+    use firefly_syntax_kernel::passes::KernelToSsa;
 
     // Get Kernel Erlang module
     let cst = db.input_kernel(input, app)?;
@@ -330,8 +330,8 @@ pub(crate) fn input_mlir<P>(
 where
     P: Parser,
 {
-    use liblumen_codegen::passes::SsaToMlir;
-    use liblumen_pass::Pass;
+    use firefly_codegen::passes::SsaToMlir;
+    use firefly_pass::Pass;
 
     let options = db.options();
     let module = match db.input_type(input) {

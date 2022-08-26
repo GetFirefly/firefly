@@ -7,12 +7,12 @@
 
 using namespace llvm;
 
-static void LumenFatalErrorHandler(void *, const char *reason, bool) {
+static void FireflyFatalErrorHandler(void *, const char *reason, bool) {
   fprintf(stderr, "LLVM FATAL ERROR: %s\n", reason);
   ::abort();
 }
 
-extern "C" void LLVMLumenInstallFatalErrorHandler(void) {
+extern "C" void LLVMFireflyInstallFatalErrorHandler(void) {
   llvm::remove_fatal_error_handler();
-  llvm::install_fatal_error_handler(LumenFatalErrorHandler);
+  llvm::install_fatal_error_handler(FireflyFatalErrorHandler);
 }

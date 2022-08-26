@@ -1,9 +1,9 @@
 use core::ops::ControlFlow;
 
-use liblumen_diagnostics::{CodeMap, SourceSpan};
-use liblumen_intern::{symbols, Ident, Symbol};
-use liblumen_number::Integer;
-use liblumen_pass::Pass;
+use firefly_diagnostics::{CodeMap, SourceSpan};
+use firefly_intern::{symbols, Ident, Symbol};
+use firefly_number::Integer;
+use firefly_pass::Pass;
 
 use crate::ast::*;
 use crate::lexer::DelayedSubstitution;

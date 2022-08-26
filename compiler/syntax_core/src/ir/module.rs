@@ -1,9 +1,9 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fmt;
 
-use liblumen_diagnostics::{SourceSpan, Spanned};
-use liblumen_intern::Ident;
-use liblumen_util::emit::Emit;
+use firefly_diagnostics::{SourceSpan, Spanned};
+use firefly_intern::Ident;
+use firefly_util::emit::Emit;
 
 use super::*;
 use crate::printer::PrettyPrinter;

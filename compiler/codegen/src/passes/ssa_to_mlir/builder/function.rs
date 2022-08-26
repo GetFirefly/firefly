@@ -1,13 +1,13 @@
-use liblumen_binary::{Bitstring, Encoding};
-use liblumen_diagnostics::{SourceSpan, Spanned};
-use liblumen_llvm::Linkage;
-use liblumen_mlir::llvm::{ICmpPredicate, LinkageAttr};
-use liblumen_mlir::*;
-use liblumen_number::Integer;
-use liblumen_rt::term::OpaqueTerm;
-use liblumen_syntax_base::{self as syntax_base, Signature};
-use liblumen_syntax_ssa::{self as syntax_ssa, ir::instructions::*, DataFlowGraph};
-use liblumen_syntax_ssa::{ConstantItem, Immediate, ImmediateTerm};
+use firefly_binary::{Bitstring, Encoding};
+use firefly_diagnostics::{SourceSpan, Spanned};
+use firefly_llvm::Linkage;
+use firefly_mlir::llvm::{ICmpPredicate, LinkageAttr};
+use firefly_mlir::*;
+use firefly_number::Integer;
+use firefly_rt::term::OpaqueTerm;
+use firefly_syntax_base::{self as syntax_base, Signature};
+use firefly_syntax_ssa::{self as syntax_ssa, ir::instructions::*, DataFlowGraph};
+use firefly_syntax_ssa::{ConstantItem, Immediate, ImmediateTerm};
 
 use log::debug;
 
@@ -419,7 +419,7 @@ impl<'m> ModuleBuilder<'m> {
                 return Ok(());
             }
             Opcode::Zext => {
-                use liblumen_syntax_base::{PrimitiveType, Type as CoreType};
+                use firefly_syntax_base::{PrimitiveType, Type as CoreType};
 
                 let builder = self.cir();
                 let result = dfg.first_result(inst);
@@ -1152,7 +1152,7 @@ impl<'m> ModuleBuilder<'m> {
         span: SourceSpan,
         op: &IsType,
     ) -> anyhow::Result<()> {
-        use liblumen_syntax_base::{TermType, Type as CoreType};
+        use firefly_syntax_base::{TermType, Type as CoreType};
 
         let builder = CirBuilder::new(&self.builder);
         let loc = self.location_from_span(span);
@@ -1553,7 +1553,7 @@ fn translate_ir_type<'a, B: OpBuilder>(
     builder: &CirBuilder<'a, B>,
     ty: &syntax_base::Type,
 ) -> TypeBase {
-    use liblumen_syntax_base::Type as CoreType;
+    use firefly_syntax_base::Type as CoreType;
 
     debug!("translating syntax_base type {:?} to mlir type", ty);
     match ty {
@@ -1598,7 +1598,7 @@ fn translate_primitive_ir_type<'a, B: OpBuilder>(
     builder: &CirBuilder<'a, B>,
     ty: &syntax_base::PrimitiveType,
 ) -> TypeBase {
-    use liblumen_syntax_base::PrimitiveType;
+    use firefly_syntax_base::PrimitiveType;
     match ty {
         PrimitiveType::Void => builder.get_none_type().base(),
         PrimitiveType::I1 => builder.get_i1_type().base(),
@@ -1632,7 +1632,7 @@ fn translate_term_ir_type<'a, B: OpBuilder>(
     builder: &CirBuilder<'a, B>,
     ty: &syntax_base::TermType,
 ) -> TypeBase {
-    use liblumen_syntax_base::TermType;
+    use firefly_syntax_base::TermType;
 
     let use_boxed_floats = !options.target.term_encoding().is_nanboxed();
     match ty {

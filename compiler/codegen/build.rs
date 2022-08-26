@@ -2,7 +2,7 @@ use std::env;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
-const ENV_LLVM_PREFIX: &'static str = "DEP_LUMEN_LLVM_CORE_PREFIX";
+const ENV_LLVM_PREFIX: &'static str = "DEP_FIREFLY_LLVM_CORE_PREFIX";
 
 fn main() {
     // Emit custom cfg types:

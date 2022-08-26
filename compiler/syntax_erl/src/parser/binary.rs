@@ -1,6 +1,6 @@
-use liblumen_binary::{BinaryEntrySpecifier, Endianness};
-use liblumen_diagnostics::{Diagnostic, Label, SourceSpan, Spanned, ToDiagnostic};
-use liblumen_intern::{symbols, Symbol};
+use firefly_binary::{BinaryEntrySpecifier, Endianness};
+use firefly_diagnostics::{Diagnostic, Label, SourceSpan, Spanned, ToDiagnostic};
+use firefly_intern::{symbols, Symbol};
 
 use crate::ast::BitType;
 

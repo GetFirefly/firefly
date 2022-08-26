@@ -1,7 +1,7 @@
-use liblumen_diagnostics::*;
-use liblumen_intern::{Symbol, Ident};
-use liblumen_number::{Integer, Float};
-use liblumen_syntax_erl::ast::*;
+use firefly_diagnostics::*;
+use firefly_intern::{Symbol, Ident};
+use firefly_number::{Integer, Float};
+use firefly_syntax_erl::ast::*;
 
 use crate::ast::*;
 use super::Token;

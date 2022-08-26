@@ -1,8 +1,8 @@
-    .section .text.__lumen_dynamic_apply,"ax",@progbits
-    .globl __lumen_dynamic_apply
+    .section .text.__firefly_dynamic_apply,"ax",@progbits
+    .globl __firefly_dynamic_apply
     .p2align 4
-    .type __lumen_dynamic_apply,@function
-__lumen_dynamic_apply:
+    .type __firefly_dynamic_apply,@function
+__firefly_dynamic_apply:
 .L_dyn_call_begin:
     .cfi_startproc
     .cfi_personality 155, DW.ref.rust_eh_personality
@@ -153,7 +153,7 @@ __lumen_dynamic_apply:
     ret
 
 .L_dyn_call_end:
-    .size __lumen_dynamic_apply, .L_dyn_call_end-__lumen_dynamic_apply
+    .size __firefly_dynamic_apply, .L_dyn_call_end-__firefly_dynamic_apply
     .cfi_endproc
 
     # The following is the jump table for setting up calls with

@@ -3,9 +3,9 @@ use std::fmt;
 use std::ops::Deref;
 use std::path::Path;
 
-use liblumen_llvm::codegen::{CodeGenOptLevel, CodeGenOptSize};
-use liblumen_session::Options;
-use liblumen_util::diagnostics::DiagnosticsHandler;
+use firefly_llvm::codegen::{CodeGenOptLevel, CodeGenOptSize};
+use firefly_session::Options;
+use firefly_util::diagnostics::DiagnosticsHandler;
 
 use crate::*;
 

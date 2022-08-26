@@ -1,6 +1,6 @@
-use liblumen_diagnostics::Reporter;
-use liblumen_intern::Symbol;
-use liblumen_syntax_base::{bifs, CompileOptions, Deprecation, FunctionName, Signature};
+use firefly_diagnostics::Reporter;
+use firefly_intern::Symbol;
+use firefly_syntax_base::{bifs, CompileOptions, Deprecation, FunctionName, Signature};
 
 use crate::ast::*;
 

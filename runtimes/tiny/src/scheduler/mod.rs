@@ -11,9 +11,9 @@ use std::sync::{
 };
 use std::thread::{self, ThreadId};
 
-use liblumen_rt::function::{DynamicCallee, ModuleFunctionArity};
-use liblumen_rt::process::{Process, ProcessStatus};
-use liblumen_rt::term::{OpaqueTerm, Pid, ProcessId};
+use firefly_rt::function::{DynamicCallee, ModuleFunctionArity};
+use firefly_rt::process::{Process, ProcessStatus};
+use firefly_rt::term::{OpaqueTerm, Pid, ProcessId};
 
 use self::queue::RunQueue;
 
@@ -493,7 +493,7 @@ impl CalleeSavedRegisters {
 const FIRST_SWAP: u64 = 0xdeadbeef;
 
 extern "C-unwind" {
-    #[link_name = "__lumen_swap_stack"]
+    #[link_name = "__firefly_swap_stack"]
     fn swap_stack(
         prev: *mut CalleeSavedRegisters,
         new: *const CalleeSavedRegisters,

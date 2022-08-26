@@ -289,12 +289,12 @@ public:
   Type getGcBoxType(Type innerTy) {
     MLIRContext *context = &getContext();
     auto gcBoxTy =
-        LLVM::LLVMStructType::getIdentified(context, "liblumen_alloc::GcBox");
+        LLVM::LLVMStructType::getIdentified(context, "firefly_alloc::GcBox");
     if (gcBoxTy.isInitialized())
       return gcBoxTy;
 
     auto metadataTy = LLVM::LLVMStructType::getIdentified(
-        context, "liblumen_alloc::Metadata");
+        context, "firefly_alloc::Metadata");
     auto typeIdTy = getIsizeType();
     auto ptrMetadataTy = getIsizeType();
     assert(succeeded(metadataTy.setBody({typeIdTy, ptrMetadataTy},
@@ -306,7 +306,7 @@ public:
     return gcBoxTy;
   }
 
-  // This function represnts `liblumen_rt::function::ErlangResult`, which is
+  // This function represnts `firefly_rt::function::ErlangResult`, which is
   // used as the general return type of runtime functions that are fallible.
   //
   // NOTE: It is essential to understand the ABI implications of the types you
@@ -326,7 +326,7 @@ public:
     if (exceptionTy.isInitialized())
       return exceptionTy;
 
-    // Corresponds to ErlangException in liblumen_rt
+    // Corresponds to ErlangException in firefly_rt
     // { class: term, reason: term, trace: *mut Trace, fragment: *const
     // HeapFragment }
     Type termTy = getTermType();
@@ -354,7 +354,7 @@ public:
     return traceTy;
   }
 
-  // Corresponds to Message in liblumen_alloc
+  // Corresponds to Message in firefly_alloc
   Type getMessageType() {
     MLIRContext *context = &getContext();
     auto messageTy =
@@ -371,13 +371,13 @@ public:
     return messageTy;
   }
 
-  // Corresponds to *mut BitVec in liblumen_binary
+  // Corresponds to *mut BitVec in firefly_binary
   Type getBinaryBuilderType() {
     MLIRContext *context = &getContext();
     return LLVM::LLVMStructType::getOpaque("erlang::BitVec", context);
   }
 
-  // Corresponds to *mut Matcher<'static>  in liblumen_binary
+  // Corresponds to *mut Matcher<'static>  in firefly_binary
   Type getMatchContextType() {
     MLIRContext *context = &getContext();
     auto matchCtxTy =
@@ -404,7 +404,7 @@ public:
     return matchResultTy;
   }
 
-  // Corresponds to ReceiveContext in lumen_rt_minimal
+  // Corresponds to ReceiveContext in firefly_rt_minimal
   Type getRecvContextType() {
     MLIRContext *context = &getContext();
     auto recvCtxTy =
@@ -420,7 +420,7 @@ public:
     return recvCtxTy;
   }
 
-  // Corresponds to AtomData in liblumen_rt
+  // Corresponds to AtomData in firefly_rt
   Type getAtomDataType() {
     MLIRContext *context = &getContext();
     auto atomDataTy =
@@ -435,7 +435,7 @@ public:
     return atomDataTy;
   }
 
-  // Corresponds to FunctionSymbol in liblumen_rt
+  // Corresponds to FunctionSymbol in firefly_rt
   Type getDispatchEntryType() {
     MLIRContext *context = &getContext();
     auto dispatchEntryTy =
@@ -443,7 +443,7 @@ public:
     if (dispatchEntryTy.isInitialized())
       return dispatchEntryTy;
 
-    // Corresponds to FunctionSymbol in liblumen_rt
+    // Corresponds to FunctionSymbol in firefly_rt
     // { module: *AtomData, function: *AtomData, arity: u8, fun: *const () }
     auto atomDataTy = getAtomDataType();
     auto atomDataPtrTy = LLVM::LLVMPointerType::get(atomDataTy);
@@ -754,16 +754,16 @@ protected:
     fatPtr = builder.create<LLVM::InsertValueOp>(loc, fatPtr, dataSize,
                                                  builder.getI64ArrayAttr(1));
 
-    Operation *callee = module.lookupSymbol("__lumen_bigint_from_digits");
+    Operation *callee = module.lookupSymbol("__firefly_bigint_from_digits");
     if (!callee) {
       auto calleeType =
           LLVM::LLVMFunctionType::get(termTy, ArrayRef<Type>{fatPtrTy});
       insertFunctionDeclaration(builder, loc, module,
-                                "__lumen_bigint_from_digits", calleeType);
+                                "__firefly_bigint_from_digits", calleeType);
     }
 
     Operation *call = builder.create<LLVM::CallOp>(loc, TypeRange({termTy}),
-                                                   "__lumen_bigint_from_digits",
+                                                   "__firefly_bigint_from_digits",
                                                    ValueRange({fatPtr}));
     return call->getResult(0);
   }
@@ -848,7 +848,7 @@ protected:
     // Hash the atom if it is not a bare atom, as the atom value may not be
     // representable as a symbol, but we want them to nevertheless have a
     // consistent unique id. By allowing bare atoms to use their value as part
-    // of the symbol name, we can also manually define atoms in liblumen_rt
+    // of the symbol name, we can also manually define atoms in firefly_rt
     // which are used by the runtime for comparisons.
     auto notfound = ~size_t(0);
     bool isBareAtom = value.find_if_not([](char c) {
@@ -1052,7 +1052,7 @@ protected:
   }
 
   Value decodeInteger(OpBuilder &builder, Location loc, Value value) const {
-    // See opaque.rs in liblumen_rt
+    // See opaque.rs in firefly_rt
     auto mask = createTermConstant(builder, loc, NANBOX_INTEGER_MASK);
     Value raw = builder.create<LLVM::AndOp>(loc, value, mask);
     auto signal = createTermConstant(builder, loc, NANBOX_SIGNAL_BIT);
@@ -1120,7 +1120,7 @@ protected:
     auto tlsMode = LLVM::ThreadLocalMode::LocalExec;
     return builder.create<LLVM::GlobalOp>(
         loc, ty, /*isConstant=*/false, linkage, tlsMode,
-        "__lumen_process_reductions", Attribute());
+        "__firefly_process_reductions", Attribute());
   }
 };
 } // namespace
@@ -1740,16 +1740,16 @@ struct TypeOfOpLowering : public ConvertCIROpToLLVMPattern<cir::TypeOfOp> {
     auto termTy = getTermType();
     auto module = op->getParentOfType<ModuleOp>();
 
-    Operation *callee = module.lookupSymbol("__lumen_builtin_typeof");
+    Operation *callee = module.lookupSymbol("__firefly_builtin_typeof");
     if (!callee) {
       auto calleeType =
           LLVM::LLVMFunctionType::get(i32Ty, ArrayRef<Type>{termTy});
-      insertFunctionDeclaration(rewriter, loc, module, "__lumen_builtin_typeof",
+      insertFunctionDeclaration(rewriter, loc, module, "__firefly_builtin_typeof",
                                 calleeType);
     }
 
     rewriter.replaceOpWithNewOp<LLVM::CallOp>(op, TypeRange({i32Ty}),
-                                              "__lumen_builtin_typeof",
+                                              "__firefly_builtin_typeof",
                                               ValueRange({adaptor.value()}));
     return success();
   }
@@ -1850,16 +1850,16 @@ struct IsTupleOpLowering : public ConvertCIROpToLLVMPattern<cir::IsTupleOp> {
     auto resultTy =
         LLVM::LLVMStructType::getLiteral(getContext(), {i8Ty, i32Ty});
 
-    Operation *callee = module.lookupSymbol("__lumen_builtin_is_tuple");
+    Operation *callee = module.lookupSymbol("__firefly_builtin_is_tuple");
     if (!callee) {
       auto calleeType =
           LLVM::LLVMFunctionType::get(resultTy, ArrayRef<Type>{termTy});
       insertFunctionDeclaration(rewriter, loc, module,
-                                "__lumen_builtin_is_tuple", calleeType);
+                                "__firefly_builtin_is_tuple", calleeType);
     }
 
     Operation *call = rewriter.create<LLVM::CallOp>(
-        loc, TypeRange({resultTy}), "__lumen_builtin_is_tuple",
+        loc, TypeRange({resultTy}), "__firefly_builtin_is_tuple",
         ValueRange({adaptor.value()}));
     Value result = call->getResult(0);
 
@@ -1949,16 +1949,16 @@ struct IsNumberOpLowering : public ConvertCIROpToLLVMPattern<cir::IsNumberOp> {
     auto termTy = getTermType();
     auto module = op->getParentOfType<ModuleOp>();
 
-    Operation *callee = module.lookupSymbol("__lumen_builtin_is_number");
+    Operation *callee = module.lookupSymbol("__firefly_builtin_is_number");
     if (!callee) {
       auto calleeType =
           LLVM::LLVMFunctionType::get(i1Ty, ArrayRef<Type>{termTy});
       insertFunctionDeclaration(rewriter, loc, module,
-                                "__lumen_builtin_is_number", calleeType);
+                                "__firefly_builtin_is_number", calleeType);
     }
 
     rewriter.replaceOpWithNewOp<LLVM::CallOp>(op, TypeRange({i1Ty}),
-                                              "__lumen_builtin_is_number",
+                                              "__firefly_builtin_is_number",
                                               ValueRange({adaptor.value()}));
     return success();
   }
@@ -1998,7 +1998,7 @@ struct IsIntegerOpLowering
     auto loc = op.getLoc();
     auto value = adaptor.value();
 
-    // _lumen_builtin_typeof == TermKind::Int
+    // _firefly_builtin_typeof == TermKind::Int
     Value ty = rewriter.create<cir::TypeOfOp>(loc, value);
     Value expected = createI32Constant(rewriter, loc, TermKind::Int);
     rewriter.replaceOpWithNewOp<LLVM::ICmpOp>(op, LLVM::ICmpPredicate::eq, ty,
@@ -2040,7 +2040,7 @@ struct IsBigIntOpLowering : public ConvertCIROpToLLVMPattern<cir::IsBigIntOp> {
     auto loc = op.getLoc();
     auto value = adaptor.value();
 
-    // value & NEG_INFINITY != NEG_INFINITY && __lumen_builtin_typeof ==
+    // value & NEG_INFINITY != NEG_INFINITY && __firefly_builtin_typeof ==
     // TermKind::Int
     Value ty = rewriter.create<cir::TypeOfOp>(loc, value);
     Value expected = createI32Constant(rewriter, loc, TermKind::Int);
@@ -2150,7 +2150,7 @@ struct IsTypeOpLowering : public ConvertCIROpToLLVMPattern<cir::IsTypeOp> {
             op, "failed to lower is_type op, unsupported boxed match type");
       }
 
-      // __lumen_builtin_typeof == expectedTermKind
+      // __firefly_builtin_typeof == expectedTermKind
       Value ty = rewriter.create<cir::TypeOfOp>(loc, value);
       Value expected = createI32Constant(rewriter, loc, expectedTermKind);
       rewriter.replaceOpWithNewOp<LLVM::ICmpOp>(op, LLVM::ICmpPredicate::eq, ty,
@@ -2181,11 +2181,11 @@ struct MallocOpLowering : public ConvertCIROpToLLVMPattern<cir::MallocOp> {
     auto isizeTy = getIsizeType();
     auto i8PtrTy = LLVM::LLVMPointerType::get(i8Ty);
 
-    Operation *callee = module.lookupSymbol("__lumen_builtin_malloc");
+    Operation *callee = module.lookupSymbol("__firefly_builtin_malloc");
     if (!callee) {
       auto calleeType =
           LLVM::LLVMFunctionType::get(i8PtrTy, ArrayRef<Type>{i32Ty, isizeTy});
-      insertFunctionDeclaration(rewriter, loc, module, "__lumen_builtin_malloc",
+      insertFunctionDeclaration(rewriter, loc, module, "__firefly_builtin_malloc",
                                 calleeType);
     }
 
@@ -2212,7 +2212,7 @@ struct MallocOpLowering : public ConvertCIROpToLLVMPattern<cir::MallocOp> {
     auto kindArg = createIndexAttrConstant(rewriter, loc, i32Ty, mallocType);
     auto arityArg = createIsizeConstant(rewriter, loc, size);
     auto callOp = rewriter.create<LLVM::CallOp>(
-        loc, TypeRange({i8PtrTy}), "__lumen_builtin_malloc",
+        loc, TypeRange({i8PtrTy}), "__firefly_builtin_malloc",
         ValueRange({kindArg, arityArg}));
 
     auto ptrTy = LLVM::LLVMPointerType::get(outType);
@@ -2562,16 +2562,16 @@ struct SetElementOpLowering
       auto termTy = getTermType();
       auto isizeTy = getIsizeType();
       auto module = op->getParentOfType<ModuleOp>();
-      Operation *callee = module.lookupSymbol("__lumen_set_element");
+      Operation *callee = module.lookupSymbol("__firefly_set_element");
       if (!callee) {
         auto tuplePtrTy = LLVM::LLVMPointerType::get(tupleTy);
         auto calleeType = LLVM::LLVMFunctionType::get(
             termTy, ArrayRef<Type>{tuplePtrTy, isizeTy, termTy});
-        insertFunctionDeclaration(rewriter, loc, module, "__lumen_set_element",
+        insertFunctionDeclaration(rewriter, loc, module, "__firefly_set_element",
                                   calleeType);
       }
       rewriter.replaceOpWithNewOp<LLVM::CallOp>(
-          op, TypeRange({termTy}), "__lumen_set_element",
+          op, TypeRange({termTy}), "__firefly_set_element",
           ValueRange({ptr, index, value}));
       return success();
     }
@@ -2612,17 +2612,17 @@ struct RaiseOpLowering : public ConvertCIROpToLLVMPattern<cir::RaiseOp> {
     auto klassTy = getTermType();
     auto reasonTy = getTermType();
     auto traceTy = LLVM::LLVMPointerType::get(getTraceType());
-    Operation *callee = module.lookupSymbol("__lumen_builtin_raise/3");
+    Operation *callee = module.lookupSymbol("__firefly_builtin_raise/3");
     if (!callee) {
       auto calleeType = LLVM::LLVMFunctionType::get(
           exceptionPtrTy, ArrayRef<Type>{klassTy, reasonTy, traceTy});
       insertFunctionDeclaration(rewriter, loc, module,
-                                "__lumen_builtin_raise/3", calleeType);
+                                "__firefly_builtin_raise/3", calleeType);
     }
 
-    // Create the raw exception value using __lumen_builtin_raise/3
+    // Create the raw exception value using __firefly_builtin_raise/3
     auto callOp = rewriter.create<LLVM::CallOp>(
-        loc, TypeRange({exceptionPtrTy}), "__lumen_builtin_raise/3",
+        loc, TypeRange({exceptionPtrTy}), "__firefly_builtin_raise/3",
         ValueRange({klass, reason, trace}));
     auto exceptionPtr = callOp.getResult(0);
 
@@ -2726,7 +2726,7 @@ struct YieldOpLowering : public ConvertCIROpToLLVMPattern<cir::YieldOp> {
     // If this op was not stripped by a pass, we're on a target which supports
     // stack switching, so lower this to a call to the yield intrinsic
     rewriter.replaceOpWithNewOp<LLVM::CallOp>(
-        op, TypeRange({voidTy}), "__lumen_builtin_yield", ValueRange());
+        op, TypeRange({voidTy}), "__firefly_builtin_yield", ValueRange());
     return success();
   }
 };
@@ -2745,7 +2745,7 @@ struct RecvStartOpLowering
     auto timeout = adaptor.timeout();
 
     rewriter.replaceOpWithNewOp<LLVM::CallOp>(op, TypeRange({recvCtxTy}),
-                                              "__lumen_builtin_receive_start",
+                                              "__firefly_builtin_receive_start",
                                               ValueRange({timeout}));
     return success();
   }
@@ -2764,7 +2764,7 @@ struct RecvNextOpLowering : public ConvertCIROpToLLVMPattern<cir::RecvNextOp> {
     auto context = adaptor.context();
 
     rewriter.replaceOpWithNewOp<LLVM::CallOp>(op, TypeRange({i8Ty}),
-                                              "__lumen_builtin_receive_start",
+                                              "__firefly_builtin_receive_start",
                                               ValueRange({context}));
     return success();
   }
@@ -2817,7 +2817,7 @@ struct RecvPopOpLowering : public ConvertCIROpToLLVMPattern<cir::RecvPopOp> {
     auto context = adaptor.context();
 
     rewriter.replaceOpWithNewOp<LLVM::CallOp>(op, TypeRange({voidTy}),
-                                              "__lumen_builtin_receive_pop",
+                                              "__firefly_builtin_receive_pop",
                                               ValueRange({context}));
     return success();
   }
@@ -2836,7 +2836,7 @@ struct RecvDoneOpLowering : public ConvertCIROpToLLVMPattern<cir::RecvDoneOp> {
     auto context = adaptor.context();
 
     rewriter.replaceOpWithNewOp<LLVM::CallOp>(op, TypeRange({voidTy}),
-                                              "__lumen_builtin_receive_done",
+                                              "__firefly_builtin_receive_done",
                                               ValueRange({context}));
     return success();
   }
@@ -2880,7 +2880,7 @@ struct DispatchTableOpLowering
       hasher.update(StringRef(arityStr));
 
       auto globalName =
-          std::string("lumen_dispatch_") + llvm::toHex(hasher.result(), true);
+          std::string("firefly_dispatch_") + llvm::toHex(hasher.result(), true);
       std::string sectionName;
       if (isMachO())
         sectionName = std::string("__DATA,__dispatch");
@@ -2963,15 +2963,15 @@ struct BinaryMatchStartOpLowering
     auto bin = adaptor.bin();
 
     auto module = op->getParentOfType<ModuleOp>();
-    Operation *callee = module.lookupSymbol("__lumen_bs_match_start");
+    Operation *callee = module.lookupSymbol("__firefly_bs_match_start");
     if (!callee) {
       auto calleeType =
           LLVM::LLVMFunctionType::get(resultTy, ArrayRef<Type>{termTy});
-      insertFunctionDeclaration(rewriter, loc, module, "__lumen_bs_match_start",
+      insertFunctionDeclaration(rewriter, loc, module, "__firefly_bs_match_start",
                                 calleeType);
     }
     auto callOp = rewriter.create<LLVM::CallOp>(loc, TypeRange({resultTy}),
-                                                "__lumen_bs_match_start",
+                                                "__firefly_bs_match_start",
                                                 ValueRange({bin}));
     Value callResult = callOp->getResult(0);
     Value isErrWide = rewriter.create<LLVM::ExtractValueOp>(
@@ -3014,7 +3014,7 @@ struct BinaryMatchOpLowering
     BinaryEntrySpecifier spec = specAttr.getValue();
 
     auto module = op->getParentOfType<ModuleOp>();
-    Operation *callee = module.lookupSymbol("__lumen_bs_match");
+    Operation *callee = module.lookupSymbol("__firefly_bs_match");
     // Because of the size of the result type, a pointer to the
     // zero-initialized structure is passed in as an implicit first argument,
     // i.e. the sret attribute must be applied
@@ -3033,7 +3033,7 @@ struct BinaryMatchOpLowering
       auto calleeType = LLVM::LLVMFunctionType::get(
           voidTy, ArrayRef<Type>{resultPtrTy, matchContextTy, i64Ty, termTy});
       callee =
-          insertFunctionDeclaration(rewriter, loc, module, "__lumen_bs_match",
+          insertFunctionDeclaration(rewriter, loc, module, "__firefly_bs_match",
                                     calleeType, attrs, argAttrs);
     }
 
@@ -3094,15 +3094,15 @@ struct BinaryTestTailOpLowering
         createIsizeConstant(rewriter, loc, adaptor.size().getLimitedValue());
 
     auto module = op->getParentOfType<ModuleOp>();
-    Operation *callee = module.lookupSymbol("__lumen_bs_test_tail");
+    Operation *callee = module.lookupSymbol("__firefly_bs_test_tail");
     if (!callee) {
       auto calleeType = LLVM::LLVMFunctionType::get(
           i1Ty, ArrayRef<Type>{matchContextTy, isizeTy});
-      insertFunctionDeclaration(rewriter, loc, module, "__lumen_bs_test_tail",
+      insertFunctionDeclaration(rewriter, loc, module, "__firefly_bs_test_tail",
                                 calleeType);
     }
     rewriter.replaceOpWithNewOp<LLVM::CallOp>(op, TypeRange({i1Ty}),
-                                              "__lumen_bs_test_tail",
+                                              "__firefly_bs_test_tail",
                                               ValueRange({matchCtx, size}));
     return success();
   }
@@ -3132,12 +3132,12 @@ struct BinaryMatchSkipOpLowering
     BinaryEntrySpecifier spec = specAttr.getValue();
 
     auto module = op->getParentOfType<ModuleOp>();
-    Operation *callee = module.lookupSymbol("__lumen_bs_match_skip");
+    Operation *callee = module.lookupSymbol("__firefly_bs_match_skip");
     if (!callee) {
       auto calleeType = LLVM::LLVMFunctionType::get(
           resultTy, ArrayRef<Type>{matchContextTy, i64Ty, termTy, i64Ty});
       callee = insertFunctionDeclaration(rewriter, loc, module,
-                                         "__lumen_bs_match_skip", calleeType);
+                                         "__firefly_bs_match_skip", calleeType);
     }
 
     uint64_t specRawInt = 0;
@@ -3187,11 +3187,11 @@ struct BinaryPushOpLowering
     BinaryEntrySpecifier spec = specAttr.getValue();
 
     auto module = op->getParentOfType<ModuleOp>();
-    Operation *callee = module.lookupSymbol("__lumen_bs_push");
+    Operation *callee = module.lookupSymbol("__firefly_bs_push");
     if (!callee) {
       auto calleeType = LLVM::LLVMFunctionType::get(
           resultTy, ArrayRef<Type>{binaryBuilderPtrTy, i64Ty, termTy, termTy});
-      insertFunctionDeclaration(rewriter, loc, module, "__lumen_bs_push",
+      insertFunctionDeclaration(rewriter, loc, module, "__firefly_bs_push",
                                 calleeType);
     }
 
@@ -3206,7 +3206,7 @@ struct BinaryPushOpLowering
     }
 
     auto callOp = rewriter.create<LLVM::CallOp>(
-        loc, TypeRange({resultTy}), "__lumen_bs_push",
+        loc, TypeRange({resultTy}), "__firefly_bs_push",
         ValueRange({bin, specRaw, adaptor.value(), size}));
     Value callResult = callOp->getResult(0);
     Value isErrWide = rewriter.create<LLVM::ExtractValueOp>(

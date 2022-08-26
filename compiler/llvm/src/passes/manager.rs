@@ -2,7 +2,7 @@ use std::mem::MaybeUninit;
 
 use anyhow::anyhow;
 
-use liblumen_profiling::SelfProfilerRef;
+use firefly_profiling::SelfProfilerRef;
 
 use crate::profiling::{self, LlvmSelfProfiler};
 use crate::support::OwnedStringRef;
@@ -79,7 +79,7 @@ impl PassManager {
         target_machine: TargetMachine,
     ) -> anyhow::Result<OwnedModule> {
         extern "C" {
-            pub fn LLVMLumenOptimize(
+            pub fn LLVMFireflyOptimize(
                 module: Module,
                 target_machine: TargetMachine,
                 config: *const OptimizerConfig,
@@ -103,7 +103,7 @@ impl PassManager {
 
         let mut error = MaybeUninit::<*mut std::os::raw::c_char>::uninit();
         let failed = unsafe {
-            LLVMLumenOptimize(module.as_ref(), target_machine, &config, error.as_mut_ptr())
+            LLVMFireflyOptimize(module.as_ref(), target_machine, &config, error.as_mut_ptr())
         };
         if failed {
             let error = unsafe { OwnedStringRef::from_ptr(error.assume_init()) };

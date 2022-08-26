@@ -2,9 +2,9 @@ use core::ops::ControlFlow;
 
 use crate::ast::*;
 
-use liblumen_diagnostics::*;
-use liblumen_pass::Pass;
-use liblumen_syntax_base::FunctionName;
+use firefly_diagnostics::*;
+use firefly_pass::Pass;
+use firefly_syntax_base::FunctionName;
 
 use crate::visit::{self as visit, VisitMut};
 

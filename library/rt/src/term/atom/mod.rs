@@ -17,7 +17,7 @@ use core::mem;
 use core::ptr::{self, NonNull};
 use core::str::{self, FromStr, Utf8Error};
 
-use liblumen_binary::Encoding;
+use firefly_binary::Encoding;
 
 use super::OpaqueTerm;
 
@@ -330,7 +330,7 @@ impl Hash for Atom {
 }
 
 /// This is a helper which allows compiled code to convert a pointer to a C string value into an atom directly.
-#[export_name = "__lumen_builtin_atom_from_cstr"]
+#[export_name = "__firefly_builtin_atom_from_cstr"]
 pub unsafe extern "C-unwind" fn atom_from_cstr(ptr: *const core::ffi::c_char) -> OpaqueTerm {
     let atom = Atom::from_raw_cstr(ptr);
     atom.into()

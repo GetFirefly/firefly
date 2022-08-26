@@ -1,8 +1,8 @@
 use core::alloc::{AllocError, Layout};
 use core::ptr;
 
-use liblumen_alloc::mmap;
-use liblumen_system as system;
+use firefly_alloc::mmap;
+use firefly_system as system;
 
 const STACK_ALIGNMENT: usize = 16;
 

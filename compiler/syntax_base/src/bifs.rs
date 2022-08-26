@@ -12,8 +12,8 @@
 use std::collections::BTreeMap;
 
 use lazy_static::lazy_static;
-use liblumen_compiler_macros::{bif, guard_bif};
-use liblumen_intern::symbols;
+use firefly_compiler_macros::{bif, guard_bif};
+use firefly_intern::symbols;
 
 use crate::{CallConv, FunctionName, Signature, Visibility};
 use crate::{FunctionType, PrimitiveType, TermType, Type};

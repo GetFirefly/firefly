@@ -4,7 +4,7 @@ use core::fmt::{self, Display};
 use core::hash::{Hash, Hasher};
 use core::ptr;
 
-use liblumen_alloc::gc::GcBox;
+use firefly_alloc::gc::GcBox;
 
 use super::{Node, Pid, Term};
 

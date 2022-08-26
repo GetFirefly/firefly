@@ -1,5 +1,5 @@
 [package]
-name = "liblumen_codegen"
+name = "firefly_codegen"
 version = "0.1.0"
 authors = ["Paul Schoenfelder <paulschoenfelder@gmail.com>"]
 edition = "2021"
@@ -15,20 +15,20 @@ num-bigint = "0.4"
 tempfile = "3.3"
 thiserror = "1.0"
 
-liblumen_binary = { path = "../binary" }
-liblumen_compiler_macros = { path = "../macros" }
-liblumen_diagnostics = { path = "../diagnostics" }
-liblumen_llvm = { path = "../llvm" }
-liblumen_intern = { path = "../intern" }
-liblumen_mlir = { path = "../mlir" }
-liblumen_number = { path = "../number" }
-liblumen_pass = { path = "../pass" }
-liblumen_rt = { path = "../../library/rt" }
-liblumen_session = { path = "../session" }
-liblumen_syntax_ssa = { path = "../syntax_ssa" }
-liblumen_syntax_base = { path = "../syntax_base" }
-liblumen_target = { path = "../target" }
-liblumen_util = { path = "../util" }
+firefly_binary = { path = "../../library/binary" }
+firefly_compiler_macros = { path = "../macros" }
+firefly_diagnostics = { path = "../diagnostics" }
+firefly_llvm = { path = "../llvm" }
+firefly_intern = { path = "../intern" }
+firefly_mlir = { path = "../mlir" }
+firefly_number = { path = "../../library/number" }
+firefly_pass = { path = "../pass" }
+firefly_rt = { path = "../../library/rt" }
+firefly_session = { path = "../session" }
+firefly_syntax_ssa = { path = "../syntax_ssa" }
+firefly_syntax_base = { path = "../syntax_base" }
+firefly_target = { path = "../target" }
+firefly_util = { path = "../util" }
 
 [build-dependencies]
-liblumen_llvm = { path = "../llvm" }
+firefly_llvm = { path = "../llvm" }

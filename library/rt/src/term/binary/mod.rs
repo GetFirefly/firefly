@@ -158,6 +158,7 @@ impl PartialEq for BinaryData {
         self.data == other.data
     }
 }
+impl crate::cmp::ExactEq for BinaryData {}
 impl<T: Bitstring> PartialEq<T> for BinaryData {
     fn eq(&self, other: &T) -> bool {
         // An optimization: we can say for sure that if the sizes don't match,

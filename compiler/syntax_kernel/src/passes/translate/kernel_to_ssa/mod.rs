@@ -944,20 +944,42 @@ impl<'m> LowerFunctionToSsa<'m> {
                 let args = self.ssa_values(builder, bif.args)?;
                 let inst = builder.ins().call(callee, args.as_slice(), span);
                 let mut results = builder.inst_results(inst).to_vec();
-                assert_eq!(
-                    bif.ret.len(),
-                    results.len(),
-                    "expected bif {} to have {} results",
-                    bif.op,
-                    results.len()
-                );
-                for (ret, value) in bif
-                    .ret
-                    .iter()
-                    .map(|e| e.as_var().map(|v| v.name()).unwrap())
-                    .zip(results.drain(..))
-                {
-                    builder.define_var(ret, value);
+                let sig = bifs::get(&bif.op).unwrap();
+                if sig.cc == CallConv::Erlang {
+                    // There will be an extra result that is unaccounted for in Kernel IR
+                    // containing the error flag which will never be set, but is required by
+                    // the calling convention
+                    assert_eq!(
+                        bif.ret.len(),
+                        results.len() - 1,
+                        "expected bif {} to have {} results",
+                        bif.op,
+                        results.len() - 1,
+                    );
+                    for (ret, value) in bif
+                        .ret
+                        .iter()
+                        .map(|e| e.as_var().map(|v| v.name()).unwrap())
+                        .zip(results.drain(..).skip(1))
+                    {
+                        builder.define_var(ret, value);
+                    }
+                } else {
+                    assert_eq!(
+                        bif.ret.len(),
+                        results.len(),
+                        "expected bif {} to have {} results",
+                        bif.op,
+                        results.len(),
+                    );
+                    for (ret, value) in bif
+                        .ret
+                        .iter()
+                        .map(|e| e.as_var().map(|v| v.name()).unwrap())
+                        .zip(results.drain(..))
+                    {
+                        builder.define_var(ret, value);
+                    }
                 }
                 Ok(())
             }
@@ -981,15 +1003,27 @@ impl<'m> LowerFunctionToSsa<'m> {
                     let fail = self.fail_context();
                     builder.ins().br_if(is_err, fail.block(), &[result], span);
                 } else {
-                    // If there are rets, we expect that _all_ of the op results are handled
-                    assert_eq!(
-                        bif.ret.len(),
-                        2,
-                        "expected bif {} to have 2 result values",
-                        bif.op
-                    );
-                    builder.define_var(bif.ret[0].as_var().map(|v| v.name()).unwrap(), is_err);
-                    builder.define_var(bif.ret[1].as_var().map(|v| v.name()).unwrap(), result);
+                    // If there are rets, we expect that all of the op results are handled
+                    match bif.ret.len() {
+                        1 => {
+                            // The error flag is ignored, so we need to handle it ourselves
+                            let fail = self.fail_context();
+                            builder.ins().br_if(is_err, fail.block(), &[result], span);
+                            builder
+                                .define_var(bif.ret[0].as_var().map(|v| v.name()).unwrap(), result);
+                        }
+                        2 => {
+                            // The error flag is checked, so let the consuming code handle errors
+                            builder
+                                .define_var(bif.ret[0].as_var().map(|v| v.name()).unwrap(), is_err);
+                            builder
+                                .define_var(bif.ret[1].as_var().map(|v| v.name()).unwrap(), result);
+                        }
+                        n => panic!(
+                            "expected bif {} to have 1 or 2 result values, but got {}",
+                            bif.op, n
+                        ),
+                    }
                 }
                 Ok(())
             }

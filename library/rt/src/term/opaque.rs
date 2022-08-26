@@ -79,7 +79,7 @@ use core::mem::{self, ManuallyDrop, MaybeUninit};
 use core::num::NonZeroU32;
 use core::ptr::{self, NonNull, Pointee};
 
-use super::{atoms, Atom, BinaryData, Cons, Float, Term, Tuple};
+use super::{atoms, Atom, BinaryData, Cons, Float, Integer, Term, Tuple};
 
 use firefly_alloc::gc::{self, GcBox};
 use firefly_alloc::rc::{self, Rc, Weak};
@@ -185,6 +185,13 @@ pub enum TermType {
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 #[repr(transparent)]
 pub struct OpaqueTerm(u64);
+impl crate::cmp::ExactEq for OpaqueTerm {
+    fn exact_eq(&self, other: &Self) -> bool {
+        let lhs: Term = (*self).into();
+        let rhs: Term = (*other).into();
+        lhs.exact_eq(&rhs)
+    }
+}
 
 impl OpaqueTerm {
     /// Represents the constant value used to signal an invalid term/exception
@@ -250,7 +257,7 @@ impl OpaqueTerm {
                         // This is a GcBox
                         let ptr = value.as_ptr();
                         match GcBox::<()>::type_id(ptr) {
-                            super::BigInteger::TYPE_ID => {
+                            Integer::BIGINT_TYPE_ID => {
                                 term.write(Term::BigInt(GcBox::from_raw_unchecked(ptr)));
                             }
                             super::Map::TYPE_ID => {
@@ -315,7 +322,7 @@ impl OpaqueTerm {
                     0 => {
                         let ptr = unsafe { self.as_ptr() };
                         match unsafe { GcBox::<()>::type_id(ptr) } {
-                            super::BigInteger::TYPE_ID => TermType::Int,
+                            Integer::BIGINT_TYPE_ID => TermType::Int,
                             super::Map::TYPE_ID => TermType::Map,
                             super::Closure::TYPE_ID => TermType::Closure,
                             super::Pid::TYPE_ID => TermType::Pid,
@@ -645,13 +652,14 @@ impl TryFrom<i64> for OpaqueTerm {
 impl From<f64> for OpaqueTerm {
     #[inline]
     fn from(f: f64) -> Self {
+        assert!(!f.is_infinite());
         Self(f.to_bits())
     }
 }
 impl From<Float> for OpaqueTerm {
     #[inline]
     fn from(f: Float) -> Self {
-        Self(f.to_bits())
+        f.inner().into()
     }
 }
 impl From<Atom> for OpaqueTerm {

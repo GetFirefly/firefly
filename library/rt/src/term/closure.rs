@@ -214,6 +214,7 @@ seq!(A in 0..10 {
 });
 
 impl Eq for Closure {}
+impl crate::cmp::ExactEq for Closure {}
 impl PartialEq for Closure {
     fn eq(&self, other: &Self) -> bool {
         self.module == other.module

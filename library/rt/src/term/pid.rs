@@ -13,6 +13,7 @@ pub enum Pid {
     Local { id: ProcessId },
     External { id: ProcessId, node: Arc<Node> },
 }
+impl crate::cmp::ExactEq for Pid {}
 impl Pid {
     pub const TYPE_ID: TypeId = TypeId::of::<Pid>();
 

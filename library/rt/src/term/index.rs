@@ -4,7 +4,9 @@ use core::slice;
 
 use anyhow::anyhow;
 
-use super::{BigInteger, OpaqueTerm, Term, Tuple};
+use firefly_number::ToPrimitive;
+
+use super::{BigInt, OpaqueTerm, Term, Tuple};
 
 /// A marker trait for index types
 pub trait TupleIndex: Into<usize> {}
@@ -38,10 +40,10 @@ impl Default for OneBasedIndex {
         Self(1)
     }
 }
-impl TryFrom<&BigInteger> for OneBasedIndex {
+impl TryFrom<&BigInt> for OneBasedIndex {
     type Error = anyhow::Error;
 
-    fn try_from(n: &BigInteger) -> Result<Self, Self::Error> {
+    fn try_from(n: &BigInt) -> Result<Self, Self::Error> {
         Self::new(n.try_into().map_err(|_| bad_index!())?)
     }
 }
@@ -158,7 +160,7 @@ impl TryFrom<Term> for ZeroBasedIndex {
     fn try_from(term: Term) -> Result<Self, Self::Error> {
         match term {
             Term::Int(i) => i.try_into().map_err(|_| bad_index!()),
-            Term::BigInt(i) => i.as_i64().ok_or_else(|| bad_index!())?.try_into(),
+            Term::BigInt(i) => i.to_i64().ok_or_else(|| bad_index!())?.try_into(),
             _ => Err(bad_index!()),
         }
     }

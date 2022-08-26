@@ -1,3 +1,4 @@
+use crate::cmp::ExactEq;
 use crate::function::ErlangResult;
 use crate::term::{OpaqueTerm, Term, TermType};
 
@@ -52,4 +53,68 @@ pub extern "C" fn is_binary1(value: OpaqueTerm) -> ErlangResult {
 #[export_name = "erlang:is_function/1"]
 pub extern "C" fn is_function1(value: OpaqueTerm) -> ErlangResult {
     ErlangResult::Ok((value.r#typeof() == TermType::Closure).into())
+}
+
+#[export_name = "erlang:is_big_integer/1"]
+pub extern "C" fn is_big_integer1(value: OpaqueTerm) -> ErlangResult {
+    match value.into() {
+        Term::BigInt(_) => ErlangResult::Ok(true.into()),
+        _ => ErlangResult::Ok(false.into()),
+    }
+}
+
+#[export_name = "erlang:>=/2"]
+pub extern "C" fn gte2(lhs: OpaqueTerm, rhs: OpaqueTerm) -> ErlangResult {
+    let lhs: Term = lhs.into();
+    let rhs: Term = rhs.into();
+    ErlangResult::Ok((lhs >= rhs).into())
+}
+
+#[export_name = "erlang:>/2"]
+pub extern "C" fn gt2(lhs: OpaqueTerm, rhs: OpaqueTerm) -> ErlangResult {
+    let lhs: Term = lhs.into();
+    let rhs: Term = rhs.into();
+    ErlangResult::Ok((lhs > rhs).into())
+}
+
+#[export_name = "erlang:</2"]
+pub extern "C" fn lt2(lhs: OpaqueTerm, rhs: OpaqueTerm) -> ErlangResult {
+    let lhs: Term = lhs.into();
+    let rhs: Term = rhs.into();
+    ErlangResult::Ok((lhs < rhs).into())
+}
+
+#[export_name = "erlang:=</2"]
+pub extern "C" fn lte2(lhs: OpaqueTerm, rhs: OpaqueTerm) -> ErlangResult {
+    let lhs: Term = lhs.into();
+    let rhs: Term = rhs.into();
+    ErlangResult::Ok((lhs <= rhs).into())
+}
+
+#[export_name = "erlang:==/2"]
+pub extern "C" fn eq2(lhs: OpaqueTerm, rhs: OpaqueTerm) -> ErlangResult {
+    let lhs: Term = lhs.into();
+    let rhs: Term = rhs.into();
+    ErlangResult::Ok((lhs == rhs).into())
+}
+
+#[export_name = "erlang:/=/2"]
+pub extern "C" fn ne2(lhs: OpaqueTerm, rhs: OpaqueTerm) -> ErlangResult {
+    let lhs: Term = lhs.into();
+    let rhs: Term = rhs.into();
+    ErlangResult::Ok((lhs != rhs).into())
+}
+
+#[export_name = "erlang:=:=/2"]
+pub extern "C" fn strict_eq2(lhs: OpaqueTerm, rhs: OpaqueTerm) -> ErlangResult {
+    let lhs: Term = lhs.into();
+    let rhs: Term = rhs.into();
+    ErlangResult::Ok((lhs.exact_eq(&rhs)).into())
+}
+
+#[export_name = "erlang:=/=/2"]
+pub extern "C" fn strict_ne2(lhs: OpaqueTerm, rhs: OpaqueTerm) -> ErlangResult {
+    let lhs: Term = lhs.into();
+    let rhs: Term = rhs.into();
+    ErlangResult::Ok((lhs.exact_ne(&rhs)).into())
 }

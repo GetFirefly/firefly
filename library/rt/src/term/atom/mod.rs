@@ -275,6 +275,7 @@ impl PartialEq<str> for Atom {
         self.as_str() == other
     }
 }
+impl crate::cmp::ExactEq for Atom {}
 impl Ord for Atom {
     fn cmp(&self, other: &Self) -> core::cmp::Ordering {
         self.as_str().cmp(other.as_str())

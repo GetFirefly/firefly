@@ -8,6 +8,8 @@ use core::ptr::{self, NonNull};
 
 use anyhow::anyhow;
 
+use crate::cmp::ExactEq;
+
 use super::{OpaqueTerm, Term, TupleIndex};
 
 #[repr(C)]
@@ -234,6 +236,14 @@ impl PartialEq for Tuple {
             return false;
         }
         self.iter().zip(other.iter()).all(|(x, y)| x == y)
+    }
+}
+impl ExactEq for Tuple {
+    fn exact_eq(&self, other: &Self) -> bool {
+        if self.len() != other.len() {
+            return false;
+        }
+        self.iter().zip(other.iter()).all(|(x, y)| x.exact_eq(&y))
     }
 }
 

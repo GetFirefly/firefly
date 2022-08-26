@@ -1,9 +1,10 @@
 use core::cmp::Ordering;
 use core::ops::{Add, Div, Mul, Neg, Sub};
 
-use crate::{DivisionError, Float, FloatError, Integer};
+use crate::{BigInt, DivisionError, Float, FloatError, Integer};
 
 #[derive(Debug, Clone, Hash)]
+#[repr(u8)]
 pub enum Number {
     Integer(Integer),
     Float(Float),
@@ -86,26 +87,32 @@ impl From<Integer> for Number {
         Self::Integer(int)
     }
 }
+impl From<BigInt> for Number {
+    fn from(i: BigInt) -> Self {
+        Self::Integer(i.into())
+    }
+}
+impl From<i64> for Number {
+    fn from(i: i64) -> Self {
+        Self::Integer(i.into())
+    }
+}
 impl From<usize> for Number {
-    fn from(int: usize) -> Self {
-        Self::Integer(int.into())
+    fn from(i: usize) -> Self {
+        Self::Integer(i.into())
     }
 }
 impl From<Float> for Number {
-    fn from(float: Float) -> Self {
-        Self::Float(float)
+    fn from(n: Float) -> Self {
+        Self::Float(n)
+    }
+}
+impl From<f64> for Number {
+    fn from(n: f64) -> Self {
+        Self::Float(n.into())
     }
 }
 
-impl Neg for Number {
-    type Output = Number;
-    fn neg(self) -> Self {
-        match self {
-            Self::Integer(int) => Self::Integer(-int),
-            Self::Float(float) => Self::Float(-float),
-        }
-    }
-}
 impl Add<Number> for Number {
     type Output = Result<Number, FloatError>;
 
@@ -180,5 +187,14 @@ impl Div<&Number> for Number {
 
     fn div(self, rhs: &Self) -> Self::Output {
         self.div(rhs.clone())
+    }
+}
+impl Neg for Number {
+    type Output = Number;
+    fn neg(self) -> Self {
+        match self {
+            Self::Integer(int) => Self::Integer(-int),
+            Self::Float(float) => Self::Float(-float),
+        }
     }
 }

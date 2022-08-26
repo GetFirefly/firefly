@@ -12,6 +12,8 @@ use firefly_alloc::heap::Heap;
 use firefly_alloc::rc::Rc;
 use firefly_binary::{BinaryFlags, BitVec, Bitstring, Encoding};
 
+use crate::cmp::ExactEq;
+
 use super::{BinaryData, OpaqueTerm, Term, TupleIndex};
 
 #[derive(Copy, Clone, PartialEq, Eq)]
@@ -355,6 +357,11 @@ impl Eq for Cons {}
 impl PartialEq for Cons {
     fn eq(&self, other: &Self) -> bool {
         self.head().eq(&other.head()) && self.tail().eq(&other.tail())
+    }
+}
+impl ExactEq for Cons {
+    fn exact_eq(&self, other: &Self) -> bool {
+        self.head().exact_eq(&other.head()) && self.tail().exact_eq(&other.tail())
     }
 }
 impl PartialOrd for Cons {

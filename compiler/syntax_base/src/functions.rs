@@ -178,25 +178,6 @@ impl FunctionName {
         }
     }
 
-    /// Returns the number of values produced by this BIF
-    ///
-    /// NOTE: This function will panic if this function is not a BIF
-    pub fn bif_values(&self) -> usize {
-        let sig = crate::bifs::get(self).unwrap();
-        match sig.name {
-            // RecvWaitTimeout produces two values, but only one of
-            // those is visible to Erlang code, the other is handled
-            // in the kernel lowering code to raise an error
-            symbols::RecvWaitTimeout => 1,
-            // Exception primitives produce a single value from the
-            // perspective of Erlang source code, but actually produce
-            // two values corresponding to our Erlang calling convention,
-            // one of those (the exception flag) is hidden from Erlang
-            _ if self.is_exception_op() => 1,
-            _ => sig.results().len(),
-        }
-    }
-
     /// Returns true if this function name is erlang:apply/2
     pub fn is_apply2(&self) -> bool {
         match self.module {

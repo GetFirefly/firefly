@@ -41,6 +41,7 @@ impl Node {
 }
 
 impl Eq for Node {}
+impl crate::cmp::ExactEq for Node {}
 impl PartialEq for Node {
     fn eq(&self, other: &Self) -> bool {
         self.id == other.id

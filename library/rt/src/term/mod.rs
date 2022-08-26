@@ -1,9 +1,7 @@
 mod atom;
 mod binary;
 mod closure;
-mod float;
 mod index;
-mod integer;
 mod list;
 mod map;
 mod node;
@@ -16,9 +14,7 @@ mod tuple;
 pub use self::atom::{atoms, Atom, AtomData};
 pub use self::binary::*;
 pub use self::closure::Closure;
-pub use self::float::Float;
 pub use self::index::{NonPrimitiveIndex, OneBasedIndex, TupleIndex, ZeroBasedIndex};
-pub use self::integer::BigInteger;
 pub use self::list::{Cons, ImproperList, ListBuilder};
 pub use self::map::Map;
 pub use self::node::Node;
@@ -27,6 +23,9 @@ pub use self::pid::{Pid, ProcessId};
 pub use self::port::{Port, PortId};
 pub use self::reference::{Reference, ReferenceId};
 pub use self::tuple::Tuple;
+
+pub use firefly_number::{BigInt, Float, Integer, Number};
+use firefly_number::{DivisionError, InvalidArithmeticError, Sign, ToPrimitive};
 
 use alloc::alloc::{AllocError, Layout};
 use core::convert::AsRef;
@@ -39,6 +38,8 @@ use firefly_alloc::gc::GcBox;
 use firefly_alloc::heap::Heap;
 use firefly_alloc::rc::{Rc, Weak};
 use firefly_binary::{Binary, Bitstring, Encoding};
+
+use crate::cmp::ExactEq;
 
 /// `Term` is two things:
 ///
@@ -68,7 +69,7 @@ pub enum Term {
     Bool(bool),
     Atom(Atom),
     Int(i64),
-    BigInt(GcBox<BigInteger>),
+    BigInt(GcBox<BigInt>),
     Float(Float),
     /// Cons cells are not allocated via a box type, but are instead differentiated
     /// from other boxed terms by the pointer tagging scheme
@@ -306,8 +307,8 @@ impl Term {
             | Self::Float(_)
             | Self::ConstantBinary(_) => Layout::new::<OpaqueTerm>(),
             Self::BigInt(_) => {
-                let (base, _) = Layout::new::<GcBox<BigInteger>>()
-                    .extend(Layout::new::<BigInteger>())
+                let (base, _) = Layout::new::<GcBox<BigInt>>()
+                    .extend(Layout::new::<BigInt>())
                     .unwrap();
                 base.pad_to_align()
             }
@@ -409,8 +410,8 @@ impl TryFrom<i64> for Term {
         }
     }
 }
-impl From<GcBox<BigInteger>> for Term {
-    fn from(i: GcBox<BigInteger>) -> Self {
+impl From<GcBox<BigInt>> for Term {
+    fn from(i: GcBox<BigInt>) -> Self {
         Self::BigInt(i)
     }
 }
@@ -519,10 +520,33 @@ impl TryInto<i64> for Term {
     fn try_into(self) -> Result<i64, Self::Error> {
         match self {
             Self::Int(i) => Ok(i),
-            Self::BigInt(i) => match i.as_i64() {
+            Self::BigInt(i) => match i.to_i64() {
                 Some(i) => Ok(i),
                 None => Err(()),
             },
+            _ => Err(()),
+        }
+    }
+}
+impl TryInto<Integer> for Term {
+    type Error = ();
+    #[inline]
+    fn try_into(self) -> Result<Integer, Self::Error> {
+        match self {
+            Self::Int(i) => Ok(Integer::Small(i)),
+            Self::BigInt(i) => Ok(Integer::Big((*i).clone())),
+            _ => Err(()),
+        }
+    }
+}
+impl TryInto<Number> for Term {
+    type Error = ();
+    #[inline]
+    fn try_into(self) -> Result<Number, Self::Error> {
+        match self {
+            Self::Int(i) => Ok(Number::Integer(Integer::Small(i))),
+            Self::BigInt(i) => Ok(Number::Integer(Integer::Big((*i).clone()))),
+            Self::Float(f) => Ok(Number::Float(f)),
             _ => Err(()),
         }
     }
@@ -545,9 +569,9 @@ impl TryInto<NonNull<Tuple>> for Term {
         }
     }
 }
-impl TryInto<GcBox<BigInteger>> for Term {
+impl TryInto<GcBox<BigInt>> for Term {
     type Error = ();
-    fn try_into(self) -> Result<GcBox<BigInteger>, Self::Error> {
+    fn try_into(self) -> Result<GcBox<BigInt>, Self::Error> {
         match self {
             Self::BigInt(i) => Ok(i),
             _ => Err(()),
@@ -632,12 +656,18 @@ impl PartialEq for Term {
             },
             Self::Int(x) => match other {
                 Self::Int(y) => x == y,
-                Self::BigInt(y) => (&**y) == x,
+                Self::BigInt(y) => match y.to_i64() {
+                    Some(ref y) => x == y,
+                    None => false,
+                },
                 Self::Float(y) => y == x,
                 _ => false,
             },
             Self::BigInt(x) => match other {
-                Self::Int(y) => (&**x) == y,
+                Self::Int(y) => match x.to_i64() {
+                    Some(ref x) => x == y,
+                    None => false,
+                },
                 Self::BigInt(y) => x == y,
                 Self::Float(y) => y == (&**x),
                 _ => false,
@@ -707,6 +737,103 @@ impl PartialEq for Term {
         }
     }
 }
+impl ExactEq for Term {
+    fn exact_eq(&self, other: &Self) -> bool {
+        match self {
+            Self::None => other.is_none(),
+            Self::Nil => other.is_nil(),
+            Self::Bool(x) => match other {
+                Self::Bool(y) => x == y,
+                _ => false,
+            },
+            Self::Atom(x) => match other {
+                Self::Atom(y) => x == y,
+                _ => false,
+            },
+            Self::Int(x) => match other {
+                Self::Int(y) => x == y,
+                Self::BigInt(y) => match y.to_i64() {
+                    Some(ref y) => x == y,
+                    None => false,
+                },
+                _ => false,
+            },
+            Self::BigInt(x) => match other {
+                Self::Int(y) => match x.to_i64() {
+                    Some(ref x) => x == y,
+                    None => false,
+                },
+                Self::BigInt(y) => x == y,
+                _ => false,
+            },
+            Self::Float(x) => match other {
+                Self::Float(y) => x == y,
+                _ => false,
+            },
+            Self::Cons(x) => match other {
+                Self::Cons(y) => unsafe { x.as_ref().exact_eq(y.as_ref()) },
+                _ => false,
+            },
+            Self::Tuple(x) => match other {
+                Self::Tuple(y) => unsafe { x.as_ref().exact_eq(y.as_ref()) },
+                _ => false,
+            },
+            Self::Map(x) => match other {
+                Self::Map(y) => x.as_ref().exact_eq(y.as_ref()),
+                _ => false,
+            },
+            Self::Closure(x) => match other {
+                Self::Closure(y) => x.as_ref().exact_eq(y.as_ref()),
+                _ => false,
+            },
+            Self::Pid(x) => match other {
+                Self::Pid(y) => x.as_ref().exact_eq(y.as_ref()),
+                _ => false,
+            },
+            Self::Port(x) => match other {
+                Self::Port(y) => x.as_ref().exact_eq(y.as_ref()),
+                _ => false,
+            },
+            Self::Reference(x) => match other {
+                Self::Reference(y) => x.as_ref().exact_eq(y.as_ref()),
+                _ => false,
+            },
+            Self::HeapBinary(x) => match other {
+                Self::ConstantBinary(y) => x.as_ref().eq(y),
+                Self::HeapBinary(y) => x.as_ref().eq(y.as_ref()),
+                Self::RcBinary(y) => x.as_ref().eq(y.as_ref()),
+                Self::RefBinary(y) => x.as_ref().eq(y.as_ref()),
+                _ => false,
+            },
+            Self::RcBinary(x) => match other {
+                Self::ConstantBinary(y) => x.as_ref().eq(y),
+                Self::HeapBinary(y) => x.as_ref().eq(y.as_ref()),
+                Self::RcBinary(y) => x.as_ref().eq(y.as_ref()),
+                Self::RefBinary(y) => x.as_ref().eq(y.as_ref()),
+                _ => false,
+            },
+            Self::RefBinary(x) => match other {
+                Self::ConstantBinary(y) => x.as_ref().eq(y),
+                Self::HeapBinary(y) => x.as_ref().eq(y),
+                Self::RcBinary(y) => x.as_ref().eq(y),
+                Self::RefBinary(y) => x.as_ref().eq(y),
+                _ => false,
+            },
+            Self::ConstantBinary(x) => match other {
+                Self::ConstantBinary(y) => x.eq(y),
+                Self::HeapBinary(y) => x.as_bytes().eq(y.as_bytes()),
+                Self::RcBinary(y) => x.as_bytes().eq(y.as_bytes()),
+                Self::RefBinary(y) => y.as_ref().eq(x),
+                _ => false,
+            },
+        }
+    }
+
+    #[inline]
+    fn exact_ne(&self, other: &Self) -> bool {
+        !self.exact_eq(other)
+    }
+}
 impl PartialOrd for Term {
     fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
         Some(self.cmp(other))
@@ -725,26 +852,48 @@ impl Ord for Term {
                     Ordering::Less
                 }
             }
-            // Numbers are smaller than all other terms, using whichever type has the highest precision
+            // Numbers are smaller than all other terms, using whichever type has the highest precision.
+            // We need comparison order to preserve the ExactEq semantics, so equality between integers/floats
+            // is broken by sorting floats first due to their greater precision in most cases
             Self::Int(x) => match other {
                 Self::None => Ordering::Greater,
                 Self::Int(y) => x.cmp(y),
-                Self::BigInt(y) => (&**y).partial_cmp(x).unwrap().reverse(),
-                Self::Float(y) => y.partial_cmp(x).unwrap().reverse(),
+                Self::BigInt(y) => match y.to_i64() {
+                    Some(y) => x.cmp(&y),
+                    None if y.sign() == Sign::Minus => Ordering::Greater,
+                    None => Ordering::Less,
+                },
+                Self::Float(y) => match y.partial_cmp(x).unwrap().reverse() {
+                    Ordering::Equal => Ordering::Greater,
+                    other => other,
+                },
                 _ => Ordering::Less,
             },
             Self::BigInt(x) => match other {
                 Self::None => Ordering::Greater,
-                Self::Int(y) => (&**x).partial_cmp(y).unwrap(),
+                Self::Int(y) => match x.to_i64() {
+                    Some(x) => x.cmp(&y),
+                    None if x.sign() == Sign::Minus => Ordering::Less,
+                    None => Ordering::Greater,
+                },
                 Self::BigInt(y) => (&**x).cmp(&**y),
-                Self::Float(y) => (&**x).partial_cmp(y).unwrap(),
+                Self::Float(y) => match y.partial_cmp(&**x).unwrap().reverse() {
+                    Ordering::Equal => Ordering::Greater,
+                    other => other,
+                },
                 _ => Ordering::Less,
             },
             Self::Float(x) => match other {
                 Self::None => Ordering::Greater,
                 Self::Float(y) => x.partial_cmp(y).unwrap(),
-                Self::Int(y) => x.partial_cmp(y).unwrap(),
-                Self::BigInt(y) => x.partial_cmp(&**y).unwrap(),
+                Self::Int(y) => match x.partial_cmp(y).unwrap() {
+                    Ordering::Equal => Ordering::Less,
+                    other => other,
+                },
+                Self::BigInt(y) => match x.partial_cmp(&**y).unwrap() {
+                    Ordering::Equal => Ordering::Less,
+                    other => other,
+                },
                 _ => Ordering::Less,
             },
             Self::Bool(x) => match other {
@@ -898,6 +1047,117 @@ impl Ord for Term {
                 _ => Ordering::Greater,
             },
         }
+    }
+}
+impl core::ops::Add for Term {
+    type Output = Result<Number, InvalidArithmeticError>;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        let lhs: Number = self.try_into().map_err(|_| InvalidArithmeticError)?;
+        let rhs: Number = rhs.try_into().map_err(|_| InvalidArithmeticError)?;
+        (lhs + rhs).map_err(|_| InvalidArithmeticError)
+    }
+}
+impl core::ops::Sub for Term {
+    type Output = Result<Number, InvalidArithmeticError>;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        let lhs: Number = self.try_into().map_err(|_| InvalidArithmeticError)?;
+        let rhs: Number = rhs.try_into().map_err(|_| InvalidArithmeticError)?;
+        (lhs - rhs).map_err(|_| InvalidArithmeticError)
+    }
+}
+impl core::ops::Mul for Term {
+    type Output = Result<Number, InvalidArithmeticError>;
+
+    fn mul(self, rhs: Self) -> Self::Output {
+        let lhs: Number = self.try_into().map_err(|_| InvalidArithmeticError)?;
+        let rhs: Number = rhs.try_into().map_err(|_| InvalidArithmeticError)?;
+        (lhs * rhs).map_err(|_| InvalidArithmeticError)
+    }
+}
+impl core::ops::Div for Term {
+    type Output = Result<Result<Number, DivisionError>, InvalidArithmeticError>;
+
+    fn div(self, rhs: Self) -> Self::Output {
+        let lhs: Number = self.try_into().map_err(|_| InvalidArithmeticError)?;
+        let rhs: Number = rhs.try_into().map_err(|_| InvalidArithmeticError)?;
+
+        match (lhs, rhs) {
+            (Number::Integer(lhs), Number::Integer(rhs)) => Ok((lhs / rhs).map(Number::Integer)),
+            (Number::Float(lhs), Number::Float(rhs)) => Ok((lhs / rhs).map(Number::Float)),
+            (Number::Float(lhs), Number::Integer(rhs)) => Ok((lhs / rhs).map(Number::Float)),
+            _ => Err(InvalidArithmeticError),
+        }
+    }
+}
+impl core::ops::Rem for Term {
+    type Output = Result<Result<Integer, DivisionError>, InvalidArithmeticError>;
+
+    fn rem(self, rhs: Self) -> Self::Output {
+        let lhs: Integer = self.try_into().map_err(|_| InvalidArithmeticError)?;
+        let rhs: Integer = rhs.try_into().map_err(|_| InvalidArithmeticError)?;
+
+        Ok(lhs % rhs)
+    }
+}
+impl core::ops::Neg for Term {
+    type Output = Result<Number, InvalidArithmeticError>;
+
+    fn neg(self) -> Self::Output {
+        let lhs: Number = self.try_into().map_err(|_| InvalidArithmeticError)?;
+        Ok(-lhs)
+    }
+}
+
+impl core::ops::Shl for Term {
+    type Output = Result<Integer, InvalidArithmeticError>;
+
+    fn shl(self, rhs: Self) -> Self::Output {
+        let lhs: Integer = self.try_into().map_err(|_| InvalidArithmeticError)?;
+        let rhs: Integer = rhs.try_into().map_err(|_| InvalidArithmeticError)?;
+
+        Ok((lhs << rhs).unwrap())
+    }
+}
+impl core::ops::Shr for Term {
+    type Output = Result<Integer, InvalidArithmeticError>;
+
+    fn shr(self, rhs: Self) -> Self::Output {
+        let lhs: Integer = self.try_into().map_err(|_| InvalidArithmeticError)?;
+        let rhs: Integer = rhs.try_into().map_err(|_| InvalidArithmeticError)?;
+
+        Ok((lhs >> rhs).unwrap())
+    }
+}
+impl core::ops::BitAnd for Term {
+    type Output = Result<Integer, InvalidArithmeticError>;
+
+    fn bitand(self, rhs: Self) -> Self::Output {
+        let lhs: Integer = self.try_into().map_err(|_| InvalidArithmeticError)?;
+        let rhs: Integer = rhs.try_into().map_err(|_| InvalidArithmeticError)?;
+
+        Ok(lhs & rhs)
+    }
+}
+impl core::ops::BitOr for Term {
+    type Output = Result<Integer, InvalidArithmeticError>;
+
+    fn bitor(self, rhs: Self) -> Self::Output {
+        let lhs: Integer = self.try_into().map_err(|_| InvalidArithmeticError)?;
+        let rhs: Integer = rhs.try_into().map_err(|_| InvalidArithmeticError)?;
+
+        Ok(lhs | rhs)
+    }
+}
+impl core::ops::BitXor for Term {
+    type Output = Result<Integer, InvalidArithmeticError>;
+
+    fn bitxor(self, rhs: Self) -> Self::Output {
+        let lhs: Integer = self.try_into().map_err(|_| InvalidArithmeticError)?;
+        let rhs: Integer = rhs.try_into().map_err(|_| InvalidArithmeticError)?;
+
+        Ok(lhs ^ rhs)
     }
 }
 

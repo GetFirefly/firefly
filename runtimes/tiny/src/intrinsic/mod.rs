@@ -2,14 +2,13 @@ use core::ops::Deref;
 use core::ptr::NonNull;
 use std::sync::Arc;
 
-use num_bigint::{BigInt, Sign};
-
 use firefly_alloc::gc::GcBox;
 use firefly_binary::{BinaryEntrySpecifier, BitVec, Bitstring};
+use firefly_number::{f16, BigInt, Sign, ToPrimitive};
 use firefly_rt::backtrace::Trace;
 use firefly_rt::error::ErlangException;
 use firefly_rt::function::ErlangResult;
-use firefly_rt::term::{atoms, Atom, BigInteger, BinaryData, BitSlice, Closure, Cons, Map, Tuple};
+use firefly_rt::term::{atoms, Atom, BinaryData, BitSlice, Closure, Cons, Map, Tuple};
 use firefly_rt::term::{MatchContext, MatchResult};
 use firefly_rt::term::{OpaqueTerm, Term, TermType};
 
@@ -69,7 +68,7 @@ pub struct BigIntRef {
     digits: [u8],
 }
 
-/// Allocates a new BigInteger from constant data produced by the compiler
+/// Allocates a new BigInt from constant data produced by the compiler
 #[export_name = "__firefly_bigint_from_digits"]
 #[allow(improper_ctypes_definitions)]
 pub extern "C" fn bigint_from_digits(raw: &BigIntRef) -> OpaqueTerm {
@@ -77,7 +76,7 @@ pub extern "C" fn bigint_from_digits(raw: &BigIntRef) -> OpaqueTerm {
         let arc_proc = scheduler.current_process();
         let proc = arc_proc.deref();
         GcBox::new_in(
-            BigInteger(BigInt::from_bytes_be(raw.sign.into(), &raw.digits[..])),
+            BigInt::from_bytes_be(raw.sign.into(), &raw.digits[..]),
             proc,
         )
         .unwrap()
@@ -220,7 +219,7 @@ pub extern "C-unwind" fn map_fetch(
     match map.into() {
         Term::Map(m) => {
             let key: Term = key.into();
-            m.get(&key).map(|t| t.into()).ok_or(()).into()
+            m.get(key).map(|t| t.into()).ok_or(()).into()
         }
         _ => err!(()),
     }
@@ -291,8 +290,6 @@ pub extern "C-unwind" fn bs_push(
     value: OpaqueTerm,
     size: OpaqueTerm,
 ) -> ErlangResult<NonNull<BitVec>, NonNull<ErlangException>> {
-    use half::f16;
-
     let buffer = unsafe { bin.as_mut() };
     match spec {
         BinaryEntrySpecifier::Integer {
@@ -331,16 +328,16 @@ pub extern "C-unwind" fn bs_push(
             // Value can be any integer or float
             match value.into() {
                 Term::Float(f) if size == 16 => {
-                    buffer.push_number(f16::from_f64(f.as_f64()), endianness)
+                    buffer.push_number(f16::from_f64(f.inner()), endianness)
                 }
-                Term::Float(f) if size == 32 => buffer.push_number(f.as_f64() as f32, endianness),
-                Term::Float(f) if size == 64 => buffer.push_number(f.as_f64(), endianness),
+                Term::Float(f) if size == 32 => buffer.push_number(f.inner() as f32, endianness),
+                Term::Float(f) if size == 64 => buffer.push_number(f.inner(), endianness),
                 Term::Int(i) if size == 16 => {
                     buffer.push_number(f16::from_f64(i as f64), endianness)
                 }
                 Term::Int(i) if size == 32 => buffer.push_number(i as f32, endianness),
                 Term::Int(i) if size == 64 => buffer.push_number(i as f64, endianness),
-                Term::BigInt(i) => match i.as_f64() {
+                Term::BigInt(i) => match i.to_f64() {
                     Some(f) if size == 16 => buffer.push_number(f16::from_f64(f), endianness),
                     Some(f) if size == 32 => buffer.push_number(f as f32, endianness),
                     Some(f) if size == 64 => buffer.push_number(f, endianness),
@@ -490,8 +487,6 @@ pub extern "C-unwind" fn bs_match(
     spec: BinaryEntrySpecifier,
     size: OpaqueTerm,
 ) -> MatchResult {
-    use half::f16;
-
     scheduler::with_current(|scheduler| {
         let arc_proc = scheduler.current_process();
         let proc = arc_proc.deref();
@@ -512,7 +507,7 @@ pub extern "C-unwind" fn bs_match(
                     match matcher.match_bigint(bitsize, signed, endianness) {
                         None => MatchResult::err(ctx),
                         Some(i) => {
-                            let big = GcBox::new_in(BigInteger(i), proc).unwrap();
+                            let big = GcBox::new_in(i, proc).unwrap();
                             MatchResult::ok(OpaqueTerm::from(big), ctx)
                         }
                     }
@@ -626,8 +621,6 @@ pub extern "C-unwind" fn bs_match_skip(
     size: OpaqueTerm,
     value: u64,
 ) -> ErlangResult<NonNull<MatchContext>, NonNull<MatchContext>> {
-    use half::f16;
-
     let context = unsafe { ctx.as_mut() };
     let matcher = context.matcher();
     match spec {

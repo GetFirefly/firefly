@@ -9,12 +9,199 @@ use std::sync::Arc;
 
 use smallvec::SmallVec;
 
+use firefly_alloc::gc::GcBox;
 use firefly_rt::backtrace::Trace;
 use firefly_rt::error::ErlangException;
 use firefly_rt::function::{self, ErlangResult, ModuleFunctionArity};
 use firefly_rt::term::*;
 
 use crate::scheduler;
+
+macro_rules! handle_arith_result {
+    ($math:expr) => {
+        match $math {
+            Ok(Number::Float(n)) => ErlangResult::Ok(n.into()),
+            Ok(Number::Integer(n)) => handle_safe_integer_arith_result!(n),
+            Err(_) => badarg(Trace::capture()),
+        }
+    };
+}
+
+macro_rules! handle_integer_arith_result {
+    ($math:expr) => {
+        match $math {
+            Ok(result) => handle_safe_integer_arith_result!(result),
+            Err(_) => badarg(Trace::capture()),
+        }
+    };
+}
+
+macro_rules! handle_safe_integer_arith_result {
+    ($math:expr) => {
+        match $math {
+            Integer::Small(i) => ErlangResult::Ok(i.try_into().unwrap()),
+            Integer::Big(i) => scheduler::with_current(|scheduler| {
+                let arc_proc = scheduler.current_process();
+                let proc = arc_proc.deref();
+
+                let boxed = {
+                    let mut empty = GcBox::new_uninit_in(proc).unwrap();
+                    empty.write(i);
+                    unsafe { empty.assume_init() }
+                };
+                ErlangResult::Ok(boxed.into())
+            }),
+        }
+    };
+}
+
+#[export_name = "erlang:+/2"]
+pub extern "C-unwind" fn plus2(lhs: OpaqueTerm, rhs: OpaqueTerm) -> ErlangResult {
+    let lhs: Term = lhs.into();
+    let rhs: Term = rhs.into();
+    handle_arith_result!(lhs + rhs)
+}
+
+#[export_name = "erlang:-/1"]
+pub extern "C-unwind" fn neg1(lhs: OpaqueTerm) -> ErlangResult {
+    let lhs: Term = lhs.into();
+    handle_arith_result!(-lhs)
+}
+
+#[export_name = "erlang:-/2"]
+pub extern "C-unwind" fn minus2(lhs: OpaqueTerm, rhs: OpaqueTerm) -> ErlangResult {
+    let lhs: Term = lhs.into();
+    let rhs: Term = rhs.into();
+    handle_arith_result!(lhs - rhs)
+}
+
+#[export_name = "erlang:*/2"]
+pub extern "C-unwind" fn mul2(lhs: OpaqueTerm, rhs: OpaqueTerm) -> ErlangResult {
+    let lhs: Term = lhs.into();
+    let rhs: Term = rhs.into();
+    handle_arith_result!(lhs * rhs)
+}
+
+#[export_name = "erlang://2"]
+pub extern "C-unwind" fn divide2(lhs: OpaqueTerm, rhs: OpaqueTerm) -> ErlangResult {
+    let lhs: Term = lhs.into();
+    let rhs: Term = rhs.into();
+    match lhs / rhs {
+        Ok(result) => handle_arith_result!(result),
+        Err(_) => badarg(Trace::capture()),
+    }
+}
+
+#[export_name = "erlang:div/2"]
+pub extern "C-unwind" fn div2(lhs: OpaqueTerm, rhs: OpaqueTerm) -> ErlangResult {
+    let lhs: Term = lhs.into();
+    let rhs: Term = rhs.into();
+    let lhs: Integer = lhs.try_into().map_err(|_| badarg_err(Trace::capture()))?;
+    let rhs: Integer = rhs.try_into().map_err(|_| badarg_err(Trace::capture()))?;
+
+    handle_integer_arith_result!(lhs / rhs)
+}
+
+#[export_name = "erlang:rem/2"]
+pub extern "C-unwind" fn rem2(lhs: OpaqueTerm, rhs: OpaqueTerm) -> ErlangResult {
+    let lhs: Term = lhs.into();
+    let rhs: Term = rhs.into();
+    let lhs: Integer = lhs.try_into().map_err(|_| badarg_err(Trace::capture()))?;
+    let rhs: Integer = rhs.try_into().map_err(|_| badarg_err(Trace::capture()))?;
+
+    handle_integer_arith_result!(lhs % rhs)
+}
+
+#[export_name = "erlang:bsl/2"]
+pub extern "C-unwind" fn bsl2(lhs: OpaqueTerm, rhs: OpaqueTerm) -> ErlangResult {
+    let lhs: Term = lhs.into();
+    let rhs: Term = rhs.into();
+    let lhs: Integer = lhs.try_into().map_err(|_| badarg_err(Trace::capture()))?;
+    let rhs: Integer = rhs.try_into().map_err(|_| badarg_err(Trace::capture()))?;
+
+    handle_integer_arith_result!(lhs << rhs)
+}
+
+#[export_name = "erlang:bsr/2"]
+pub extern "C-unwind" fn bsr2(lhs: OpaqueTerm, rhs: OpaqueTerm) -> ErlangResult {
+    let lhs: Term = lhs.into();
+    let rhs: Term = rhs.into();
+    let lhs: Integer = lhs.try_into().map_err(|_| badarg_err(Trace::capture()))?;
+    let rhs: Integer = rhs.try_into().map_err(|_| badarg_err(Trace::capture()))?;
+
+    handle_integer_arith_result!(lhs >> rhs)
+}
+
+#[export_name = "erlang:band/2"]
+pub extern "C-unwind" fn band2(lhs: OpaqueTerm, rhs: OpaqueTerm) -> ErlangResult {
+    let lhs: Term = lhs.into();
+    let rhs: Term = rhs.into();
+    let lhs: Integer = lhs.try_into().map_err(|_| badarg_err(Trace::capture()))?;
+    let rhs: Integer = rhs.try_into().map_err(|_| badarg_err(Trace::capture()))?;
+
+    handle_safe_integer_arith_result!(lhs & rhs)
+}
+
+#[export_name = "erlang:bnot/1"]
+pub extern "C-unwind" fn bnot1(lhs: OpaqueTerm) -> ErlangResult {
+    let lhs: Term = lhs.into();
+    match lhs {
+        Term::Bool(b) => ErlangResult::Ok((!b).into()),
+        Term::Int(i) => {
+            let i = !i;
+            let term: Result<OpaqueTerm, _> = i.try_into();
+            match term {
+                Ok(t) => ErlangResult::Ok(t),
+                Err(_) => scheduler::with_current(|scheduler| {
+                    let arc_proc = scheduler.current_process();
+                    let proc = arc_proc.deref();
+
+                    let boxed = {
+                        let mut empty = GcBox::new_uninit_in(proc).unwrap();
+                        empty.write(BigInt::from(i));
+                        unsafe { empty.assume_init() }
+                    };
+                    ErlangResult::Ok(boxed.into())
+                }),
+            }
+        }
+        Term::BigInt(i) => {
+            let i = !(i.as_ref());
+            scheduler::with_current(|scheduler| {
+                let arc_proc = scheduler.current_process();
+                let proc = arc_proc.deref();
+
+                let boxed = {
+                    let mut empty = GcBox::new_uninit_in(proc).unwrap();
+                    empty.write(i);
+                    unsafe { empty.assume_init() }
+                };
+                ErlangResult::Ok(boxed.into())
+            })
+        }
+        _ => badarg(Trace::capture()),
+    }
+}
+
+#[export_name = "erlang:bor/2"]
+pub extern "C-unwind" fn bor2(lhs: OpaqueTerm, rhs: OpaqueTerm) -> ErlangResult {
+    let lhs: Term = lhs.into();
+    let rhs: Term = rhs.into();
+    let lhs: Integer = lhs.try_into().map_err(|_| badarg_err(Trace::capture()))?;
+    let rhs: Integer = rhs.try_into().map_err(|_| badarg_err(Trace::capture()))?;
+
+    handle_safe_integer_arith_result!(lhs | rhs)
+}
+
+#[export_name = "erlang:bxor/2"]
+pub extern "C-unwind" fn bxor2(lhs: OpaqueTerm, rhs: OpaqueTerm) -> ErlangResult {
+    let lhs: Term = lhs.into();
+    let rhs: Term = rhs.into();
+    let lhs: Integer = lhs.try_into().map_err(|_| badarg_err(Trace::capture()))?;
+    let rhs: Integer = rhs.try_into().map_err(|_| badarg_err(Trace::capture()))?;
+
+    handle_safe_integer_arith_result!(lhs ^ rhs)
+}
 
 #[export_name = "erlang:apply/2"]
 pub extern "C-unwind" fn apply2(term: OpaqueTerm, arglist: OpaqueTerm) -> ErlangResult {
@@ -179,14 +366,6 @@ pub extern "C-unwind" fn puts(printable: OpaqueTerm) -> ErlangResult {
 }
 
 #[allow(improper_ctypes_definitions)]
-#[export_name = "erlang:=:=/2"]
-pub extern "C-unwind" fn exact_eq(lhs: OpaqueTerm, rhs: OpaqueTerm) -> ErlangResult {
-    let lhs: Term = lhs.into();
-    let rhs: Term = rhs.into();
-    ErlangResult::Ok(lhs.exact_eq(&rhs).into())
-}
-
-#[allow(improper_ctypes_definitions)]
 #[export_name = "erlang:error/1"]
 pub extern "C-unwind" fn error1(reason: OpaqueTerm) -> ErlangResult {
     let err = ErlangException::new(atoms::Error, reason.into(), Trace::capture());
@@ -254,7 +433,10 @@ pub(self) fn undef(trace: Arc<Trace>) -> ErlangResult {
 }
 
 pub(self) fn badarg(trace: Arc<Trace>) -> ErlangResult {
-    raise2(atoms::Badarg.into(), unsafe {
-        NonNull::new_unchecked(Trace::into_raw(trace))
-    })
+    ErlangResult::Err(badarg_err(trace))
+}
+
+pub(self) fn badarg_err(trace: Arc<Trace>) -> NonNull<ErlangException> {
+    let err = ErlangException::new(atoms::Error, atoms::Badarg.into(), trace);
+    unsafe { NonNull::new_unchecked(Box::into_raw(err)) }
 }

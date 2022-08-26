@@ -3873,11 +3873,25 @@ impl TranslateCore {
             "expected bif callee to be a known bif, got {}",
             &callee
         );
+
         if callee.function == symbols::MatchFail {
             // This is used for effect only, and may have any number of returns
             return ret;
         }
-        let num_values = callee.bif_values();
+
+        let sig = bifs::get(&callee).unwrap();
+        let num_values = match sig.name {
+            // RecvWaitTimeout produces two values, but only one of
+            // those is visible to Erlang code, the other is handled
+            // in the kernel lowering code to raise an error
+            symbols::RecvWaitTimeout => 1,
+            // Remaining bifs may have multiple results, but we must
+            // consult the calling convention and number of results to
+            // determine how many "bif values" this op produces
+            _ if sig.cc == CallConv::Erlang => sig.results().len() - 1,
+            _ => sig.results().len(),
+        };
+
         let mut ns = self.context.n_vars(num_values - ret.len(), Some(span));
         ret.extend(ns.drain(..).map(Expr::Var));
         ret

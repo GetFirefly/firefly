@@ -11,9 +11,9 @@
 ///! is dependent on constant inputs which we can reason about relatively easily
 use std::collections::BTreeMap;
 
-use lazy_static::lazy_static;
 use firefly_compiler_macros::{bif, guard_bif};
 use firefly_intern::symbols;
+use lazy_static::lazy_static;
 
 use crate::{CallConv, FunctionName, Signature, Visibility};
 use crate::{FunctionType, PrimitiveType, TermType, Type};

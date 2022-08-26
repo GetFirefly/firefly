@@ -105,6 +105,7 @@ impl fmt::Debug for BitSlice {
     }
 }
 impl Eq for BitSlice {}
+impl crate::cmp::ExactEq for BitSlice {}
 impl<T: Bitstring> PartialEq<T> for BitSlice {
     #[inline]
     fn eq(&self, other: &T) -> bool {

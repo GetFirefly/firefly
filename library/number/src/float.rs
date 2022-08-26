@@ -11,9 +11,34 @@ use num_traits::ToPrimitive;
 
 use crate::{DivisionError, Integer};
 
-#[derive(Debug, Copy, Clone, PartialOrd)]
-pub struct Float(f64);
+#[derive(Debug, Copy, Clone)]
+pub enum FloatError {
+    Nan,
+    Infinite,
+}
+impl FloatError {
+    pub fn from_category(category: FpCategory) -> Result<(), Self> {
+        match category {
+            FpCategory::Nan => Err(FloatError::Nan),
+            FpCategory::Infinite => Err(FloatError::Infinite),
+            _ => Ok(()),
+        }
+    }
+}
 
+impl fmt::Display for FloatError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            FloatError::Nan => write!(f, "NaN"),
+            FloatError::Infinite => write!(f, "Inf"),
+        }
+    }
+}
+
+/// This is a wrapper around an f64 value that ensures the value is a valid Erlang float, i.e. it cannot be +/- infinity.
+#[derive(Copy, Clone)]
+#[repr(transparent)]
+pub struct Float(f64);
 impl Float {
     const I64_UPPER_BOUNDARY: f64 = (1i64 << f64::MANTISSA_DIGITS) as f64;
     const I64_LOWER_BOUNDARY: f64 = (-1i64 << f64::MANTISSA_DIGITS) as f64;
@@ -23,15 +48,19 @@ impl Float {
         Ok(Float(float))
     }
 
+    /// Obtain this floating-pointer value as a raw 64-bit value
     #[inline(always)]
     pub fn raw(&self) -> u64 {
         unsafe { mem::transmute(self.0) }
     }
 
+    /// Get this float as a raw f64 value
+    #[inline(always)]
     pub fn inner(&self) -> f64 {
         self.0
     }
 
+    /// Return the absolute value of this float
     pub fn abs(&self) -> Float {
         if self.0 < 0.0 {
             Float(self.0 * -1.0)
@@ -40,10 +69,12 @@ impl Float {
         }
     }
 
+    /// Returns true if this float is zero
     pub fn is_zero(&self) -> bool {
         self.0.classify() == FpCategory::Zero
     }
 
+    /// Convers this Float to an Integer value
     pub fn to_integer(&self) -> Integer {
         Integer::new(self.0 as i64)
     }
@@ -56,14 +87,31 @@ impl Float {
         self.0 >= Self::I64_LOWER_BOUNDARY && self.0 <= Self::I64_UPPER_BOUNDARY
     }
 
+    /// Returns true if this float is a finite value
     #[inline]
     pub fn is_finite(&self) -> bool {
         self.0.is_finite()
     }
 }
+impl fmt::Debug for Float {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Debug::fmt(&self.0, f)
+    }
+}
+impl fmt::Display for Float {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
 impl Ord for Float {
     fn cmp(&self, other: &Self) -> Ordering {
         self.0.total_cmp(&other.0)
+    }
+}
+impl PartialOrd for Float {
+    #[inline]
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
     }
 }
 impl From<f64> for Float {
@@ -76,6 +124,12 @@ impl From<f32> for Float {
     #[inline(always)]
     fn from(f: f32) -> Self {
         Self(f as f64)
+    }
+}
+impl From<i64> for Float {
+    #[inline]
+    fn from(i: i64) -> Self {
+        Self(ToPrimitive::to_f64(&i).unwrap())
     }
 }
 impl From<f16> for Float {
@@ -121,6 +175,14 @@ impl PartialEq<i64> for Float {
         match self.0 {
             x if x.is_infinite() => false,
             x if x >= Self::I64_UPPER_BOUNDARY || x <= Self::I64_LOWER_BOUNDARY => {
+                // We're out of the range where f64 is more precise than an i64,
+                // so cast the float to integer and comapre.
+                //
+                // # Safety
+                //
+                // We've guarded against infinite values, the float cannot be NaN
+                // due to our encoding scheme, and we know the value can be represented
+                // in i64, so this is guaranteed safe.
                 let x: i64 = unsafe { x.to_int_unchecked() };
                 x.eq(y)
             }
@@ -153,6 +215,14 @@ impl PartialOrd<i64> for Float {
                 }
             }
             x if x >= Self::I64_UPPER_BOUNDARY || x <= Self::I64_LOWER_BOUNDARY => {
+                // We're out of the range where f64 is more precise than an i64,
+                // so cast the float to integer and comapre.
+                //
+                // # Safety
+                //
+                // We've guarded against infinite values, the float cannot be NaN
+                // due to our encoding scheme, and we know the value can be represented
+                // in i64, so this is guaranteed safe.
                 let x: i64 = unsafe { x.to_int_unchecked() };
                 Some(x.cmp(y))
             }
@@ -191,49 +261,36 @@ impl PartialOrd<Integer> for Float {
     }
 }
 
-#[derive(Debug, Copy, Clone)]
-pub enum FloatError {
-    Nan,
-    Infinite,
-}
-impl FloatError {
-    pub fn from_category(category: FpCategory) -> Result<(), Self> {
-        match category {
-            FpCategory::Nan => Err(FloatError::Nan),
-            FpCategory::Infinite => Err(FloatError::Infinite),
-            _ => Ok(()),
-        }
-    }
-}
-
-impl fmt::Display for FloatError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            FloatError::Nan => write!(f, "NaN"),
-            FloatError::Infinite => write!(f, "Inf"),
-        }
-    }
-}
-
 impl Neg for Float {
     type Output = Float;
 
+    #[inline]
     fn neg(self) -> Self::Output {
         Self(-self.0)
     }
 }
-
-impl fmt::Display for Float {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-impl Add<Float> for Float {
+impl Add for Float {
     type Output = Result<Float, FloatError>;
 
+    #[inline]
     fn add(self, rhs: Self) -> Self::Output {
         Self::new(self.0 + rhs.0)
+    }
+}
+impl Add<i64> for Float {
+    type Output = Result<Float, FloatError>;
+
+    fn add(self, rhs: i64) -> Self::Output {
+        let rhs: Integer = rhs.into();
+        self + rhs.to_efloat()?
+    }
+}
+impl Add<BigInt> for Float {
+    type Output = Result<Float, FloatError>;
+
+    fn add(self, rhs: BigInt) -> Self::Output {
+        let rhs = Integer::Big(rhs);
+        self + rhs.to_efloat()?
     }
 }
 impl Add<Integer> for Float {
@@ -250,29 +307,34 @@ impl Add<&Integer> for Float {
         self + rhs.to_efloat()?
     }
 }
-impl Add<Float> for Integer {
+
+impl Sub for Float {
     type Output = Result<Float, FloatError>;
 
-    fn add(self, rhs: Float) -> Self::Output {
-        self.to_efloat()? + rhs
-    }
-}
-impl Add<Float> for &Integer {
-    type Output = Result<Float, FloatError>;
-
-    fn add(self, rhs: Float) -> Self::Output {
-        self.to_efloat()? + rhs
-    }
-}
-impl Sub<Float> for Float {
-    type Output = Result<Float, FloatError>;
-
+    #[inline]
     fn sub(self, rhs: Self) -> Self::Output {
         Self::new(self.0 - rhs.0)
     }
 }
+impl Sub<i64> for Float {
+    type Output = Result<Float, FloatError>;
+
+    fn sub(self, rhs: i64) -> Self::Output {
+        let rhs: Integer = rhs.into();
+        self - rhs.to_efloat()?
+    }
+}
+impl Sub<BigInt> for Float {
+    type Output = Result<Float, FloatError>;
+
+    fn sub(self, rhs: BigInt) -> Self::Output {
+        let rhs = Integer::Big(rhs);
+        self - rhs.to_efloat()?
+    }
+}
 impl Sub<Integer> for Float {
     type Output = Result<Float, FloatError>;
+
     fn sub(self, rhs: Integer) -> Self::Output {
         self - rhs.to_efloat()?
     }
@@ -283,23 +345,27 @@ impl Sub<&Integer> for Float {
         self - rhs.to_efloat()?
     }
 }
-impl Sub<Float> for Integer {
-    type Output = Result<Float, FloatError>;
-    fn sub(self, rhs: Float) -> Self::Output {
-        self.to_efloat()? - rhs
-    }
-}
-impl Sub<Float> for &Integer {
-    type Output = Result<Float, FloatError>;
-    fn sub(self, rhs: Float) -> Self::Output {
-        self.to_efloat()? - rhs
-    }
-}
-impl Mul<Float> for Float {
+
+impl Mul for Float {
     type Output = Result<Float, FloatError>;
 
+    #[inline]
     fn mul(self, rhs: Self) -> Self::Output {
         Self::new(self.0 * rhs.0)
+    }
+}
+impl Mul<i64> for Float {
+    type Output = Result<Float, FloatError>;
+    fn mul(self, rhs: i64) -> Self::Output {
+        let rhs: Integer = rhs.into();
+        self * rhs.to_efloat()?
+    }
+}
+impl Mul<BigInt> for Float {
+    type Output = Result<Float, FloatError>;
+    fn mul(self, rhs: BigInt) -> Self::Output {
+        let rhs = Integer::Big(rhs);
+        self * rhs.to_efloat()?
     }
 }
 impl Mul<Integer> for Float {
@@ -314,19 +380,8 @@ impl Mul<&Integer> for Float {
         self * rhs.to_efloat()?
     }
 }
-impl Mul<Float> for Integer {
-    type Output = Result<Float, FloatError>;
-    fn mul(self, rhs: Float) -> Self::Output {
-        self.to_efloat()? * rhs
-    }
-}
-impl Mul<Float> for &Integer {
-    type Output = Result<Float, FloatError>;
-    fn mul(self, rhs: Float) -> Self::Output {
-        self.to_efloat()? * rhs
-    }
-}
-impl Div<Float> for Float {
+
+impl Div for Float {
     type Output = Result<Float, DivisionError>;
 
     fn div(self, rhs: Self) -> Self::Output {
@@ -335,6 +390,22 @@ impl Div<Float> for Float {
         } else {
             Self::new(self.0 / rhs.0).map_err(|_| DivisionError)
         }
+    }
+}
+impl Div<i64> for Float {
+    type Output = Result<Float, DivisionError>;
+
+    fn div(self, rhs: i64) -> Self::Output {
+        let rhs: Integer = rhs.into();
+        self / rhs.to_efloat().map_err(|_| DivisionError)?
+    }
+}
+impl Div<BigInt> for Float {
+    type Output = Result<Float, DivisionError>;
+
+    fn div(self, rhs: BigInt) -> Self::Output {
+        let rhs = Integer::Big(rhs);
+        self / rhs.to_efloat().map_err(|_| DivisionError)?
     }
 }
 impl Div<Integer> for Float {
@@ -351,21 +422,8 @@ impl Div<&Integer> for Float {
         self / rhs.to_efloat().map_err(|_| DivisionError)?
     }
 }
-impl Div<Float> for Integer {
-    type Output = Result<Float, DivisionError>;
 
-    fn div(self, rhs: Float) -> Self::Output {
-        self.to_efloat().map_err(|_| DivisionError)? / rhs
-    }
-}
-impl Div<Float> for &Integer {
-    type Output = Result<Float, DivisionError>;
-
-    fn div(self, rhs: Float) -> Self::Output {
-        self.to_efloat().map_err(|_| DivisionError)? / rhs
-    }
-}
-impl Rem<Float> for Float {
+impl Rem for Float {
     type Output = Result<Float, DivisionError>;
 
     fn rem(self, rhs: Self) -> Self::Output {
@@ -374,6 +432,22 @@ impl Rem<Float> for Float {
         } else {
             Self::new(self.0 % rhs.0).map_err(|_| DivisionError)
         }
+    }
+}
+impl Rem<i64> for Float {
+    type Output = Result<Float, DivisionError>;
+
+    fn rem(self, rhs: i64) -> Self::Output {
+        let rhs: Integer = rhs.into();
+        self % rhs.to_efloat().map_err(|_| DivisionError)?
+    }
+}
+impl Rem<BigInt> for Float {
+    type Output = Result<Float, DivisionError>;
+
+    fn rem(self, rhs: BigInt) -> Self::Output {
+        let rhs = Integer::Big(rhs);
+        self % rhs.to_efloat().map_err(|_| DivisionError)?
     }
 }
 impl Rem<Integer> for Float {
@@ -388,19 +462,5 @@ impl Rem<&Integer> for Float {
 
     fn rem(self, rhs: &Integer) -> Self::Output {
         self % rhs.to_efloat().map_err(|_| DivisionError)?
-    }
-}
-impl Rem<Float> for Integer {
-    type Output = Result<Float, DivisionError>;
-
-    fn rem(self, rhs: Float) -> Self::Output {
-        self.to_efloat().map_err(|_| DivisionError)? % rhs
-    }
-}
-impl Rem<Float> for &Integer {
-    type Output = Result<Float, DivisionError>;
-
-    fn rem(self, rhs: Float) -> Self::Output {
-        self.to_efloat().map_err(|_| DivisionError)? % rhs
     }
 }

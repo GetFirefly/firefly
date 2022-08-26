@@ -19,6 +19,7 @@ firefly_alloc = { path = "../alloc" }
 firefly_arena = { path = "../arena" }
 firefly_system = { path = "../system" }
 firefly_binary = { path = "../binary" }
+firefly_number = { path = "../number" }
 paste = "1.0"
 rustc-demangle = "0.1"
 seq-macro = "0.3"

@@ -40,6 +40,7 @@ impl Display for Port {
     }
 }
 impl Eq for Port {}
+impl crate::cmp::ExactEq for Port {}
 impl PartialEq for Port {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {

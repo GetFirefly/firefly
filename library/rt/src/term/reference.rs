@@ -86,6 +86,7 @@ impl Display for Reference {
     }
 }
 impl Eq for Reference {}
+impl crate::cmp::ExactEq for Reference {}
 impl PartialEq for Reference {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {

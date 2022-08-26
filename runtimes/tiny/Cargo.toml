@@ -18,21 +18,9 @@ libc = "0.2"
 firefly_arena = { path = "../../library/arena" }
 firefly_alloc = { path = "../../library/alloc" }
 firefly_binary = { path = "../../library/binary" }
+firefly_number = { path = "../../library/number" }
 firefly_crt = { path = "../crt" }
 firefly_rt = { path = "../../library/rt" }
-
-[dependencies.num-traits]
-version = "0.2"
-default-features = false
-
-[dependencies.num-bigint]
-version = "0.4"
-default-features = false
-
-[dependencies.half]
-version = "2.0"
-default-features = false
-features = ["num-traits", "use-intrinsics"]
 
 [dependencies.smallvec]
 version = "1.9"

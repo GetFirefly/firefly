@@ -447,8 +447,8 @@ fn set_compile_option(
                 "warn_unused_record" => options.warn_unused_record = true,
                 "nowarn_unused_record" => options.warn_unused_record = false,
 
-                "warn_deprecated_function" => options.warn_deprecated_function = true,
-                "nowarn_deprecated_function" => options.warn_deprecated_function = false,
+                "warn_deprecated_function" => options.warn_deprecated_functions = true,
+                "nowarn_deprecated_function" => options.warn_deprecated_functions = false,
 
                 "warn_deprecated_type" => options.warn_deprecated_type = true,
                 "nowarn_deprecated_type" => options.warn_deprecated_type = false,
@@ -497,6 +497,9 @@ fn set_compile_option(
                     "no_auto_import" => no_auto_imports(options, module, &list, reporter),
                     "nowarn_unused_function" => {
                         no_warn_unused_functions(options, module, &list, reporter)
+                    }
+                    "nowarn_deprecated_function" => {
+                        no_warn_deprecated_functions(options, module, &list, reporter)
                     }
                     "inline" => inline_functions(options, module, &list, reporter),
                     // Ignored
@@ -604,6 +607,32 @@ fn no_warn_unused_functions(
                         .with_labels(vec![Label::primary(other_span.source_id(), other_span)
                             .with_message(
                                 "expected function name/arity term for no_warn_unused_functions",
+                            )]),
+                );
+            }
+        }
+    }
+}
+
+fn no_warn_deprecated_functions(
+    options: &mut CompileOptions,
+    _module: Ident,
+    funs: &[Expr],
+    reporter: &Reporter,
+) {
+    for fun in funs {
+        match fun {
+            Expr::FunctionVar(FunctionVar::PartiallyResolved(name)) => {
+                options.no_warn_deprecated_functions.insert(*name);
+            }
+            other => {
+                let other_span = other.span();
+                reporter.diagnostic(
+                    Diagnostic::warning()
+                        .with_message("invalid compile option")
+                        .with_labels(vec![Label::primary(other_span.source_id(), other_span)
+                            .with_message(
+                                "expected function name/arity term for no_warn_deprecated_function",
                             )]),
                 );
             }

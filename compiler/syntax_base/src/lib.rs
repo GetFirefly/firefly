@@ -111,7 +111,8 @@ pub struct CompileOptions {
     // Warns about missing type specs
     pub warn_missing_spec: bool,
     pub warn_missing_spec_all: bool,
-    pub warn_deprecated_function: bool,
+    pub warn_deprecated_functions: bool,
+    pub no_warn_deprecated_functions: HashSet<Span<FunctionName>>,
     pub warn_deprecated_type: bool,
     pub warn_obsolete_guard: bool,
     pub inline: bool,
@@ -149,7 +150,8 @@ impl Default for CompileOptions {
             warn_bif_clash: true,
             warn_missing_spec: false,
             warn_missing_spec_all: false,
-            warn_deprecated_function: true,
+            warn_deprecated_functions: true,
+            no_warn_deprecated_functions: HashSet::new(),
             warn_deprecated_type: true,
             warn_obsolete_guard: true,
         }

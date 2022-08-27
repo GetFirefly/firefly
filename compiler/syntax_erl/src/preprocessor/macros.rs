@@ -146,6 +146,36 @@ impl MacroDef {
         }
     }
 }
+impl From<bool> for MacroDef {
+    fn from(b: bool) -> Self {
+        Self::Boolean(b)
+    }
+}
+impl From<Symbol> for MacroDef {
+    fn from(sym: Symbol) -> Self {
+        Self::Atom(sym)
+    }
+}
+impl From<&str> for MacroDef {
+    fn from(s: &str) -> Self {
+        Self::String(Symbol::intern(s))
+    }
+}
+impl From<Define> for MacroDef {
+    fn from(def: Define) -> Self {
+        Self::Static(def)
+    }
+}
+impl From<Vec<LexicalToken>> for MacroDef {
+    fn from(tokens: Vec<LexicalToken>) -> Self {
+        Self::Dynamic(tokens)
+    }
+}
+impl From<DelayedSubstitution> for MacroDef {
+    fn from(subst: DelayedSubstitution) -> Self {
+        Self::DelayedSubstitution(subst)
+    }
+}
 
 /// Macro call.
 #[derive(Debug, Clone)]

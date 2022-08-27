@@ -61,6 +61,10 @@ line = {}
 undef = {}
 warning = {}
 
+[defines]
+VSN = {}
+COMPILER_VSN = {}
+
 [punctuation]
 underscore = { value = "_" }
 equal = { value = "==" }

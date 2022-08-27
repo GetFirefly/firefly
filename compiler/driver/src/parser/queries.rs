@@ -5,6 +5,7 @@ use std::thread::ThreadId;
 use log::debug;
 
 use firefly_diagnostics::{Reporter, ToDiagnostic};
+use firefly_intern::symbols;
 use firefly_llvm as llvm;
 use firefly_mlir as mlir;
 use firefly_session::{Input, InputType};
@@ -63,6 +64,8 @@ where
     parse_config.no_warn = options.no_warn;
     parse_config.include_paths = options.include_path.clone();
     parse_config.code_paths = Default::default();
+    parse_config.define(symbols::VSN, crate::FIREFLY_RELEASE);
+    parse_config.define(symbols::COMPILER_VSN, crate::FIREFLY_RELEASE);
     parse_config
 }
 

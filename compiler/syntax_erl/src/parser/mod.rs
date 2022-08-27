@@ -34,6 +34,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use firefly_diagnostics::{CodeMap, Diagnostic, Reporter};
+use firefly_intern::Symbol;
 use firefly_parser::{Parse as GParse, Parser as GParser};
 use firefly_parser::{Scanner, Source};
 
@@ -42,7 +43,7 @@ pub trait Parse<T> = GParse<T, Config = ParseConfig, Error = ParserError>;
 
 use crate::ast;
 use crate::lexer::Lexer;
-use crate::preprocessor::{MacroContainer, Preprocessed, Preprocessor};
+use crate::preprocessor::{MacroContainer, MacroDef, MacroIdent, Preprocessed, Preprocessor};
 
 pub use self::errors::*;
 
@@ -60,6 +61,11 @@ pub struct ParseConfig {
 impl ParseConfig {
     pub fn new() -> Self {
         ParseConfig::default()
+    }
+
+    pub fn define<V: Into<MacroDef>>(&mut self, name: Symbol, value: V) {
+        let macros = self.macros.get_or_insert_with(|| MacroContainer::new());
+        macros.insert(MacroIdent::Const(name), value.into());
     }
 }
 impl Default for ParseConfig {

@@ -396,6 +396,23 @@ impl RewriteExports {
                 }));
                 Ok((cexpr, exported, used))
             }
+            IExpr::If(expr) => {
+                let span = expr.span;
+                let used = expr.used_vars();
+                let exported = sets::intersection(expr.new_vars(), exports.clone());
+                let (guard, _) = self.cexprs(expr.guards, rbt_set![])?;
+                let (then_body, _) = self.cexprs(expr.then_body, exported.clone())?;
+                let (else_body, _) = self.cexprs(expr.else_body, exported.clone())?;
+
+                let cexpr = Box::new(Expr::If(If {
+                    span,
+                    annotations: expr.annotations,
+                    guard,
+                    then_body,
+                    else_body,
+                }));
+                Ok((cexpr, exported, used))
+            }
             IExpr::Receive1(recv) => {
                 let span = recv.span;
                 let used = recv.used_vars();
@@ -673,7 +690,7 @@ impl RewriteExports {
                 }));
                 Ok((tuple, rbt_set![], used))
             }
-            IExpr::Map(mut map) if map.is_literal() => {
+            IExpr::Map(mut map) if map.is_simple() => {
                 assert_eq!(map.is_pattern, false);
                 let used = map.used_vars();
                 let (arg, _, _) = self.cexpr(*map.arg, rbt_set![])?;

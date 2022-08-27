@@ -428,6 +428,40 @@ impl AnnotateVariableUsage {
                     fail: Box::new(fail),
                 }))
             }
+            IExpr::If(IIf {
+                span,
+                mut annotations,
+                guards,
+                then_body,
+                else_body,
+            }) => {
+                // guards will never generate new variables.
+                let guards = self.uexpr_list(guards, known.clone())?;
+                let (then_body, _) = self.uexprs(then_body, known.clone())?;
+                let (else_body, _) = self.uexprs(else_body, known.clone())?;
+
+                let used = sets::union(
+                    sets::used_in_any(guards.iter()),
+                    sets::union(
+                        sets::used_in_any(then_body.iter()),
+                        sets::used_in_any(else_body.iter()),
+                    ),
+                );
+                let new = sets::intersection(
+                    sets::new_in_any(then_body.iter()),
+                    sets::new_in_any(else_body.iter()),
+                );
+
+                annotations.insert_mut(symbols::Used, used);
+                annotations.insert_mut(symbols::New, new);
+                Ok(IExpr::If(IIf {
+                    span,
+                    annotations,
+                    guards,
+                    then_body,
+                    else_body,
+                }))
+            }
             IExpr::Fun(fun) => {
                 let clauses = if !known.is_empty() {
                     self.rename_shadowing_clauses(fun.clauses, known.clone())
@@ -599,7 +633,7 @@ impl AnnotateVariableUsage {
                 Ok(lit)
             }
             mut expr => {
-                assert!(expr.is_simple(), "expected simple, got {:?}", &expr);
+                assert!(expr.is_simple(), "expected simple, got {:#?}", &expr);
                 let vars = lit_vars(&expr, RedBlackTreeSet::new());
                 expr.annotations_mut().insert_mut(symbols::Used, vars);
                 Ok(IExpr::Simple(ISimple::new(expr)))

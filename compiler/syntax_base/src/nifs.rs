@@ -6,8 +6,8 @@
 ///! signature.
 use std::collections::BTreeMap;
 
-use lazy_static::lazy_static;
 use firefly_intern::{symbols, Symbol};
+use lazy_static::lazy_static;
 
 use crate::{CallConv, Signature, Visibility};
 use crate::{FunctionType, PrimitiveType, TermType, Type};
@@ -30,7 +30,7 @@ lazy_static! {
             // pub __firefly_map_update_mut(map, term, term) -> i1, map
             Signature::new(Visibility::PUBLIC | Visibility::EXTERNAL, CallConv::Erlang, symbols::Empty, symbols::NifMapUpdateMut, FunctionType::new(vec![Type::Term(TermType::Map), Type::Term(TermType::Any), Type::Term(TermType::Any)], vec![Type::Primitive(PrimitiveType::I1), Type::Term(TermType::Map)])),
             // pub __firefly_map_fetch(map, term) -> i1, term
-            Signature::new(Visibility::PUBLIC | Visibility::EXTERNAL, CallConv::Erlang, symbols::Empty, symbols::NifMapFetch, FunctionType::new(vec![Type::Term(TermType::Map), Type::Term(TermType::Any)], vec![Type::Term(TermType::Any)])),
+            Signature::new(Visibility::PUBLIC | Visibility::EXTERNAL, CallConv::Erlang, symbols::Empty, symbols::NifMapFetch, FunctionType::new(vec![Type::Term(TermType::Map), Type::Term(TermType::Any)], vec![Type::Primitive(PrimitiveType::I1), Type::Term(TermType::Any)])),
             // pub __firefly_build_stacktrace(exception_trace) -> term
             Signature::new(Visibility::PUBLIC | Visibility::EXTERNAL, CallConv::C, symbols::Empty, symbols::NifBuildStacktrace, FunctionType::new(vec![Type::ExceptionTrace], vec![Type::Term(TermType::Any)])),
             // pub __firefly_bs_init() -> i1, term

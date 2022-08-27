@@ -219,6 +219,9 @@ impl Expr {
     pub fn is_literal(&self) -> bool {
         match self {
             Self::Literal(_) => true,
+            Self::Cons(cons) => cons.is_literal(),
+            Self::Tuple(tuple) => tuple.is_literal(),
+            Self::Map(map) => map.is_literal(),
             _ => false,
         }
     }
@@ -515,6 +518,10 @@ impl Cons {
             tail: Box::new(tail),
         }
     }
+
+    pub fn is_literal(&self) -> bool {
+        self.head.is_literal() && self.tail.is_literal()
+    }
 }
 impl Eq for Cons {}
 impl PartialEq for Cons {
@@ -551,6 +558,10 @@ impl Tuple {
             annotations: Annotations::default(),
             elements,
         }
+    }
+
+    pub fn is_literal(&self) -> bool {
+        self.elements.iter().all(|e| e.is_literal())
     }
 }
 impl Eq for Tuple {}
@@ -590,6 +601,14 @@ impl Map {
             op,
             pairs,
         }
+    }
+
+    pub fn is_literal(&self) -> bool {
+        self.var.is_literal()
+            && self
+                .pairs
+                .iter()
+                .all(|p| p.key.is_literal() && p.value.is_literal())
     }
 }
 impl Eq for Map {}

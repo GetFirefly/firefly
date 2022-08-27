@@ -613,6 +613,14 @@ impl IMap {
                 .iter()
                 .all(|p| p.key.len() == 1 && p.key[0].is_literal() && p.value.is_literal())
     }
+
+    pub fn is_simple(&self) -> bool {
+        self.arg.is_simple()
+            && self
+                .pairs
+                .iter()
+                .all(|pair| pair.key.iter().all(|k| k.is_simple()) && pair.value.is_simple())
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

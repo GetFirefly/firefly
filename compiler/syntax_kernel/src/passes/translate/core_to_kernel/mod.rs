@@ -475,22 +475,40 @@ impl TranslateCore {
                 box then_body,
                 box else_body,
             }) => {
+                // Convert the original expression into the following form:
+                //
+                //   let <cond> = <guard>
+                //    in if <cond> then <then_body>
+                //                 else <else_body>
+                //
+                // This ensures that the conditional of the `if` is always
+                // a variable containing the result of an expression or a literal
+                let cond_span = guard.span();
                 let (cond, pre) = self.body(guard, sub.clone())?;
+                let cond = pre_seq(pre, cond);
+
                 let (then_body, tpre) = self.body(then_body, sub.clone())?;
                 let then_body = pre_seq(tpre, then_body);
                 let (else_body, epre) = self.body(else_body, sub.clone())?;
                 let else_body = pre_seq(epre, else_body);
-                Ok((
-                    Expr::If(If {
-                        span,
-                        annotations,
-                        cond: Box::new(cond),
-                        then_body: Box::new(then_body),
-                        else_body: Box::new(else_body),
-                        ret: vec![],
-                    }),
-                    pre,
-                ))
+
+                let cond_var = self.context.next_var(Some(cond_span));
+                let body = Expr::If(If {
+                    span,
+                    annotations,
+                    cond: Box::new(Expr::Var(cond_var.clone())),
+                    then_body: Box::new(then_body),
+                    else_body: Box::new(else_body),
+                    ret: vec![],
+                });
+                let set = Expr::Set(ISet::new(
+                    cond_span,
+                    vec![cond_var.clone()],
+                    cond,
+                    Some(body),
+                ));
+
+                Ok((set, vec![]))
             }
             core::Expr::Apply(core::Apply {
                 span,
@@ -2552,37 +2570,31 @@ fn opt_single_valued(
 ) -> Vec<(MatchType, Vec<IClause>)> {
     let mut lcs = vec![];
     let mut tcs = vec![];
+
     for (t, mut clauses) in tclauses.drain(..) {
-        if clauses.len() != 1 {
-            tcs.push((t, clauses));
-            continue;
-        }
-
-        let mut clause = clauses.pop().unwrap();
-        if clause.patterns.is_empty() {
-            clauses.push(clause);
-            tcs.push((t, clauses));
-            continue;
-        }
-
-        if clause.patterns[0].is_literal() {
-            // This is an atomic literal
-            clauses.push(clause);
-            tcs.push((t, clauses));
-            continue;
-        }
-
-        let pattern = clause.patterns[0].clone();
-        match combine_lit_pat(pattern) {
-            Ok(pattern) => {
-                let _ = mem::replace(&mut clause.patterns[0], pattern);
-                lcs.push(clause);
+        if clauses.len() == 1 {
+            let mut clause = clauses.pop().unwrap();
+            if clause.patterns[0].is_literal() {
+                // This is an atomic literal
+                tcs.push((t, vec![clause]));
+                continue;
             }
-            Err(_) => {
-                // Not possible
-                clauses.push(clause);
-                tcs.push((t, clauses));
+
+            let pattern = clause.patterns[0].clone();
+            match combine_lit_pat(pattern) {
+                Ok(pattern) => {
+                    let _ = mem::replace(&mut clause.patterns[0], pattern);
+                    lcs.push(clause);
+                    continue;
+                }
+                Err(_) => {
+                    // Not possible
+                    tcs.push((t, vec![clause]));
+                    continue;
+                }
             }
+        } else {
+            tcs.push((t, clauses));
         }
     }
 
@@ -2761,10 +2773,7 @@ fn partition_intersection(
                 })
                 .collect();
             match find_key_intersection(patterns) {
-                None => {
-                    vars.remove(0);
-                    (vars, clauses)
-                }
+                None => (vars, clauses),
                 Some(keys) => {
                     for clause in clauses.iter_mut() {
                         let arg = clause.patterns.remove(0);
@@ -2775,6 +2784,9 @@ fn partition_intersection(
                         patterns.append(&mut clause.patterns);
                         clause.patterns = patterns;
                     }
+                    // Duplicate the var
+                    let u = vars[0].clone();
+                    vars.insert(0, u);
                     (vars, clauses)
                 }
             }
@@ -3240,10 +3252,10 @@ impl TranslateCore {
                 ..
             }) => {
                 let ret = brk.ret().to_vec();
-                let cond_used = lit_vars(cond.as_ref());
+                let cu = lit_vars(cond.as_ref());
                 let (then_body, tbu) = self.ubody(then_body, brk.clone())?;
                 let (else_body, ebu) = self.ubody(else_body, brk)?;
-                let used = sets::union(cond_used, sets::union(tbu, ebu));
+                let used = sets::union(cu, sets::union(tbu, ebu));
                 Ok((
                     Expr::If(If {
                         span,

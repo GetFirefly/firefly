@@ -365,10 +365,14 @@ impl Options {
 
     /// Determines whether we should invoke the linker for the program being compiled
     pub fn should_link(&self) -> bool {
-        self.output_types.contains_key(&OutputType::Link)
+        !self.debugging_opts.parse_only && self.output_types.contains_key(&OutputType::Link)
     }
 
     pub fn maybe_emit(&self, input: &Input, output_type: OutputType) -> Option<PathBuf> {
+        if self.debugging_opts.parse_only {
+            return None;
+        }
+
         self.output_types
             .maybe_emit(input, output_type)
             .map(|p| match self.output_dir.as_ref() {

@@ -85,6 +85,12 @@ pub fn handle_command<'a>(
     // Do not proceed with compilation if there were frontend errors
     diagnostics.abort_if_errors();
 
+    // do not proceed with compilation if parse_only was set
+    if options.debugging_opts.parse_only {
+        diagnostics.notice("Finished", "skipping compilation, -Z parse_only was set");
+        return Ok(());
+    }
+
     // Initialize application metadata for use by compilation tasks
     let app = Arc::new(ApplicationMetadata {
         name: options.app.name,

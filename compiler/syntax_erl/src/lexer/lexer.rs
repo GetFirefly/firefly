@@ -223,6 +223,24 @@ where
         }
     }
 
+    #[inline]
+    fn skip_whitespace_on_line(&mut self) {
+        let mut c: char;
+        loop {
+            c = self.read();
+
+            if c == '\n' {
+                break;
+            }
+
+            if !c.is_whitespace() {
+                break;
+            }
+
+            self.skip();
+        }
+    }
+
     fn tokenize(&mut self) -> Token {
         let c = self.read();
 
@@ -402,7 +420,7 @@ where
 
         // If no '%', then we should check for an Edoc tag, first skip all whitespace and advance
         // the token start
-        self.skip_whitespace();
+        self.skip_whitespace_on_line();
 
         // See if this is an Edoc tag
         c = self.read();
@@ -413,7 +431,7 @@ where
                 // Get the tag identifier
                 self.lex_identifier();
                 // Skip any leading whitespace in the value
-                self.skip_whitespace();
+                self.skip_whitespace_on_line();
                 // Get value
                 loop {
                     c = self.read();

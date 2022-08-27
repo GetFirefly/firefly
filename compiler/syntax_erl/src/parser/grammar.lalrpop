@@ -293,12 +293,12 @@ TypedRecordField: RecordField = {
 // Type Specifications
 
 TypeDef: TypeDef = {
-    "(" <TypeDef100> ")" => (<>),
-    TypeDef100,
+    "(" <TypeDef100> ")" "." => (<>),
+    <TypeDef100> ".",
 };
 
 TypeDef100: TypeDef = {
-    <l:@L> <name:atom> "(" <params:CommaOpt<atom_or_var>> ")" "::" <ty:TopType> "." <r:@R>
+    <l:@L> <name:atom> "(" <params:CommaOpt<atom_or_var>> ")" "::" <ty:TopType> <r:@R>
         => TypeDef { span: span!(l, r), name, params, ty, opaque: false },
 };
 

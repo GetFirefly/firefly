@@ -620,19 +620,59 @@ fn no_warn_deprecated_functions(
     funs: &[Expr],
     reporter: &Reporter,
 ) {
+    use firefly_number::Integer;
+
     for fun in funs {
         match fun {
             Expr::FunctionVar(FunctionVar::PartiallyResolved(name)) => {
                 options.no_warn_deprecated_functions.insert(*name);
             }
+            Expr::Literal(Literal::Tuple(span, ref elements)) if elements.len() == 3 => {
+                match elements.as_slice() {
+                    [Literal::Atom(m), Literal::Atom(f), Literal::Integer(_, Integer::Small(a))] => {
+                        options.no_warn_deprecated_functions.insert(Span::new(
+                            *span,
+                            FunctionName::new(m.name, f.name, (*a).try_into().unwrap()),
+                        ));
+                    }
+                    _ => reporter.diagnostic(
+                        Diagnostic::warning()
+                            .with_message("invalid compile option")
+                            .with_labels(vec![Label::primary(span.source_id(), *span)
+                                .with_message(
+                                "expected name/arity or mfa tuple for no_warn_deprecated_function",
+                            )]),
+                    ),
+                }
+            }
+            Expr::Tuple(Tuple { span, ref elements }) if elements.len() == 3 => {
+                match elements.as_slice() {
+                    [Expr::Literal(Literal::Atom(m)), Expr::Literal(Literal::Atom(f)), Expr::Literal(Literal::Integer(_, Integer::Small(a)))] =>
+                    {
+                        options.no_warn_deprecated_functions.insert(Span::new(
+                            *span,
+                            FunctionName::new(m.name, f.name, (*a).try_into().unwrap()),
+                        ));
+                    }
+                    _ => reporter.diagnostic(
+                        Diagnostic::warning()
+                            .with_message("invalid compile option")
+                            .with_labels(vec![Label::primary(span.source_id(), *span)
+                                .with_message(
+                                "expected name/arity or mfa tuple for no_warn_deprecated_function",
+                            )]),
+                    ),
+                }
+            }
             other => {
+                dbg!(&other);
                 let other_span = other.span();
                 reporter.diagnostic(
                     Diagnostic::warning()
                         .with_message("invalid compile option")
                         .with_labels(vec![Label::primary(other_span.source_id(), other_span)
                             .with_message(
-                                "expected function name/arity term for no_warn_deprecated_function",
+                                "expected name/arity or mfa tuple for no_warn_deprecated_function",
                             )]),
                 );
             }

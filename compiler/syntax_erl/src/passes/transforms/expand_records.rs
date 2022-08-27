@@ -260,13 +260,15 @@ impl<'m> ExpandRecordsVisitor<'m> {
                     Ident::with_empty_span(symbols::Underscore).into(),
                 ));
             } else {
-                // This is a constructor, so use the default initializer, or the atom 'undefined' if one isn't present
-                if let Some(default_expr) = defined.value.as_ref() {
-                    elements.push(default_expr.clone());
-                } else {
-                    elements.push(Expr::Literal(Literal::Atom(Ident::with_empty_span(
-                        symbols::Undefined,
-                    ))));
+                // This is a constructor, so use the default expression, then the default initializer, or the atom 'undefined' if neither are present
+                match record.default.as_ref() {
+                    Some(box default_expr) => elements.push(default_expr.clone()),
+                    None => match defined.value.as_ref() {
+                        Some(default_init) => elements.push(default_init.clone()),
+                        None => elements.push(Expr::Literal(Literal::Atom(
+                            Ident::with_empty_span(symbols::Undefined),
+                        ))),
+                    },
                 }
             }
         }
@@ -338,7 +340,9 @@ impl<'m> ExpandRecordsVisitor<'m> {
                 name: field.name,
                 value: Some(Expr::Var(field_var.into())),
                 ty: None,
+                is_default: false,
             }],
+            default: None,
         })?;
         // The callee for pattern match failure
         let erlang_error = Expr::FunctionVar(FunctionVar::Resolved(Span::new(
@@ -447,6 +451,7 @@ impl<'m> ExpandRecordsVisitor<'m> {
             span,
             name,
             fields: vec![],
+            default: None,
         })?;
         // The callee for pattern match failure
         let erlang_error = Expr::FunctionVar(FunctionVar::Resolved(Span::new(

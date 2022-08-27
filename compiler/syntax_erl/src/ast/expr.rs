@@ -833,10 +833,11 @@ pub struct Record {
     pub span: SourceSpan,
     pub name: Ident,
     pub fields: Vec<RecordField>,
+    pub default: Option<Box<Expr>>,
 }
 impl PartialEq for Record {
     fn eq(&self, other: &Self) -> bool {
-        self.name == other.name && self.fields == other.fields
+        self.name == other.name && self.fields == other.fields && self.default == other.default
     }
 }
 
@@ -895,6 +896,7 @@ pub struct RecordField {
     pub name: Ident,
     pub value: Option<Expr>,
     pub ty: Option<Type>,
+    pub is_default: bool,
 }
 impl PartialEq for RecordField {
     fn eq(&self, other: &Self) -> bool {

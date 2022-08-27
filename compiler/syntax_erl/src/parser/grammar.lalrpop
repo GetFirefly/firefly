@@ -141,7 +141,7 @@ AttributeDefinition: Attribute = {
 
 RecordDeclaration: Record = {
     <l:@L> "-" "record" "(" <name:atom> "," <fields:TypedRecordFields> ")" "." <r:@R>
-        => Record { span: span!(l, r), name, fields },
+        => Record { span: span!(l, r), name, fields, default: None },
 };
 
 RemovedAttribute: Attribute = {
@@ -287,7 +287,7 @@ TypedRecordFields: Vec<RecordField> = {
 
 TypedRecordField: RecordField = {
     <l:@L> <name:atom> <value:("=" <Expr>)?> <ty:("::" <TopType>)?> <r:@R>
-        => RecordField { span: span!(l, r), name: name, value, ty },
+        => RecordField { span: span!(l, r), name: name, value, ty, is_default: false },
 };
 
 // Type Specifications
@@ -530,7 +530,7 @@ RecordPattern: Expr = {
     <l:@L> "#" <name:atom> "." <field:atom> <r:@R>
         => Expr::RecordIndex(RecordIndex { span: span!(l, r), name, field }),
     <l:@L> "#" <name:atom> <fields:RecordTuplePattern> <r:@R>
-        => Expr::Record(Record { span: span!(l, r), name, fields }),
+        => Expr::Record(Record { span: span!(l, r), name, fields, default: None }),
 };
 
 RecordTuplePattern: Vec<RecordField> = {
@@ -539,7 +539,7 @@ RecordTuplePattern: Vec<RecordField> = {
 
 RecordFieldPattern: RecordField = {
     <l:@L> <name:atom> "=" <value:Pattern> <r:@R>
-        => RecordField { span: span!(l, r), name, value: Some(value), ty: None },
+        => RecordField { span: span!(l, r), name, value: Some(value), ty: None, is_default: false },
 };
 
 // Expressions
@@ -819,18 +819,72 @@ MapKey: Expr = Expr;
 RecordExpr: Expr = {
     <l:@L> "#" <name:atom> "." <field:atom> <r:@R>
         => Expr::RecordIndex(RecordIndex { span: span!(l, r), name, field }),
-    <l:@L> "#" <name:atom> <fields:RecordTuple> <r:@R>
-        => Expr::Record(Record { span: span!(l, r), name, fields }),
+
+    <l:@L> "#" <name:atom> <fields:RecordTuple> <r:@R> =>? {
+        let mut fields = fields;
+        match fields.iter().position(|u| u.is_default) {
+          None => Ok(Expr::Record(Record { span: span!(l, r), name, fields, default: None })),
+          Some(pos) if pos == fields.len() - 1 => {
+              let default_field = fields.pop().unwrap();
+              match default_field.value {
+                Some(default) => Ok(Expr::Record(Record { span: span!(l, r), name, fields, default: Some(Box::new(default)) })),
+                None => {
+                    let span = default_field.span;
+                    Err(ParserError::ShowDiagnostic { diagnostic: Diagnostic::error()
+                            .with_message("invalid default field value expression")
+                            .with_labels(vec![
+                                Label::primary(span.source_id(), span)
+                                    .with_message("expected a default value, but none was provided")
+                            ])}.into())
+                }
+              }
+          }
+          Some(pos) => {
+            let span = fields[pos].span;
+            Err(ParserError::ShowDiagnostic { diagnostic: Diagnostic::error()
+                    .with_message("invalid default field value expression")
+                    .with_labels(vec![
+                        Label::primary(span.source_id(), span)
+                            .with_message("this default field expression must be the last field")
+                    ])}.into())
+          }
+        }
+    },
 
     <l:@L> <lhs:ExprMax> "#" <name:atom> "." <field:atom> <r:@R>
         => Expr::RecordAccess(RecordAccess { span: span!(l, r), record: Box::new(lhs), name, field }),
-    <l:@L> <lhs:ExprMax> "#" <name:atom> <updates:RecordTuple> <r:@R>
-        => Expr::RecordUpdate(RecordUpdate { span: span!(l, r), record: Box::new(lhs), name, updates }),
+
+    <l:@L> <lhs:ExprMax> "#" <name:atom> <updates:RecordTuple> <r:@R> =>? {
+        match updates.iter().find(|u| u.is_default) {
+          None => Ok(Expr::RecordUpdate(RecordUpdate { span: span!(l, r), record: Box::new(lhs), name, updates })),
+          Some(update) => {
+            let span = update.span;
+            Err(ParserError::ShowDiagnostic { diagnostic: Diagnostic::error()
+                    .with_message("invalid field expression")
+                    .with_labels(vec![
+                        Label::primary(span.source_id(), span)
+                            .with_message("default field values are not permitted in record updates")
+                    ])}.into())
+          }
+        }
+    },
 
     <l:@L> <lhs:RecordExpr> "#" <name:atom> "." <field:atom> <r:@R>
         => Expr::RecordAccess(RecordAccess { span: span!(l, r), record: Box::new(lhs), name, field }),
-    <l:@L> <lhs:RecordExpr> "#" <name:atom> <updates:RecordTuple> <r:@R>
-        => Expr::RecordUpdate(RecordUpdate { span: span!(l, r), record: Box::new(lhs), name, updates }),
+    <l:@L> <lhs:RecordExpr> "#" <name:atom> <updates:RecordTuple> <r:@R> =>? {
+        match updates.iter().find(|u| u.is_default) {
+          None => Ok(Expr::RecordUpdate(RecordUpdate { span: span!(l, r), record: Box::new(lhs), name, updates })),
+          Some(update) => {
+            let span = update.span;
+            Err(ParserError::ShowDiagnostic { diagnostic: Diagnostic::error()
+                    .with_message("invalid field expression")
+                    .with_labels(vec![
+                        Label::primary(span.source_id(), span)
+                            .with_message("default field values are not permitted in record updates")
+                    ])}.into())
+          }
+        }
+    }
 };
 
 RecordTuple: Vec<RecordField> = {
@@ -838,8 +892,22 @@ RecordTuple: Vec<RecordField> = {
 };
 
 RecordField: RecordField = {
-    <l:@L> <name:atom> "=" <value:Expr> <r:@R>
-        => RecordField { span: span!(l, r), name, value: Some(value), ty: None },
+    <l:@L> <name:atom_or_var> "=" <value:Expr> <r:@R>
+        =>? {
+        match name {
+          Name::Atom(a) => Ok(RecordField { span: span!(l, r), name: a, value: Some(value), ty: None, is_default: false }),
+          Name::Var(v) if v == symbols::Underscore => Ok(RecordField { span: span!(l, r), name: v, value: Some(value), ty: None, is_default: true }),
+          Name::Var(v) => {
+            let span = v.span;
+            Err(ParserError::ShowDiagnostic { diagnostic: Diagnostic::error()
+                    .with_message("invalid record field")
+                    .with_labels(vec![
+                        Label::primary(span.source_id(), span)
+                            .with_message("expected an atom, or '_'")
+                    ])}.into())
+          }
+        }
+    }
 };
 
 Constant: Expr = {

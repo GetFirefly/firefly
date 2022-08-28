@@ -11,9 +11,6 @@ use firefly_syntax_base::ApplicationMetadata;
 
 use crate::ast;
 
-use self::inject::AddAutoImports;
-use self::verify::{VerifyCalls, VerifyNifs, VerifyOnLoadFunctions, VerifyTypeSpecs};
-
 pub use self::attributes::analyze_attribute;
 pub use self::functions::analyze_function;
 pub use self::records::analyze_record;
@@ -48,12 +45,13 @@ impl<'app> Pass for SemanticAnalysis<'app> {
     type Output<'a> = ast::Module;
 
     fn run<'a>(&mut self, mut module: Self::Input<'a>) -> anyhow::Result<Self::Output<'a>> {
-        let mut passes = AddAutoImports
-            //.chain(DefinePseudoLocals)
-            .chain(VerifyOnLoadFunctions::new(self.reporter.clone()))
-            .chain(VerifyTypeSpecs::new(self.reporter.clone()))
-            .chain(VerifyNifs::new(self.reporter.clone()))
-            .chain(VerifyCalls::new(self.reporter.clone(), self.app));
+        let mut passes = inject::AddAutoImports
+            .chain(inject::DefinePseudoLocals)
+            .chain(verify::VerifyExports::new(self.reporter.clone()))
+            .chain(verify::VerifyOnLoadFunctions::new(self.reporter.clone()))
+            .chain(verify::VerifyTypeSpecs::new(self.reporter.clone()))
+            .chain(verify::VerifyNifs::new(self.reporter.clone()))
+            .chain(verify::VerifyCalls::new(self.reporter.clone(), self.app));
 
         passes.run(&mut module)?;
 

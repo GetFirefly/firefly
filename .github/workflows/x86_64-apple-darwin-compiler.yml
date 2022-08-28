@@ -10,6 +10,7 @@ env:
 
 jobs:
   compiler:
+    if: ${{ false }} # disabled
     runs-on: macos-12
 
     steps:

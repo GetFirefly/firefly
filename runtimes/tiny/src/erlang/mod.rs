@@ -352,6 +352,31 @@ pub extern "C-unwind" fn display(term: OpaqueTerm) -> ErlangResult {
 }
 
 #[allow(improper_ctypes_definitions)]
+#[export_name = "erlang:display_nl/0"]
+pub extern "C-unwind" fn display_nl() -> ErlangResult {
+    println!();
+    ErlangResult::Ok(true.into())
+}
+
+#[allow(improper_ctypes_definitions)]
+#[export_name = "erlang:display_string/1"]
+pub extern "C-unwind" fn display_string(term: OpaqueTerm) -> ErlangResult {
+    let list: Term = term.into();
+    match list {
+        Term::Nil => ErlangResult::Ok(true.into()),
+        Term::Cons(ptr) => {
+            let cons = unsafe { ptr.as_ref() };
+            match cons.to_string() {
+                Some(ref s) => print!("{}", s),
+                None => return badarg(Trace::capture()),
+            }
+            ErlangResult::Ok(true.into())
+        }
+        _other => badarg(Trace::capture()),
+    }
+}
+
+#[allow(improper_ctypes_definitions)]
 #[export_name = "erlang:puts/1"]
 pub extern "C-unwind" fn puts(printable: OpaqueTerm) -> ErlangResult {
     let printable: Term = printable.into();

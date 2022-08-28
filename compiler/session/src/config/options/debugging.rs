@@ -88,6 +88,9 @@ pub struct DebuggingOptions {
     /// Parse only; do not compile, assemble, or link
     pub parse_only: bool,
     #[option]
+    /// Parse and run semantic analysis only; do not compile, assemble, or link
+    pub analyze_only: bool,
+    #[option]
     pub print_artifact_sizes: bool,
     #[option]
     /// Prints the LLVM optimization passes being run

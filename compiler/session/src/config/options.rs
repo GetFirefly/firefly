@@ -365,11 +365,13 @@ impl Options {
 
     /// Determines whether we should invoke the linker for the program being compiled
     pub fn should_link(&self) -> bool {
-        !self.debugging_opts.parse_only && self.output_types.contains_key(&OutputType::Link)
+        !self.debugging_opts.parse_only
+            && !self.debugging_opts.analyze_only
+            && self.output_types.contains_key(&OutputType::Link)
     }
 
     pub fn maybe_emit(&self, input: &Input, output_type: OutputType) -> Option<PathBuf> {
-        if self.debugging_opts.parse_only {
+        if self.debugging_opts.parse_only || self.debugging_opts.analyze_only {
             return None;
         }
 
@@ -494,7 +496,7 @@ impl Options {
 
     /// Returns `true` if there will be an output file generated.
     pub fn will_create_output_file(&self) -> bool {
-        !self.debugging_opts.parse_only // The file is just being parsed
+        !(self.debugging_opts.parse_only || self.debugging_opts.analyze_only) // The file is just being parsed/analyzed
     }
 
     /// Returns a list of directories where target-specific tool binaries are located.

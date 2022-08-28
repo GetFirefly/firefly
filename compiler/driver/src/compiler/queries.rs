@@ -60,12 +60,15 @@ where
     diagnostics.success("Compiling", format!("{}", &source_name));
     debug!("compiling {} on thread {:?}", &source_name, thread_id);
 
-    // Bail early if we don't have artifacts to codegen
-    if !options.output_types.should_generate_mlir() {
-        // However, since production of Core/Kernel/SSA IR is driven by
-        // queries for MLIR, we need to check if either of those
-        // types were requested, and if so, execute the appropriate
-        // query
+    // Bail early if we are just performing analysis or don't have artifacts to codegen
+    if options.debugging_opts.analyze_only {
+        // We conduct analysis all the way up through Kernel, so run at least that much
+        db.input_kernel(input, app)?;
+        return Ok(None);
+    } else if !options.output_types.should_generate_mlir() {
+        // Since production of Core/Kernel/SSA IR is driven by
+        // queries for MLIR, we need to check if any of those
+        // types were requested, and if so, execute the appropriate query
         if options.output_types.should_generate_ssa() {
             db.input_ssa(input, app)?;
         } else if options.output_types.contains_key(&OutputType::Kernel) {

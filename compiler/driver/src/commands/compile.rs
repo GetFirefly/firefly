@@ -133,9 +133,15 @@ pub fn handle_command<'a>(
     // Do not proceed to linking if there were compilation errors
     diagnostics.abort_if_errors();
 
+    // do not proceed with compilation if analyze_only was set
+    if options.debugging_opts.analyze_only {
+        diagnostics.notice("Finished", "skipping link, -Z analyze_only was set");
+        return Ok(());
+    }
+
     // Do not proceed to linking if we have no codegen artifacts
     if codegen_results.modules.is_empty() {
-        diagnostics.notice("Linker", "skipping link step, no artifacts requested");
+        diagnostics.notice("Finished", "skipping link, no artifacts requested");
     } else {
         // Link all compiled objects, if requested
         if !options.should_link() {

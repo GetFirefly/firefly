@@ -26,6 +26,7 @@ lalrpop-util = "0.19"
 lazy_static = "1.4"
 log = "0.4"
 paste = "1.0"
+strsim = "0.10"
 thiserror = "1.0"
 
 [dev-dependencies]

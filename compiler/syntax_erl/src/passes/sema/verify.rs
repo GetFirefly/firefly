@@ -9,6 +9,77 @@ use firefly_syntax_base::{ApplicationMetadata, Deprecation, FunctionName};
 use crate::ast::*;
 use crate::visit::{self, VisitMut};
 
+/// Verifies that all declared exports have matching definitions
+pub struct VerifyExports {
+    reporter: Reporter,
+}
+impl VerifyExports {
+    pub fn new(reporter: Reporter) -> Self {
+        Self { reporter }
+    }
+}
+impl Pass for VerifyExports {
+    type Input<'a> = &'a mut Module;
+    type Output<'a> = &'a mut Module;
+
+    fn run<'a>(&mut self, module: Self::Input<'a>) -> anyhow::Result<Self::Output<'a>> {
+        use core::cell::OnceCell;
+
+        // Only calculate similar functions if we have an invalid export, which should be rare
+        let similar_functions = OnceCell::new();
+
+        for export in module.exports.iter() {
+            if !module.functions.contains_key(export.as_ref()) {
+                // We need to calculate similar functions, so populate the set now
+                let similar = similar_functions.get_or_init(|| {
+                    let mut similar = Vec::new();
+                    for (name, function) in module.functions.iter() {
+                        similar.push(Span::new(function.span, name.to_string()));
+                    }
+                    similar
+                });
+
+                let name = export.to_string();
+                let most_similar = similar
+                    .iter()
+                    .map(|f| (strsim::jaro_winkler(&name, &f).abs(), f))
+                    .max_by(|(x_score, _), (ref y_score, _)| x_score.total_cmp(y_score))
+                    .and_then(|(score, f)| if score < 0.85 { None } else { Some(f) });
+
+                match most_similar {
+                    None => {
+                        let span = export.span();
+                        self.reporter.show_error(
+                            "invalid export",
+                            &[(
+                                span,
+                                "the referenced function is not defined in this module",
+                            )],
+                        );
+                    }
+                    Some(f) => {
+                        let span = export.span();
+                        let msg = format!("maybe you meant to export {} instead?", &f);
+                        self.reporter.show_error(
+                            "invalid export",
+                            &[
+                                (
+                                    span,
+                                    "the referenced function is not defined in this module",
+                                ),
+                                (f.span(), msg.as_str()),
+                            ],
+                        );
+                    }
+                }
+            }
+        }
+
+        Ok(module)
+    }
+}
+
+/// Verifies that the on_load function exists, if -on_load is present
 pub struct VerifyOnLoadFunctions {
     reporter: Reporter,
 }
@@ -22,7 +93,6 @@ impl Pass for VerifyOnLoadFunctions {
     type Output<'a> = &'a mut Module;
 
     fn run<'a>(&mut self, module: Self::Input<'a>) -> anyhow::Result<Self::Output<'a>> {
-        // Verify on_load function exists
         if let Some(on_load_name) = module.on_load.as_ref() {
             if !module.functions.contains_key(on_load_name.as_ref()) {
                 let span = on_load_name.span();
@@ -37,6 +107,7 @@ impl Pass for VerifyOnLoadFunctions {
     }
 }
 
+/// Like `VerifyExports`, but for `-nifs`; ensures all NIF declarations have a corresponding definition.
 pub struct VerifyNifs {
     reporter: Reporter,
 }
@@ -50,7 +121,6 @@ impl Pass for VerifyNifs {
     type Output<'a> = &'a mut Module;
 
     fn run<'a>(&mut self, module: Self::Input<'a>) -> anyhow::Result<Self::Output<'a>> {
-        // Verify that all of the nif declarations have a definition, and that the corresponding function was marked as such
         for nif in module.nifs.iter() {
             match module.functions.get(nif.as_ref()) {
                 None => {
@@ -82,6 +152,7 @@ impl Pass for VerifyNifs {
     }
 }
 
+/// Verifies that all declared type specs are associated with a function definition
 pub struct VerifyTypeSpecs {
     reporter: Reporter,
 }
@@ -95,7 +166,6 @@ impl Pass for VerifyTypeSpecs {
     type Output<'a> = &'a mut Module;
 
     fn run<'a>(&mut self, module: Self::Input<'a>) -> anyhow::Result<Self::Output<'a>> {
-        // Check for orphaned type specs
         for (spec_name, spec) in module.specs.iter() {
             let local_spec_name = spec_name.to_local();
             if !module.functions.contains_key(&local_spec_name) {
@@ -112,6 +182,14 @@ impl Pass for VerifyTypeSpecs {
     }
 }
 
+/// Verifies that the callee of local function calls is defined or imported, or is dynamic and thus not statically analyzable
+///
+/// Additionally, checks if the callee is known to be deprecated and raises appropriate diagnostics.
+///
+/// NOTE: We could extend this analysis to cover calls to other modules, since at the point this analysis is run, we have
+/// access to the entire set of modules that was provided to the compiler, however this does not account for cases in which
+/// we're only compiling a library and thus only a subset of the modules is known - we could make such analysis optional and
+/// only perform it when the full set of modules is known.
 pub struct VerifyCalls<'app> {
     reporter: Reporter,
     app: &'app ApplicationMetadata,
@@ -126,7 +204,6 @@ impl<'app> Pass for VerifyCalls<'app> {
     type Output<'a> = &'a mut Module;
 
     fn run<'a>(&mut self, module: Self::Input<'a>) -> anyhow::Result<Self::Output<'a>> {
-        // Check for orphaned type specs
         let module_name = module.name.name;
         let locals = module.functions.keys().copied().collect::<BTreeSet<_>>();
         let imports = module

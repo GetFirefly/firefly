@@ -59,7 +59,7 @@ macro_rules! visitor {
 
 visitor! {
     module => Module
-    attribute => UserAttribute
+    attribute => Literal
     record_definition => Record
     function => Function
     expr => Expr
@@ -594,7 +594,7 @@ where
     visitor.visit_mut_expr(protect.body.as_mut())
 }
 
-visit_mut_impl_empty!(attribute, UserAttribute);
+visit_mut_impl_empty!(attribute, Literal);
 visit_mut_impl_empty!(record_definition, Record);
 visit_mut_impl_empty!(var, Var);
 visit_mut_impl_empty!(literal, Literal);

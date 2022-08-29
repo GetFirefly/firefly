@@ -508,130 +508,136 @@ pub const Exports: Symbol = Symbol::new(167);
 pub const Function: Symbol = Symbol::new(168);
 
 #[allow(non_upper_case_globals)]
-pub const Infinity: Symbol = Symbol::new(169);
+pub const Functions: Symbol = Symbol::new(169);
 
 #[allow(non_upper_case_globals)]
-pub const Inline: Symbol = Symbol::new(170);
+pub const Infinity: Symbol = Symbol::new(170);
 
 #[allow(non_upper_case_globals)]
-pub const Inlined: Symbol = Symbol::new(171);
+pub const Inline: Symbol = Symbol::new(171);
 
 #[allow(non_upper_case_globals)]
-pub const Integer: Symbol = Symbol::new(172);
+pub const Inlined: Symbol = Symbol::new(172);
 
 #[allow(non_upper_case_globals)]
-pub const LetrecGoto: Symbol = Symbol::new(173);
+pub const Integer: Symbol = Symbol::new(173);
 
 #[allow(non_upper_case_globals)]
-pub const LetrecName: Symbol = Symbol::new(174);
+pub const LetrecGoto: Symbol = Symbol::new(174);
 
 #[allow(non_upper_case_globals)]
-pub const ListComprehension: Symbol = Symbol::new(175);
+pub const LetrecName: Symbol = Symbol::new(175);
 
 #[allow(non_upper_case_globals)]
-pub const ModuleInfo: Symbol = Symbol::new(176);
+pub const ListComprehension: Symbol = Symbol::new(176);
 
 #[allow(non_upper_case_globals)]
-pub const Native: Symbol = Symbol::new(177);
+pub const Md5: Symbol = Symbol::new(177);
 
 #[allow(non_upper_case_globals)]
-pub const New: Symbol = Symbol::new(178);
+pub const ModuleInfo: Symbol = Symbol::new(178);
 
 #[allow(non_upper_case_globals)]
-pub const Nif: Symbol = Symbol::new(179);
+pub const Native: Symbol = Symbol::new(179);
 
 #[allow(non_upper_case_globals)]
-pub const NifStart: Symbol = Symbol::new(180);
+pub const New: Symbol = Symbol::new(180);
 
 #[allow(non_upper_case_globals)]
-pub const NoInline: Symbol = Symbol::new(181);
+pub const Nif: Symbol = Symbol::new(181);
 
 #[allow(non_upper_case_globals)]
-pub const Ok: Symbol = Symbol::new(182);
+pub const NifStart: Symbol = Symbol::new(182);
 
 #[allow(non_upper_case_globals)]
-pub const Other: Symbol = Symbol::new(183);
+pub const NoInline: Symbol = Symbol::new(183);
 
 #[allow(non_upper_case_globals)]
-pub const ReceiveTimeout: Symbol = Symbol::new(184);
+pub const Ok: Symbol = Symbol::new(184);
 
 #[allow(non_upper_case_globals)]
-pub const RecordInfo: Symbol = Symbol::new(185);
+pub const Other: Symbol = Symbol::new(185);
 
 #[allow(non_upper_case_globals)]
-pub const RecvNext: Symbol = Symbol::new(186);
+pub const ReceiveTimeout: Symbol = Symbol::new(186);
 
 #[allow(non_upper_case_globals)]
-pub const RecvPeek: Symbol = Symbol::new(187);
+pub const RecordInfo: Symbol = Symbol::new(187);
 
 #[allow(non_upper_case_globals)]
-pub const RecvPop: Symbol = Symbol::new(188);
+pub const RecvNext: Symbol = Symbol::new(188);
 
 #[allow(non_upper_case_globals)]
-pub const RecvStart: Symbol = Symbol::new(189);
+pub const RecvPeek: Symbol = Symbol::new(189);
 
 #[allow(non_upper_case_globals)]
-pub const RecvWait: Symbol = Symbol::new(190);
+pub const RecvPop: Symbol = Symbol::new(190);
 
 #[allow(non_upper_case_globals)]
-pub const Send: Symbol = Symbol::new(191);
+pub const RecvStart: Symbol = Symbol::new(191);
 
 #[allow(non_upper_case_globals)]
-pub const SingleUse: Symbol = Symbol::new(192);
+pub const RecvWait: Symbol = Symbol::new(192);
 
 #[allow(non_upper_case_globals)]
-pub const SkipClause: Symbol = Symbol::new(193);
+pub const Send: Symbol = Symbol::new(193);
 
 #[allow(non_upper_case_globals)]
-pub const Undefined: Symbol = Symbol::new(194);
+pub const SingleUse: Symbol = Symbol::new(194);
 
 #[allow(non_upper_case_globals)]
-pub const Unused: Symbol = Symbol::new(195);
+pub const SkipClause: Symbol = Symbol::new(195);
 
 #[allow(non_upper_case_globals)]
-pub const Used: Symbol = Symbol::new(196);
+pub const Undefined: Symbol = Symbol::new(196);
 
 #[allow(non_upper_case_globals)]
-pub const Utf16: Symbol = Symbol::new(197);
+pub const Unused: Symbol = Symbol::new(197);
 
 #[allow(non_upper_case_globals)]
-pub const Utf32: Symbol = Symbol::new(198);
+pub const Used: Symbol = Symbol::new(198);
 
 #[allow(non_upper_case_globals)]
-pub const Utf8: Symbol = Symbol::new(199);
+pub const Utf16: Symbol = Symbol::new(199);
 
 #[allow(non_upper_case_globals)]
-pub const NifBsFinish: Symbol = Symbol::new(200);
+pub const Utf32: Symbol = Symbol::new(200);
 
 #[allow(non_upper_case_globals)]
-pub const NifBsInit: Symbol = Symbol::new(201);
+pub const Utf8: Symbol = Symbol::new(201);
 
 #[allow(non_upper_case_globals)]
-pub const NifBuildStacktrace: Symbol = Symbol::new(202);
+pub const NifBsFinish: Symbol = Symbol::new(202);
 
 #[allow(non_upper_case_globals)]
-pub const NifMakeTuple: Symbol = Symbol::new(203);
+pub const NifBsInit: Symbol = Symbol::new(203);
 
 #[allow(non_upper_case_globals)]
-pub const NifMapEmpty: Symbol = Symbol::new(204);
+pub const NifBuildStacktrace: Symbol = Symbol::new(204);
 
 #[allow(non_upper_case_globals)]
-pub const NifMapFetch: Symbol = Symbol::new(205);
+pub const NifMakeTuple: Symbol = Symbol::new(205);
 
 #[allow(non_upper_case_globals)]
-pub const NifMapPut: Symbol = Symbol::new(206);
+pub const NifMapEmpty: Symbol = Symbol::new(206);
 
 #[allow(non_upper_case_globals)]
-pub const NifMapPutMut: Symbol = Symbol::new(207);
+pub const NifMapFetch: Symbol = Symbol::new(207);
 
 #[allow(non_upper_case_globals)]
-pub const NifMapUpdate: Symbol = Symbol::new(208);
+pub const NifMapPut: Symbol = Symbol::new(208);
 
 #[allow(non_upper_case_globals)]
-pub const NifMapUpdateMut: Symbol = Symbol::new(209);
+pub const NifMapPutMut: Symbol = Symbol::new(209);
 
 #[allow(non_upper_case_globals)]
-pub const NifTupleSize: Symbol = Symbol::new(210);
+pub const NifMapUpdate: Symbol = Symbol::new(210);
+
+#[allow(non_upper_case_globals)]
+pub const NifMapUpdateMut: Symbol = Symbol::new(211);
+
+#[allow(non_upper_case_globals)]
+pub const NifTupleSize: Symbol = Symbol::new(212);
 
 
 pub(crate) const __SYMBOLS: &'static [(Symbol, &'static str)] = &[
@@ -804,6 +810,7 @@ pub(crate) const __SYMBOLS: &'static [(Symbol, &'static str)] = &[
   (Exit, "exit"),
   (Exports, "exports"),
   (Function, "function"),
+  (Functions, "functions"),
   (Infinity, "infinity"),
   (Inline, "inline"),
   (Inlined, "inlined"),
@@ -811,6 +818,7 @@ pub(crate) const __SYMBOLS: &'static [(Symbol, &'static str)] = &[
   (LetrecGoto, "letrec_goto"),
   (LetrecName, "letrec_name"),
   (ListComprehension, "list_comprehension"),
+  (Md5, "md5"),
   (ModuleInfo, "module_info"),
   (Native, "native"),
   (New, "new"),

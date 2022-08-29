@@ -46,11 +46,14 @@ impl<'app> Pass for SemanticAnalysis<'app> {
 
     fn run<'a>(&mut self, mut module: Self::Input<'a>) -> anyhow::Result<Self::Output<'a>> {
         let mut passes = inject::AddAutoImports
-            .chain(inject::DefinePseudoLocals)
             .chain(verify::VerifyExports::new(self.reporter.clone()))
             .chain(verify::VerifyOnLoadFunctions::new(self.reporter.clone()))
             .chain(verify::VerifyTypeSpecs::new(self.reporter.clone()))
             .chain(verify::VerifyNifs::new(self.reporter.clone()))
+            // We place this after VerifyNifs so that we have all the nifs available for module_info,
+            // but before VerifyCalls so that any calls to module_info are not erroneously treated as
+            // errors prior to them being defined by this pass
+            .chain(inject::DefinePseudoLocals)
             .chain(verify::VerifyCalls::new(self.reporter.clone(), self.app));
 
         passes.run(&mut module)?;

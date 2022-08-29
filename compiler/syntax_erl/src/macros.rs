@@ -43,6 +43,18 @@ macro_rules! list {
     };
 }
 
+macro_rules! ast_lit_list {
+    ($($element:expr),*) => {
+        {
+            use smallvec::smallvec_inline;
+            let mut elements = smallvec_inline![$($element),*];
+            elements.drain(..).rev().fold(ast_lit_nil!(), |tail, head| {
+                ast_lit_cons!(head, tail)
+            })
+        }
+    };
+}
+
 #[allow(unused_macros)]
 macro_rules! list_with_span {
     ($span:expr, $($element:expr),*) => {
@@ -82,6 +94,20 @@ macro_rules! cons {
     };
 }
 
+macro_rules! ast_lit_cons {
+    ($head:expr, $tail:expr) => {
+        crate::ast::Literal::Cons(
+            firefly_diagnostics::SourceSpan::default(),
+            Box::new($head),
+            Box::new($tail),
+        )
+    };
+
+    ($span:expr, $head:expr, $tail:expr) => {
+        crate::ast::Literal::Cons($span, Box::new($head), Box::new($tail))
+    };
+}
+
 #[allow(unused_macros)]
 macro_rules! nil {
     () => {
@@ -92,6 +118,17 @@ macro_rules! nil {
 
     ($span:expr) => {
         crate::ast::Expr::Literal(crate::ast::Literal::Nil($span))
+    };
+}
+
+#[allow(unused_macros)]
+macro_rules! ast_lit_nil {
+    () => {
+        crate::ast::Literal::Nil(firefly_diagnostics::SourceSpan::default())
+    };
+
+    ($span:expr) => {
+        crate::ast::Literal::Nil($span)
     };
 }
 
@@ -107,12 +144,26 @@ macro_rules! tuple {
 }
 
 #[allow(unused_macros)]
+macro_rules! ast_lit_tuple {
+    ($($element:expr),*) => {
+        crate::ast::Literal::Tuple(firefly_diagnostics::SourceSpan::default(), vec![$($element),*])
+    };
+}
+
+#[allow(unused_macros)]
 macro_rules! tuple_with_span {
     ($span:expr, $($element:expr),*) => {
         crate::ast::Expr::Tuple(crate::ast::Tuple{
             span: $span,
             elements: vec![$($element),*],
         })
+    };
+}
+
+#[allow(unused_macros)]
+macro_rules! ast_lit_tuple_with_span {
+    ($span:expr, $($element:expr),*) => {
+        crate::ast::Literal::Tuple($span, vec![$($element),*])
     };
 }
 
@@ -128,6 +179,26 @@ macro_rules! int {
 
     ($span:expr, $i:expr) => {
         crate::ast::Expr::Literal(crate::ast::Literal::Integer($span, $i))
+    };
+}
+
+macro_rules! ast_lit_int {
+    ($i:expr) => {
+        crate::ast::Literal::Integer(firefly_diagnostics::SourceSpan::default(), $i)
+    };
+
+    ($span:expr, $i:expr) => {
+        crate::ast::Literal::Integer($span, $i)
+    };
+}
+
+macro_rules! ast_lit_atom {
+    ($span:expr, $sym:expr) => {
+        crate::ast::Literal::Atom(firefly_intern::Ident::new($sym, $span))
+    };
+
+    ($sym:expr) => {
+        crate::ast::Literal::Atom(firefly_intern::Ident::with_empty_span($sym))
     };
 }
 

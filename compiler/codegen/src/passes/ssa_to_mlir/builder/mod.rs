@@ -203,12 +203,6 @@ impl<'m> ModuleBuilder<'m> {
 
         // Inject declarations for all local functions in advance
         for f in self.module.functions.iter() {
-            // Don't declare module_info/0 and module_info/1 for now
-            if f.signature.is_local(symbols::ModuleInfo, 0)
-                || f.signature.is_local(symbols::ModuleInfo, 1)
-            {
-                continue;
-            }
             let func = self.declare_function(f.span, &f.signature)?;
             if f.signature.is_erlang() {
                 func.set_attribute_by_name(
@@ -246,12 +240,6 @@ impl<'m> ModuleBuilder<'m> {
 
         // Then build them out
         for f in self.module.functions.iter() {
-            // Don't generate module_info/0 and module_info/1 for now
-            if f.signature.is_local(symbols::ModuleInfo, 0)
-                || f.signature.is_local(symbols::ModuleInfo, 1)
-            {
-                continue;
-            }
             self.build_function(f)?;
         }
 

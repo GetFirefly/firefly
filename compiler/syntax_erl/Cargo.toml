@@ -29,6 +29,10 @@ paste = "1.0"
 strsim = "0.10"
 thiserror = "1.0"
 
+[dependencies.smallvec]
+version = "1.9"
+features = ["union", "const_generics", "const_new", "specialization"]
+
 [dev-dependencies]
 pretty_assertions = "1.0"
 

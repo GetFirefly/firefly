@@ -8,7 +8,7 @@ use firefly_diagnostics::*;
 use firefly_syntax_base::*;
 use firefly_util::emit::Emit;
 
-use super::*;
+use crate::ast::{self, *};
 
 /// Represents expressions valid at the top level of a module body
 #[derive(Debug, Clone, PartialEq, Spanned)]
@@ -64,8 +64,8 @@ pub struct Module {
     #[span]
     pub span: SourceSpan,
     pub name: Ident,
-    pub vsn: Option<Expr>,
-    pub author: Option<Expr>,
+    pub vsn: Option<ast::Literal>,
+    pub author: Option<ast::Literal>,
     pub compile: Option<CompileOptions>,
     pub on_load: Option<Span<FunctionName>>,
     pub nifs: HashSet<Span<FunctionName>>,
@@ -78,7 +78,7 @@ pub struct Module {
     pub behaviours: HashSet<Ident>,
     pub callbacks: HashMap<FunctionName, Callback>,
     pub records: HashMap<Symbol, Record>,
-    pub attributes: HashMap<Ident, UserAttribute>,
+    pub attributes: HashMap<Ident, ast::Literal>,
     pub functions: BTreeMap<FunctionName, Function>,
     // Used for module-level deprecation
     pub deprecation: Option<Deprecation>,

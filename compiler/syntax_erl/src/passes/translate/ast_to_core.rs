@@ -58,7 +58,7 @@
 ///! let/set arguments are expressions
 ///! fun is not a safe
 use std::cell::UnsafeCell;
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, HashSet};
 use std::rc::Rc;
 
 use firefly_binary::{BinaryEntrySpecifier, BitVec};
@@ -95,27 +95,6 @@ impl Pass for AstToCore {
     type Output<'a> = Module;
 
     fn run<'a>(&mut self, mut ast: Self::Input<'a>) -> anyhow::Result<Self::Output<'a>> {
-        let mut attributes: HashMap<Ident, Expr> = ast
-            .attributes
-            .drain()
-            .filter_map(|(k, v)| translate_attr(&self.reporter, k, v.value))
-            .collect();
-        if let Some(vsn) = ast.vsn {
-            if let Some((name, value)) =
-                translate_attr(&self.reporter, Ident::new(symbols::Vsn, ast.span), vsn)
-            {
-                attributes.insert(name, value);
-            }
-        }
-        if let Some(author) = ast.author {
-            if let Some((name, value)) = translate_attr(
-                &self.reporter,
-                Ident::new(symbols::Author, ast.span),
-                author,
-            ) {
-                attributes.insert(name, value);
-            }
-        }
         let mut module = Module {
             span: ast.span,
             annotations: Annotations::default(),
@@ -124,7 +103,6 @@ impl Pass for AstToCore {
             on_load: ast.on_load,
             nifs: ast.nifs,
             exports: ast.exports,
-            attributes,
             functions: BTreeMap::new(),
         };
 
@@ -3831,35 +3809,6 @@ fn map_sort_key(key: &[IExpr], keymap: &BTreeMap<MapSortKey, Vec<IMapPair>>) -> 
         IExpr::Literal(Literal { value, .. }) => MapSortKey::Lit(value.clone()),
         IExpr::Var(var) => MapSortKey::Var(var.name()),
         _other => MapSortKey::Size(keymap.len()),
-    }
-}
-
-fn translate_attr(reporter: &Reporter, name: Ident, value: ast::Expr) -> Option<(Ident, Expr)> {
-    match value {
-        ast::Expr::Literal(literal) => Some((name, Expr::Literal(literal.into()))),
-        ast::Expr::FunctionVar(ast::FunctionVar::PartiallyResolved(fun)) => {
-            let span = fun.span();
-            let fun = fun.item;
-            let value = Expr::Literal(Literal::tuple(
-                span,
-                vec![
-                    Literal::atom(span, fun.function),
-                    Literal::integer(span, fun.arity),
-                ],
-            ));
-            Some((name, value))
-        }
-        other => {
-            let msg = format!("invalid value for '-{}' attribute", &name);
-            reporter.show_error(
-                msg.as_str(),
-                &[(
-                    other.span(),
-                    "expression must be literal or Name/Arity value",
-                )],
-            );
-            None
-        }
     }
 }
 

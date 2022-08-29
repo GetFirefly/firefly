@@ -10,7 +10,19 @@ pub fn analyze_attribute(reporter: &Reporter, module: &mut Module, attr: Attribu
     match attr {
         Attribute::Vsn(span, vsn) => {
             if module.vsn.is_none() {
-                module.vsn = Some(vsn);
+                let vsn_span = vsn.span();
+                let vsn_lit: Result<ast::Literal, _> = vsn.try_into();
+                if vsn_lit.is_err() {
+                    reporter.show_error(
+                        "invalid -vsn attribute value",
+                        &[
+                            (span, "expected a literal value"),
+                            (vsn_span, "this expression is not a valid literal"),
+                        ],
+                    );
+                } else {
+                    module.vsn = Some(vsn_lit.unwrap());
+                }
                 return;
             }
             let module_vsn_span = module.vsn.as_ref().map(|v| v.span()).unwrap();
@@ -24,7 +36,19 @@ pub fn analyze_attribute(reporter: &Reporter, module: &mut Module, attr: Attribu
         }
         Attribute::Author(span, author) => {
             if module.author.is_none() {
-                module.author = Some(author);
+                let author_span = author.span();
+                let author_lit: Result<ast::Literal, _> = author.try_into();
+                if author_lit.is_err() {
+                    reporter.show_error(
+                        "invalid -author attribute value",
+                        &[
+                            (span, "expected a literal value"),
+                            (author_span, "this expression is not a valid literal"),
+                        ],
+                    );
+                } else {
+                    module.author = Some(author_lit.unwrap());
+                }
                 return;
             }
             let module_author_span = module.author.as_ref().map(|v| v.span()).unwrap();
@@ -337,19 +361,32 @@ pub fn analyze_attribute(reporter: &Reporter, module: &mut Module, attr: Attribu
                 }
                 _ => (),
             }
+            let attr_value: Result<ast::Literal, _> = attr.value.try_into();
+            if attr_value.is_err() {
+                reporter.show_warning(
+                    "invalid attribute value",
+                    &[
+                        (attr.span, "attribute values must be literals"),
+                        (attr.span, "this attribute will be ignored"),
+                    ],
+                );
+                return;
+            }
             match module.attributes.get(&attr.name) {
                 None => {
-                    module.attributes.insert(attr.name.clone(), attr);
+                    module
+                        .attributes
+                        .insert(attr.name.clone(), attr_value.unwrap());
                 }
                 Some(ref prev_attr) => {
                     reporter.show_warning(
                         "redefined attribute",
                         &[
                             (attr.span, "redefinition occurs here"),
-                            (prev_attr.span, "previously defined here"),
+                            (prev_attr.span(), "previously defined here"),
                         ],
                     );
-                    module.attributes.insert(attr.name, attr);
+                    module.attributes.insert(attr.name, attr_value.unwrap());
                 }
             }
         }
@@ -665,7 +702,6 @@ fn no_warn_deprecated_functions(
                 }
             }
             other => {
-                dbg!(&other);
                 let other_span = other.span();
                 reporter.diagnostic(
                     Diagnostic::warning()

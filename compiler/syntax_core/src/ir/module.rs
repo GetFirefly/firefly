@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, HashSet};
 use std::fmt;
 
 use firefly_diagnostics::{SourceSpan, Spanned};
@@ -18,7 +18,6 @@ pub struct Module {
     pub on_load: Option<Span<FunctionName>>,
     pub exports: HashSet<Span<FunctionName>>,
     pub nifs: HashSet<Span<FunctionName>>,
-    pub attributes: HashMap<Ident, Expr>,
     pub functions: BTreeMap<FunctionName, Function>,
 }
 annotated!(Module);

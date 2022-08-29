@@ -13,7 +13,10 @@ use crate::cmp::ExactEq;
 use super::{OpaqueTerm, Term, TupleIndex};
 
 #[repr(C)]
-pub struct Tuple([OpaqueTerm]);
+pub struct Tuple {
+    capacity: usize,
+    elements: [OpaqueTerm],
+}
 impl Tuple {
     pub const TYPE_ID: TypeId = TypeId::of::<Tuple>();
 
@@ -25,16 +28,17 @@ impl Tuple {
     /// of the tuple elements with valid values. This function does not guarantee that the elements are
     /// in any particular state, so use of the tuple without the initialization step is undefined behavior.
     pub fn new_in<A: Allocator>(capacity: usize, alloc: A) -> Result<NonNull<Tuple>, AllocError> {
-        let (layout, value_offset) = Layout::new::<usize>()
+        let (layout, _elements_offset) = Layout::new::<usize>()
             .extend(Layout::array::<OpaqueTerm>(capacity).unwrap())
             .unwrap();
         let ptr: *mut u8 = alloc.allocate(layout)?.cast().as_ptr();
         unsafe {
             // Write the pointer metadata
             ptr::write(ptr as *mut usize, capacity);
-            // Cast the pointer to a fat NonNull
-            let ptr = ptr::from_raw_parts_mut(ptr.add(value_offset).cast(), capacity);
-            Ok(NonNull::new_unchecked(ptr))
+            Ok(NonNull::from_raw_parts(
+                NonNull::new_unchecked(ptr.cast()),
+                capacity,
+            ))
         }
     }
 
@@ -54,20 +58,21 @@ impl Tuple {
     }
 
     /// Gets the size of this tuple
+    #[inline]
     pub fn len(&self) -> usize {
-        self.0.len()
+        self.capacity
     }
 
     /// Returns true if this tuple has no elements
     pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
+        self.capacity == 0
     }
 
     /// Returns the element at 0-based index `index` as a `Term`
     ///
     /// If the index is out of bounds, returns `None`
     pub fn get(&self, index: usize) -> Option<Term> {
-        self.0.get(index).copied().map(|term| term.into())
+        self.elements.get(index).copied().map(|term| term.into())
     }
 
     /// Returns the element at the given 0-based index as a `Term` without bounds checks
@@ -76,7 +81,7 @@ impl Tuple {
     ///
     /// Calling this function with an out-of-bounds index is undefined behavior
     pub unsafe fn get_unchecked(&self, index: usize) -> Term {
-        let term = *self.0.get_unchecked(index);
+        let term = *self.elements.get_unchecked(index);
         term.into()
     }
 
@@ -114,7 +119,7 @@ impl Tuple {
         let t = unsafe { tuple.as_mut() };
         t.copy_from_slice(self.as_slice());
 
-        let element = t.0.get_mut(index).unwrap();
+        let element = t.elements.get_mut(index).unwrap();
         *element = value.into();
 
         Ok(tuple)
@@ -128,7 +133,7 @@ impl Tuple {
         value: V,
     ) -> anyhow::Result<()> {
         let index: usize = index.into();
-        if let Some(element) = self.0.get_mut(index) {
+        if let Some(element) = self.elements.get_mut(index) {
             *element = value.into();
             return Ok(());
         }
@@ -145,20 +150,20 @@ impl Tuple {
     ///
     /// NOTE: The slice and this tuple are asserted to be the same length
     pub fn copy_from_slice(&mut self, slice: &[OpaqueTerm]) {
-        assert_eq!(self.len(), slice.len());
-        self.0.copy_from_slice(slice)
+        assert_eq!(self.elements.len(), slice.len());
+        self.elements.copy_from_slice(slice)
     }
 
     /// Get this tuple as a slice of raw elements
     #[inline]
     pub fn as_slice(&self) -> &[OpaqueTerm] {
-        &self.0
+        &self.elements
     }
 
     /// Get this tuple as a mutable slice of raw elements
     #[inline]
     pub fn as_mut_slice(&mut self) -> &mut [OpaqueTerm] {
-        &mut self.0
+        &mut self.elements
     }
 
     /// Get an iterator over the elements of this tuple as `Term`
@@ -168,7 +173,7 @@ impl Tuple {
 }
 impl AsRef<[OpaqueTerm]> for Tuple {
     fn as_ref(&self) -> &[OpaqueTerm] {
-        self.0.as_ref()
+        &self.elements
     }
 }
 impl Debug for Tuple {

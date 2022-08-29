@@ -209,7 +209,6 @@ pub extern "C-unwind" fn apply2(term: OpaqueTerm, arglist: OpaqueTerm) -> Erlang
     let callee = match (term.into(), arglist.into()) {
         (Term::Closure(fun), Term::Nil) => fun,
         (Term::Closure(fun), Term::Cons(ptr)) => {
-            dbg!(&fun);
             for element in unsafe { ptr.as_ref().iter().map(list_element_or_err) } {
                 args.push(element?);
             }

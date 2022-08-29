@@ -204,7 +204,7 @@ fn unwrap_failed(msg: &str, error: &dyn fmt::Debug) -> ! {
 ///
 /// NOTE: This struct must have a size that is a power of 8
 #[repr(C, align(8))]
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct FunctionSymbol {
     /// Module name atom
     pub module: Atom,

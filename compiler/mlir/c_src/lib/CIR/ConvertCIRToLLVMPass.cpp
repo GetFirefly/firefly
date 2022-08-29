@@ -201,8 +201,11 @@ public:
   // This layout matches what our runtime produces/expects, and we rely on this
   // to optimize operations on them
   Type getTupleType(unsigned arity) {
+    MLIRContext *context = &getContext();
+    auto isizeTy = getIsizeType();
     auto termTy = getTermType();
-    return LLVM::LLVMArrayType::get(termTy, arity);
+    auto elemsTy = LLVM::LLVMArrayType::get(termTy, arity);
+    return LLVM::LLVMStructType::getLiteral(context, {isizeTy, elemsTy});
   }
 
   // This layout is intentionally incomplete, as we don't control the layout of
@@ -293,8 +296,8 @@ public:
     if (gcBoxTy.isInitialized())
       return gcBoxTy;
 
-    auto metadataTy = LLVM::LLVMStructType::getIdentified(
-        context, "firefly_alloc::Metadata");
+    auto metadataTy =
+        LLVM::LLVMStructType::getIdentified(context, "firefly_alloc::Metadata");
     auto typeIdTy = getIsizeType();
     auto ptrMetadataTy = getIsizeType();
     assert(succeeded(metadataTy.setBody({typeIdTy, ptrMetadataTy},
@@ -762,9 +765,9 @@ protected:
                                 "__firefly_bigint_from_digits", calleeType);
     }
 
-    Operation *call = builder.create<LLVM::CallOp>(loc, TypeRange({termTy}),
-                                                   "__firefly_bigint_from_digits",
-                                                   ValueRange({fatPtr}));
+    Operation *call = builder.create<LLVM::CallOp>(
+        loc, TypeRange({termTy}), "__firefly_bigint_from_digits",
+        ValueRange({fatPtr}));
     return call->getResult(0);
   }
 
@@ -1744,8 +1747,8 @@ struct TypeOfOpLowering : public ConvertCIROpToLLVMPattern<cir::TypeOfOp> {
     if (!callee) {
       auto calleeType =
           LLVM::LLVMFunctionType::get(i32Ty, ArrayRef<Type>{termTy});
-      insertFunctionDeclaration(rewriter, loc, module, "__firefly_builtin_typeof",
-                                calleeType);
+      insertFunctionDeclaration(rewriter, loc, module,
+                                "__firefly_builtin_typeof", calleeType);
     }
 
     rewriter.replaceOpWithNewOp<LLVM::CallOp>(op, TypeRange({i32Ty}),
@@ -1913,11 +1916,12 @@ struct IsTaggedTupleOpLowering
           Value tuplePtr = decodePtr(builder, l, tupleTy, input);
           SmallVector<Value> indices;
           // This first index refers to the base of the tuple struct
-          // This second index refers to the first element of the tuple data
+          // This second index refers to the base of the elements array
+          // This third index refers to the first element of the array
           Value zero = createIsizeConstant(builder, l, 0);
           Value first = createIndexAttrConstant(builder, l, i32Ty, 0);
           Value elemPtr = builder.create<LLVM::GEPOp>(
-              l, termPtrTy, tuplePtr, ValueRange({zero, first}));
+              l, termPtrTy, tuplePtr, ValueRange({zero, first, first}));
           Value elem = builder.create<LLVM::LoadOp>(l, elemPtr);
           Value expectedAtom = createAtom(builder, l, atom.getName(), module);
           Value isEq = builder.create<LLVM::ICmpOp>(l, LLVM::ICmpPredicate::eq,
@@ -2185,8 +2189,8 @@ struct MallocOpLowering : public ConvertCIROpToLLVMPattern<cir::MallocOp> {
     if (!callee) {
       auto calleeType =
           LLVM::LLVMFunctionType::get(i8PtrTy, ArrayRef<Type>{i32Ty, isizeTy});
-      insertFunctionDeclaration(rewriter, loc, module, "__firefly_builtin_malloc",
-                                calleeType);
+      insertFunctionDeclaration(rewriter, loc, module,
+                                "__firefly_builtin_malloc", calleeType);
     }
 
     Type outType;
@@ -2521,10 +2525,11 @@ struct GetElementOpLowering
     Value ptr = decodePtr(rewriter, loc, tupleTy, tuple);
     // Then, calculate the pointer to the <index>th element
     Value base = createI32Constant(rewriter, loc, 0);
+    Value one = createI32Constant(rewriter, loc, 1);
     Value index =
         createI32Constant(rewriter, loc, adaptor.index().getLimitedValue());
-    Value elemPtr = rewriter.create<LLVM::GEPOp>(loc, termPtrTy, ptr,
-                                                 ValueRange({base, index}));
+    Value elemPtr = rewriter.create<LLVM::GEPOp>(
+        loc, termPtrTy, ptr, ValueRange({base, one, index}));
     // Then return the result of loading the value from the calculated pointer
     rewriter.replaceOpWithNewOp<LLVM::LoadOp>(op, elemPtr);
     return success();
@@ -2567,8 +2572,8 @@ struct SetElementOpLowering
         auto tuplePtrTy = LLVM::LLVMPointerType::get(tupleTy);
         auto calleeType = LLVM::LLVMFunctionType::get(
             termTy, ArrayRef<Type>{tuplePtrTy, isizeTy, termTy});
-        insertFunctionDeclaration(rewriter, loc, module, "__firefly_set_element",
-                                  calleeType);
+        insertFunctionDeclaration(rewriter, loc, module,
+                                  "__firefly_set_element", calleeType);
       }
       rewriter.replaceOpWithNewOp<LLVM::CallOp>(
           op, TypeRange({termTy}), "__firefly_set_element",
@@ -2579,10 +2584,11 @@ struct SetElementOpLowering
     // If we reach here, we are allowed to mutate the original tuple in-place;
     // Then, calculate the pointer to the <index>th element
     Value base = createI32Constant(rewriter, loc, 0);
+    Value one = createI32Constant(rewriter, loc, 1);
     Value index32 =
         createI32Constant(rewriter, loc, adaptor.index().getLimitedValue());
-    Value elemPtr = rewriter.create<LLVM::GEPOp>(loc, tuplePtrTy, ptr,
-                                                 ValueRange({base, index32}));
+    Value elemPtr = rewriter.create<LLVM::GEPOp>(
+        loc, tuplePtrTy, ptr, ValueRange({base, one, index32}));
     // Then store the input value at the calculated pointer
     rewriter.create<LLVM::StoreOp>(loc, value, elemPtr);
     rewriter.replaceOp(op, ValueRange({tuple}));
@@ -2967,8 +2973,8 @@ struct BinaryMatchStartOpLowering
     if (!callee) {
       auto calleeType =
           LLVM::LLVMFunctionType::get(resultTy, ArrayRef<Type>{termTy});
-      insertFunctionDeclaration(rewriter, loc, module, "__firefly_bs_match_start",
-                                calleeType);
+      insertFunctionDeclaration(rewriter, loc, module,
+                                "__firefly_bs_match_start", calleeType);
     }
     auto callOp = rewriter.create<LLVM::CallOp>(loc, TypeRange({resultTy}),
                                                 "__firefly_bs_match_start",

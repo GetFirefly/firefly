@@ -15,6 +15,7 @@
 #![feature(slice_ptr_len)]
 // Used for access to pointer metadata
 #![feature(ptr_metadata)]
+#![feature(pointer_byte_offsets)]
 // Used for implementing Fn, etc. for GcBox, as
 // well as interop with closures produced by the compiler
 #![feature(fn_traits)]

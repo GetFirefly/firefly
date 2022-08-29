@@ -6,6 +6,7 @@
 #![feature(slice_ptr_len)]
 // Used for access to pointer metadata
 #![feature(ptr_metadata)]
+#![feature(pointer_byte_offsets)]
 // Used for access to size/alignment information for raw pointers
 #![feature(layout_for_ptr)]
 // Used for the Unsize marker trait

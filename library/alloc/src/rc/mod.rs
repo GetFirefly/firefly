@@ -33,7 +33,7 @@ where
     T: ?Sized + 'static,
     PtrMetadata: From<<T as Pointee>::Metadata> + TryInto<<T as Pointee>::Metadata>,
 {
-    ptr: NonNull<u8>,
+    ptr: NonNull<()>,
     _marker: PhantomData<T>,
 }
 
@@ -73,7 +73,7 @@ where
     /// This allows for efficient pointer casts while ensuring we don't improperly cast a pointer to
     /// the wrong type.
     #[inline]
-    pub unsafe fn type_id(raw: *mut u8) -> TypeId {
+    pub unsafe fn type_id(raw: *mut ()) -> TypeId {
         Rc::<T>::type_id(raw)
     }
 
@@ -85,7 +85,7 @@ where
     ///
     /// NOTE: This function is a bit safer than `from_raw` in that it won't panic if the pointee
     /// is not of the correct type, instead it returns `Err`.
-    pub unsafe fn try_from_raw(raw: *mut u8) -> Result<Self, ()> {
+    pub unsafe fn try_from_raw(raw: *mut ()) -> Result<Self, ()> {
         debug_assert!(!raw.is_null());
         let meta = &*header(raw);
         if meta.is::<T>() {
@@ -129,7 +129,7 @@ where
     /// but ensure that the pointee is the correct type.
     ///
     /// NOTE: Seriously, don't use this.
-    pub unsafe fn from_raw_unchecked(raw: *mut u8) -> Self {
+    pub unsafe fn from_raw_unchecked(raw: *mut ()) -> Self {
         debug_assert!(!raw.is_null());
         Self {
             ptr: NonNull::new_unchecked(raw),
@@ -177,7 +177,7 @@ where
     T: ?Sized + 'static,
     PtrMetadata: From<<T as Pointee>::Metadata> + TryInto<<T as Pointee>::Metadata>,
 {
-    ptr: NonNull<u8>,
+    ptr: NonNull<()>,
     _marker: PhantomData<T>,
 }
 
@@ -237,7 +237,7 @@ where
         let meta = Metadata::new::<T>(&value);
         let value_layout = Layout::for_value(&value);
         let (layout, value_offset) = Layout::new::<Metadata>().extend(value_layout).unwrap();
-        let ptr: NonNull<u8> = Global.allocate(layout).unwrap().cast();
+        let ptr: NonNull<()> = Global.allocate(layout).unwrap().cast();
         unsafe {
             let ptr = NonNull::new_unchecked(ptr.as_ptr().add(value_offset));
             let boxed = Self {
@@ -253,7 +253,7 @@ where
     pub fn new_uninit() -> Rc<MaybeUninit<T>> {
         let value_layout = Layout::new::<T>();
         let (layout, value_offset) = Layout::new::<Metadata>().extend(value_layout).unwrap();
-        let ptr: NonNull<u8> = Global.allocate(layout).unwrap().cast();
+        let ptr: NonNull<()> = Global.allocate(layout).unwrap().cast();
         unsafe {
             let ptr = NonNull::new_unchecked(ptr.as_ptr().add(value_offset));
             let meta = Metadata::new::<T>(ptr.as_ptr() as *mut T);
@@ -277,7 +277,7 @@ where
         let meta = Metadata::new::<T>(unsized_);
         let value_layout = Layout::for_value(&value);
         let (layout, value_offset) = Layout::new::<Metadata>().extend(value_layout).unwrap();
-        let ptr: NonNull<u8> = Global.allocate(layout).unwrap().cast();
+        let ptr: NonNull<()> = Global.allocate(layout).unwrap().cast();
         unsafe {
             let ptr = NonNull::new_unchecked(ptr.as_ptr().add(value_offset));
             let boxed = Self {
@@ -340,7 +340,7 @@ where
     /// use a combination of this function, a jump table of type ids, and subsequent unchecked casts.
     /// This allows for efficient pointer casts while ensuring we don't improperly cast a pointer to
     /// the wrong type.
-    pub unsafe fn type_id(raw: *mut u8) -> TypeId {
+    pub unsafe fn type_id(raw: *mut ()) -> TypeId {
         debug_assert!(!raw.is_null());
         let header = &*header(raw);
         header.ty
@@ -354,7 +354,7 @@ where
     ///
     /// NOTE: This function is a bit safer than `from_raw` in that it won't panic if the pointee
     /// is not of the correct type, instead it returns `Err`.
-    pub unsafe fn try_from_raw(raw: *mut u8) -> Result<Self, ()> {
+    pub unsafe fn try_from_raw(raw: *mut ()) -> Result<Self, ()> {
         debug_assert!(!raw.is_null());
         let meta = &*header(raw);
         if meta.is::<T>() {
@@ -398,7 +398,7 @@ where
     /// but ensure that the pointee is the correct type.
     ///
     /// NOTE: Seriously, don't use this.
-    pub unsafe fn from_raw_unchecked(raw: *mut u8) -> Self {
+    pub unsafe fn from_raw_unchecked(raw: *mut ()) -> Self {
         debug_assert!(!raw.is_null());
         Self {
             ptr: NonNull::new_unchecked(raw),
@@ -413,7 +413,7 @@ where
 
     pub fn into_weak(boxed: Self) -> Weak<T> {
         let raw = Self::into_raw(boxed);
-        unsafe { Weak::from_raw_unchecked(raw as *mut u8) }
+        unsafe { Weak::from_raw_unchecked(raw as *mut ()) }
     }
 
     #[inline]
@@ -432,7 +432,7 @@ where
             ptr::drop_in_place(value);
         }
         let ptr = NonNull::new_unchecked(self.ptr.as_ptr().sub(value_offset));
-        Global.deallocate(ptr, layout);
+        Global.deallocate(ptr.cast(), layout);
     }
 }
 
@@ -471,7 +471,7 @@ impl<T: ?Sized + 'static + Pointee<Metadata = usize>> Rc<T> {
     {
         let raw = Self::into_raw(self) as *mut U;
         Rc {
-            ptr: unsafe { NonNull::new_unchecked(raw as *mut u8) },
+            ptr: unsafe { NonNull::new_unchecked(raw as *mut ()) },
             _marker: PhantomData,
         }
     }
@@ -488,7 +488,7 @@ impl Rc<dyn Any> {
         let any: &dyn Any = unsafe { &*raw };
         let Some(concrete) = any.downcast_ref::<T>() else { return None; };
         Some(Rc {
-            ptr: unsafe { NonNull::new_unchecked(concrete as *const _ as *mut u8) },
+            ptr: unsafe { NonNull::new_unchecked(concrete as *const _ as *mut ()) },
             _marker: PhantomData,
         })
     }
@@ -505,7 +505,7 @@ impl Rc<dyn Any + Send> {
         let any: &(dyn Any + Send) = unsafe { &*raw };
         let Some(concrete) = any.downcast_ref::<T>() else { return None; };
         Some(Rc {
-            ptr: unsafe { NonNull::new_unchecked(concrete as *const _ as *mut u8) },
+            ptr: unsafe { NonNull::new_unchecked(concrete as *const _ as *mut ()) },
             _marker: PhantomData,
         })
     }
@@ -522,7 +522,7 @@ impl Rc<dyn Any + Send + Sync> {
         let any: &(dyn Any + Send + Sync) = unsafe { &*raw };
         let Some(concrete) = any.downcast_ref::<T>() else { return None; };
         Some(Rc {
-            ptr: unsafe { NonNull::new_unchecked(concrete as *const _ as *mut u8) },
+            ptr: unsafe { NonNull::new_unchecked(concrete as *const _ as *mut ()) },
             _marker: PhantomData,
         })
     }
@@ -539,7 +539,7 @@ impl Weak<dyn Any> {
         let any: &dyn Any = unsafe { &*raw };
         let Some(concrete) = any.downcast_ref::<T>() else { return None; };
         Some(Weak {
-            ptr: unsafe { NonNull::new_unchecked(concrete as *const _ as *mut u8) },
+            ptr: unsafe { NonNull::new_unchecked(concrete as *const _ as *mut ()) },
             _marker: PhantomData,
         })
     }
@@ -556,7 +556,7 @@ impl Weak<dyn Any + Send> {
         let any: &(dyn Any + Send) = unsafe { &*raw };
         let Some(concrete) = any.downcast_ref::<T>() else { return None; };
         Some(Weak {
-            ptr: unsafe { NonNull::new_unchecked(concrete as *const _ as *mut u8) },
+            ptr: unsafe { NonNull::new_unchecked(concrete as *const _ as *mut ()) },
             _marker: PhantomData,
         })
     }
@@ -573,7 +573,7 @@ impl Weak<dyn Any + Send + Sync> {
         let any: &(dyn Any + Send + Sync) = unsafe { &*raw };
         let Some(concrete) = any.downcast_ref::<T>() else { return None; };
         Some(Weak {
-            ptr: unsafe { NonNull::new_unchecked(concrete as *const _ as *mut u8) },
+            ptr: unsafe { NonNull::new_unchecked(concrete as *const _ as *mut ()) },
             _marker: PhantomData,
         })
     }
@@ -592,7 +592,7 @@ where
         let meta = Metadata::new::<T>(empty);
         let value_layout = unsafe { Layout::for_value_raw(empty) };
         let (layout, value_offset) = Layout::new::<Metadata>().extend(value_layout).unwrap();
-        let ptr: NonNull<u8> = alloc.allocate(layout)?.cast();
+        let ptr: NonNull<()> = alloc.allocate(layout)?.cast();
         unsafe {
             let ptr = NonNull::new_unchecked(ptr.as_ptr().add(value_offset));
             let boxed = Self {
@@ -1211,8 +1211,8 @@ where
 {
 }
 
-fn header(ptr: *mut u8) -> *mut Metadata {
-    unsafe { ptr.sub(mem::size_of::<Metadata>()).cast() }
+fn header(ptr: *mut ()) -> *mut Metadata {
+    unsafe { ptr.byte_sub(mem::size_of::<Metadata>()).cast() }
 }
 
 /// This metadata provides enough information to restore a fat pointer from a thin

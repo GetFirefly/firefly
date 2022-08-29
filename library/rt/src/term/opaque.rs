@@ -488,7 +488,7 @@ impl OpaqueTerm {
         match self.0 & (NAN | SIGN_BIT | TAG_MASK) {
             IS_TUPLE | IS_TUPLE_LITERAL => unsafe {
                 let ptr = self.as_ptr();
-                let meta_ptr: *const usize = ptr.sub(mem::size_of::<usize>()).cast();
+                let meta_ptr: *const usize = ptr.byte_sub(mem::size_of::<usize>()).cast();
                 ErlangResult::Ok((*meta_ptr) as u32)
             },
             _ => ErlangResult::Err(()),
@@ -521,10 +521,10 @@ impl OpaqueTerm {
     /// is a pointer value. A debug assertion is present to catch improper usages in debug builds,
     /// but it is essential that this is only used in conjunction with proper guards in place.
     #[inline]
-    pub unsafe fn as_ptr(self) -> *mut u8 {
+    pub unsafe fn as_ptr(self) -> *mut () {
         debug_assert!(self.is_box());
 
-        (self.0 & PTR_MASK) as *mut u8
+        (self.0 & PTR_MASK) as *mut ()
     }
 
     /// Extracts a NonNull<Tuple> from this term
@@ -538,9 +538,11 @@ impl OpaqueTerm {
         // fat pointer, we must first access the metadata, then construct the pointer using
         // that metadata
         let ptr = self.as_ptr();
-        let meta_ptr: *const usize = ptr.sub(mem::size_of::<usize>()).cast();
-        let metadata = *meta_ptr;
-        NonNull::new_unchecked(ptr::from_raw_parts_mut(ptr.cast(), metadata))
+        let metadata = *(ptr as *const usize);
+        NonNull::from_raw_parts(
+            NonNull::new(ptr).expect("unexpected null pointer"),
+            metadata,
+        )
     }
 
     /// Extracts the atom value contained in this term.
@@ -735,7 +737,8 @@ impl From<NonNull<Cons>> for OpaqueTerm {
 }
 impl From<NonNull<Tuple>> for OpaqueTerm {
     fn from(ptr: NonNull<Tuple>) -> Self {
-        let raw = ptr.as_ptr() as *const () as u64;
+        let (raw, _meta) = ptr.to_raw_parts();
+        let raw = raw.as_ptr() as u64;
         debug_assert!(
             raw & INFINITY == 0,
             "expected nan bits to be unused in pointers"

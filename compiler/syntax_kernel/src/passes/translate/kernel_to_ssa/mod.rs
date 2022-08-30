@@ -1353,7 +1353,9 @@ impl<'m> LowerFunctionToSsa<'m> {
                     (results[0], results[1])
                 };
                 if !bif.ret.is_empty() {
-                    builder.define_var(bif.ret[0].as_var().map(|v| v.name()).unwrap(), exception);
+                    let var = bif.ret[0].as_var().map(|v| v.name()).unwrap();
+                    builder.define_var(var, exception);
+                    builder.set_value_type(exception, Type::Exception);
                 }
                 match self.fail_context() {
                     FailContext::Uncaught(_) => {

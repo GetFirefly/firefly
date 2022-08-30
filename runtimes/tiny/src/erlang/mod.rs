@@ -349,6 +349,13 @@ pub extern "C-unwind" fn display(term: OpaqueTerm) -> ErlangResult {
     ErlangResult::Ok(true.into())
 }
 
+#[export_name = "erlang:debug/1"]
+pub extern "C-unwind" fn debug(term: OpaqueTerm) -> ErlangResult {
+    let term: Term = term.into();
+    println!("{:?}", &term);
+    ErlangResult::Ok(true.into())
+}
+
 #[allow(improper_ctypes_definitions)]
 #[export_name = "erlang:display_nl/0"]
 pub extern "C-unwind" fn display_nl() -> ErlangResult {

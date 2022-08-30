@@ -637,13 +637,10 @@ impl Shl<u32> for Integer {
     type Output = Integer;
     fn shl(self, y: u32) -> Self::Output {
         match self {
-            Self::Small(x) => match x.checked_shl(y) {
-                None => {
-                    let x = BigInt::from(x);
-                    (x << y).into()
-                }
-                Some(result) => result.into(),
-            },
+            Self::Small(x) => {
+                let x = BigInt::from(x);
+                (x << y).into()
+            }
             Self::Big(x) => Self::Big(x << y),
         }
     }

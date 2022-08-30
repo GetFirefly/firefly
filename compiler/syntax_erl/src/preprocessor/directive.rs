@@ -110,6 +110,7 @@ impl ReadFrom for Directive {
             "vsn" => unread_token!(reader, _hyphen.into(), name, Token::Vsn),
             "author" => unread_token!(reader, _hyphen.into(), name, Token::Author),
             "on_load" => unread_token!(reader, _hyphen.into(), name, Token::OnLoad),
+            "nifs" => unread_token!(reader, _hyphen.into(), name, Token::Nifs),
             "behaviour" => unread_token!(reader, _hyphen.into(), name, Token::Behaviour),
             "deprecated" => unread_token!(reader, _hyphen.into(), name, Token::Deprecated),
             "type" => unread_token!(reader, _hyphen.into(), name, Token::Type),

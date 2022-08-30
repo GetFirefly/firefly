@@ -12,7 +12,7 @@ use crate::cmp::ExactEq;
 
 use super::{OpaqueTerm, Term, TupleIndex};
 
-#[repr(C)]
+#[repr(C, align(16))]
 pub struct Tuple {
     capacity: usize,
     elements: [OpaqueTerm],
@@ -29,6 +29,8 @@ impl Tuple {
     /// in any particular state, so use of the tuple without the initialization step is undefined behavior.
     pub fn new_in<A: Allocator>(capacity: usize, alloc: A) -> Result<NonNull<Tuple>, AllocError> {
         let (layout, _elements_offset) = Layout::new::<usize>()
+            .align_to(16)
+            .unwrap()
             .extend(Layout::array::<OpaqueTerm>(capacity).unwrap())
             .unwrap();
         let ptr: *mut u8 = alloc.allocate(layout)?.cast().as_ptr();

@@ -46,7 +46,9 @@ impl Cons {
     /// NOTE: The returned cell is wrapped in `MaybeUninit<T>` because the head/tail require
     /// initialization.
     pub fn new_in<A: Allocator>(alloc: A) -> Result<NonNull<Cons>, AllocError> {
-        alloc.allocate(Layout::new::<Cons>()).map(|ptr| ptr.cast())
+        alloc
+            .allocate_zeroed(Layout::new::<Cons>())
+            .map(|ptr| ptr.cast())
     }
 
     /// Constructs a list from the given slice, the output of which will be in the same order as the slice.

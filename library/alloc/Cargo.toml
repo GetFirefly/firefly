@@ -6,6 +6,10 @@ authors = ["Paul Schoenfelder <paulschoenfelder@gmail.com>"]
 publish = false
 edition = "2021"
 
+[features]
+default = []
+std = ["firefly_binary/std"]
+
 [dependencies]
 firefly_binary = { path = "../binary" }
 firefly_system = { path = "../system" }

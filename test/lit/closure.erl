@@ -1,12 +1,13 @@
 %% RUN: @firefly compile -o @tempfile @file && @tempfile
 
-%% CHECK: hello
+%% CHECK: {ok, captured}
 -module(init).
 
 -export([boot/1]).
 
 boot(Args) ->
-    Fun = fun () -> callee(Args) end,
+    Msg = {ok, captured},
+    Fun = fun () -> callee(Msg) end,
     call(Fun).
 
 call(Fun) when is_function(Fun) ->

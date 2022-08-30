@@ -239,7 +239,7 @@ where
         let (layout, value_offset) = Layout::new::<Metadata>().extend(value_layout).unwrap();
         let ptr: NonNull<()> = Global.allocate(layout).unwrap().cast();
         unsafe {
-            let ptr = NonNull::new_unchecked(ptr.as_ptr().add(value_offset));
+            let ptr = NonNull::new_unchecked(ptr.as_ptr().byte_add(value_offset));
             let boxed = Self {
                 ptr,
                 _marker: PhantomData,
@@ -255,7 +255,7 @@ where
         let (layout, value_offset) = Layout::new::<Metadata>().extend(value_layout).unwrap();
         let ptr: NonNull<()> = Global.allocate(layout).unwrap().cast();
         unsafe {
-            let ptr = NonNull::new_unchecked(ptr.as_ptr().add(value_offset));
+            let ptr = NonNull::new_unchecked(ptr.as_ptr().byte_add(value_offset));
             let meta = Metadata::new::<T>(ptr.as_ptr() as *mut T);
             let boxed = Rc {
                 ptr,
@@ -279,7 +279,7 @@ where
         let (layout, value_offset) = Layout::new::<Metadata>().extend(value_layout).unwrap();
         let ptr: NonNull<()> = Global.allocate(layout).unwrap().cast();
         unsafe {
-            let ptr = NonNull::new_unchecked(ptr.as_ptr().add(value_offset));
+            let ptr = NonNull::new_unchecked(ptr.as_ptr().byte_add(value_offset));
             let boxed = Self {
                 ptr,
                 _marker: PhantomData,
@@ -431,7 +431,7 @@ where
         if layout.size() > 0 {
             ptr::drop_in_place(value);
         }
-        let ptr = NonNull::new_unchecked(self.ptr.as_ptr().sub(value_offset));
+        let ptr = NonNull::new_unchecked(self.ptr.as_ptr().byte_sub(value_offset));
         Global.deallocate(ptr.cast(), layout);
     }
 }
@@ -594,7 +594,7 @@ where
         let (layout, value_offset) = Layout::new::<Metadata>().extend(value_layout).unwrap();
         let ptr: NonNull<()> = alloc.allocate(layout)?.cast();
         unsafe {
-            let ptr = NonNull::new_unchecked(ptr.as_ptr().add(value_offset));
+            let ptr = NonNull::new_unchecked(ptr.as_ptr().byte_add(value_offset));
             let boxed = Self {
                 ptr,
                 _marker: PhantomData,

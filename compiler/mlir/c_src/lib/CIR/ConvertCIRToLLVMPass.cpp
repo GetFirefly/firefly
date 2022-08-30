@@ -274,8 +274,8 @@ public:
     if (closureTy.isInitialized())
       return closureTy;
 
-    auto atomTy = getTermType();
-    auto arityTy = IntegerType::get(context, 8);
+    auto atomTy = LLVM::LLVMPointerType::get(getAtomDataType());
+    auto arityTy = getIsizeType();
     auto bareFunTy = LLVM::LLVMFunctionType::get(
         LLVM::LLVMVoidType::get(context), {}, /*vararg=*/false);
     auto funPtrTy = LLVM::LLVMPointerType::get(bareFunTy);
@@ -841,6 +841,23 @@ protected:
 
     auto ptr = createAtomDataGlobal(builder, loc, module, name);
     return encodeAtomPtr(builder, loc, ptr);
+  }
+
+  // Used like `createAtom`, but for situations in which we are not encoding as
+  // a term
+  Value createAtomData(OpBuilder &builder, Location loc, StringRef name,
+                       ModuleOp &module) const {
+    if (name == "false") {
+      auto dataTy = LLVM::LLVMPointerType::get(getAtomDataType());
+      Value zero = createIsizeConstant(builder, loc, 0);
+      return builder.create<LLVM::IntToPtrOp>(loc, dataTy, zero);
+    } else if (name == "true") {
+      auto dataTy = LLVM::LLVMPointerType::get(getAtomDataType());
+      Value one = createIsizeConstant(builder, loc, 1);
+      return builder.create<LLVM::IntToPtrOp>(loc, dataTy, one);
+    }
+
+    return createAtomDataGlobal(builder, loc, module, name);
   }
 
   // This function constructs an AtomData record as a global constant,
@@ -2295,8 +2312,10 @@ struct MakeFunOpLowering : public ConvertCIROpToLLVMPattern<cir::MakeFunOp> {
     auto closureTy = getClosureType();
     auto closurePtrTy = LLVM::LLVMPointerType::get(closureTy);
     auto termPtrTy = LLVM::LLVMPointerType::get(termTy);
-    auto i8Ty = getI8Type();
-    auto i8PtrTy = LLVM::LLVMPointerType::get(i8Ty);
+    auto atomDataPtrTy = LLVM::LLVMPointerType::get(getAtomDataType());
+    auto atomDataPtrPtrTy = LLVM::LLVMPointerType::get(atomDataPtrTy);
+    auto isizeTy = getIsizeType();
+    auto isizePtrTy = LLVM::LLVMPointerType::get(isizeTy);
 
     Value mallocPtr = rewriter.create<cir::MallocOp>(loc, TypeAttr::get(funTy));
     Operation *ptrCast = rewriter.create<UnrealizedConversionCastOp>(
@@ -2331,33 +2350,34 @@ struct MakeFunOpLowering : public ConvertCIROpToLLVMPattern<cir::MakeFunOp> {
     }
 
     // Store the module atom
-    auto moduleAtom = createAtom(rewriter, loc, moduleName, module);
+    auto moduleAtom = createAtomData(rewriter, loc, moduleName, module);
     Value zero = createI32Constant(rewriter, loc, 0);
-    auto modulePtr = rewriter.create<LLVM::GEPOp>(loc, termPtrTy, ptr,
+    auto modulePtr = rewriter.create<LLVM::GEPOp>(loc, atomDataPtrPtrTy, ptr,
                                                   ValueRange({zero, zero}));
     rewriter.create<LLVM::StoreOp>(loc, moduleAtom, modulePtr);
 
     // Store the function atom
-    auto functionAtom = createAtom(rewriter, loc, functionName, module);
+    auto functionAtom = createAtomData(rewriter, loc, functionName, module);
     Value one = createI32Constant(rewriter, loc, 1);
-    auto functionPtr = rewriter.create<LLVM::GEPOp>(loc, termPtrTy, ptr,
+    auto functionPtr = rewriter.create<LLVM::GEPOp>(loc, atomDataPtrPtrTy, ptr,
                                                     ValueRange({zero, one}));
     rewriter.create<LLVM::StoreOp>(loc, functionAtom, functionPtr);
 
-    // Store the arity (i8)
-    auto arityInt = createI8Constant(rewriter, loc, arity);
+    // Store the arity (isize)
+    auto arityInt = createIsizeConstant(rewriter, loc, arity);
     Value two = createI32Constant(rewriter, loc, 2);
-    auto arityPtr = rewriter.create<LLVM::GEPOp>(loc, i8PtrTy, ptr,
+    auto arityPtr = rewriter.create<LLVM::GEPOp>(loc, isizePtrTy, ptr,
                                                  ValueRange({zero, two}));
     rewriter.create<LLVM::StoreOp>(loc, arityInt, arityPtr);
 
     // Store the callee pointer
-    Value three = createI32Constant(rewriter, loc, 3);
-    auto calleePtr = rewriter.create<LLVM::GEPOp>(loc, i8PtrTy, ptr,
-                                                  ValueRange({zero, three}));
     auto opaqueFunTy =
         LLVM::LLVMFunctionType::get(getVoidType(), ArrayRef<Type>{});
     auto opaqueFunPtrTy = LLVM::LLVMPointerType::get(opaqueFunTy);
+    auto opaqueFunPtrPtrTy = LLVM::LLVMPointerType::get(opaqueFunPtrTy);
+    Value three = createI32Constant(rewriter, loc, 3);
+    auto calleePtr = rewriter.create<LLVM::GEPOp>(loc, opaqueFunPtrPtrTy, ptr,
+                                                  ValueRange({zero, three}));
     auto calleeRaw =
         rewriter.create<LLVM::BitcastOp>(loc, opaqueFunPtrTy, callee);
     rewriter.create<LLVM::StoreOp>(loc, calleeRaw, calleePtr);
@@ -2390,6 +2410,7 @@ struct MakeFunOpLowering : public ConvertCIROpToLLVMPattern<cir::MakeFunOp> {
       auto envPtr = rewriter.create<LLVM::GEPOp>(
           loc, termPtrTy, ptr, ValueRange({zero, four, envIdxConst}));
       rewriter.create<LLVM::StoreOp>(loc, env, envPtr);
+      envIdx++;
     }
 
     // Box the pointer to the allocation

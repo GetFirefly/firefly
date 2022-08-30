@@ -8,7 +8,7 @@ edition = "2021"
 
 [features]
 default = ["std"]
-std = ["anyhow/std", "backtrace/std", "num-bigint/std", "rpds/std", "termcolor", "firefly_binary/std"]
+std = ["anyhow/std", "backtrace/std", "num-bigint/std", "rpds/std", "termcolor", "firefly_binary/std", "firefly_alloc/std"]
 no_std = ["lazy_static/spin_no_std"]
 
 [dependencies]

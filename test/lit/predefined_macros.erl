@@ -6,7 +6,7 @@
 %% CHECK: boot
 %% CHECK: 1
 %% CHECK: predefined_macros.erl"
-%% CHECK: 18
+%% CHECK: 21
 -module(init).
 
 -export([boot/1]).

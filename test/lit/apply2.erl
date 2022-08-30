@@ -1,15 +1,19 @@
+%% RUN: @firefly compile -o @tempfile @file && @tempfile true
+
+%% CHECK: found
 -module(init).
 
 -export([boot/1]).
 
 boot(Args) ->
     Mapper = fun(X) -> contains(Args, X) end,
-    has_true([<<"true">>], Mapper).
+    Result = has_true([<<"true">>], Mapper),
+    erlang:display(Result).
 
-has_true([], Fn) when is_function(Fn) -> false;
+has_true([], Fn) when is_function(Fn) -> not_found;
 has_true([Arg | Rest], Fn) when is_function(Fn) ->
     case Fn(Arg) of
-        true -> true;
+        true -> found;
         _ -> has_true(Rest, Fn)
     end.
 

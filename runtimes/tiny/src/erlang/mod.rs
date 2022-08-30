@@ -342,7 +342,6 @@ pub extern "C-unwind" fn binary_to_list(term: OpaqueTerm) -> ErlangResult {
     }
 }
 
-#[allow(improper_ctypes_definitions)]
 #[export_name = "erlang:display/1"]
 pub extern "C-unwind" fn display(term: OpaqueTerm) -> ErlangResult {
     let term: Term = term.into();

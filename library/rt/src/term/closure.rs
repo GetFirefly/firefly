@@ -22,11 +22,11 @@ use super::{Atom, OpaqueTerm};
 /// the callee to access the closed-over values from its environment.
 ///
 /// Function captures do not have the extra self argument, and always have an implicitly empty environment.
-#[repr(C)]
+#[repr(C, align(16))]
 pub struct Closure {
     pub module: Atom,
     pub name: Atom,
-    pub arity: u8,
+    pub arity: usize,
     fun: *const (),
     env: [OpaqueTerm],
 }
@@ -34,8 +34,8 @@ impl fmt::Debug for Closure {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("Closure")
-            .field("module", &self.module)
-            .field("function", &self.name)
+            .field("module", &self.module.as_str())
+            .field("function", &self.name.as_str())
             .field("arity", &self.arity)
             .field("fun", &self.fun)
             .field("env", &&self.env)
@@ -70,7 +70,7 @@ impl Closure {
         let mut this = GcBox::<Self>::with_capacity_in(env.len(), alloc)?;
         this.module = module;
         this.name = name;
-        this.arity = arity;
+        this.arity = arity as usize;
         this.fun = fun;
         this.env.copy_from_slice(env);
         Ok(this)
@@ -137,10 +137,10 @@ seq!(A in 0..10 {
             /// This type represents a function which implements a closure of arity A
             ///
             /// See the `Closure` docs for more information on how closures are implemented.
-            pub type Closure~A = extern "C" fn (&Closure,
-                                                #(
+            pub type Closure~A = extern "C" fn (#(
                                                     OpaqueTerm,
                                                 )*
+                                                OpaqueTerm
                                                 ) -> ErlangResult;
 
             /// This type represents a function capture of arity A
@@ -163,7 +163,8 @@ seq!(A in 0..10 {
                     } else {
                         assert_eq!(self.arity, A + 1, "mismatched arity");
                         let fun = unsafe { core::mem::transmute::<_, Closure~A>(self.fun) };
-                        fun(self, #(_args.N,)*)
+                        let this = unsafe { OpaqueTerm::from_gcbox_closure(self) };
+                        fun(#(_args.N,)* this)
                     }
                 }
             }
@@ -177,7 +178,8 @@ seq!(A in 0..10 {
                     } else {
                         assert_eq!(self.arity, A + 1, "mismatched arity");
                         let fun = unsafe { core::mem::transmute::<_, Closure~A>(self.fun) };
-                        fun(self, #(_args.N,)*)
+                        let this = unsafe { OpaqueTerm::from_gcbox_closure(self) };
+                        fun(#(_args.N,)* this)
                     }
                 }
             }
@@ -191,7 +193,8 @@ seq!(A in 0..10 {
                     } else {
                         assert_eq!(self.arity, A + 1, "mismatched arity");
                         let fun = unsafe { core::mem::transmute::<_, Closure~A>(self.fun) };
-                        fun(self, #(_args.N,)*)
+                        let this = unsafe { OpaqueTerm::from_gcbox_closure(self) };
+                        fun(#(_args.N,)* this)
                     }
                 }
             }

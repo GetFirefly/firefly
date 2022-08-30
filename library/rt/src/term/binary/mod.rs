@@ -19,7 +19,7 @@ use firefly_binary::{Aligned, Binary, BinaryFlags, Bitstring, Encoding};
 
 /// This represents binary data, i.e. byte-aligned, with a number of bits
 /// divisible by 8 evenly.
-#[repr(C)]
+#[repr(C, align(16))]
 pub struct BinaryData {
     flags: BinaryFlags,
     data: [u8],

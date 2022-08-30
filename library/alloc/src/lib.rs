@@ -25,6 +25,8 @@
 #![feature(const_type_id)]
 
 extern crate alloc;
+#[cfg(feature = "std")]
+extern crate std;
 #[cfg(test)]
 extern crate test;
 

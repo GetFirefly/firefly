@@ -79,7 +79,7 @@ use core::mem::{self, ManuallyDrop, MaybeUninit};
 use core::num::NonZeroU32;
 use core::ptr::{self, NonNull, Pointee};
 
-use super::{atoms, Atom, BinaryData, Cons, Float, Integer, Term, Tuple};
+use super::{atoms, Atom, BinaryData, Closure, Cons, Float, Integer, Term, Tuple};
 
 use firefly_alloc::gc::{self, GcBox};
 use firefly_alloc::rc::{self, Rc, Weak};
@@ -488,7 +488,7 @@ impl OpaqueTerm {
         match self.0 & (NAN | SIGN_BIT | TAG_MASK) {
             IS_TUPLE | IS_TUPLE_LITERAL => unsafe {
                 let ptr = self.as_ptr();
-                let meta_ptr: *const usize = ptr.byte_sub(mem::size_of::<usize>()).cast();
+                let meta_ptr: *const usize = ptr.cast();
                 ErlangResult::Ok((*meta_ptr) as u32)
             },
             _ => ErlangResult::Err(()),
@@ -616,6 +616,29 @@ impl OpaqueTerm {
                 todo!("should implement a smarter rc container so we can call destructors opaquely")
             }
         }
+    }
+
+    /// This function is here to allow the Fn/FnMut/etc. impls to properly re-encode the
+    /// callee term when applied from Rust. We currently only allow Closure to be allocated
+    /// via GcBox, so this is safe as long as that holds true, but we explicitly don't implement
+    /// From for this conversion, as it is inherently unsafe.
+    ///
+    /// NOTE: The encoding here matches that of GcBox<Closure>, which should be exactly equivalent
+    /// as long as the closure being given here was originally allocated via GcBox and not via other
+    /// means.
+    pub unsafe fn from_gcbox_closure(closure: &Closure) -> Self {
+        let closure = closure as *const Closure;
+        let (raw, _) = closure.to_raw_parts();
+        let raw = raw as u64;
+        debug_assert!(
+            raw & INFINITY == 0,
+            "expected nan bits to be unused in pointers"
+        );
+        debug_assert!(
+            raw & TAG_MASK == 0,
+            "expected pointer to have at least 8-byte alignment"
+        );
+        Self(raw | INFINITY)
     }
 }
 impl fmt::Binary for OpaqueTerm {
@@ -994,6 +1017,16 @@ mod tests {
         let rc = unsafe { term.assume_init() };
         assert_matches!(rc, Term::RcBinary(_));
 
+        let s = "testing 1 2 3";
+        let mut bin = BinaryData::with_capacity_small(s.as_bytes().len(), Global).unwrap();
+        bin.copy_from_slice(s.as_bytes());
+        let mut term = MaybeUninit::zeroed();
+        assert!(unsafe { OpaqueTerm::decode(bin.into(), term.as_mut_ptr()) });
+        let bin = unsafe { term.assume_init() };
+        assert_matches!(bin, Term::HeapBinary(_));
+        let Term::HeapBinary(bin) = bin else { unreachable!(); };
+        assert_eq!(bin.as_str(), Some("testing 1 2 3"));
+
         // Constant Binary
         let mut constants = ConstantPool::default();
         let string = "testing 1 2 3";
@@ -1105,6 +1138,11 @@ mod tests {
         let weak_term: OpaqueTerm = weak.into();
         assert_eq!(rc_term.r#typeof(), TermType::Binary);
         assert_eq!(weak_term.r#typeof(), TermType::Binary);
+
+        let s = "testing 1 2 3";
+        let gcbox = BinaryData::with_capacity_small(s.as_bytes().len(), Global).unwrap();
+        let box_term: OpaqueTerm = gcbox.into();
+        assert_eq!(box_term.r#typeof(), TermType::Binary);
 
         // Constant Binary
         let mut constants = ConstantPool::default();
@@ -1360,7 +1398,7 @@ mod tests {
         let boxed = unsafe { GcBox::from_raw(ptr) };
         let map: OpaqueTerm = boxed.into();
 
-        assert_eq!(ptr as *mut u8, unsafe { map.as_ptr() });
+        assert_eq!(ptr as *mut (), unsafe { map.as_ptr() });
         assert!(map.is_nan());
         assert!(!map.is_nil());
         assert!(!map.is_immediate());
@@ -1394,8 +1432,8 @@ mod tests {
         let weak_bin: OpaqueTerm = weak.into();
 
         // The pointers should all be to the same object
-        assert_eq!(rc_ptr as *mut u8, unsafe { rc_bin.as_ptr() });
-        assert_eq!(weak_ptr as *mut u8, unsafe { weak_bin.as_ptr() });
+        assert_eq!(rc_ptr as *mut (), unsafe { rc_bin.as_ptr() });
+        assert_eq!(weak_ptr as *mut (), unsafe { weak_bin.as_ptr() });
         assert_eq!(unsafe { rc_bin.as_ptr() }, unsafe { weak_bin.as_ptr() });
 
         for bin in &[rc_bin, weak_bin] {

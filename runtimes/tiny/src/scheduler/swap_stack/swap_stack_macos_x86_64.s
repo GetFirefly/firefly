@@ -85,18 +85,20 @@ ___firefly_swap_stack:
     .cfi_def_cfa rbp, 16
     .cfi_offset rbp, -16
 
-    # Now that the frames are linked, we can call the entry point. For now, this
-    # is __firefly_trap_exceptions, which expects to receive two arguments: the function
-    # being wrapped by the exception handler, and the value of the closure environment,
-    # _if_ it is a closure being called, otherwise the value of that argument is Term::NONE
+    # Now that the frames are linked, we can call the entry point.
+    # The only argument is the value of the closure environment (or Term::NONE if not a closure)
     mov  rdi, r12
-
-    # We have already set up the stack precisely, so we don't use call here, instead
-    # we go ahead and jump straight to the beginning of the entry function.
-    # NOTE: This call never truly returns, as the exception handler calls __firefly_builtin_exit
-    # with the return value of the 'real' entry function, or with an exception if one
-    # is caught. However, swap_stack _does_ return for all other swaps, just not the first.
     call r14
+
+    # When we return to this point, the process has fully unwound and should exit, returning
+    # back to the scheduler. We handle this by calling __firefly_builtin_exit, which sets up the
+    # process status, and then yields to the scheduler. Control never returns here, so we hint
+    # as such by which branch instruction we use
+    #
+    # NOTE: The ErlangResult struct will have been saved in rax/rdx, so we must move it to rdi/rsi
+    # to reflect passing it by value as the sole argument to the __firefly_builtin_exit intrinsic
+    mov rax, rdi
+    mov rdx, rsi
     jmp ___firefly_builtin_exit
 
 L_resume:

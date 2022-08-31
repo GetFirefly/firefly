@@ -39,9 +39,8 @@ impl Trace {
     #[cfg(feature = "std")]
     pub fn capture() -> Arc<Self> {
         // Allocates a new trace on the heap
-        let trace_arc = Self::new(Vec::with_capacity(Self::MAX_FRAMES));
-        let ptr = Arc::as_ptr(&trace_arc) as *mut Trace;
-        let trace = unsafe { &mut *ptr };
+        let mut trace_arc = Self::new(Vec::with_capacity(Self::MAX_FRAMES));
+        let trace = unsafe { Arc::get_mut_unchecked(&mut trace_arc) };
         //let stackmap = StackMap::get();
 
         // Capture the raw metadata for each frame in the trace

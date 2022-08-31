@@ -180,6 +180,12 @@ impl ProjectInfo {
             ]);
         } else if target_os == "linux" && target_env == "uclibc" {
             platform_libs.extend_from_slice(&[("dl", NativeLibraryKind::Unspecified)]);
+        } else if target_os == "linux" && target_env == "gnu" {
+            platform_libs.extend_from_slice(&[
+                ("m", NativeLibraryKind::Unspecified),
+                ("dl", NativeLibraryKind::Unspecified),
+                ("pthread", NativeLibraryKind::Unspecified),
+            ]);
         }
 
         for (name, kind) in platform_libs.drain(..) {

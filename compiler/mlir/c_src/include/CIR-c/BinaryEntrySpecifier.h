@@ -1,8 +1,10 @@
 #pragma once
 
-#include <cstdlib>
+#include <stdint.h>
 
 #ifdef __cplusplus
+#include <cstdlib>
+
 namespace mlir {
 namespace cir {
 enum class BinaryEntrySpecifierType : uint32_t {

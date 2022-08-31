@@ -24,6 +24,8 @@
 #![feature(const_type_id)]
 // Used for NonNull::as_uninit_mut
 #![feature(ptr_as_uninit)]
+// Used for Arc::get_mut_unchecked
+#![feature(get_mut_unchecked)]
 // The following are used for the Tuple implementation
 #![feature(trusted_len)]
 #![feature(slice_index_methods)]

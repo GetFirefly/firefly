@@ -328,7 +328,7 @@ checksum = "8371e4e5341c3a96db127eb2465ac681ced4c433e01dd0e938adbef26ba93ba5"
 [[package]]
 name = "lit"
 version = "1.0.4"
-source = "git+https://github.com/lumen/lit?branch=erlang#1659b7670f00f23d2100fac03379a64c0cf39e8f"
+source = "git+https://github.com/getfirefly/lit?branch=erlang#1659b7670f00f23d2100fac03379a64c0cf39e8f"
 dependencies = [
  "clap 2.34.0",
  "error-chain",

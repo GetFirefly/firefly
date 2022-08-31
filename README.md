@@ -69,28 +69,28 @@ instructions for below; but we also produce prebuilt packages that have everythi
 
 ##### Installing Prebuilt Distributions (Recommended)
 
-###### Linux
+###### Linux (x86_64)
 
 The instructions below reference `$XDG_DATA_HOME` as an environment variable, it
 is recommended to export XDG variables in general, but if you have not, just
 replace the usages of `$XDG_DATA_HOME` below with `$HOME/.local/share`, which is
 the usual default for this XDG variable.
 
-    mkdir -p $XDG_DATA_HOME/llvm/
-    cd $XDG_DATA_HOME/llvm/
-    wget https://github.com/lumen/llvm-project/releases/download/firefly-15.0.0-dev_2022-07-22/clang+llvm-15.0.0-x86_64-linux-gnu.tar.gz
+    mkdir -p $XDG_DATA_HOME/llvm/firefly
+    cd $XDG_DATA_HOME/llvm/firefly
+    wget https://github.com/getfirefly/llvm-project/releases/download/firefly-15.0.0-dev_2022-08-27/clang+llvm-15.0.0-x86_64-linux-gnu.tar.gz
     tar -xz --strip-components 1 -f clang+llvm-15.0.0-x86_64-linux-gnu.tar.gz
     rm clang+llvm-15.0.0-x86_64-linux-gnu.tar.gz
     cd -
 
-###### MacOS
+###### MacOS (arm64)
 
-    mkdir -p $XDG_DATA_HOME/llvm/
+    mkdir -p $XDG_DATA_HOME/llvm/firefly
     cd $XDG_DATA_HOME/llvm/
-    wget https://github.com/lumen/llvm-project/releases/download/firefly-15.0.0-dev_2022-07-22/clang+llvm-15.0.0-x86_64-apple-darwin21.5.0.tar.gz
-    tar -xzf clang+llvm-15.0.0-x86_64-apple-darwin21.5.0.tar.gz
-    rm clang+llvm-15.0.0-x86_64-apple-darwin21.5.0.tar.gz
-    mv clang+llvm-15.0.0-x86_64-apple-darwin21.5.0 firefly
+    wget https://github.com/GetFirefly/llvm-project/releases/download/firefly-15.0.0-dev_2022-08-27/clang+llvm-15.0.0-arm64-apple-darwin21.6.0.tar.gz
+    tar -xzf clang+llvm-15.0.0-x86_64-apple-darwin21.6.0.tar.gz
+    rm clang+llvm-15.0.0-x86_64-apple-darwin21.6.0.tar.gz
+    mv clang+llvm-15.0.0-x86_64-apple-darwin21.6.0 firefly
     cd -
 
 ###### Other

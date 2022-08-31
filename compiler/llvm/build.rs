@@ -114,8 +114,10 @@ fn main() {
     }
 
     if let Ok(mut sanitizer) = env::var(ENV_LLVM_USE_SANITIZER) {
-        sanitizer.make_ascii_lowercase();
-        cfg.flag(&format!("-fsanitize={}", sanitizer));
+        if !sanitizer.is_empty() {
+            sanitizer.make_ascii_lowercase();
+            cfg.flag(&format!("-fsanitize={}", sanitizer));
+        }
     }
 
     if env::var_os("LLVM_NDEBUG").is_some() {

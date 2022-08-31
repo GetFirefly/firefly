@@ -1,6 +1,9 @@
 name: x86_64-unknown-linux-gnu compiler
 
-on: push
+on:
+  push:
+    paths-ignore:
+    - '*.md'
 
 env:
   TOOLCHAIN: nightly-2022-08-08
@@ -16,7 +19,10 @@ jobs:
       - uses: actions/checkout@v2
       - name: Setup Env
         run: |
-          if [ -n "${XDG_DATA_HOME}" ]; then
+          echo "$(whoami)"
+          if [ -z "${XDG_DATA_HOME}" ]; then
+            sudo mkdir -p $HOME/.local/share/llvm
+            sudo chown -R runner $HOME/.local/share/llvm
             echo "XDG_DATA_HOME=$HOME/.local/share" >> $GITHUB_ENV
           fi
           echo "$PWD/bin" >> $GITHUB_PATH
@@ -33,6 +39,10 @@ jobs:
           tar -xz --strip-components 1 -f clang+llvm-15.0.0-x86_64-linux-gnu.tar.gz
           rm clang+llvm-15.0.0-x86_64-linux-gnu.tar.gz
           cd -
+      - name: Install Toolchain
+        run: |
+          rustup toolchain install ${TOOLCHAIN}
+          rustup default ${TOOLCHAIN}
       - name: Cache Cargo
         uses: actions/cache@v2
         with:
@@ -43,15 +53,18 @@ jobs:
       - name: Install cargo-make
         uses: actions-rs/cargo@v1
         with:
+          toolchain: ${{ env.TOOLCHAIN }}
           command: install
           args: cargo-make
       - name: Build Compiler
         uses: actions-rs/cargo@v1
         with:
+          toolchain: ${{ env.TOOLCHAIN }}
           command: make
           args: firefly
       - name: Run lit tests
         uses: actions-rs/cargo@v1
         with:
+          toolchain: ${{ env.TOOLCHAIN }}
           command: make
           args: test-lit

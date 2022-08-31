@@ -3,16 +3,36 @@ name: x86_64-unknown-linux-gnu compiler
 on: push
 
 env:
-  TOOLCHAIN: nightly-2022-07-12
+  TOOLCHAIN: nightly-2022-08-08
+  LLVM_RELEASE: firefly-15.0.0-dev_2022-08-27
+  LLVM_LINK_LLVM_DYLIB: ON
+  FIREFLY_BUILD_TYPE: static
 
 jobs:
   compiler:
-    if: ${{ false }} # disable
     runs-on: ubuntu-latest
-    container: kronicdeth/lumen-development@sha256:2809805464d685940b58765a634fa23a5fd1a62c65710cfa43a8791cd50fbecd
 
     steps:
       - uses: actions/checkout@v2
+      - name: Setup Env
+        run: |
+          if [ -n "${XDG_DATA_HOME}" ]; then
+            echo "XDG_DATA_HOME=$HOME/.local/share" >> $GITHUB_ENV
+          fi
+          echo "$PWD/bin" >> $GITHUB_PATH
+      - name: Install Ninja
+        run: |
+          wget "https://github.com/ninja-build/ninja/releases/download/v1.9.0/ninja-linux.zip"
+          unzip ninja-linux.zip -d /usr/local/bin
+          rm ninja-linux.zip
+      - name: Install LLVM
+        run: |
+          mkdir -p "$XDG_DATA_HOME/llvm/firefly"
+          cd "$XDG_DATA_HOME/llvm/firefly"
+          wget "https://github.com/getfirefly/llvm-project/releases/download/${LLVM_RELEASE}/clang+llvm-15.0.0-x86_64-linux-gnu.tar.gz"
+          tar -xz --strip-components 1 -f clang+llvm-15.0.0-x86_64-linux-gnu.tar.gz
+          rm clang+llvm-15.0.0-x86_64-linux-gnu.tar.gz
+          cd -
       - name: Cache Cargo
         uses: actions/cache@v2
         with:
@@ -20,31 +40,18 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
           key: ${{ github.workflow }}-${{ github.job }}-toolchain-${{ env.TOOLCHAIN }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - name: Install cargo-make
+        uses: actions-rs/cargo@v1
+        with:
+          command: install
+          args: cargo-make
       - name: Build Compiler
         uses: actions-rs/cargo@v1
         with:
           command: make
           args: firefly
-      - name: Add Compiler To Path
-        run: |
-          if [ -n "${GITHUB_PATH}" ]; then
-            echo "$PWD/bin" >> $GITHUB_PATH
-          else
-            echo "::add-path::${PWD}/bin"
-          fi
-      - name: Run baseline tests
+      - name: Run lit tests
         uses: actions-rs/cargo@v1
         with:
           command: make
           args: test-lit
-      - name: Run firefly_otp integration tests
-        uses: actions-rs/cargo@v1
-        with:
-          command: make
-          args: |
-            test -- --package firefly_otp lib:: -- --skip firefly::otp
-      - name: Run spawn-chain tests
-        uses: actions-rs/cargo@v1
-        with:
-          command: make
-          args: test-spawn-chain

@@ -58,6 +58,9 @@ jobs:
           args: cargo-make
       - name: Build Compiler
         uses: actions-rs/cargo@v1
+        env:
+          CC: clang-14
+          CXX: clang++-14
         with:
           toolchain: ${{ env.TOOLCHAIN }}
           command: make

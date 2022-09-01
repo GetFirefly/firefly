@@ -350,6 +350,11 @@ Currently it is straightforward to define NIFs in Rust without the overhead of e
 yet have an abstraction that allows us to take existing NIFs designed around erl_nif and make them work.
 This is something in the pipeline, but is not yet a high priority for us.
 
+## History
+
+Firefly previously had the name "Lumen". This was intended to be a temporary name and it was
+changed in 2022, partly due to there being numerous other projects also named Lumen.
+
 ## License
 
 Apache 2.0

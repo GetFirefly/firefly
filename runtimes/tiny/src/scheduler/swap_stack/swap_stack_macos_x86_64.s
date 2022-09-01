@@ -97,8 +97,8 @@ ___firefly_swap_stack:
     #
     # NOTE: The ErlangResult struct will have been saved in rax/rdx, so we must move it to rdi/rsi
     # to reflect passing it by value as the sole argument to the __firefly_builtin_exit intrinsic
-    mov rax, rdi
-    mov rdx, rsi
+    mov rdi, rax
+    mov rsi, rdx
     jmp ___firefly_builtin_exit
 
 L_resume:

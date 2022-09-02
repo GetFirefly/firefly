@@ -42,9 +42,9 @@ dependencies for the WebAssembly targets that we make use of.
     # to use the latest nightly
     rustup default nightly
     
-    # or, in case of issues, install the 2022-07-12 nightly to match our CI
-    rustup default nightly-2022-07-12
-    export CARGO_MAKE_TOOLCHAIN=nightly-2022-07-12
+    # or, in case of issues, install the specific nightly to match our CI
+    rustup default nightly-2022-08-08
+    export CARGO_MAKE_TOOLCHAIN=nightly-2022-08-08
 
 In order to run various build tasks in the project, you'll need the [cargo-make](https://github.com/sagiegurari/cargo-make) plugin for Cargo. You can install it with:
 
@@ -125,9 +125,21 @@ likewise you can change the setting to use CCache by removing that option as wel
 
 ### Building Firefly
 
-Once LLVM is installed/built, you can build the `firefly` executable:
+Once LLVM is installed/built, you can build the `firefly` executable!
+
+NOTE: Firefly has components that need to be compiled with clang; On Linux, the default compiler
+is generally gcc. Since our LLVM toolchain includes clang, simply export the following in your shell
+when compiling Firefly:
+
+    export CC=$XDG_DATA_HOME/llvm/firefly/bin/clang
+    export CXX=$XDG_DATA_HOME/llvm/firefly/bin/clang++
+
+To build Firefly, run the following:
 
     LLVM_PREFIX=$XDG_DATA_HOME/llvm/firefly FIREFLY_BUILD_TYPE=static cargo make firefly
+
+NOTE: If you have .direnv installed, run `direnv allow` in the project root, and you can omit all
+of the above environment variables, and instead modify the `.envrc` file if needed.
     
 This will create the compiler executable and associated toolchain for the host
 machine under `bin` in the root of the project. You can invoke `firefly` via the

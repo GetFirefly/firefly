@@ -2,8 +2,8 @@
 name = "firefly"
 version = "0.1.0"
 authors = ["Firefly Developers"]
-homepage = "https://github.com/lumen/firefly"
-repository = "https://github.com/lumen/firefly"
+homepage = "https://github.com/GetFirefly/firefly"
+repository = "https://github.com/GetFirefly/firefly"
 license = "Apache-2.0"
 readme = "README.md"
 publish = false

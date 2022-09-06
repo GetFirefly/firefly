@@ -709,10 +709,18 @@ pub struct DbgiChunk {
     /// represents custom debug information in the following term format:
     ///
     /// ```erlang
-    /// {debug_info, {Backend, Data}}
+    /// {debug_info, {debug_info_v1, Backend, Data}}
     /// ```
     ///
-    /// Where `Backend` is a module which implements `debug_info/4`, and is responsible for
+    /// In the case of Erlang source code (as of OTP 25), this tuple contains the abstract erlang code, e.g.:
+    ///
+    /// ```erlang
+    /// {debug_info, {debug_info_v1, :erl_abstract_code, {[..forms..], [cwd: "path/to/cwd/during/compilation"]}}}
+    /// ```
+    ///
+    /// Other languages however will require evaluation of `Backend:debug_info(Format, Module, Data, [])`
+    ///
+    /// `Backend` is a module which implements `debug_info/4`, and is responsible for
     /// converting `Data` to different representations as described [here](http://erlang.org/doc/man/beam_lib.html#type-debug_info).
     /// Debug information can be used to reconstruct original source code.
     pub term: parts::ExternalTermFormatBinary,
@@ -793,8 +801,7 @@ impl Chunk for DocsChunk {
 /// A representation of commonly used chunk.
 ///
 /// ```
-/// use firefly_beam::beam::chunk::{Chunk, StandardChunk};
-/// use firefly_beam::beam::reader::BeamFile;
+/// use firefly_beam::{Chunk, StandardChunk, BeamFile};
 ///
 /// let beam = BeamFile::<StandardChunk>::from_file("tests/testdata/reader/test.beam").unwrap();
 /// assert_eq!(

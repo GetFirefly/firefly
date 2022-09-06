@@ -5,7 +5,7 @@
 //! Read a BEAM file:
 //!
 //!
-//!     use firefly_beam::beam::{StandardBeamFile, Chunk};
+//!     use firefly_beam::{StandardBeamFile, Chunk};
 //!
 //!     let beam = StandardBeamFile::from_file("tests/testdata/reader/test.beam").unwrap();
 //!
@@ -17,7 +17,7 @@
 //! Write a BEAM file:
 //!
 //!
-//!     use firefly_beam::beam::{RawBeamFile, Chunk, RawChunk};
+//!     use firefly_beam::{RawBeamFile, Chunk, RawChunk};
 //!
 //!     // NOTE: The following chunk is malformed
 //!     let chunk = RawChunk{id: *b"Atom", data: Vec::new()};
@@ -37,24 +37,24 @@ pub use self::parts::*;
 pub type RawBeamFile = BeamFile<chunk::RawChunk>;
 pub type StandardBeamFile = BeamFile<chunk::StandardChunk>;
 
-use std::str;
-
 #[derive(thiserror::Error, Debug)]
 pub enum ReadError {
     #[error("error occurred while reading beam file: {0}")]
     FileError(#[from] std::io::Error),
     #[error("invalid utf8 string")]
-    InvalidString(#[from] str::Utf8Error),
+    InvalidString(#[from] std::str::Utf8Error),
     #[error("unexpected magic number {}, expected b\"FOR1\"", bytes_to_str(.0))]
     UnexpectedMagicNumber([u8; 4]),
     #[error("unexpected from type {}, expected b\"BEAM\"", bytes_to_str(.0))]
     UnexpectedFormType([u8; 4]),
     #[error("unexpected chunk id {}, expected {}", bytes_to_str(.id), bytes_to_str(.expected))]
-    UnexpectedChunk { id: chunk::Id, expected: chunk::Id },
+    UnexpectedChunk { id: ChunkId, expected: ChunkId },
+    #[error("error occurred while reading chunk: {0}")]
+    ChunkError(#[from] anyhow::Error),
 }
 
 fn bytes_to_str(bytes: &[u8]) -> String {
-    str::from_utf8(bytes)
+    std::str::from_utf8(bytes)
         .map(|x| format!("b{:?}", x))
         .unwrap_or_else(|_| format!("{:?}", bytes))
 }

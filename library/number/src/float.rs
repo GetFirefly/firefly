@@ -156,6 +156,26 @@ impl Into<f16> for Float {
         f16::from_f64(self.0)
     }
 }
+impl ToPrimitive for Float {
+    #[inline]
+    fn to_f64(&self) -> Option<f64> {
+        Some(self.0)
+    }
+
+    #[inline]
+    fn to_f32(&self) -> Option<f32> {
+        Some(self.0 as f32)
+    }
+
+    fn to_i64(&self) -> Option<i64> {
+        ToPrimitive::to_i64(&self.0)
+    }
+
+    fn to_u64(&self) -> Option<u64> {
+        ToPrimitive::to_u64(&self.0)
+    }
+}
+
 impl Hash for Float {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.0.to_bits().hash(state)

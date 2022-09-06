@@ -3,14 +3,12 @@ use std::io::Read;
 use std::io::Write;
 use std::path::PathBuf;
 
-use crate::beam::reader::chunk;
-use crate::beam::reader::chunk::Chunk;
-use crate::beam::reader::chunk::StandardChunk;
-use crate::beam::reader::parts;
-use crate::beam::reader::BeamFile;
-use crate::beam::reader::RawBeamFile;
-use crate::beam::reader::Result;
-use crate::beam::reader::StandardBeamFile;
+use crate::reader::chunk;
+use crate::reader::chunk::{Chunk, ChunkId, StandardChunk};
+use crate::reader::parts;
+use crate::reader::BeamFile;
+use crate::reader::RawBeamFile;
+use crate::reader::StandardBeamFile;
 
 #[test]
 fn raw_chunks() {
@@ -186,14 +184,14 @@ enum EncodeTestChunk {
     Other(chunk::RawChunk),
 }
 impl chunk::Chunk for EncodeTestChunk {
-    fn id(&self) -> &chunk::Id {
+    fn id(&self) -> &ChunkId {
         use self::EncodeTestChunk::*;
         match *self {
             Idempotent(ref c) => c.id(),
             Other(ref c) => c.id(),
         }
     }
-    fn decode_data<R: Read>(id: &chunk::Id, reader: R) -> Result<Self>
+    fn decode_data<R: Read>(id: &ChunkId, reader: R) -> anyhow::Result<Self>
     where
         Self: Sized,
     {
@@ -203,7 +201,7 @@ impl chunk::Chunk for EncodeTestChunk {
             _ => Ok(Idempotent(chunk::StandardChunk::decode_data(id, reader)?)),
         }
     }
-    fn encode_data<W: Write>(&self, writer: W) -> Result<()> {
+    fn encode_data<W: Write>(&self, writer: W) -> anyhow::Result<()> {
         use self::EncodeTestChunk::*;
         match *self {
             Idempotent(ref c) => c.encode_data(writer),

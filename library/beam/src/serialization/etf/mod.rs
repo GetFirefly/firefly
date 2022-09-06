@@ -30,19 +30,19 @@ pub mod pattern;
 #[cfg(test)]
 mod test;
 
-use std::convert::From;
-
-use num::bigint::BigInt;
+use firefly_intern::Symbol;
+use firefly_number::{BigInt, Float, Integer, Sign, ToPrimitive};
 
 pub use self::codec::{DecodeError, DecodeResult};
 pub use self::codec::{EncodeError, EncodeResult};
+pub use self::pattern::MatchResult;
 
 /// Term.
 #[derive(Debug, PartialEq, Clone)]
 pub enum Term {
     Atom(Atom),
-    FixInteger(FixInteger),
-    BigInteger(BigInteger),
+    String(Str),
+    Integer(Integer),
     Float(Float),
     Pid(Pid),
     Port(Port),
@@ -67,7 +67,7 @@ impl Term {
         codec::Encoder::new(writer).encode(self)
     }
 
-    pub fn as_match<'a, P>(&'a self, pattern: P) -> pattern::Result<P::Output>
+    pub fn as_match<'a, P>(&'a self, pattern: P) -> MatchResult<P::Output>
     where
         P: pattern::Pattern<'a>,
     {
@@ -76,98 +76,107 @@ impl Term {
 }
 impl std::fmt::Display for Term {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match *self {
-            Term::Atom(ref x) => x.fmt(f),
-            Term::FixInteger(ref x) => x.fmt(f),
-            Term::BigInteger(ref x) => x.fmt(f),
-            Term::Float(ref x) => x.fmt(f),
-            Term::Pid(ref x) => x.fmt(f),
-            Term::Port(ref x) => x.fmt(f),
-            Term::Reference(ref x) => x.fmt(f),
-            Term::ExternalFun(ref x) => x.fmt(f),
-            Term::InternalFun(ref x) => x.fmt(f),
-            Term::Binary(ref x) => x.fmt(f),
-            Term::BitBinary(ref x) => x.fmt(f),
-            Term::List(ref x) => x.fmt(f),
-            Term::ImproperList(ref x) => x.fmt(f),
-            Term::Tuple(ref x) => x.fmt(f),
-            Term::Map(ref x) => x.fmt(f),
+        match self {
+            Self::Atom(ref x) => x.fmt(f),
+            Self::String(ref x) => x.fmt(f),
+            Self::Integer(ref x) => x.fmt(f),
+            Self::Float(ref x) => x.fmt(f),
+            Self::Pid(ref x) => x.fmt(f),
+            Self::Port(ref x) => x.fmt(f),
+            Self::Reference(ref x) => x.fmt(f),
+            Self::ExternalFun(ref x) => x.fmt(f),
+            Self::InternalFun(ref x) => x.fmt(f),
+            Self::Binary(ref x) => x.fmt(f),
+            Self::BitBinary(ref x) => x.fmt(f),
+            Self::List(ref x) => x.fmt(f),
+            Self::ImproperList(ref x) => x.fmt(f),
+            Self::Tuple(ref x) => x.fmt(f),
+            Self::Map(ref x) => x.fmt(f),
         }
     }
 }
 impl From<Atom> for Term {
     fn from(x: Atom) -> Self {
-        Term::Atom(x)
+        Self::Atom(x)
     }
 }
-impl From<FixInteger> for Term {
-    fn from(x: FixInteger) -> Self {
-        Term::FixInteger(x)
+impl From<Str> for Term {
+    fn from(x: Str) -> Self {
+        Self::String(x)
     }
 }
-impl From<BigInteger> for Term {
-    fn from(x: BigInteger) -> Self {
-        Term::BigInteger(x)
+impl From<Integer> for Term {
+    fn from(x: Integer) -> Self {
+        Self::Integer(x)
     }
 }
 impl From<Float> for Term {
     fn from(x: Float) -> Self {
-        Term::Float(x)
+        Self::Float(x)
     }
 }
 impl From<Pid> for Term {
     fn from(x: Pid) -> Self {
-        Term::Pid(x)
+        Self::Pid(x)
     }
 }
 impl From<Port> for Term {
     fn from(x: Port) -> Self {
-        Term::Port(x)
+        Self::Port(x)
     }
 }
 impl From<Reference> for Term {
     fn from(x: Reference) -> Self {
-        Term::Reference(x)
+        Self::Reference(x)
     }
 }
 impl From<ExternalFun> for Term {
     fn from(x: ExternalFun) -> Self {
-        Term::ExternalFun(x)
+        Self::ExternalFun(x)
     }
 }
 impl From<InternalFun> for Term {
     fn from(x: InternalFun) -> Self {
-        Term::InternalFun(x)
+        Self::InternalFun(x)
     }
 }
 impl From<Binary> for Term {
     fn from(x: Binary) -> Self {
-        Term::Binary(x)
+        Self::Binary(x)
     }
 }
 impl From<BitBinary> for Term {
     fn from(x: BitBinary) -> Self {
-        Term::BitBinary(x)
+        Self::BitBinary(x)
     }
 }
 impl From<List> for Term {
     fn from(x: List) -> Self {
-        Term::List(x)
+        Self::List(x)
     }
 }
 impl From<ImproperList> for Term {
     fn from(x: ImproperList) -> Self {
-        Term::ImproperList(x)
+        Self::ImproperList(x)
     }
 }
 impl From<Tuple> for Term {
     fn from(x: Tuple) -> Self {
-        Term::Tuple(x)
+        Self::Tuple(x)
     }
 }
 impl From<Map> for Term {
     fn from(x: Map) -> Self {
-        Term::Map(x)
+        Self::Map(x)
+    }
+}
+impl TryInto<i32> for Term {
+    type Error = Term;
+    fn try_into(self) -> Result<i32, Self::Error> {
+        match self {
+            Self::Integer(i) => i.to_i32().ok_or_else(|| Self::Integer(i)),
+            this => Err(this),
+        }
     }
 }
 
@@ -175,185 +184,47 @@ impl From<Map> for Term {
 #[derive(Debug, PartialEq, Clone)]
 pub struct Atom {
     /// The name of the atom.
-    pub name: String,
+    pub name: Symbol,
 }
 impl std::fmt::Display for Atom {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(
-            f,
-            "'{}'",
-            self.name.replace("\\", "\\\\").replace("'", "\\'")
-        )
+        write!(f, "{}", self.name)
+    }
+}
+impl From<Symbol> for Atom {
+    fn from(name: Symbol) -> Self {
+        Self { name }
     }
 }
 impl<'a> From<&'a str> for Atom {
     fn from(name: &'a str) -> Self {
-        Atom {
-            name: name.to_string(),
-        }
-    }
-}
-impl From<String> for Atom {
-    fn from(name: String) -> Self {
-        Atom { name }
-    }
-}
-
-/// Fixed width integer.
-#[derive(Debug, PartialEq, Clone)]
-pub struct FixInteger {
-    /// The value of the integer
-    pub value: i32,
-}
-impl std::fmt::Display for FixInteger {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{}", self.value)
-    }
-}
-impl From<u8> for FixInteger {
-    fn from(value: u8) -> Self {
-        FixInteger {
-            value: value as i32,
-        }
-    }
-}
-impl From<i8> for FixInteger {
-    fn from(value: i8) -> Self {
-        FixInteger {
-            value: value as i32,
-        }
-    }
-}
-impl From<u16> for FixInteger {
-    fn from(value: u16) -> Self {
-        FixInteger {
-            value: value as i32,
-        }
-    }
-}
-impl From<i16> for FixInteger {
-    fn from(value: i16) -> Self {
-        FixInteger {
-            value: value as i32,
-        }
-    }
-}
-impl From<i32> for FixInteger {
-    fn from(value: i32) -> Self {
-        FixInteger { value }
-    }
-}
-
-/// Multiple precision integer.
-#[derive(Debug, PartialEq, Clone)]
-pub struct BigInteger {
-    /// The value of the integer
-    pub value: BigInt,
-}
-impl std::fmt::Display for BigInteger {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{}", self.value)
-    }
-}
-impl From<i8> for BigInteger {
-    fn from(value: i8) -> Self {
-        BigInteger {
-            value: BigInt::from(value),
-        }
-    }
-}
-impl From<u8> for BigInteger {
-    fn from(value: u8) -> Self {
-        BigInteger {
-            value: BigInt::from(value),
-        }
-    }
-}
-impl From<i16> for BigInteger {
-    fn from(value: i16) -> Self {
-        BigInteger {
-            value: BigInt::from(value),
-        }
-    }
-}
-impl From<u16> for BigInteger {
-    fn from(value: u16) -> Self {
-        BigInteger {
-            value: BigInt::from(value),
-        }
-    }
-}
-impl From<i32> for BigInteger {
-    fn from(value: i32) -> Self {
-        BigInteger {
-            value: BigInt::from(value),
-        }
-    }
-}
-impl From<u32> for BigInteger {
-    fn from(value: u32) -> Self {
-        BigInteger {
-            value: BigInt::from(value),
-        }
-    }
-}
-impl From<i64> for BigInteger {
-    fn from(value: i64) -> Self {
-        BigInteger {
-            value: BigInt::from(value),
-        }
-    }
-}
-impl From<u64> for BigInteger {
-    fn from(value: u64) -> Self {
-        BigInteger {
-            value: BigInt::from(value),
-        }
-    }
-}
-impl From<isize> for BigInteger {
-    fn from(value: isize) -> Self {
-        BigInteger {
-            value: BigInt::from(value),
-        }
-    }
-}
-impl From<usize> for BigInteger {
-    fn from(value: usize) -> Self {
-        BigInteger {
-            value: BigInt::from(value),
-        }
-    }
-}
-impl<'a> From<&'a FixInteger> for BigInteger {
-    fn from(i: &FixInteger) -> Self {
-        BigInteger {
-            value: BigInt::from(i.value),
+        Self {
+            name: Symbol::intern(name),
         }
     }
 }
 
-/// Floating point number
+/// String.
 #[derive(Debug, PartialEq, Clone)]
-pub struct Float {
-    /// The value of the number
-    pub value: f64,
+pub struct Str {
+    /// The value of the string.
+    pub value: Symbol,
 }
-impl std::fmt::Display for Float {
+impl std::fmt::Display for Str {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "{}", self.value)
     }
 }
-impl From<f32> for Float {
-    fn from(value: f32) -> Self {
-        Float {
-            value: value as f64,
-        }
+impl From<Symbol> for Str {
+    fn from(value: Symbol) -> Self {
+        Self { value }
     }
 }
-impl From<f64> for Float {
-    fn from(value: f64) -> Self {
-        Float { value }
+impl<'a> From<&'a str> for Str {
+    fn from(value: &'a str) -> Self {
+        Self {
+            value: Symbol::intern(value),
+        }
     }
 }
 
@@ -512,7 +383,6 @@ impl std::fmt::Display for InternalFun {
                 uniq,
                 ..
             } => {
-                use num::bigint::Sign;
                 let uniq = BigInt::from_bytes_be(Sign::Plus, &uniq);
                 write!(f, "#Fun<{}.{}.{}>", module, index, uniq)
             }
@@ -731,7 +601,7 @@ mod tests {
             Term::from(Atom::from("bar")),
         ]));
         let (_, v) = t.as_match(("foo", any::<Atom>())).unwrap();
-        assert_eq!("bar", v.name);
+        assert_eq!("bar", v.name.as_str().get());
 
         let t = Term::from(Tuple::from(vec![
             Term::from(Atom::from("foo")),
@@ -740,7 +610,7 @@ mod tests {
         ]));
         assert!(t.as_match(("foo", "bar", "baz")).is_err());
 
-        let t = Term::from(FixInteger::from(8));
+        let t = Term::from(Integer::from(8));
         t.as_match(U8).unwrap();
     }
 }

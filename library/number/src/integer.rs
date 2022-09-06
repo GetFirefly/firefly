@@ -4,10 +4,10 @@ use core::fmt;
 use core::ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Neg, Not, Rem, Shl, Shr, Sub};
 use core::str::FromStr;
 
-pub use num_bigint::ToBigInt;
+pub use num_bigint::{ToBigInt, ToBigUint};
 pub use num_traits::{FromPrimitive, Signed, ToPrimitive, Zero};
 
-use num_bigint::{BigInt, ParseBigIntError};
+use num_bigint::{BigInt, BigUint, ParseBigIntError};
 
 use crate::{DivisionError, Float, FloatError, ShiftError};
 
@@ -909,6 +909,15 @@ impl ToBigInt for Integer {
         match self {
             Self::Small(int) => Some(BigInt::from(*int)),
             Self::Big(num) => Some(num.clone()),
+        }
+    }
+}
+impl ToBigUint for Integer {
+    fn to_biguint(&self) -> Option<BigUint> {
+        match self {
+            Self::Small(i) if *i >= 0 => Some(BigUint::from(*i as u64)),
+            Self::Small(_) => None,
+            Self::Big(i) => i.to_biguint(),
         }
     }
 }

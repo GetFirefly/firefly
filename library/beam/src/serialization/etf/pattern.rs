@@ -1,18 +1,16 @@
 use std::fmt::Debug;
 
-use num::bigint::ToBigInt;
-use num::bigint::ToBigUint;
-use num::traits::ToPrimitive;
+use firefly_number::{ToBigInt, ToBigUint, ToPrimitive};
 
-use self::convert::AsOption;
 use self::convert::TryAsRef;
+
 use super::*;
 
-pub type Result<'a, T> = std::result::Result<T, Unmatch<'a>>;
+pub type MatchResult<'a, T> = Result<T, Unmatch<'a>>;
 
 pub trait Pattern<'a>: Debug + Clone {
     type Output;
-    fn try_match(&self, input: &'a Term) -> Result<'a, Self::Output>;
+    fn try_match(&self, input: &'a Term) -> MatchResult<'a, Self::Output>;
 
     fn unmatched(&self, input: &'a Term) -> Unmatch<'a>
     where
@@ -37,6 +35,7 @@ impl<'a> Unmatch<'a> {
         self.cause = Some(Box::new(cause));
         self
     }
+
     pub fn depth(&self) -> usize {
         let mut depth = 0;
         let mut curr = &self.cause;
@@ -46,6 +45,7 @@ impl<'a> Unmatch<'a> {
         }
         depth
     }
+
     pub fn max_depth(self, other: Self) -> Self {
         if self.depth() < other.depth() {
             other
@@ -73,7 +73,7 @@ impl<A, B> Union2<A, B> {
             _ => false,
         }
     }
-    pub fn into_result(self) -> ::std::result::Result<A, B> {
+    pub fn into_result(self) -> Result<A, B> {
         match self {
             Union2::A(x) => Ok(x),
             Union2::B(x) => Err(x),
@@ -121,11 +121,11 @@ impl<T> Any<T>
 where
     T: Debug,
 {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Any(::std::marker::PhantomData)
     }
 }
-pub fn any<T>() -> Any<T>
+pub const fn any<T>() -> Any<T>
 where
     T: Debug,
 {
@@ -137,18 +137,24 @@ where
     Term: TryAsRef<O>,
 {
     type Output = &'a O;
-    fn try_match(&self, input: &'a Term) -> Result<'a, Self::Output> {
+    fn try_match(&self, input: &'a Term) -> MatchResult<'a, Self::Output> {
         input.try_as_ref().ok_or_else(|| self.unmatched(input))
     }
 }
 
+macro_rules! bail_unless {
+    ($cond:expr, $else:expr) => {
+        if !($cond) {
+            return Err($else);
+        }
+    };
+}
+
 impl<'a> Pattern<'a> for &'static str {
     type Output = Self;
-    fn try_match(&self, input: &'a Term) -> Result<'a, Self::Output> {
+    fn try_match(&self, input: &'a Term) -> MatchResult<'a, Self::Output> {
         let a: &Atom = input.try_as_ref().ok_or_else(|| self.unmatched(input))?;
-        (*self == a.name)
-            .as_option()
-            .ok_or_else(|| self.unmatched(input))?;
+        bail_unless!(*self == a.name.as_str(), self.unmatched(input));
         Ok(*self)
     }
 }
@@ -160,7 +166,7 @@ where
     P: Pattern<'a> + 'static,
 {
     type Output = Vec<P::Output>;
-    fn try_match(&self, input: &'a Term) -> Result<'a, Self::Output> {
+    fn try_match(&self, input: &'a Term) -> MatchResult<'a, Self::Output> {
         let l: &List = input.try_as_ref().ok_or_else(|| self.unmatched(input))?;
         let mut outputs = Vec::with_capacity(l.elements.len());
         for e in &l.elements {
@@ -181,12 +187,10 @@ where
     P0: Pattern<'a> + 'static,
 {
     type Output = P0::Output;
-    fn try_match(&self, input: &'a Term) -> Result<'a, Self::Output> {
+    fn try_match(&self, input: &'a Term) -> MatchResult<'a, Self::Output> {
         let l: &List = input.try_as_ref().ok_or_else(|| self.unmatched(input))?;
         let e = &l.elements;
-        (e.len() == 1)
-            .as_option()
-            .ok_or_else(|| self.unmatched(input))?;
+        bail_unless!(e.len() == 1, self.unmatched(input));
         let o0 = (self.0)
             .0
             .try_match(&e[0])
@@ -201,12 +205,10 @@ where
     P1: Pattern<'a> + 'static,
 {
     type Output = (P0::Output, P1::Output);
-    fn try_match(&self, input: &'a Term) -> Result<'a, Self::Output> {
+    fn try_match(&self, input: &'a Term) -> MatchResult<'a, Self::Output> {
         let l: &List = input.try_as_ref().ok_or_else(|| self.unmatched(input))?;
         let e = &l.elements;
-        (e.len() == 2)
-            .as_option()
-            .ok_or_else(|| self.unmatched(input))?;
+        bail_unless!(e.len() == 2, self.unmatched(input));
         let o0 = (self.0)
             .0
             .try_match(&e[0])
@@ -226,12 +228,10 @@ where
     P2: Pattern<'a> + 'static,
 {
     type Output = (P0::Output, P1::Output, P2::Output);
-    fn try_match(&self, input: &'a Term) -> Result<'a, Self::Output> {
+    fn try_match(&self, input: &'a Term) -> MatchResult<'a, Self::Output> {
         let l: &List = input.try_as_ref().ok_or_else(|| self.unmatched(input))?;
         let e = &l.elements;
-        (e.len() == 3)
-            .as_option()
-            .ok_or_else(|| self.unmatched(input))?;
+        bail_unless!(e.len() == 3, self.unmatched(input));
         let o0 = (self.0)
             .0
             .try_match(&e[0])
@@ -256,12 +256,10 @@ where
     P3: Pattern<'a> + 'static,
 {
     type Output = (P0::Output, P1::Output, P2::Output, P3::Output);
-    fn try_match(&self, input: &'a Term) -> Result<'a, Self::Output> {
+    fn try_match(&self, input: &'a Term) -> MatchResult<'a, Self::Output> {
         let l: &List = input.try_as_ref().ok_or_else(|| self.unmatched(input))?;
         let e = &l.elements;
-        (e.len() == 4)
-            .as_option()
-            .ok_or_else(|| self.unmatched(input))?;
+        bail_unless!(e.len() == 4, self.unmatched(input));
         let o0 = (self.0)
             .0
             .try_match(&e[0])
@@ -291,12 +289,10 @@ where
     P4: Pattern<'a> + 'static,
 {
     type Output = (P0::Output, P1::Output, P2::Output, P3::Output, P4::Output);
-    fn try_match(&self, input: &'a Term) -> Result<'a, Self::Output> {
+    fn try_match(&self, input: &'a Term) -> MatchResult<'a, Self::Output> {
         let l: &List = input.try_as_ref().ok_or_else(|| self.unmatched(input))?;
         let e = &l.elements;
-        (e.len() == 5)
-            .as_option()
-            .ok_or_else(|| self.unmatched(input))?;
+        bail_unless!(e.len() == 5, self.unmatched(input));
         let o0 = (self.0)
             .0
             .try_match(&e[0])
@@ -338,12 +334,10 @@ where
         P4::Output,
         P5::Output,
     );
-    fn try_match(&self, input: &'a Term) -> Result<'a, Self::Output> {
+    fn try_match(&self, input: &'a Term) -> MatchResult<'a, Self::Output> {
         let l: &List = input.try_as_ref().ok_or_else(|| self.unmatched(input))?;
         let e = &l.elements;
-        (e.len() == 6)
-            .as_option()
-            .ok_or_else(|| self.unmatched(input))?;
+        bail_unless!(e.len() == 6, self.unmatched(input));
         let o0 = (self.0)
             .0
             .try_match(&e[0])
@@ -376,11 +370,9 @@ where
 pub struct Nil;
 impl<'a> Pattern<'a> for Nil {
     type Output = &'a [Term];
-    fn try_match(&self, input: &'a Term) -> Result<'a, Self::Output> {
+    fn try_match(&self, input: &'a Term) -> MatchResult<'a, Self::Output> {
         let l: &List = input.try_as_ref().ok_or_else(|| self.unmatched(input))?;
-        (l.elements.len() == 0)
-            .as_option()
-            .ok_or_else(|| self.unmatched(input))?;
+        bail_unless!(l.elements.len() == 0, self.unmatched(input));
         Ok(&l.elements)
     }
 }
@@ -393,12 +385,10 @@ where
     P1: Pattern<'a> + 'static,
 {
     type Output = (P0::Output, Vec<P1::Output>);
-    fn try_match(&self, input: &'a Term) -> Result<'a, Self::Output> {
+    fn try_match(&self, input: &'a Term) -> MatchResult<'a, Self::Output> {
         let l: &List = input.try_as_ref().ok_or_else(|| self.unmatched(input))?;
         let e = &l.elements;
-        (e.len() > 0)
-            .as_option()
-            .ok_or_else(|| self.unmatched(input))?;
+        bail_unless!(e.len() > 0, self.unmatched(input));
         let h = self
             .0
             .try_match(&e[0])
@@ -418,11 +408,9 @@ where
 
 impl<'a> Pattern<'a> for () {
     type Output = ();
-    fn try_match(&self, input: &'a Term) -> Result<'a, Self::Output> {
+    fn try_match(&self, input: &'a Term) -> MatchResult<'a, Self::Output> {
         let t: &Tuple = input.try_as_ref().ok_or_else(|| self.unmatched(input))?;
-        (t.elements.len() == 0)
-            .as_option()
-            .ok_or_else(|| self.unmatched(input))?;
+        bail_unless!(t.elements.len() == 0, self.unmatched(input));
         Ok(())
     }
 }
@@ -432,11 +420,9 @@ where
     P0: Pattern<'a> + 'static,
 {
     type Output = P0::Output;
-    fn try_match(&self, input: &'a Term) -> Result<'a, Self::Output> {
+    fn try_match(&self, input: &'a Term) -> MatchResult<'a, Self::Output> {
         let t: &Tuple = input.try_as_ref().ok_or_else(|| self.unmatched(input))?;
-        (t.elements.len() == 1)
-            .as_option()
-            .ok_or_else(|| self.unmatched(input))?;
+        bail_unless!(t.elements.len() == 1, self.unmatched(input));
         let o0 = self
             .0
             .try_match(&t.elements[0])
@@ -451,12 +437,10 @@ where
     P1: Pattern<'a> + 'static,
 {
     type Output = (P0::Output, P1::Output);
-    fn try_match(&self, input: &'a Term) -> Result<'a, Self::Output> {
+    fn try_match(&self, input: &'a Term) -> MatchResult<'a, Self::Output> {
         let t: &Tuple = input.try_as_ref().ok_or_else(|| self.unmatched(input))?;
         let e = &t.elements;
-        (e.len() == 2)
-            .as_option()
-            .ok_or_else(|| self.unmatched(input))?;
+        bail_unless!(e.len() == 2, self.unmatched(input));
         let o0 = self
             .0
             .try_match(&e[0])
@@ -476,12 +460,10 @@ where
     P2: Pattern<'a> + 'static,
 {
     type Output = (P0::Output, P1::Output, P2::Output);
-    fn try_match(&self, input: &'a Term) -> Result<'a, Self::Output> {
+    fn try_match(&self, input: &'a Term) -> MatchResult<'a, Self::Output> {
         let t: &Tuple = input.try_as_ref().ok_or_else(|| self.unmatched(input))?;
         let e = &t.elements;
-        (e.len() == 3)
-            .as_option()
-            .ok_or_else(|| self.unmatched(input))?;
+        bail_unless!(e.len() == 3, self.unmatched(input));
         let o0 = self
             .0
             .try_match(&e[0])
@@ -506,12 +488,10 @@ where
     P3: Pattern<'a> + 'static,
 {
     type Output = (P0::Output, P1::Output, P2::Output, P3::Output);
-    fn try_match(&self, input: &'a Term) -> Result<'a, Self::Output> {
+    fn try_match(&self, input: &'a Term) -> MatchResult<'a, Self::Output> {
         let t: &Tuple = input.try_as_ref().ok_or_else(|| self.unmatched(input))?;
         let e = &t.elements;
-        (e.len() == 4)
-            .as_option()
-            .ok_or_else(|| self.unmatched(input))?;
+        bail_unless!(e.len() == 4, self.unmatched(input));
         let o0 = self
             .0
             .try_match(&e[0])
@@ -541,12 +521,10 @@ where
     P4: Pattern<'a> + 'static,
 {
     type Output = (P0::Output, P1::Output, P2::Output, P3::Output, P4::Output);
-    fn try_match(&self, input: &'a Term) -> Result<'a, Self::Output> {
+    fn try_match(&self, input: &'a Term) -> MatchResult<'a, Self::Output> {
         let t: &Tuple = input.try_as_ref().ok_or_else(|| self.unmatched(input))?;
         let e = &t.elements;
-        (e.len() == 5)
-            .as_option()
-            .ok_or_else(|| self.unmatched(input))?;
+        bail_unless!(e.len() == 5, self.unmatched(input));
         let o0 = self
             .0
             .try_match(&e[0])
@@ -588,12 +566,10 @@ where
         P4::Output,
         P5::Output,
     );
-    fn try_match(&self, input: &'a Term) -> Result<'a, Self::Output> {
+    fn try_match(&self, input: &'a Term) -> MatchResult<'a, Self::Output> {
         let t: &Tuple = input.try_as_ref().ok_or_else(|| self.unmatched(input))?;
         let e = &t.elements;
-        (e.len() == 6)
-            .as_option()
-            .ok_or_else(|| self.unmatched(input))?;
+        bail_unless!(e.len() == 6, self.unmatched(input));
         let o0 = self
             .0
             .try_match(&e[0])
@@ -639,7 +615,7 @@ where
     P1: Pattern<'a> + 'static,
 {
     type Output = Union2<P0::Output, P1::Output>;
-    fn try_match(&self, input: &'a Term) -> Result<'a, Self::Output> {
+    fn try_match(&self, input: &'a Term) -> MatchResult<'a, Self::Output> {
         let e = try_err!((self.0).0.try_match(input).map(|o| Union2::A(o)));
         let e = try_err!((self.0).1.try_match(input).map(|o| Union2::B(o))).max_depth(e);
         Err(self.unmatched(input).cause(e))
@@ -652,7 +628,7 @@ where
     P2: Pattern<'a> + 'static,
 {
     type Output = Union3<P0::Output, P1::Output, P2::Output>;
-    fn try_match(&self, input: &'a Term) -> Result<'a, Self::Output> {
+    fn try_match(&self, input: &'a Term) -> MatchResult<'a, Self::Output> {
         let e = try_err!((self.0).0.try_match(input).map(|o| Union3::A(o)));
         let e = try_err!((self.0).1.try_match(input).map(|o| Union3::B(o))).max_depth(e);
         let e = try_err!((self.0).2.try_match(input).map(|o| Union3::C(o))).max_depth(e);
@@ -667,7 +643,7 @@ where
     P3: Pattern<'a> + 'static,
 {
     type Output = Union4<P0::Output, P1::Output, P2::Output, P3::Output>;
-    fn try_match(&self, input: &'a Term) -> Result<'a, Self::Output> {
+    fn try_match(&self, input: &'a Term) -> MatchResult<'a, Self::Output> {
         let e = try_err!((self.0).0.try_match(input).map(|o| Union4::A(o)));
         let e = try_err!((self.0).1.try_match(input).map(|o| Union4::B(o))).max_depth(e);
         let e = try_err!((self.0).2.try_match(input).map(|o| Union4::C(o))).max_depth(e);
@@ -684,7 +660,7 @@ where
     P4: Pattern<'a> + 'static,
 {
     type Output = Union5<P0::Output, P1::Output, P2::Output, P3::Output, P4::Output>;
-    fn try_match(&self, input: &'a Term) -> Result<'a, Self::Output> {
+    fn try_match(&self, input: &'a Term) -> MatchResult<'a, Self::Output> {
         let e = try_err!((self.0).0.try_match(input).map(|o| Union5::A(o)));
         let e = try_err!((self.0).1.try_match(input).map(|o| Union5::B(o))).max_depth(e);
         let e = try_err!((self.0).2.try_match(input).map(|o| Union5::C(o))).max_depth(e);
@@ -703,7 +679,7 @@ where
     P5: Pattern<'a> + 'static,
 {
     type Output = Union6<P0::Output, P1::Output, P2::Output, P3::Output, P4::Output, P5::Output>;
-    fn try_match(&self, input: &'a Term) -> Result<'a, Self::Output> {
+    fn try_match(&self, input: &'a Term) -> MatchResult<'a, Self::Output> {
         let e = try_err!((self.0).0.try_match(input).map(|o| Union6::A(o)));
         let e = try_err!((self.0).1.try_match(input).map(|o| Union6::B(o))).max_depth(e);
         let e = try_err!((self.0).2.try_match(input).map(|o| Union6::C(o))).max_depth(e);
@@ -718,7 +694,7 @@ where
 pub struct Ascii;
 impl<'a> Pattern<'a> for Ascii {
     type Output = char;
-    fn try_match(&self, input: &'a Term) -> Result<'a, Self::Output> {
+    fn try_match(&self, input: &'a Term) -> MatchResult<'a, Self::Output> {
         let n = input.to_u8().ok_or_else(|| self.unmatched(input))?;
         if n < 0x80 {
             Ok(n as char)
@@ -732,7 +708,7 @@ impl<'a> Pattern<'a> for Ascii {
 pub struct Unicode;
 impl<'a> Pattern<'a> for Unicode {
     type Output = char;
-    fn try_match(&self, input: &'a Term) -> Result<'a, Self::Output> {
+    fn try_match(&self, input: &'a Term) -> MatchResult<'a, Self::Output> {
         let n = input.to_u32().ok_or_else(|| self.unmatched(input))?;
         ::std::char::from_u32(n).ok_or_else(|| self.unmatched(input))
     }
@@ -745,7 +721,7 @@ where
     C: Pattern<'a, Output = char> + 'static,
 {
     type Output = String;
-    fn try_match(&self, input: &'a Term) -> Result<'a, Self::Output> {
+    fn try_match(&self, input: &'a Term) -> MatchResult<'a, Self::Output> {
         let l: &List = input.try_as_ref().ok_or_else(|| self.unmatched(input))?;
         let mut s = String::with_capacity(l.elements.len());
         for e in &l.elements {
@@ -759,110 +735,153 @@ where
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct U8;
 impl<'a> Pattern<'a> for U8 {
     type Output = u8;
-    fn try_match(&self, input: &'a Term) -> Result<'a, Self::Output> {
+    fn try_match(&self, input: &'a Term) -> MatchResult<'a, Self::Output> {
         input.to_u8().ok_or_else(|| self.unmatched(input))
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct I8;
 impl<'a> Pattern<'a> for I8 {
     type Output = i8;
-    fn try_match(&self, input: &'a Term) -> Result<'a, Self::Output> {
+    fn try_match(&self, input: &'a Term) -> MatchResult<'a, Self::Output> {
         input.to_i8().ok_or_else(|| self.unmatched(input))
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct U16;
 impl<'a> Pattern<'a> for U16 {
     type Output = u16;
-    fn try_match(&self, input: &'a Term) -> Result<'a, Self::Output> {
+    fn try_match(&self, input: &'a Term) -> MatchResult<'a, Self::Output> {
         input.to_u16().ok_or_else(|| self.unmatched(input))
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct I16;
 impl<'a> Pattern<'a> for I16 {
     type Output = i16;
-    fn try_match(&self, input: &'a Term) -> Result<'a, Self::Output> {
+    fn try_match(&self, input: &'a Term) -> MatchResult<'a, Self::Output> {
         input.to_i16().ok_or_else(|| self.unmatched(input))
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct U32;
 impl<'a> Pattern<'a> for U32 {
     type Output = u32;
-    fn try_match(&self, input: &'a Term) -> Result<'a, Self::Output> {
+    fn try_match(&self, input: &'a Term) -> MatchResult<'a, Self::Output> {
         input.to_u32().ok_or_else(|| self.unmatched(input))
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct I32;
 impl<'a> Pattern<'a> for I32 {
     type Output = i32;
-    fn try_match(&self, input: &'a Term) -> Result<'a, Self::Output> {
+    fn try_match(&self, input: &'a Term) -> MatchResult<'a, Self::Output> {
         input.to_i32().ok_or_else(|| self.unmatched(input))
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct U64;
 impl<'a> Pattern<'a> for U64 {
     type Output = u64;
-    fn try_match(&self, input: &'a Term) -> Result<'a, Self::Output> {
+    fn try_match(&self, input: &'a Term) -> MatchResult<'a, Self::Output> {
         input.to_u64().ok_or_else(|| self.unmatched(input))
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct I64;
 impl<'a> Pattern<'a> for I64 {
     type Output = i64;
-    fn try_match(&self, input: &'a Term) -> Result<'a, Self::Output> {
+    fn try_match(&self, input: &'a Term) -> MatchResult<'a, Self::Output> {
         input.to_i64().ok_or_else(|| self.unmatched(input))
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct Int;
 impl<'a> Pattern<'a> for Int {
-    type Output = num::BigInt;
-    fn try_match(&self, input: &'a Term) -> Result<'a, Self::Output> {
+    type Output = firefly_number::BigInt;
+    fn try_match(&self, input: &'a Term) -> MatchResult<'a, Self::Output> {
         input.to_bigint().ok_or_else(|| self.unmatched(input))
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct Uint;
 impl<'a> Pattern<'a> for Uint {
-    type Output = num::BigUint;
-    fn try_match(&self, input: &'a Term) -> Result<'a, Self::Output> {
+    type Output = firefly_number::BigUint;
+    fn try_match(&self, input: &'a Term) -> MatchResult<'a, Self::Output> {
         input.to_biguint().ok_or_else(|| self.unmatched(input))
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct F32;
 impl<'a> Pattern<'a> for F32 {
     type Output = f32;
-    fn try_match(&self, input: &'a Term) -> Result<'a, Self::Output> {
+    fn try_match(&self, input: &'a Term) -> MatchResult<'a, Self::Output> {
         input.to_f32().ok_or_else(|| self.unmatched(input))
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct F64;
 impl<'a> Pattern<'a> for F64 {
     type Output = f64;
-    fn try_match(&self, input: &'a Term) -> Result<'a, Self::Output> {
+    fn try_match(&self, input: &'a Term) -> MatchResult<'a, Self::Output> {
         input.to_f64().ok_or_else(|| self.unmatched(input))
+    }
+}
+
+#[derive(Debug, Copy, Clone)]
+pub struct AtomName;
+impl<'a> Pattern<'a> for AtomName {
+    type Output = Symbol;
+    fn try_match(&self, term: &'a Term) -> MatchResult<'a, Self::Output> {
+        let a: &super::Atom = term.try_as_ref().ok_or_else(|| self.unmatched(term))?;
+        Ok(a.name)
+    }
+}
+
+#[derive(Debug, Copy, Clone)]
+pub struct Location;
+impl<'a> Pattern<'a> for Location {
+    type Output = crate::ast::Location;
+    fn try_match(&self, input: &'a Term) -> MatchResult<'a, Self::Output> {
+        input.as_match((U32, U32)).map(|loc| loc.into())
+    }
+}
+
+#[derive(Debug, Copy, Clone)]
+pub struct FunctionName;
+impl<'a> Pattern<'a> for FunctionName {
+    type Output = crate::ast::FunctionName;
+    fn try_match(&self, input: &'a Term) -> MatchResult<'a, Self::Output> {
+        use crate::ast;
+
+        input
+            .as_match(Or(((AtomName, AtomName, U8), (AtomName, U8))))
+            .map(|result| match result {
+                Union2::A((module, function, arity)) => ast::FunctionName {
+                    module: Some(module),
+                    name: function,
+                    arity,
+                },
+                Union2::B((function, arity)) => ast::FunctionName {
+                    module: None,
+                    name: function,
+                    arity,
+                },
+            })
     }
 }

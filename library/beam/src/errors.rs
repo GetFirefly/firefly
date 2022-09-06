@@ -2,7 +2,7 @@ use std::fmt;
 
 use thiserror::Error;
 
-use crate::beam;
+use crate::reader::ReadError;
 use crate::serialization::etf;
 
 #[derive(Error, Debug)]
@@ -11,7 +11,7 @@ pub enum FromBeamError {
     IO(#[from] std::io::Error),
 
     #[error("invalid beam file: {0}")]
-    BeamFile(#[from] beam::reader::ReadError),
+    BeamFile(#[from] ReadError),
 
     #[error("unable to decode term: {0}")]
     TermDecode(#[from] etf::DecodeError),
@@ -55,7 +55,7 @@ impl fmt::Display for Unmatched {
 
 #[derive(Debug)]
 pub struct UnmatchedTerms(Vec<Unmatched>);
-impl Display for UnmatchedTerms {
+impl fmt::Display for UnmatchedTerms {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "[")?;
         let limit = 3;

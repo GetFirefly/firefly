@@ -6,9 +6,10 @@ edition = "2021"
 publish = false
 
 [dependencies]
+firefly_intern = { path = "../../compiler/intern" }
+firefly_number = { path = "../number" }
+
 anyhow = "1.0"
 thiserror = "1.0"
 byteorder = "1.2"
 libflate = "0.1"
-num = "0.2"
-failure = "0.1"

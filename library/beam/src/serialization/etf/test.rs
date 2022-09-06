@@ -1,14 +1,13 @@
 use std::io::Cursor;
 
-use crate::serialization::etf::convert::TryInto;
 use crate::serialization::etf::*;
 
 #[test]
 fn atom_test() {
     // Display
-    assert_eq!("'foo'", Atom::from("foo").to_string());
-    assert_eq!(r#"'fo\'o'"#, Atom::from(r#"fo'o"#).to_string());
-    assert_eq!(r#"'fo\\o'"#, Atom::from(r#"fo\o"#).to_string());
+    assert_eq!("foo", Atom::from("foo").to_string());
+    assert_eq!(r#"fo'o"#, Atom::from(r#"fo'o"#).to_string());
+    assert_eq!(r#"fo\o"#, Atom::from(r#"fo\o"#).to_string());
 
     // Decode
     assert_eq!(
@@ -132,7 +131,7 @@ fn float_test() {
 fn pid_test() {
     // Display
     assert_eq!(
-        r#"<'nonode@nohost'.1.2>"#,
+        r#"<nonode@nohost.1.2>"#,
         Pid::from(("nonode@nohost", 1, 2)).to_string()
     );
 
@@ -160,7 +159,7 @@ fn pid_test() {
 fn port_test() {
     // Display
     assert_eq!(
-        r#"#Port<'nonode@nohost'.1>"#,
+        r#"#Port<nonode@nohost.1>"#,
         Port::from(("nonode@nohost", 1)).to_string()
     );
 
@@ -188,7 +187,7 @@ fn port_test() {
 fn reference_test() {
     // Display
     assert_eq!(
-        r#"#Ref<'nonode@nohost'.1>"#,
+        r#"#Ref<nonode@nohost.1>"#,
         Reference::from(("nonode@nohost", 1)).to_string()
     );
 
@@ -218,7 +217,7 @@ fn reference_test() {
 fn external_fun_test() {
     // Display
     assert_eq!(
-        r#"fun 'foo':'bar'/3"#,
+        r#"fun foo:bar/3"#,
         ExternalFun::from(("foo", "bar", 3)).to_string()
     );
 
@@ -307,7 +306,7 @@ fn bit_binary_test() {
 fn list_test() {
     // Display
     assert_eq!(
-        "['a',1]",
+        "[a,1]",
         List::from(vec![
             Term::from(Atom::from("a")),
             Term::from(FixInteger::from(1))
@@ -349,7 +348,7 @@ fn list_test() {
 fn improper_list_test() {
     // Display
     assert_eq!(
-        "[0,'a'|1]",
+        "[0,a|1]",
         ImproperList::from((
             vec![Term::from(FixInteger::from(0)), Term::from(Atom::from("a"))],
             Term::from(FixInteger::from(1))
@@ -380,7 +379,7 @@ fn improper_list_test() {
 fn tuple_test() {
     // Display
     assert_eq!(
-        "{'a',1}",
+        "{a,1}",
         Tuple::from(vec![
             Term::from(Atom::from("a")),
             Term::from(FixInteger::from(1))
@@ -419,7 +418,7 @@ fn map_test() {
     ]);
 
     // Display
-    assert_eq!("#{1=>2,'a'=>'b'}", map.to_string());
+    assert_eq!("#{1=>2,a=>b}", map.to_string());
 
     assert_eq!("#{}", Map::from(vec![]).to_string());
 

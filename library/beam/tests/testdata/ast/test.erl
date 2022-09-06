@@ -1,6 +1,7 @@
 -module(test).
 
 -compile(debug_info).
+-compile([{foo, #{bar => true}}]).
 -foo_attribute(bar). % An original attribute
 
 -behaviour(test).
@@ -20,12 +21,36 @@
 
 -import(lists, [usort/1]).
 
+-on_load(nif_impl/0).
+-nifs([nif_impl/0]).
+
 -callback hello(Name :: binary()) -> ok | {error, Reason :: term()}.
+-optional_callbacks([hello/1]).
 
 -opaque my_list(E) :: my_cons(E, my_list(E)) | nil.
 -type my_cons(H, T) :: {H, T}.
 
--spec foo:bar(_) -> baz.
+-type bits0() :: <<>>.
+-type bits1() :: <<_:8>>.
+-type bits2() :: <<_:_*8>>.
+-type bits3() :: <<_:8, _:_*1>>.
+
+-type foo() :: tuple().
+-type lists() :: list(any()).
+
+-type external_type_alias() :: unicode:chardata().
+
+-type unary_op_type() :: -100.
+-type binary_op_type() :: 100 * 8.
+
+-deprecated({hello, 1}).
+-deprecated({map_fun, 2, next_major_release}).
+
+-warning("this is a warning").
+
+-if(false).
+-error("this is an error").
+-endif.
 
 -record(my_record,
         {
@@ -34,6 +59,8 @@
           c :: pid(),
           d = foo
         }).
+
+-type record_ty() :: #my_record{}.
 
 -spec literals() -> {integer(), neg_integer(), float(), atom(), list(), binary(), bitstring(), map(), pid(), reference()}.
 literals() ->
@@ -49,6 +76,9 @@ literals() ->
       self(),
       make_ref()
     }.
+
+nif_impl() ->
+    erlang:nif_error(failed).
 
 hello(<<Name/binary>>) ->
     io:format("Hello ~s\n", [Name]),
@@ -74,10 +104,15 @@ to_my_list([H | T]) -> cons(H, to_my_list(T)).
 
 -spec my_record() -> #my_record{c :: pid()}.
 my_record() ->
-    #my_record{
-       c = self(),
-       _ = '_'
-      }.
+    begin
+        Rec = #my_record{
+           c = self(),
+           _ = '_'
+          },
+        _Index = #my_record.c,
+        _Access = Rec#my_record.c,
+        Rec
+    end.
 
 -spec guard(integer() | atom()) -> integer() | atom();
            (1..99) -> float();
@@ -99,3 +134,60 @@ sum(List) ->
 -spec op(integer()) -> integer().
 op(Num) ->
     (Num + 1) band 16#ffffffff.
+
+catcher(Arg) ->
+    catch throw(Arg).
+
+tryer(Arg) ->
+    try
+        Arg
+    of
+        foo ->
+            ok
+    catch
+        _:_:_ ->
+            error
+    after
+        ok
+    end.
+
+conditional(Arg) ->
+    if
+        is_list(Arg) ->
+            tl(Arg);
+
+        is_map(Arg) ->
+            map_get(foo, Arg);
+
+        true ->
+            error
+    end.
+
+matcher(Arg) ->
+    case Arg of
+        [_ | _] -> list;
+        #{} -> map;
+        A when is_number(A) -> number;
+        _ -> unknown
+    end.
+
+receive_impatient(Arg) ->
+    receive
+        {Sender, ping} ->
+            Sender ! pong
+
+    after 1000 ->
+        failed
+    end.
+
+receive_patient(Arg) ->
+    receive
+        {Sender, ping} ->
+            Sender ! pong
+    end.
+
+captures() ->
+    Internal = fun matcher/1,
+    External = fun erlang:display/1,
+    {Internal, External}.
+

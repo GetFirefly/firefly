@@ -13,6 +13,8 @@ pub enum Encoding {
     Raw,
     Latin1,
     Utf8,
+    Utf16,
+    Utf32,
 }
 impl Encoding {
     /// Determines the best encoding that fits the given byte slice.
@@ -50,9 +52,11 @@ impl FromStr for Encoding {
         match s {
             "raw" => Ok(Self::Raw),
             "latin1" => Ok(Self::Latin1),
-            "utf8" => Ok(Self::Utf8),
+            "utf8" | "unicode" => Ok(Self::Utf8),
+            "utf16" => Ok(Self::Utf16),
+            "utf32" => Ok(Self::Utf32),
             other => Err(anyhow!(
-                "unrecognized encoding '{}', expected raw, latin1, or utf8",
+                "unrecognized encoding '{}', expected raw, latin1, utf8/unicode, utf16, or utf32",
                 other
             )),
         }
@@ -64,6 +68,8 @@ impl fmt::Display for Encoding {
             Self::Raw => f.write_str("raw"),
             Self::Latin1 => f.write_str("latin1"),
             Self::Utf8 => f.write_str("utf8"),
+            Self::Utf16 => f.write_str("utf16"),
+            Self::Utf32 => f.write_str("utf32"),
         }
     }
 }
@@ -91,6 +97,10 @@ impl BinaryFlags {
             Encoding::Raw => Self::FLAG_IS_RAW_BIN,
             Encoding::Latin1 => Self::FLAG_IS_LATIN1_BIN,
             Encoding::Utf8 => Self::FLAG_IS_UTF8_BIN,
+            invalid => panic!(
+                "invalid binary encoding, must be latin1 or utf8, got {}",
+                invalid
+            ),
         };
         Self((size << Self::FLAG_SIZE_SHIFT) | meta)
     }
@@ -102,6 +112,10 @@ impl BinaryFlags {
             Encoding::Raw => Self::FLAG_IS_LITERAL | Self::FLAG_IS_RAW_BIN,
             Encoding::Latin1 => Self::FLAG_IS_LITERAL | Self::FLAG_IS_LATIN1_BIN,
             Encoding::Utf8 => Self::FLAG_IS_LITERAL | Self::FLAG_IS_UTF8_BIN,
+            invalid => panic!(
+                "invalid binary encoding, must be latin1 or utf8, got {}",
+                invalid
+            ),
         };
         Self((size << Self::FLAG_SIZE_SHIFT) | meta)
     }

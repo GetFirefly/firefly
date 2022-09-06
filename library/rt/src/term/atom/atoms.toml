@@ -40,8 +40,16 @@ throw = {}
 try_clause = {}
 
 [common]
+big = {}
 erlang = {}
+latin1 = {}
+little = {}
+incomplete = {}
 ok = {}
+raw = {}
 undef = {}
+unicode = {}
 utf8 = {}
+utf16 = {}
+utf32 = {}
 normal = {}

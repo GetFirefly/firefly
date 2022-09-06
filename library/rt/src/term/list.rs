@@ -333,6 +333,7 @@ impl Cons {
                         }
                         len += 1;
                     }
+                    _ => unreachable!(),
                 },
                 _ => return None,
             }

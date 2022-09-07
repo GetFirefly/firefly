@@ -35,13 +35,13 @@ In order to build Firefly, or make changes to it, you'll need the following inst
 First, you will need to install [rustup](https://rustup.rs/). Follow the instructions at that link.
 
 Once you have installed `rustup`, you will need to install the nightly version
-of Rust (currently our CI builds against the 2022-07-12 nightly, specifically). We require
+of Rust (currently our CI builds against the 2022-08-08 nightly, specifically). We require
 nightly due to a large number of nightly features we use, as well as some
 dependencies for the WebAssembly targets that we make use of.
 
     # to use the latest nightly
     rustup default nightly
-    
+
     # or, in case of issues, install the specific nightly to match our CI
     rustup default nightly-2022-08-08
     export CARGO_MAKE_TOOLCHAIN=nightly-2022-08-08
@@ -49,7 +49,7 @@ dependencies for the WebAssembly targets that we make use of.
 In order to run various build tasks in the project, you'll need the [cargo-make](https://github.com/sagiegurari/cargo-make) plugin for Cargo. You can install it with:
 
     cargo install cargo-make
-    
+
 You can see what tasks are available with `cargo make --print-steps`.
 
 You may also want to install the following tools for editor support (`rustfmt` will be required on
@@ -83,14 +83,14 @@ the usual default for this XDG variable.
     rm clang+llvm-15.0.0-x86_64-linux-gnu.tar.gz
     cd -
 
-###### MacOS (arm64)
+###### macOS (arm64)
 
-    mkdir -p $XDG_DATA_HOME/llvm/firefly
+    mkdir -p $XDG_DATA_HOME/llvm
     cd $XDG_DATA_HOME/llvm/
     wget https://github.com/GetFirefly/llvm-project/releases/download/firefly-15.0.0-dev_2022-08-27/clang+llvm-15.0.0-arm64-apple-darwin21.6.0.tar.gz
-    tar -xzf clang+llvm-15.0.0-x86_64-apple-darwin21.6.0.tar.gz
-    rm clang+llvm-15.0.0-x86_64-apple-darwin21.6.0.tar.gz
-    mv clang+llvm-15.0.0-x86_64-apple-darwin21.6.0 firefly
+    tar -xzf clang+llvm-15.0.0-arm64-apple-darwin21.6.0.tar.gz
+    rm clang+llvm-15.0.0-arm64-apple-darwin21.6.0.tar.gz
+    mv clang+llvm-15.0.0-arm64-apple-darwin21.6.0 firefly
     cd -
 
 ###### Other
@@ -140,17 +140,17 @@ To build Firefly, run the following:
 
 NOTE: If you have .direnv installed, run `direnv allow` in the project root, and you can omit all
 of the above environment variables, and instead modify the `.envrc` file if needed.
-    
+
 This will create the compiler executable and associated toolchain for the host
 machine under `bin` in the root of the project. You can invoke `firefly` via the
 symlink `bin/firefly`, e.g.:
 
     bin/firefly --help
-    
+
 You can compile an Erlang file to an executable (currently only on x86_64/AArch64):
 
     bin/firefly compile [<path/to/file_or_directory>..]
-    
+
 This will produce an executable with the same name as the source file in the
 current working directory with no extension (except on Windows, where it will
 have the `.exe` extension).
@@ -180,12 +180,12 @@ this is it.
 - `firefly_syntax_erl`, contains the abstract syntax tree, grammar, parser, and passes for performing
 semantic analysis, transformations on the AST, and lowering to Core. This is the primary frontend
 of the compiler, as it handles with user-provided Erlang code.
-- `firefly_syntax_core`, defines an intermediate representation that is based on an extended lambda calculus form, 
+- `firefly_syntax_core`, defines an intermediate representation that is based on an extended lambda calculus form,
 this is where a number of initial normalizations/transformations occur and corresponds to Core Erlang in the BEAM
 compiler.
 - `firefly_syntax_kernel`, defines an intermediate representation that is tailored towards pattern match compilation
-and code generation, it is flat relative to Core, funs/closures have been lifted, all variables have been made unique 
-within their containing function, pattern matching has been compiled, and all calls have been transformed into static 
+and code generation, it is flat relative to Core, funs/closures have been lifted, all variables have been made unique
+within their containing function, pattern matching has been compiled, and all calls have been transformed into static
 form and candiates for tail call optimization have been identified.
 - `firefly_syntax_ssa`, defines an SSA intermediate representation that is used for code generation; once transformed
 into SSA, performing codegen is very straightforward.
@@ -210,7 +210,7 @@ term types and their native APIs, as well as establishing things like the callin
 exceptions and backtraces, and other universal runtime concerns that cannot be delegated to a higher-level runtime crate.
 - `firefly_arena`, this is a helper crate that provides an implementation of a typed arena used in both the runtime
 and the compiler.
-- `firefly_binary`, this crate provides all the pieces for implementing binaries/bitstrings, including pattern matching 
+- `firefly_binary`, this crate provides all the pieces for implementing binaries/bitstrings, including pattern matching
 primitives and constructors.
 - `firefly_number`, this crate provides the internal implementation of numeric types for both the compiler and runtime
 - `firefly_beam`, this crate provides native APIs for working with BEAM files, largely unused at the moment
@@ -324,7 +324,7 @@ by its feature set.
 
 The compiler frontend accepts Erlang source files. This is parsed into an
 abstract syntax tree, then lowered through four middle tiers where different
-types of analysis, transformation, or optimization are performed: 
+types of analysis, transformation, or optimization are performed:
 
 - Core IR (similar to Core Erlang)
 - Kernel IR (similar to Kernel Erlang)
@@ -339,7 +339,7 @@ In MLIR, and particularly during the lowering to LLVM IR, all high-level abstrac
 around certain operations are stripped away and platform-specific details take shape.
 For example, on x86_64/AArch64, hand-written assembly is used to perform extremely cheap
 stack switching by the scheduler, and to provide dynamic function application
-facilities for the implementation of `apply`. 
+facilities for the implementation of `apply`.
 
 ### Runtime
 

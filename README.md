@@ -108,7 +108,7 @@ package manager, including Homebrew on macOS.
 
 We have the build more or less fully automated, just three simple steps:
 
-    git clone https://github.com/lumen/llvm-project
+    git clone https://github.com/GetFirefly/llvm-project
     cd llvm-project
     git checkout firefly
     make llvm-shared

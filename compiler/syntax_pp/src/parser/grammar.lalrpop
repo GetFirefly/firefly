@@ -1,12 +1,22 @@
-use firefly_diagnostics::*;
-use firefly_intern::{Symbol, Ident};
-use firefly_number::{Integer, Float};
-use firefly_syntax_erl::ast::*;
+use std::sync::Arc;
+
+use firefly_diagnostics::{Reporter, SourceIndex, SourceSpan, CodeMap, Span};
+use firefly_intern::{symbols, Symbol};
+use firefly_number::ToPrimitive;
+use firefly_beam::ast::*;
 
 use crate::ast::*;
-use super::Token;
+use crate::lexer::Token;
 
-grammar<'a>(reporter: &Reporter, codemap: &CodeMap, &mut current_file: Option<SourceId>);
+grammar<'a>(reporter: &Reporter, codemap: &Arc<CodeMap>);
+
+// The following are _not_ non-terminals, but macros
+// which can be identified by the generic type parameter,
+//
+// Currently all of the macros expect the name of the corresponding
+// non-terminal to have a type of the same name, a macro can
+// be written to handle differing non-terminal/type combinations by
+// adding a second type parameter used only in the type signature
 
 // Comma-delimited with at least one element
 Comma<T>: Vec<T> = {
@@ -26,230 +36,490 @@ CommaOpt<T>: Vec<T> = {
     },
 };
 
-List<T>: Vec<T> = {
-    "[" <elements:CommaOpt<T>> "]" => elements
+
+pub AbstractFormat: Ast = {
+    "COMMENT"* <forms:(<Form> ".")*> => {
+        Ast {
+            forms,
+        }
+    }
+};
+
+Form: Form = {
+    PreprocessorForm,
+    AttributeForm,
+    FunctionForm,
+    "{" "eof" "," <loc:Location> "}"
+        => Form::Eof(Eof { loc }),
+};
+
+FunctionForm: Form = {
+    "{" "function" "," <loc:Location> "," <name:RawAtom> "," <arity:int> "," <clauses:Clauses> "}"
+        => Form::Fun(Function { loc, name: FunctionName { module: None, name, arity: arity.to_u8().unwrap() }, clauses })
+};
+
+PreprocessorForm: Form = {
+    "{" "warning" "," "{" <loc:Location> "," "epp" "," "{" "warning" "," <message:Term> "}"  "}" "}"
+        => Form::Warning(Warning { loc, message: message.into() }),
+};
+
+AttributeForm: Form = {
+    "{" "attribute" "," <loc:Location> "," "module" "," <name:RawAtom> "}"
+        => Form::Module(ModuleAttr { loc, name }),
+    "{" "attribute" "," <loc:Location> "," "compile" "," <option:Term> "}" => {
+        match option {
+            list @ Term::Cons(_) => Form::Compile(CompileOptionsAttr { loc, options: list.as_list().unwrap().item.drain(..).map(|t| t.into()).collect() }),
+            option => Form::Compile(CompileOptionsAttr { loc, options: vec![option.into()] }),
+        }
+    },
+    "{" "attribute" "," <loc:Location> "," "import" "," "{" <module:RawAtom> "," "[" <funs:Comma<FunctionName>> "]" "}" "}"
+        => Form::Import(ImportAttr { loc, module, funs }),
+    "{" "attribute" "," <loc:Location> "," "export" "," "[" <funs:Comma<FunctionName>> "]" "}"
+        => Form::Export(ExportAttr { loc, funs }),
+    "{" "attribute" "," <loc:Location> "," "export_type" "," "[" <types:Comma<FunctionName>> "]" "}"
+        => Form::ExportType(ExportTypeAttr { loc, types }),
+    "{" "attribute" "," <loc:Location> "," "behaviour" "," <name:RawAtom>  "}"
+        => Form::Behaviour(BehaviourAttr { loc, name }),
+    "{" "attribute" "," <loc:Location> "," "behavior" "," <name:RawAtom>  "}"
+        => Form::Behaviour(BehaviourAttr { loc, name }),
+    "{" "attribute" "," <loc:Location> "," "file" "," "{" <file:string> "," <line:int> "}" "}"
+        => Form::File(FileAttr { loc, original_file: file, original_line: line.to_u32().unwrap() }),
+    "{" "attribute" "," <loc:Location> "," "on_load" "," <fun:FunctionName> "}"
+        => Form::OnLoad(OnLoadAttr { loc, fun }),
+    "{" "attribute" "," <loc:Location> "," "nifs" "," "[" <funs:Comma<FunctionName>> "]" "}"
+        => Form::Nifs(NifsAttr { loc, funs }),
+    "{" "attribute" "," <loc:Location> "," "type" "," "{" <name:RawAtom> "," <ty:Type> "," "[" <vars:CommaOpt<Var>> "]" "}" "}"
+        => Form::Type(TypeDef { loc, is_opaque: false, name, vars, ty }),
+    "{" "attribute" "," <loc:Location> "," "opaque" "," "{" <name:RawAtom> "," <ty:Type> "," "[" <vars:CommaOpt<Var>> "]" "}" "}"
+        => Form::Type(TypeDef { loc, is_opaque: true, name, vars, ty }),
+    "{" "attribute" "," <loc:Location> "," "spec" "," "{" <name:FunctionName> "," "[" <clauses:Comma<Type>> "]"  "}" "}"
+        => Form::Spec(SpecAttr { loc, name, clauses }),
+    "{" "attribute" "," <loc:Location> "," "optional_callbacks" "," "[" <funs:Comma<FunctionName>> "]" "}"
+        => Form::OptionalCallbacks(OptionalCallbacksAttr { loc, funs }),
+    "{" "attribute" "," <loc:Location> "," "callback" "," "{" <name:FunctionName> "," "[" <clauses:Comma<Type>> "]"  "}" "}"
+        => Form::Callback(CallbackAttr { loc, name, clauses }),
+    "{" "attribute" "," <loc:Location> "," "record" "," "{" <name:RawAtom> "," "[" <fields:CommaOpt<RecordFieldDef>> "]"  "}" "}"
+        => Form::Record(RecordDef { loc, name, fields }),
+    "{" "attribute" "," <loc:Location> "," <name:atom> "," <value:Term> "}"
+        => Form::Attr(UserAttr { loc, name, value: value.into() })
+};
+
+Type: Type = {
+    AnyType,
+    <FunType> => Type::Function(Box::new(<>)),
+    "{" "type" "," <loc:Location> "," "fun" "," <_nil:Nil> "}" => Type::AnyFun(Box::new(AnyFunType::new(loc, None))),
+    "{" "type" "," <loc:Location> "," "fun" "," "[" <_any:AnyType> "," <return_type:Type> "]" "}" => Type::AnyFun(Box::new(AnyFunType::new(loc, Some(return_type)))),
+    <ProductType> => Type::Product(Box::new(<>)),
+    "{" "type" "," <loc:Location> "," "union" "," "[" <types:Comma<Type>> "]" "}"
+        => Type::Union(Box::new(UnionType::new(loc, types))),
+    "{" "type" "," <loc:Location> "," "bounded_fun" "," "[" <fun:FunType> "," "[" <constraints:Comma<Constraint>> "]" "]" "}" => {
+        let mut fun = fun;
+        fun.constraints = constraints;
+        Type::Function(Box::new(fun))
+    },
+    "{" "type" "," <loc:Location> "," "tuple" "," "[" <types:Comma<Type>> "]" "}"
+        => Type::Tuple(Box::new(TupleType::new(loc, types))),
+    "{" "type" "," <loc:Location> "," "tuple" "," "any" "}"
+        => Type::AnyTuple(Box::new(AnyTupleType::new(loc))),
+    "{" "type" "," <loc:Location> "," "binary" "," "[" "]" "}"
+        => Type::BitString(Box::new(BitStringType::new(loc, 0, 0))),
+    "{" "type" "," <loc:Location> "," "binary" "," "[" <size:Integer> "," <tail_bits:Integer> "]" "}"
+        => Type::BitString(Box::new(BitStringType::new(loc, size.to_u64().unwrap(), tail_bits.to_u64().unwrap()))),
+    "{" "type" "," <loc:Location> "," "range" "," "[" <lo:Type> "," <hi:Type> "]" "}"
+        => Type::Range(Box::new(RangeType::new(loc, lo, hi))),
+    "{" "type" "," <loc:Location> "," "map" "," "[" <fields:CommaOpt<MapPairType>> "]" "}"
+        => Type::Map(Box::new(MapType::new(loc, fields))),
+    "{" "type" "," <loc:Location> "," "map" "," "any" "}"
+        => Type::Map(Box::new(MapType::new(loc, vec![]))),
+    "{" "type" "," <loc:Location> "," "record" "," "[" <name:Symbol> "]" "}"
+        => Type::Record(Box::new(RecordType::new(loc, name, vec![]))),
+    "{" "type" "," <loc:Location> "," "record" "," "[" <name:Symbol> "," <fields:CommaOpt<RecordFieldType>> "]" "}"
+        => Type::Record(Box::new(RecordType::new(loc, name, fields))),
+    "{" "type" "," <loc:Location> "," <name:BuiltinTypeAtom> "," "any" "}"
+        => Type::BuiltIn(Box::new(BuiltInType::new(loc, name, vec![]))),
+    "{" "type" "," <loc:Location> "," <name:BuiltinTypeAtom> "," "[" <args:CommaOpt<Type>> "]" "}"
+        => Type::BuiltIn(Box::new(BuiltInType::new(loc, name, args))),
+    "{" "ann_type" "," <loc:Location> "," "[" <var:Var> "," <ty:Type> "]" "}"
+        => Type::Annotated(Box::new(AnnotatedType::new(loc, var, ty))),
+    "{" "user_type" "," <loc:Location> "," <name:RawAtom> "," "[" <args:CommaOpt<Type>> "]" "}"
+        => Type::User(Box::new(UserType::new(loc, name, args))),
+    "{" "remote_type" "," <loc:Location> "," "[" <module:Symbol> "," <function:Symbol> "," "[" <args:CommaOpt<Type>> "]" "]" "}"
+        => Type::Remote(Box::new(RemoteType::new(loc, FunctionName { module: Some(module), name: function, arity: args.len().to_u8().unwrap() }, args))),
+    "{" "op" "," <loc:Location> "," <name:RawAtom> "," <expr:Expr> "}"
+        => Type::UnaryOp(Box::new(UnaryTypeOp::new(loc, name, expr))),
+    "{" "op" "," <loc:Location> "," <name:RawAtom> "," <lhs:Expr> "," <rhs:Expr> "}"
+        => Type::BinaryOp(Box::new(BinaryTypeOp::new(loc, name, lhs, rhs))),
+    <Atom> => Type::Atom(<>),
+    <Integer> => Type::Integer(Box::new(<>)),
+    <Var> => Type::Var(<>),
+    <Nil> => Type::Nil(<>),
+};
+
+BuiltinTypeAtom: Symbol = {
+    atom,
+    "atom" => symbols::Atom,
+    "integer" => symbols::Integer,
+    "float" => symbols::Float,
+    "char" => symbols::Char,
+};
+
+AnyType: Type = {
+    "{" "type" "," <loc:Location> "," "any" "}"
+        => Type::Any(AnyType::new(loc)),
+
+    "{" "type" "," <loc:Location> "," "any" "," "[" "]" "}"
+        => Type::Any(AnyType::new(loc))
+};
+
+FunType: FunType = {
+    "{" "type" "," <loc:Location> "," "fun" "," "[" <args:ProductType> "," <return_type:Type> "]" "}"
+        => FunType { loc, args: args.types, return_type, constraints: vec![] }
+};
+
+ProductType: ProductType = {
+    "{" "type" "," <loc:Location> "," "product" "," "[" <types:CommaOpt<Type>> "]" "}"
+        => ProductType::new(loc, types)
+};
+
+Constraint: Constraint = {
+    "{" "type" "," <loc:Location> "," "constraint" "," "[" <_constraint:Atom> "," "[" <var:Var> "," <subtype:Type> "]" "]"  "}"
+        => Constraint::new(loc, var, subtype)
+};
+
+MapPairType: MapPairType = {
+    "{" "type" "," <loc:Location> "," "map_field_assoc" "," "[" <key:Type> "," <value:Type> "]" "}"
+        => MapPairType::new(loc, key, value)
+};
+
+RecordFieldType: RecordFieldType = {
+    "{" "type" "," <loc:Location> "," "field_type" "," "[" <name:Symbol> "," <ty:Type> "]" "}"
+        => RecordFieldType::new(loc, name, ty)
+};
+
+RecordFieldDef: RecordFieldDef = {
+    "{" "record_field" "," <loc:Location> "," <name:Symbol> "}"
+        => RecordFieldDef { loc, name, ty: Type::any(loc), default_value: None },
+    "{" "record_field" "," <loc:Location> "," <name:Symbol> "," <default:Expr> "}"
+        => RecordFieldDef { loc, name, ty: Type::any(loc), default_value: Some(default) },
+    "{" "typed_record_field" "," "{" "record_field" "," <loc:Location> "," <name:Symbol> "}" "," <ty:Type> "}"
+        => RecordFieldDef { loc, name, ty, default_value: None },
+    "{" "typed_record_field" "," "{" "record_field" "," <loc:Location> "," <name:Symbol> "," <default:Expr> "}" "," <ty:Type> "}"
+        => RecordFieldDef { loc, name, ty, default_value: Some(default) },
+};
+
+Exprs: Vec<Expression> = {
+    "[" <exprs:CommaOpt<Expr>> "]" => exprs,
+};
+
+Expr: Expression = {
+    <Atom> => Expression::Atom(<>),
+    <Var> => Expression::Var(Box::new(<>)),
+    <Integer> => Expression::Integer(Box::new(<>)),
+    <Nil> => Expression::Nil(Box::new(<>)),
+    "{" "float" "," <loc:Location> "," <value:float> "}" => Expression::Float(Float::new(loc, value)),
+    "{" "string" "," <loc:Location> "," <value:string> "}" => Expression::String(Box::new(Str::new(loc, value))),
+    "{" "char" "," <loc:Location> "," <value:char> "}" => Expression::Char(Char::new(loc, value)),
+    "{" "match" "," <loc:Location> "," <pattern:Expr> "," <expr:Expr> "}" => Expression::Match(Box::new(Match::new(loc, pattern, expr))),
+    "{" "tuple" "," <loc:Location> "," <elements:Exprs> "}" => Expression::Tuple(Box::new(Tuple::new(loc, elements))),
+    "{" "cons" "," <loc:Location> "," <head:Expr> "," <tail:Expr> "}" => Expression::Cons(Box::new(Cons::new(loc, head, tail))),
+    "{" "bin" "," <loc:Location> "," "[" <elements:CommaOpt<BinElement>> "]" "}" => Expression::Binary(Box::new(Binary::new(loc, elements))),
+    "{" "op" "," <loc:Location> "," <name:RawAtom> "," <operand:Expr>  "}" => Expression::UnaryOp(Box::new(UnaryOp::new(loc, name, operand))),
+    "{" "op" "," <loc:Location> "," <name:RawAtom> "," <lhs:Expr> "," <rhs:Expr>  "}" => Expression::BinaryOp(Box::new(BinaryOp::new(loc, name, lhs, rhs))),
+    "{" "record" "," <loc:Location> "," <name:RawAtom> "," <fields:RecordFields> "}" => Expression::Record(Box::new(Record::new(loc, None, name, fields))),
+    "{" "record_index" "," <loc:Location> "," <name:RawAtom> "," <field:Symbol> "}" => Expression::RecordIndex(Box::new(RecordIndex::new(loc, name, field))),
+    "{" "record_field" "," <loc:Location> "," <base:Expr> "," <name:RawAtom> "," <field:Symbol> "}" => Expression::RecordAccess(Box::new(RecordAccess::new(loc, base, name, field))),
+    "{" "map" "," <loc:Location> "," <pairs:MapPairs> "}" => Expression::Map(Box::new(Map::new(loc, None, pairs))),
+    "{" "map" "," <loc:Location> "," <base:Expr> "," <pairs:MapPairs> "}" => Expression::Map(Box::new(Map::new(loc, Some(base), pairs))),
+    "{" "catch" "," <loc:Location> "," <arg:Expr> "}" => Expression::Catch(Box::new(Catch::new(loc, arg))),
+    "{" "call" "," <loc:Location> "," <callee:Expr> "," <args:Exprs> "}" => Expression::Call(Box::new(Call::new(loc, callee, args))),
+    "{" "remote" "," <loc:Location> "," <module:Expr> "," <function:Expr> "}" => Expression::Remote(Box::new(Remote::new(loc, module, function))),
+    "{" "lc" "," <loc:Location> "," <expr:Expr> "," <quals:Qualifiers> "}" => Expression::Comprehension(Box::new(Comprehension::new(loc, true, expr, quals))),
+    "{" "bc" "," <loc:Location> "," <expr:Expr> "," <quals:Qualifiers> "}" => Expression::Comprehension(Box::new(Comprehension::new(loc, false, expr, quals))),
+    "{" "block" "," <loc:Location> "," <body:Exprs> "}" => Expression::Block(Box::new(Block::new(loc, body))),
+    "{" "if" "," <loc:Location> "," <clauses:Clauses> "}" => Expression::If(Box::new(If::new(loc, clauses))),
+    "{" "case" "," <loc:Location> "," <arg:Expr> "," <clauses:Clauses> "}" => Expression::Case(Box::new(Case::new(loc, arg, clauses))),
+    "{" "try" "," <loc:Location> "," <body:Exprs> "," <case_clauses:Clauses> "," <catch_clauses:Clauses> "," <after:Exprs> "}" => Expression::Try(Box::new(Try::new(loc, body, case_clauses, catch_clauses, after))),
+    "{" "receive" "," <loc:Location> "," <clauses:Clauses> "," <timeout:Expr> "," <after:Exprs> "}" => Expression::Receive(Box::new(Receive::new(loc, clauses, Some(timeout), after))),
+    "{" "receive" "," <loc:Location> "," <clauses:Clauses> "}" => Expression::Receive(Box::new(Receive::new(loc, clauses, None, vec![]))),
+    "{" "fun" "," <loc:Location> "," "{" "function" "," <name:RawAtom> "," <arity:int> "}" "}" => Expression::InternalFun(Box::new(InternalFun::new(loc, name, arity.to_u8().unwrap()))),
+    "{" "fun" "," <loc:Location> "," "{" "function" "," <module:Expr> "," <function:Expr> "," <arity:Expr> "}" "}" => Expression::ExternalFun(Box::new(ExternalFun::new(loc, module, function, arity))),
+    "{" "fun" "," <loc:Location> "," <clauses:Clauses> "}" => Expression::AnonymousFun(Box::new(AnonymousFun::new(loc, None, clauses))),
+    "{" "named_fun" "," <loc:Location> "," <name:RawAtom> "," <clauses:Clauses> "}" => Expression::AnonymousFun(Box::new(AnonymousFun::new(loc, Some(name), clauses))),
+
+};
+
+Clauses: Vec<Clause> = {
+    "[" <clauses:CommaOpt<Clause>> "]" => clauses,
+};
+
+Clause: Clause = {
+    "{" "clause" "," <loc:Location> "," <patterns:Exprs> "," <guards:OrGuards> "," <body:Exprs> "}"
+        => Clause::new(loc, patterns, guards, body)
+};
+
+OrGuards: Vec<OrGuard> = {
+    "[" <guards:CommaOpt<OrGuard>> "]" => guards,
+};
+
+OrGuard: OrGuard = {
+    "[" <exprs:Comma<Expr>> "]" => OrGuard::new(exprs),
+};
+
+MapPairs: Vec<MapPair> = {
+    "[" <CommaOpt<MapPair>> "]"
+};
+
+MapPair: MapPair = {
+    "{" "map_field_assoc" "," <loc:Location> "," <key:Expr> "," <value:Expr>  "}" => MapPair::new(loc, true, key, value),
+    "{" "map_field_exact" "," <loc:Location> "," <key:Expr> "," <value:Expr>  "}" => MapPair::new(loc, false, key, value),
+};
+
+RecordFields: Vec<RecordField> = {
+    "[" <CommaOpt<RecordField>> "]"
+};
+
+RecordField: RecordField = {
+    "{" "record_field" "," <loc:Location> "," <field:Symbol> "," <value:Expr> "}" => {
+        if field == symbols::Underscore {
+            RecordField::new(loc, None, value)
+        } else {
+            RecordField::new(loc, Some(field), value)
+        }
+    }
+};
+
+Qualifiers: Vec<Qualifier> = {
+    "[" <quals:(<Qualifier>)*> "]" => quals,
+};
+
+Qualifier: Qualifier = {
+    "{" "generate" "," <loc:Location> "," <pattern:Expr> "," <expr:Expr> "}" => Qualifier::Generator(Generator::new(loc, pattern, expr)),
+    "{" "bc_generate" "," <loc:Location> "," <pattern:Expr> "," <expr:Expr> "}" => Qualifier::BitStringGenerator(Generator::new(loc, pattern, expr)),
+    "{" "filter" "," <loc:Location> "," <expr:Expr> "}" => Qualifier::Filter(expr),
+};
+
+BinElement: BinElement = {
+    "{" "bin_element" "," <loc:Location> "," <value:Expr> "," <size:BinSize> "," <tsl:TypeSpecifierList> "}" => {
+         BinElement {
+           loc,
+           element: value,
+           size,
+           tsl,
+         }
+    }
+};
+
+BinSize: Option<Expression> = {
+    "default" => None,
+    Expr => Some(<>),
+};
+
+TypeSpecifierList: Option<Vec<BinElementTypeSpec>> = {
+    "default" => None,
+    "[" <specs:Comma<TypeSpecifier>> "]" => Some(specs),
+};
+
+TypeSpecifier: BinElementTypeSpec = {
+    <name:RawAtom> => BinElementTypeSpec::new(name, None),
+    "{" <name:RawAtom> "," <unit:int> "}" => BinElementTypeSpec::new(name, Some(unit.to_u64().unwrap())),
+};
+
+Location: Location = {
+    "{" <line:int> "," <column:int> "}" => Location { line: line.to_u32().unwrap(), column: column.to_u32().unwrap() },
+    <line:int> => Location { line: line.to_u32().unwrap(), column: 0 },
+};
+
+FunctionName: FunctionName = {
+    "{" <name:RawAtom> "," <arity:int> "}" => FunctionName { module: None, name, arity: arity.try_into().unwrap() }
 };
 
 pub Root: Root = {
-    <(<Item> ".")*> => {
+    "COMMENT"* <term:(<Term> ".")> => {
         Root {
-            items: <>,
-        }
-    },
-};
-
-pub Module: Module = {
-    <l:@L> <(<TopLevel> ".")*> <r:@R> => {
-        Module::new_with_pp(reporter, span!(l, r), body)
-    },
-};
-
-TopLevel: TopLevel = {
-    <FunctionDefinition>
-        => TopLevel::Function(<>),
-    <RecordDeclaration>
-        => TopLevel::Record(<>),
-    <AttributeDefinition>
-        => TopLevel::Attribute(<>),
-};
-
-
-// Functions
-
-FunctionDefinition: Function = {
-    <l:@L> "{" "function" "," <_:linenum> "," <name:ident> "," <arity:arity> "," <clauses:List<FunctionClause>> "." <r:@R>
-        =>? match Function::new(reporter, span!(l, r), clauses) {
-                Ok(inner) => Ok(inner),
-                Err(()) => Err(to_lalrpop_err!(())),
-            },
-};
-
-FunctionClause: FunctionClause = {
-    <l:@L> "{" "clause" "," <_:lineum> "," <params:List<Pattern>> "," <guards:List<Guard>> "," <body:List<Expr>> "}" <r:@R> => {
-        FunctionClause::new(span!(l, r), Some(Name::Atom(a)), params, g, body)
-    }
-};
-
-Guard: Guard = <l:@L> <conditions:Comma<Expr>> <r:@R>
-    => Guard { span: span!(l, r), conditions };
-
-
-// Attributes
-
-AttributeDefinition: Attribute = {
-    <l:@L> "{" "attribute" "," <_:linenum> "," "vsn" "," <vsn:Literal>  "}" <r:@R>
-        => Attribute::Vsn(span!(l, r), vsn),
-    <l:@L> "{" "attribute" "," <_:linenum> "," "author" "," <author:Literal>  "}" <r:@R>
-        => Attribute::Author(span!(l, r), vsn),
-    <l:@L> "{" "attribute" "," <_:linenum> "," "compile" "," <opts:Constant>  "}" <r:@R>
-        => Attribute::Compile(span!(l, r), opts),
-    <l:@L> "{" "attribute" "," <_:linenum> "," "import" "," "{" <module:atom> "," <imports:List<FunctionName>> "}" "}" <r:@R>
-        => Attribute::Import(span!(l, r), imports),
-    <l:@L> "{" "attribute" "," <_:linenum> "," "export" "," <exports:List<FunctionName>> "}" <r:@R>
-        => Attribute::Export(span!(l, r), exports),
-    <l:@L> "{" "attribute" "," <_:linenum> "," "export_type" "," <exports:List<FunctionName>> "}" <r:@R>
-        => Attribute::ExportType(span!(l, r), exports),
-    <l:@L> "{" "attribute" "," <_:linenum> "," "optional_callbacks" "," <optional:List<FunctionName>> "}" <r:@R>
-        => Attribute::OptionalCallbacks(span!(l, r), optional),
-    <l:@L> "{" "attribute" "," <_:linenum> "," "behaviour" "," <module:atom> "}" <r:@R>
-        => Attribute::Behaviour(span!(l, r), module),
-    <l:@L> "{" "attribute" "," <_:linenum> "," "on_load" "," <fun:FunctionName> "}" <r:@R>
-        => Attribute::OnLoad(span!(l, r), fun),
-    <l:@L> "{" "attribute" "," <_:linenum> "," "opaque" "," <typedef:TypeDef> "}" <r:@R> => {
-        let mut typedef = typedef;
-        typedef.span = span!(l, r);
-        Attribute::Type(typedef),
-    }
-    <l:@L> "{" "attribute" "," <_:linenum> "," "type" "," <typedef:TypeDef> "}" <r:@R> => {
-        let mut typedef = typedef;
-        typedef.span = span!(l, r);
-        Attribute::Type(typedef),
-    }
-    <l:@L> "{" "attribute" "," <_:linenum> "," "callback" "," "{" <name:FunctionName> "," <clauses:List<Type>> "}" "}" <r:@R>
-        => Attribute::Import(span!(l, r), imports),
-    <l:@L> "{" "attribute" "," <_:linenum> "," "spec" "," "{" <name:FunctionName> "," <clauses:List<Type>> "}" "}" <r:@R>
-        => Attribute::Import(span!(l, r), imports),
-    DeprecatedAttribute,
-    RemovedAttribute,
-    UserAttribute,
-};
-
-TypeDef: TypeDef = {
-    <l:@L> "{" <name:atom> "," "{" "type" "," <_:linenum> "," <builtin:atom> "," <args:List<TypeArg> "}" "," <params:List<LiteralOrVar>>  "}" <r:@R> => {
-        let ty = Type::from_type_constructor(builtin, args)
-        TypeDef {
-          span: span!(l, r),
-          opaque: false,
-          name,
-          params,
-          ty
-        }
-    },
-    "{" <name:atom> "," "{" "user_type" "," <_:linenum> "," <user:atom> "," <args:List<TypeArg> "}" "," <vars:List<LiteralOrVar>>  "}" => {
-        let ty = Type::from_type_constructor(builtin, args)
-        TypeDef {
-          span: span!(l, r),
-          opaque: false,
-          name,
-          params,
-          ty
+            term,
         }
     }
 };
 
-TypeArg: Type = {
-    TypeArg100,
+Term: Term = {
+    <l:@L> <a:RawAtom> <r:@R> => Term::Atom(Span::new(span!(l, r), a)),
+    <l:@L> <i:int> <r:@R> => Term::Integer(Span::new(span!(l, r), i)),
+    <l:@L> <f:float> <r:@R> => Term::Float(Span::new(span!(l, r), f)),
+    <l:@L> <s:string> <r:@R> => Term::String(Span::new(span!(l, r), s)),
+    <l:@L> "{" <elements:CommaOpt<Term>> "}" <r:@R> => Term::Tuple(Span::new(span!(l, r), elements)),
+    <l:@L> "#" "{" <pairs:CommaOpt<MapAssoc>> "}" <r:@R> => Term::Map(Span::new(span!(l, r), pairs)),
+    TermList,
 };
 
-TypeArg100: Type = {
-    <l:@L> "{" "type" "," <_:linenum> "," <name:atom> "," <args:List<TypeArg> "}" <r:@R> => {
-        Type::from_type_constructor(name, args)
-    },
-    <l:@L> "{" "user_type" "," <_:linenum> "," <name:atom> "," <args:List<TypeArg> "}" <r:@R> => {
-        Type::from_type_constructor(name, args)
-    },
+TermList: Term = {
+    <l:@L> "[" "]" <r:@R>
+        => Term::Nil(span!(l, r)),
+    <l:@L> "[" <head:Term> <tail:TermListTail> <r:@R>
+        => Term::Cons(Span::new(span!(l, r), (Box::new(head), Box::new(tail)))),
+};
+
+TermListTail: Term = {
+    <l:@L> "]" <r:@R>
+        => Term::Nil(span!(l, r)),
+    "|" <tail:Term> "]"
+        => tail,
+    <l:@L> "," <head:Term> <tail:TermListTail> <r:@R>
+        => Term::Cons(Span::new(span!(l, r), (Box::new(head), Box::new(tail)))),
+};
+
+MapAssoc: (Term, Term) = {
+    <key:Term> "=>" <value:Term> => (key, value),
+};
+
+Nil: Nil = {
+    "{" "nil" "," <loc:Location> "}" => Nil { loc },
+};
+
+Var: Var = {
+    "{" "var" "," <loc:Location> "," <name:RawAtom> "}" => Var { loc, name },
+};
+
+Atom: Atom = {
+    "{" "atom" "," <loc:Location> "," <name:RawAtom> "}" => Atom::new(loc, name),
+};
+
+RawAtom: Symbol = {
+    atom,
+    "any" => symbols::Any,
+    "ann_type" => symbols::AnnType,
+    "atom" => symbols::Atom,
+    "attribute" => symbols::Attribute,
+    "behavior" => symbols::Behavior,
+    "behaviour" => symbols::Behaviour,
+    "bin" => symbols::Bin,
+    "binary" => symbols::Binary,
+    "bin_element" => symbols::BinElement,
+    "bc" => symbols::Bc,
+    "bc_generate" => symbols::BcGenerate,
+    "block" => symbols::Block,
+    "bounded_fun" => symbols::BoundedFun,
+    "call" => symbols::Call,
+    "callback" => symbols::Callback,
+    "case" => symbols::Case,
+    "catch" => symbols::Catch,
+    "char" => symbols::Char,
+    "clause" => symbols::Clause,
+    "compile" => symbols::Compile,
+    "cons" => symbols::Cons,
+    "constraint" => symbols::Constraint,
+    "default" => symbols::Default,
+    "epp" => symbols::Epp,
+    "eof" => symbols::Eof,
+    "error" => symbols::Error,
+    "export" => symbols::Export,
+    "export_type" => symbols::ExportType,
+    "float" => symbols::Float,
+    "file" => symbols::File,
+    "filter" => symbols::Filter,
+    "function" => symbols::Function,
+    "fun" => symbols::Fun,
+    "if" => symbols::If,
+    "import" => symbols::Import,
+    "integer" => symbols::Integer,
+    "generate" => symbols::Generate,
+    "lc" => symbols::Lc,
+    "match" => symbols::Match,
+    "map" => symbols::Map,
+    "map_field_assoc" => symbols::MapFieldAssoc,
+    "map_field_exact" => symbols::MapFieldExact,
+    "module" => symbols::Module,
+    "named_fun" => symbols::NamedFun,
+    "nifs" => symbols::Nifs,
+    "nil" => symbols::Nil,
+    "on_load" => symbols::OnLoad,
+    "op" => symbols::Op,
+    "opaque" => symbols::Opaque,
+    "optional_callbacks" => symbols::OptionalCallbacks,
+    "product" => symbols::Product,
+    "range" => symbols::Range,
+    "receive" => symbols::Receive,
+    "record" => symbols::Record,
+    "record_field" => symbols::RecordField,
+    "record_index" => symbols::RecordIndex,
+    "remote" => symbols::Remote,
+    "remote_type" => symbols::RemoteType,
+    "spec" => symbols::Spec,
+    "string" => symbols::String,
+    "try" => symbols::Try,
+    "tuple" => symbols::Tuple,
+    "type" => symbols::Type,
+    "typed_record_field" => symbols::TypedRecordField,
+    "union" => symbols::Union,
+    "user_type" => symbols::UserType,
+    "var" => symbols::Var,
+    "warning" => symbols::Warning,
 }
 
-// Misc
-
-pub Item: Item = {
-    <l:@L> "{" <entries: CommaOpt<Item>> "}" <r:@R> => {
-        Item::Tuple(Span::new(span!(l, r), Tuple(entries)))
-    },
-    <l:@L> "[" <head: CommaOpt<Item>> <tail: ("|" <Item>)?> "]" <r:@R> => {
-        Item::List(Span::new(span!(l, r), List { head, tail }))
-    },
-
-    <l:@L> <v: atom> <r:@R> => {
-        Item::Lit(Literal::Atom(Ident::new(v, span!(l, r))))
-    },
-    <l:@L> <v: integer> <r:@R> => {
-        Item::Lit(Literal::Int(span!(l, r), v.0))
-    },
-    <l:@L> <v: float> <r:@R> => {
-        Item::Lit(Literal::Float(span!(l, r), v.0))
-    },
-    <l:@L> <v: string> <r:@R> => {
-        Item::Lit(Literal::String(Ident::new(v, span!(l, r))))
-    },
+Integer: Integer = {
+    "{" "integer" "," <loc:Location> "," <i:int>  "}" => Integer::new(loc, i),
 };
 
-Attribute: Attribute = {
-   <l:@L> "{" "attribute" "," "{" <annos: Comma<Annotation>> "}" "," <name:ident> "," <value:Item> "}" <r:@R> => {
-       Attribute::new(span!(l, r), name, annos, value)
-   }
+Symbol: Symbol = {
+    "{" "atom" "," <_loc:Location> "," <name:RawAtom> "}" => name,
+    "{" "var" "," <_loc:Location> "," <name:RawAtom> "}" => name,
 };
-
-Function: Function = {
-    <l:@L> "{" "function" "," "{" <annos: Comma<Annotation>> "}" "," <name:ident> "," <arity:arity> "," <clauses: Comma<Clause>> "}" <r:@R> => {
-        Function::new(span!(l, r), name, arity, annos, clauses)
-    }
-};
-
-Literal: Expr = {
-    "{" "integer" "," <_:linenum> "," <i:Integer> "}"
-        => Expr::Literal(i),
-    <l:@L> <f:float> <r:@R>
-        => Expr::Literal(Literal::Float(span!(l, r), f)),
-    <atom>
-        => Expr::Literal(Literal::Atom(<>)),
-    <s:string>
-        => Expr::Literal(Literal::String(s)),
-};
-
-#[inline]
-Integer: Literal = {
-    <l:@L> <i:integer> <r:@R>
-        => Literal::Integer(span!(l, r), i),
-};
-
-#[inline]
-linenum: Loc = {
-  "{" <line:line> "," <col:column> "}" => { Loc::new(line, col) }
-}
-
-#[inline]
-line: u32 = <i:integer> = i.try_into().unwrap();
-
-#[inline]
-column: u32 = <i:integer> = i.try_into().unwrap();
-
-#[inline]
-arity: u8 = <i:integer> => i.try_into().unwrap();
-
-#[inline]
-ident: Ident = <l:@L> <a:atom> <r:@R>
-    => Ident::new(a.0, span!(l, r));
-
 
 extern {
     type Location = SourceIndex;
-    type Error = ();
+    type Error = crate::parser::ParserError;
 
     enum Token {
+        // Docs
+        "COMMENT" => Token::Comment,
+        // Literals
+        char => Token::CharLiteral(<char>),
+        int => Token::IntegerLiteral(<firefly_number::Integer>),
+        float => Token::FloatLiteral(<firefly_number::Float>),
         atom => Token::AtomLiteral(<Symbol>),
-        var => Token::Variable(<Symbol>),
-        integer => Token::IntLiteral(<Integer>),
         string => Token::StringLiteral(<Symbol>),
-        float => Token::FloatLiteral(<Float>),
+        // Keywords and Symbols
+        "#" => Token::Pound,
+        "{" => Token::LBrace,
+        "}" => Token::RBrace,
+        "[" => Token::LBracket,
+        "]" => Token::RBracket,
+        "," => Token::Comma,
+        "." => Token::Dot,
+        "|" => Token::Bar,
+        "=>" => Token::RightArrow,
+        // Keywords
+        "any" => Token::Any,
+        "ann_type" => Token::AnnType,
         "atom" => Token::Atom,
         "attribute" => Token::Attribute,
+        "behavior" => Token::Behavior,
+        "behaviour" => Token::Behaviour,
         "bin" => Token::Bin,
+        "binary" => Token::Binary,
         "bin_element" => Token::BinElement,
         "bc" => Token::BitComprehension,
-        "b_generate" => Token::BitGenerator,
+        "bc_generate" => Token::BitGenerator,
+        "block" => Token::Block,
+        "bounded_fun" => Token::BoundedFun,
         "call" => Token::Call,
         "callback" => Token::Callback,
         "case" => Token::Case,
         "catch" => Token::Catch,
         "char" => Token::Char,
-        "clauses" => Token::Clauses,
         "clause" => Token::Clause,
+        "compile" => Token::Compile,
         "cons" => Token::Cons,
+        "constraint" => Token::Constraint,
+        "default" => Token::Default,
+        "epp" => Token::Epp,
+        "eof" => Token::EofAtom,
         "error" => Token::Error,
         "export" => Token::Export,
         "export_type" => Token::ExportType,
+        "float" => Token::Float,
+        "field_type" => Token::FieldType,
         "file" => Token::File,
+        "filter" => Token::Filter,
         "function" => Token::Function,
         "fun" => Token::Fun,
         "if" => Token::If,
@@ -262,27 +532,30 @@ extern {
         "map_field_assoc" => Token::MapFieldAssoc,
         "map_field_exact" => Token::MapFieldExact,
         "module" => Token::Module,
+        "named_fun" => Token::NamedFun,
+        "nifs" => Token::Nifs,
         "nil" => Token::Nil,
+        "on_load" => Token::OnLoad,
         "op" => Token::Op,
         "opaque" => Token::Opaque,
         "optional_callbacks" => Token::OptionalCallbacks,
+        "product" => Token::Product,
+        "range" => Token::Range,
         "receive" => Token::Receive,
         "record" => Token::Record,
         "record_field" => Token::RecordField,
+        "record_index" => Token::RecordIndex,
+        "remote" => Token::Remote,
+        "remote_type" => Token::RemoteType,
         "spec" => Token::Spec,
         "string" => Token::String,
         "try" => Token::Try,
         "tuple" => Token::Tuple,
         "type" => Token::Type,
+        "typed_record_field" => Token::TypedRecordField,
+        "union" => Token::Union,
         "user_type" => Token::UserType,
         "var" => Token::Var,
         "warning" => Token::Warning,
-        "," => Token::Comma,
-        "." => Token::Dot,
-        "|" => Token::Pipe,
-        "[" => Token::SquareOpen,
-        "]" => Token::SquareClose,
-        "{" => Token::CurlyOpen,
-        "}" => Token::CurlyClose,
     }
 }

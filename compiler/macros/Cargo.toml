@@ -17,4 +17,4 @@ quote = "1.0"
 
 [dependencies.syn]
 version = "1.0"
-features = ["full", "printing", "extra-traits", "parsing"]
+features = ["full", "printing", "extra-traits", "parsing", "visit-mut"]

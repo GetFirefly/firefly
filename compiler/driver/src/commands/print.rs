@@ -1,8 +1,10 @@
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use clap::ArgMatches;
 
 use firefly_codegen as codegen;
+use firefly_diagnostics::{CodeMap, Reporter};
 use firefly_llvm::{self as llvm, target::TargetMachine};
 use firefly_session::{CodegenOptions, DebuggingOptions, Options};
 use firefly_target::{self as target, Target};
@@ -40,15 +42,31 @@ pub fn handle_command<'a>(
             }
         }
         ("target-features", subcommand_matches) => {
-            let options =
-                Options::new_with_defaults(c_opts, z_opts, cwd, subcommand_matches.unwrap())?;
+            let reporter = Reporter::new();
+            let codemap = Arc::new(CodeMap::new());
+            let options = Options::new_with_defaults(
+                &reporter,
+                codemap,
+                c_opts,
+                z_opts,
+                cwd,
+                subcommand_matches.unwrap(),
+            )?;
             codegen::init(&options)?;
             let target_machine = TargetMachine::create(&options)?;
             target_machine.print_target_features();
         }
         ("target-cpus", subcommand_matches) => {
-            let options =
-                Options::new_with_defaults(c_opts, z_opts, cwd, subcommand_matches.unwrap())?;
+            let reporter = Reporter::new();
+            let codemap = Arc::new(CodeMap::new());
+            let options = Options::new_with_defaults(
+                &reporter,
+                codemap,
+                c_opts,
+                z_opts,
+                cwd,
+                subcommand_matches.unwrap(),
+            )?;
             codegen::init(&options)?;
             let target_machine = TargetMachine::create(&options)?;
             target_machine.print_target_cpus();

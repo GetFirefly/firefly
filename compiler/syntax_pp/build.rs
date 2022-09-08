@@ -3,7 +3,7 @@ extern crate lalrpop;
 fn main() {
     lalrpop::Configuration::new()
         .use_cargo_dir_conventions()
-        .process_file("src/grammar.lalrpop")
+        .process_file("src/parser/grammar.lalrpop")
         .unwrap();
-    println!("cargo:rerun-if-changed=src/grammar.lalrpop");
+    println!("cargo:rerun-if-changed=src/parser/grammar.lalrpop");
 }

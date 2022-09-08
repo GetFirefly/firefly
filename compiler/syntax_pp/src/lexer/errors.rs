@@ -3,8 +3,6 @@ use std::hash::{Hash, Hasher};
 use firefly_diagnostics::{Diagnostic, Label, SourceIndex, SourceSpan, ToDiagnostic};
 use firefly_parser::EscapeStmError;
 
-use super::token::{Token, TokenType};
-
 /// An enum of possible errors that can occur during lexing.
 #[derive(Clone, Debug, PartialEq, thiserror::Error)]
 pub enum LexicalError {
@@ -86,12 +84,4 @@ impl LexicalError {
             LexicalError::UnexpectedCharacter { start, .. } => SourceSpan::new(*start, *start),
         }
     }
-}
-
-// Produced when converting from LexicalToken to {Atom,Ident,String,Symbol}Token
-#[derive(Debug, Clone)]
-pub struct TokenConvertError {
-    pub span: SourceSpan,
-    pub token: Token,
-    pub expected: TokenType,
 }

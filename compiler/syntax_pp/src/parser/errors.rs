@@ -1,8 +1,7 @@
 use firefly_diagnostics::*;
 use firefly_parser::SourceError;
 
-use crate::lexer::Token;
-use crate::preprocessor::PreprocessorError;
+use crate::lexer::{LexicalError, Token};
 
 pub type ParseError = lalrpop_util::ParseError<SourceIndex, Token, ParserError>;
 
@@ -12,12 +11,6 @@ pub enum ParserError {
     RootFile {
         source: std::io::Error,
         path: std::path::PathBuf,
-    },
-
-    #[error(transparent)]
-    Preprocessor {
-        #[from]
-        source: PreprocessorError,
     },
 
     #[error(transparent)]
@@ -53,6 +46,13 @@ impl From<Diagnostic> for ParserError {
         ParserError::ShowDiagnostic { diagnostic: err }
     }
 }
+impl From<LexicalError> for ParserError {
+    fn from(err: LexicalError) -> Self {
+        ParserError::ShowDiagnostic {
+            diagnostic: err.to_diagnostic(),
+        }
+    }
+}
 
 impl From<ParseError> for ParserError {
     fn from(err: ParseError) -> Self {
@@ -80,7 +80,6 @@ impl ToDiagnostic for ParserError {
         match self {
             Self::RootFile { .. } => Diagnostic::error().with_message(self.to_string()),
             Self::ShowDiagnostic { diagnostic } => diagnostic.clone(),
-            Self::Preprocessor { source } => source.to_diagnostic(),
             Self::Source { source } => source.to_diagnostic(),
             Self::UnrecognizedToken {
                 ref span,

@@ -15,10 +15,12 @@ pub use self::parse::*;
 use std::collections::HashMap;
 use std::collections::VecDeque;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use anyhow::bail;
 use clap::ArgMatches;
 
+use firefly_diagnostics::{CodeMap, Reporter};
 use firefly_intern::Symbol;
 use firefly_target::spec::{CodeModel, RelocModel, SplitDebugInfo, TlsModel};
 use firefly_target::{self as target, Target};
@@ -46,7 +48,7 @@ impl Define {
 // The top-level command-line options struct.
 #[derive(Clone, Debug)]
 pub struct Options {
-    pub app: App,
+    pub app: Arc<App>,
     pub app_type: ProjectType,
     pub output_types: OutputTypes,
     pub color: ColorChoice,
@@ -90,6 +92,8 @@ macro_rules! option {
 
 impl Options {
     pub fn new<'a>(
+        reporter: &Reporter,
+        codemap: Arc<CodeMap>,
         codegen_opts: CodegenOptions,
         debugging_opts: DebuggingOptions,
         cwd: PathBuf,
@@ -152,7 +156,13 @@ impl Options {
         };
 
         // Output/artifacts
-        let app = detect_app(args, cwd.as_path(), input_files.as_slice())?;
+        let app = detect_app(
+            reporter,
+            codemap,
+            args,
+            cwd.as_path(),
+            input_files.as_slice(),
+        )?;
         let app_type_opt: Option<ProjectType> =
             ParseOption::parse_option(&option!("app-type"), &args)?;
         let app_type = app_type_opt.unwrap_or(ProjectType::Executable);
@@ -291,13 +301,15 @@ impl Options {
     // the full set of flags/options required by the compiler for actual
     // compilation
     pub fn new_with_defaults<'a>(
+        reporter: &Reporter,
+        codemap: Arc<CodeMap>,
         codegen_opts: CodegenOptions,
         debugging_opts: DebuggingOptions,
         cwd: PathBuf,
         args: &ArgMatches<'a>,
     ) -> anyhow::Result<Self> {
         let input_files = vec![FileName::Real(cwd.clone())];
-        let app = detect_app(args, &cwd, input_files.as_slice())?;
+        let app = detect_app(reporter, codemap, args, &cwd, input_files.as_slice())?;
         let app_type = ProjectType::Executable;
 
         let target_opt: Option<Target> = ParseOption::parse_option(&option!("target"), &args)?;
@@ -512,7 +524,11 @@ impl Options {
 /// Otherwise returns Ok(Some(app))
 ///
 /// NOTE: Assumes that srcdir exists, will panic otherwise
-fn try_load_app<'a>(srcdir: &Path) -> anyhow::Result<Option<App>> {
+fn try_load_app<'a>(
+    reporter: &Reporter,
+    codemap: Arc<CodeMap>,
+    srcdir: &Path,
+) -> anyhow::Result<Option<Arc<App>>> {
     // Locate the default .app file for the given src directory
     let default_appsrc = {
         srcdir.read_dir().unwrap().find_map(|entry| {
@@ -531,7 +547,7 @@ fn try_load_app<'a>(srcdir: &Path) -> anyhow::Result<Option<App>> {
     };
 
     if let Some(path) = default_appsrc {
-        Ok(Some(App::parse(&path)?))
+        Ok(Some(App::parse(reporter, codemap, &path)?))
     } else {
         Ok(None)
     }
@@ -539,17 +555,19 @@ fn try_load_app<'a>(srcdir: &Path) -> anyhow::Result<Option<App>> {
 
 /// Fetch or generate application metadata based on the provided inputs
 fn detect_app<'a>(
+    reporter: &Reporter,
+    codemap: Arc<CodeMap>,
     args: &ArgMatches<'a>,
     cwd: &Path,
     input_file_names: &[FileName],
-) -> anyhow::Result<App> {
+) -> anyhow::Result<Arc<App>> {
     // If an path was explicitly provided, always prefer it
     if let Some(appsrc) = args.value_of("app") {
         let path = Path::new(appsrc);
         if !path.exists() || !path.is_file() {
             bail!("invalid application resource file: {}", path.display());
         }
-        return App::parse(path);
+        return Ok(App::parse(reporter, codemap, path)?);
     }
 
     // For the remaining variations, the version is always handled the same
@@ -560,7 +578,7 @@ fn detect_app<'a>(
         let name = Symbol::intern(name);
         let mut app = App::new(name);
         app.version = version;
-        return Ok(app);
+        return Ok(Arc::new(app));
     }
 
     // We're left with inferring the application metadata.
@@ -577,7 +595,7 @@ fn detect_app<'a>(
         if input.is_dir() {
             let input_dir: &Path = input.as_ref();
             let srcdir = input_dir.join("src");
-            if let Ok(Some(app)) = try_load_app(&srcdir) {
+            if let Ok(Some(app)) = try_load_app(reporter, codemap, &srcdir) {
                 return Ok(app);
             }
         }
@@ -587,12 +605,12 @@ fn detect_app<'a>(
         };
         let mut app = App::new(name);
         app.version = version;
-        Ok(app)
+        Ok(Arc::new(app))
     } else {
         let name = Symbol::intern(cwd.file_name().unwrap().to_str().unwrap());
         let mut app = App::new(name);
         app.version = version;
-        Ok(app)
+        Ok(Arc::new(app))
     }
 }
 

@@ -2,13 +2,36 @@
 ///!
 ///! It implements a limited parser for Erlang application resource files - i.e. `foo.app`
 ///! or `foo.app.src` - sufficient to provide us with the key details about an Erlang app.
-use std::fmt;
-use std::ops::{Deref, Range};
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
-use anyhow::{anyhow, bail};
+use firefly_diagnostics::{
+    CodeMap, Diagnostic, Label, Reporter, SourceSpan, Spanned, ToDiagnostic,
+};
 use firefly_intern::Symbol;
-use logos::Logos;
+use firefly_syntax_pp::ast::{Root, Term};
+use firefly_syntax_pp::ParserError;
+
+type Parser = firefly_parser::Parser<()>;
+
+#[derive(Debug, thiserror::Error)]
+pub enum AppResourceError {
+    #[error("parsing failed")]
+    Parser(#[from] ParserError),
+
+    #[error("invalid application spec")]
+    Invalid(SourceSpan),
+}
+impl ToDiagnostic for AppResourceError {
+    fn to_diagnostic(&self) -> Diagnostic {
+        match self {
+            Self::Parser(err) => err.to_diagnostic(),
+            Self::Invalid(span) => Diagnostic::error()
+                .with_message("invalid application spec")
+                .with_labels(vec![Label::primary(span.source_id(), *span)]),
+        }
+    }
+}
 
 /// Metadata about an Erlang application
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -27,10 +50,50 @@ pub struct App {
     pub modules: Vec<Symbol>,
     /// The full set of applications this application depends on.
     pub applications: Vec<Symbol>,
+    /// The set of applications included by this application. These applications
+    /// are loaded but not started when this application starts by the application
+    /// controller.
+    pub included_applications: Vec<Symbol>,
+    /// A list of optional `applications`. To ensure optional applcations are started
+    /// prior to this application, they must be in both this list and `applications`.
+    pub optional_applications: Vec<Symbol>,
+    /// Configuration parameters used by the application. The value of a configuration
+    /// parameter is retrieved by calling `application:get_env/1,2`. The values in the
+    /// application resource file can be overridden by values in a configuration file
+    /// or by command-line flags.
+    pub env: Vec<(Symbol, Term)>,
     /// For OTP applications (i.e. those with a supervisor tree), this is the
     /// application callback module for this application. If not present, then
     /// this is just a library application
     pub otp_module: Option<Symbol>,
+    /// These are the start arguments to be passed to `otp_module:start/2`
+    pub start_args: Vec<Term>,
+    /// A list of start phases and corresponding start arguments for the application.
+    /// If this key is present, the application master, in addition to the usual call
+    /// to `otp_module:start/2`, also calls `otp_module:start_phase(Phase, Type, PhaseArgs)`
+    /// for each start phase defined in this list. Only after this extended start procedure
+    /// does `application:start(Application)` return.
+    ///
+    /// Start phases can be used to synchronize startup of an application and its included
+    /// applications. In this case, `mod` must be specified as follows:
+    ///
+    /// ```erlang
+    ///     {mod, {application_starter,[Module,StartArgs]}}
+    /// ```
+    ///
+    /// The application master then calls `Module:start/2` for the primary application, followed
+    /// by calls to `Module:start_phase/3` for each start phase (as defined for the primary application),
+    /// both for the primary application and for each of its included applications, for which the start
+    /// phase is defined.
+    ///
+    /// This implies that for an included application, the set of start phases must be a subset of the
+    /// set of phases defined for the including application.
+    pub start_phases: Vec<(Symbol, Term)>,
+    /// A list of application versions that the application depends on, e.g. `"kernel-3.0"`.
+    ///
+    /// These versions indicate _minimum_ requirements, i.e. a larger version than the one specified
+    /// in the dependency satisifies the requirement.
+    pub runtime_dependencies: Vec<Symbol>,
 }
 impl App {
     /// Create a new empty application with the given name
@@ -41,19 +104,33 @@ impl App {
             root: None,
             modules: vec![],
             applications: vec![],
+            included_applications: vec![],
+            optional_applications: vec![],
+            env: vec![],
             otp_module: None,
+            start_args: vec![],
+            start_phases: vec![],
+            runtime_dependencies: vec![],
         }
     }
 
     /// Parse an application resource from the given path
-    pub fn parse<P: AsRef<Path>>(path: P) -> anyhow::Result<Self> {
+    pub fn parse<P: AsRef<Path>>(
+        reporter: &Reporter,
+        codemap: Arc<CodeMap>,
+        path: P,
+    ) -> Result<Arc<Self>, AppResourceError> {
         let path = path.as_ref();
         let root = path.parent().unwrap().parent().unwrap().to_path_buf();
-        let source = std::fs::read_to_string(path)?;
-        parse_app(&source).map(|mut app| {
-            app.root.replace(root);
-            app
-        })
+
+        let parser = Parser::new((), codemap);
+        match parser.parse_file::<Root, _, ParserError>(reporter.clone(), path) {
+            Ok(parsed) => Self::decode(reporter, parsed).map(|mut app| {
+                app.root.replace(root);
+                Arc::new(app)
+            }),
+            Err(err) => Err(err.into()),
+        }
     }
 
     /// Parse an application resource from the given string
@@ -61,521 +138,325 @@ impl App {
     /// NOTE: The resulting manifest will not have `root` set, make sure
     /// you set it manually if the application has a corresponding root
     /// directory
-    pub fn parse_str<S: AsRef<str>>(source: S) -> anyhow::Result<Self> {
-        parse_app(source)
-    }
-}
-
-#[derive(Logos, Copy, Clone, Debug, PartialEq)]
-enum Token {
-    // Punctuation
-    #[token("{")]
-    Lbrace,
-    #[token("}")]
-    Rbrace,
-    #[token("[")]
-    Lbracket,
-    #[token("]")]
-    Rbracket,
-    #[token(".")]
-    Dot,
-    #[token(",")]
-    Comma,
-
-    // Comments
-    #[regex(r"%[^\n]*", logos::skip)]
-    Comment,
-
-    // Literals
-    #[regex(r"[a-z][a-zA-Z_0-9]+")]
-    Atom,
-    #[regex(r"[0-9]+")]
-    Integer,
-    #[regex(r#""([^"\\]|\\t|\\u|\\n|\\")*""#)]
-    String,
-
-    #[error]
-    #[regex(r"[ \t\n\f ]+", logos::skip)]
-    Error,
-}
-impl fmt::Display for Token {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        use std::fmt::Write;
-        match self {
-            Self::Lbrace => f.write_char('{'),
-            Self::Rbrace => f.write_char('}'),
-            Self::Lbracket => f.write_char('['),
-            Self::Rbracket => f.write_char(']'),
-            Self::Dot => f.write_char('.'),
-            Self::Comma => f.write_char(','),
-            Self::Comment => f.write_str("COMMENT"),
-            Self::Atom => f.write_str("ATOM"),
-            Self::Integer => f.write_str("INTEGER"),
-            Self::String => f.write_str("STRING"),
-            Self::Error => f.write_str("ERROR"),
+    pub fn parse_str<S: AsRef<str>>(
+        reporter: &Reporter,
+        codemap: Arc<CodeMap>,
+        source: S,
+    ) -> Result<Arc<Self>, AppResourceError> {
+        let parser = Parser::new((), codemap);
+        match parser.parse_string::<Root, _, ParserError>(reporter.clone(), source) {
+            Ok(root) => Self::decode(reporter, root).map(Arc::new),
+            Err(err) => Err(err.into()),
         }
     }
-}
 
-struct Lexer<'a> {
-    lex: logos::Lexer<'a, Token>,
-    curr: Token,
-    span: Range<usize>,
-    lines: Vec<Range<usize>>,
-}
-impl<'a> Lexer<'a> {
-    fn new(source: &'a str) -> Self {
-        // Get a mapping of character ranges to lines
-        let lines = {
-            let mut lines = Vec::<Range<usize>>::with_capacity(10);
-            let mut line_start = 0;
-            let mut line_end = 0;
-            for (idx, c) in source.char_indices() {
-                if c == '\n' {
-                    lines.push(Range {
-                        start: line_start,
-                        end: line_end,
-                    });
-                    line_start = idx + 1;
-                    line_end = 0;
-                } else {
-                    line_end = idx;
-                }
+    fn decode(reporter: &Reporter, root: Root) -> Result<App, AppResourceError> {
+        // Make sure we have a minimum viable spec
+        let mut resource = match root.term {
+            Term::Tuple(tuple) => tuple,
+            other => {
+                let span = other.span();
+                reporter.show_error("invalid application spec", &[(span, "expected a tuple")]);
+                return Err(AppResourceError::Invalid(span));
             }
-            // Last line has to be pushed outside the loop
-            lines.push(Range {
-                start: line_start,
-                end: line_end,
-            });
-            lines
         };
-
-        Self {
-            lex: Token::lexer(source),
-            curr: Token::Error,
-            span: 0..0,
-            lines,
-        }
-    }
-
-    fn span(&self) -> Range<usize> {
-        self.lex.span()
-    }
-
-    fn slice(&self) -> &str {
-        self.lex.slice()
-    }
-
-    fn current_token(&self) -> Token {
-        self.curr
-    }
-
-    fn current_location(&self) -> Location {
-        self.span_to_loc(self.span.clone())
-    }
-
-    fn span_to_loc(&self, span: Range<usize>) -> Location {
-        let start_index = span.start;
-        let loc = self.lines.iter().enumerate().find_map(|(i, line)| {
-            if start_index <= line.end {
-                Some(Location(i + 1, (line.end - start_index) + 1))
-            } else {
-                None
-            }
-        });
-        match loc {
-            None => panic!("expected to find loc for span {:?}", span),
-            Some(loc) => loc,
-        }
-    }
-}
-impl<'a> Iterator for Lexer<'a> {
-    type Item = Token;
-
-    fn next(&mut self) -> Option<Token> {
-        if let Some(next) = self.lex.next() {
-            let span = self.lex.span();
-            self.curr = next;
-            self.span = span;
-            return Some(self.curr);
+        if resource.len() < 3 {
+            let span = resource.span();
+            let message = format!("expected a 3-tuple, but found {} elements", resource.len());
+            reporter.show_error("invalid application spec", &[(span, message.as_str())]);
+            return Err(AppResourceError::Invalid(span));
         }
 
-        None
-    }
-}
+        let meta = resource.pop().unwrap();
+        let name = resource.pop().unwrap();
 
-#[derive(Clone)]
-struct Spanned<T> {
-    item: T,
-    span: Range<usize>,
-}
-impl<T> Spanned<T> {
-    fn new(span: Range<usize>, item: T) -> Self {
-        Self { item, span }
-    }
-}
-impl<T> Deref for Spanned<T> {
-    type Target = T;
-
-    fn deref(&self) -> &Self::Target {
-        &self.item
-    }
-}
-
-#[derive(Clone)]
-enum Term {
-    Atom(Symbol),
-    Integer(i64),
-    String(String),
-    Tuple(Tuple),
-    List(List),
-}
-impl Term {
-    fn as_atom(self) -> anyhow::Result<Symbol> {
-        match self {
-            Self::Atom(a) => Ok(a),
-            other => bail!("expected atom, but got '{}'", &other),
-        }
-    }
-    fn as_string(self) -> anyhow::Result<String> {
-        self.try_into()
-    }
-    fn as_tuple(self) -> anyhow::Result<Tuple> {
-        Tuple::try_from(self)
-    }
-    fn as_list(self) -> anyhow::Result<List> {
-        List::try_from(self)
-    }
-}
-impl TryInto<i64> for Term {
-    type Error = anyhow::Error;
-    fn try_into(self) -> Result<i64, Self::Error> {
-        match self {
-            Self::Integer(i) => Ok(i),
-            other => Err(anyhow!("expected integer, but got '{}'", &other)),
-        }
-    }
-}
-impl TryInto<String> for Term {
-    type Error = anyhow::Error;
-    fn try_into(self) -> Result<String, Self::Error> {
-        match self {
-            Self::String(s) => Ok(s),
-            other => Err(anyhow!("expected string, but got '{}'", &other)),
-        }
-    }
-}
-impl fmt::Display for Term {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        use std::fmt::Write;
-        match self {
-            Self::Atom(a) => write!(f, "{}", a.as_str()),
-            Self::Integer(i) => write!(f, "{}", i),
-            Self::String(s) => write!(f, "\"{}\"", s),
-            Self::List(List(terms)) | Self::Tuple(Tuple(terms)) => {
-                f.write_char('{')?;
-                for (i, t) in terms.iter().enumerate() {
-                    if i > 0 {
-                        f.write_str(", ")?;
-                    }
-                    write!(f, "{}", &t.item)?;
-                }
-                f.write_char('}')
-            }
-        }
-    }
-}
-
-#[derive(Clone)]
-struct Tuple(Vec<Spanned<Term>>);
-impl Tuple {
-    fn len(&self) -> usize {
-        self.0.len()
-    }
-    fn get(&self, index: usize) -> Option<Spanned<Term>> {
-        self.0.get(index).map(|t| t.clone())
-    }
-}
-impl TryFrom<Term> for Tuple {
-    type Error = anyhow::Error;
-
-    fn try_from(term: Term) -> Result<Self, Self::Error> {
-        match term {
-            Term::Tuple(tuple) => Ok(tuple),
-            other => Err(anyhow!("expected tuple, but got '{}'", &other)),
-        }
-    }
-}
-
-#[derive(Clone)]
-struct List(Vec<Spanned<Term>>);
-impl List {
-    fn drain(&mut self) -> std::vec::Drain<'_, Spanned<Term>> {
-        self.0.drain(0..)
-    }
-}
-impl TryFrom<Term> for List {
-    type Error = anyhow::Error;
-
-    fn try_from(term: Term) -> Result<Self, Self::Error> {
-        match term {
-            Term::List(list) => Ok(list),
-            other => Err(anyhow!("expected list, but got '{}'", &other)),
-        }
-    }
-}
-
-#[derive(Copy, Clone)]
-struct Location(usize, usize);
-impl fmt::Display for Location {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}:{}", self.0, self.1)
-    }
-}
-
-fn parse_app<S: AsRef<str>>(source: S) -> anyhow::Result<App> {
-    let source = source.as_ref();
-    let mut lex = Lexer::new(source);
-
-    // Make sure we have a minimum viable spec
-    let mut contents = parse_root(&mut lex)?;
-    let resource = contents.pop().map(|r| r.item).unwrap().as_tuple()?;
-    if resource.len() < 3 {
-        bail!("invalid resource, application spec must be a tuple of 3 elements");
-    }
-    // We expect the tuple to be tagged 'applciation'
-    {
-        let tag = resource.get(0).unwrap();
-        let span = tag.span;
-        if tag.item.as_atom()? != "application" {
-            bail!("expected atom 'application' at {}", lex.span_to_loc(span));
-        }
-    }
-    // We expect an atom as the second element in the tuple
-    let name = {
-        let name = resource.get(1).unwrap();
-        let span = name.span;
-        name.item
-            .as_atom()
-            .map_err(|e| anyhow!("{} at {}", e, lex.span_to_loc(span)))?
-    };
-
-    // Initialize default app metadata with the parsed name
-    let mut app = App::new(name);
-
-    // We expect the third element to be a (possibly empty) list
-    let mut meta = {
-        let meta = resource.get(2).unwrap();
-        let span = meta.span;
-        meta.item
-            .as_list()
-            .map_err(|e| anyhow!("{} at {}", e, lex.span_to_loc(span)))?
-    };
-
-    // Iterate over the application metadata, handling keys we are interested in
-    for item in meta.drain() {
-        let span = item.span;
-        let item = item.item.as_tuple()?;
-        // Must be a valid keyword item
-        if item.len() != 2 {
-            bail!("invalid keyword list item at {}", lex.span_to_loc(span));
-        }
-        // Keys must be atoms
-        let key = {
-            let key = item.get(0).unwrap();
-            let span = key.span;
-            key.item
+        // We expect the tuple to be tagged 'applciation'
+        {
+            let tag = resource.pop().unwrap();
+            let span = tag.span();
+            if !tag
                 .as_atom()
-                .map_err(|e| anyhow!("{} at {}", e, lex.span_to_loc(span)))?
+                .map(|a| a.item == "application")
+                .unwrap_or_default()
+            {
+                reporter.show_error(
+                    "invalid application spec",
+                    &[(span, "expected atom 'application")],
+                );
+                return Err(AppResourceError::Invalid(span));
+            }
+        }
+
+        // We expect an atom as the second element in the tuple
+        let name = {
+            let span = name.span();
+            name.as_atom().map_err(|_| {
+                reporter.show_error("invalid application spec", &[(span, "expected atom")]);
+                AppResourceError::Invalid(span)
+            })?
         };
-        let value = item.get(1).unwrap();
-        let value_span = value.span;
-        let value = value.item;
-        match key.as_str().get() {
-            "vsn" => {
-                app.version.replace(value.as_string()?);
-            }
-            "modules" => {
-                let mut modules = value.as_list()?;
-                for module in modules.drain().map(|m| m.item) {
-                    app.modules.push(module.as_atom()?);
-                }
-            }
-            "applications" => {
-                let mut applications = value.as_list()?;
-                for application in applications.drain().map(|a| a.item) {
-                    app.applications.push(application.as_atom()?);
-                }
-            }
-            "mod" => {
-                let mod_tuple = value.as_tuple()?;
-                if mod_tuple.len() != 2 {
-                    bail!(
-                        "invalid value for 'mod' at {}, tuple must contain 2 elements",
-                        lex.span_to_loc(value_span)
-                    );
-                }
-                let module_name = mod_tuple.get(0).map(|t| t.item).unwrap().as_atom()?;
-                app.otp_module.replace(module_name);
-            }
-            _ => continue,
-        }
-    }
 
-    Ok(app)
-}
+        // Initialize default app metadata with the parsed name
+        let mut app = App::new(name.item);
 
-/// Parses the root content of a resource file
-///
-/// A resource file can contain comments, and one or more terms, each terminated with '.'
-///
-/// An application resource file is a special case though, in that it should only contain a single item,
-/// but we let the caller handle that
-fn parse_root(lexer: &mut Lexer<'_>) -> anyhow::Result<Vec<Spanned<Term>>> {
-    let mut contents = Vec::with_capacity(1);
-    loop {
-        let item = parse_term(lexer);
-        if item.is_none() {
-            if contents.is_empty() {
-                bail!("expected term, but got eof");
+        // We expect the third element to be a (possibly empty) list
+        let mut meta = {
+            let span = meta.span();
+            meta.as_list().map_err(|_| {
+                reporter.show_error("invalid application spec", &[(span, "expected list")]);
+                AppResourceError::Invalid(span)
+            })?
+        };
+
+        // Iterate over the application metadata, handling keys we are interested in
+        for item in meta.item.drain(..) {
+            let span = item.span();
+            let mut item = item.as_tuple().map_err(|_| {
+                reporter.show_error("invalid application spec", &[(span, "expected tuple")]);
+                AppResourceError::Invalid(span)
+            })?;
+            // Must be a valid keyword item
+            if item.len() != 2 {
+                let span = item.span();
+                reporter.show_error(
+                    "invalid application spec",
+                    &[(span, "expected keyword list item (i.e. 2-tuple)")],
+                );
+                return Err(AppResourceError::Invalid(span));
             }
-            return Ok(contents);
-        }
-        match item.unwrap()? {
-            Ok(term) => {
-                contents.push(term);
-                let loc = lexer.current_location();
-                let next = lexer.next();
-                if next.is_none() {
-                    bail!(
-                        "expected '.' to follow term starting at {}, but got eof",
-                        loc
-                    );
+            // Keys must be atoms
+            let value = item.pop().unwrap();
+            let key = {
+                let key = item.pop().unwrap();
+                let span = key.span();
+                key.as_atom().map_err(|_| {
+                    reporter
+                        .show_error("invalid application spec", &[(span, "expected atom here")]);
+                    AppResourceError::Invalid(span)
+                })?
+            };
+            match key.as_str().get() {
+                "vsn" => {
+                    app.version.replace(value.as_string().map_err(|invalid| {
+                        let span = invalid.span();
+                        reporter
+                            .show_error("invalid application spec", &[(span, "expected string")]);
+                        AppResourceError::Invalid(span)
+                    })?);
                 }
-                match next.unwrap() {
-                    Token::Dot => continue,
-                    token => {
-                        let loc = lexer.current_location();
-                        bail!("expected '.' at {}, but got '{}'", loc, token);
+                "modules" => {
+                    let mut modules = value.as_list().map_err(|invalid| {
+                        let span = invalid.span();
+                        reporter.show_error("invalid application spec", &[(span, "expected list")]);
+                        AppResourceError::Invalid(span)
+                    })?;
+                    for module in modules.drain(..) {
+                        app.modules
+                            .push(module.as_atom().map(|a| a.item).map_err(|invalid| {
+                                let span = invalid.span();
+                                reporter.show_error(
+                                    "invalid application spec",
+                                    &[(span, "expected module name as an atom")],
+                                );
+                                AppResourceError::Invalid(span)
+                            })?);
                     }
                 }
-            }
-            Err(token) => {
-                let loc = lexer.current_location();
-                bail!("expected term at {}, but got '{}'", loc, token);
+                "applications" => {
+                    let mut applications = value.as_list().map_err(|invalid| {
+                        let span = invalid.span();
+                        reporter.show_error("invalid application spec", &[(span, "expected list")]);
+                        AppResourceError::Invalid(span)
+                    })?;
+                    for application in applications.drain(..) {
+                        app.applications
+                            .push(application.as_atom().map(|a| a.item).map_err(|invalid| {
+                                let span = invalid.span();
+                                reporter.show_error(
+                                    "invalid application spec",
+                                    &[(span, "expected application name as an atom")],
+                                );
+                                AppResourceError::Invalid(span)
+                            })?);
+                    }
+                }
+                "included_applications" => {
+                    let mut applications = value.as_list().map_err(|invalid| {
+                        let span = invalid.span();
+                        reporter.show_error("invalid application spec", &[(span, "expected list")]);
+                        AppResourceError::Invalid(span)
+                    })?;
+                    for application in applications.drain(..) {
+                        app.included_applications.push(
+                            application.as_atom().map(|a| a.item).map_err(|invalid| {
+                                let span = invalid.span();
+                                reporter.show_error(
+                                    "invalid application spec",
+                                    &[(span, "expected application name as an atom")],
+                                );
+                                AppResourceError::Invalid(span)
+                            })?,
+                        );
+                    }
+                }
+                "optional_applications" => {
+                    let mut applications = value.as_list().map_err(|invalid| {
+                        let span = invalid.span();
+                        reporter.show_error("invalid application spec", &[(span, "expected list")]);
+                        AppResourceError::Invalid(span)
+                    })?;
+                    for application in applications.drain(..) {
+                        app.optional_applications.push(
+                            application.as_atom().map(|a| a.item).map_err(|invalid| {
+                                let span = invalid.span();
+                                reporter.show_error(
+                                    "invalid application spec",
+                                    &[(span, "expected application name as an atom")],
+                                );
+                                AppResourceError::Invalid(span)
+                            })?,
+                        );
+                    }
+                }
+                "runtime_dependencies" => {
+                    let mut runtime_dependencies = value.as_list().map_err(|invalid| {
+                        let span = invalid.span();
+                        reporter.show_error("invalid application spec", &[(span, "expected list")]);
+                        AppResourceError::Invalid(span)
+                    })?;
+                    for runtime_dependency in runtime_dependencies.drain(..) {
+                        app.runtime_dependencies
+                            .push(runtime_dependency.as_string_symbol().map(|a| a.item).map_err(|invalid| {
+                                let span = invalid.span();
+                                reporter.show_error(
+                                    "invalid application spec",
+                                    &[(span, "expected application version string, e.g. \"kernel-3.0\"")],
+                                );
+                                AppResourceError::Invalid(span)
+                            })?);
+                    }
+                }
+                "mod" => {
+                    let mut mod_tuple = value.as_tuple().map_err(|invalid| {
+                        let span = invalid.span();
+                        reporter
+                            .show_error("invalid application spec", &[(span, "expected tuple")]);
+                        AppResourceError::Invalid(span)
+                    })?;
+                    if mod_tuple.len() != 2 {
+                        let span = mod_tuple.span();
+                        reporter.show_error(
+                            "invalid application spec",
+                            &[(span, "'mod' key must be a tuple of `{module(), any()}`")],
+                        );
+                        return Err(AppResourceError::Invalid(span));
+                    }
+                    let start_arg = mod_tuple.pop().unwrap();
+                    let module_name =
+                        mod_tuple
+                            .pop()
+                            .unwrap()
+                            .as_atom()
+                            .map(|a| a.item)
+                            .map_err(|invalid| {
+                                let span = invalid.span();
+                                reporter.show_error(
+                                    "invalid application spec",
+                                    &[(span, "expected module name as an atom")],
+                                );
+                                AppResourceError::Invalid(span)
+                            })?;
+                    app.otp_module.replace(module_name);
+                    app.start_args.push(start_arg);
+                }
+                "env" => {
+                    let mut env = value.as_list().map_err(|invalid| {
+                        let span = invalid.span();
+                        reporter.show_error("invalid application spec", &[(span, "expected list")]);
+                        AppResourceError::Invalid(span)
+                    })?;
+                    for env_tuple in env.drain(..) {
+                        let mut env_tuple = env_tuple.as_tuple().map_err(|invalid| {
+                            let span = invalid.span();
+                            reporter.show_error(
+                                "invalid application spec",
+                                &[(span, "expected tuple of {atom(), term()}")],
+                            );
+                            AppResourceError::Invalid(span)
+                        })?;
+                        if env_tuple.len() != 2 {
+                            let span = env_tuple.span();
+                            reporter.show_error(
+                                "invalid application spec",
+                                &[(span, "expected tuple of {atom(), term()}")],
+                            );
+                            return Err(AppResourceError::Invalid(span));
+                        }
+                        let value = env_tuple.item.pop().unwrap();
+                        let key = env_tuple
+                            .item
+                            .pop()
+                            .unwrap()
+                            .as_atom()
+                            .map(|a| a.item)
+                            .map_err(|invalid| {
+                                let span = invalid.span();
+                                reporter.show_error(
+                                    "invalid application spec",
+                                    &[(span, "expected env key as an atom")],
+                                );
+                                AppResourceError::Invalid(span)
+                            })?;
+                        app.env.push((key, value));
+                    }
+                }
+                "start_phases" => {
+                    let mut start_phases = value.as_list().map_err(|invalid| {
+                        let span = invalid.span();
+                        reporter.show_error("invalid application spec", &[(span, "expected list")]);
+                        AppResourceError::Invalid(span)
+                    })?;
+                    for start_phase_tuple in start_phases.drain(..) {
+                        let mut start_phase_tuple =
+                            start_phase_tuple.as_tuple().map_err(|invalid| {
+                                let span = invalid.span();
+                                reporter.show_error(
+                                    "invalid application spec",
+                                    &[(span, "expected tuple of {atom(), term()}")],
+                                );
+                                AppResourceError::Invalid(span)
+                            })?;
+                        if start_phase_tuple.len() != 2 {
+                            let span = start_phase_tuple.span();
+                            reporter.show_error(
+                                "invalid application spec",
+                                &[(span, "expected tuple of {atom(), term()}")],
+                            );
+                            return Err(AppResourceError::Invalid(span));
+                        }
+                        let value = start_phase_tuple.item.pop().unwrap();
+                        let key = start_phase_tuple
+                            .item
+                            .pop()
+                            .unwrap()
+                            .as_atom()
+                            .map(|a| a.item)
+                            .map_err(|invalid| {
+                                let span = invalid.span();
+                                reporter.show_error(
+                                    "invalid application spec",
+                                    &[(span, "expected start phase as an atom")],
+                                );
+                                AppResourceError::Invalid(span)
+                            })?;
+                        app.start_phases.push((key, value));
+                    }
+                }
+                _ => continue,
             }
         }
-    }
-}
 
-fn parse_term(lexer: &mut Lexer<'_>) -> Option<anyhow::Result<Result<Spanned<Term>, Token>>> {
-    let next = lexer.next();
-    if next.is_none() {
-        return None;
-    }
-    match next.unwrap() {
-        Token::Lbrace => {
-            let span = lexer.span();
-            match parse_terms(lexer) {
-                Ok(terms) => Some(Ok(Ok(Spanned::new(span, Term::Tuple(Tuple(terms)))))),
-                Err(err) => Some(Err(err)),
-            }
-        }
-        Token::Lbracket => {
-            let span = lexer.span();
-            match parse_terms(lexer) {
-                Ok(terms) => Some(Ok(Ok(Spanned::new(span, Term::List(List(terms)))))),
-                Err(err) => Some(Err(err)),
-            }
-        }
-        Token::Atom => {
-            let span = lexer.span();
-            let value = Symbol::intern(lexer.slice());
-            Some(Ok(Ok(Spanned::new(span, Term::Atom(value)))))
-        }
-        Token::String => {
-            let span = lexer.span();
-            let value = lexer.slice();
-            // Trim quotes
-            let len = value.len();
-            let value = &value[1..(len - 1)];
-            // Unescape contents
-            let unescaped = value.chars().filter(|c| *c != '\\').collect();
-            Some(Ok(Ok(Spanned::new(span, Term::String(unescaped)))))
-        }
-        Token::Integer => {
-            let span = lexer.span();
-            let value = match lexer.slice().parse() {
-                Ok(i) => i,
-                Err(e) => return Some(Err(anyhow!("{}", e))),
-            };
-            Some(Ok(Ok(Spanned::new(span, Term::Integer(value)))))
-        }
-        token => Some(Ok(Err(token))),
-    }
-}
-
-fn parse_terms(lexer: &mut Lexer<'_>) -> anyhow::Result<Vec<Spanned<Term>>> {
-    let terminator = match lexer.current_token() {
-        Token::Lbrace => '}',
-        Token::Lbracket => ']',
-        _ => panic!("invalid call to parse_terms"),
-    };
-    let mut terms = Vec::with_capacity(2);
-    loop {
-        // Handle early end of input
-        let result = parse_term(lexer);
-        if result.is_none() {
-            bail!("expected ',' or '{}', got eof", terminator);
-        }
-        // If an error occurred, propagate it upwards
-        let result = result.unwrap()?;
-        match result {
-            Ok(term) => {
-                terms.push(term);
-            }
-            // Handle empty sequence
-            Err(Token::Rbrace) if terminator == '}' => {
-                return Ok(terms);
-            }
-            Err(Token::Rbracket) if terminator == ']' => {
-                return Ok(terms);
-            }
-            // All other tokens are syntax errors
-            Err(_token) => {
-                let loc = lexer.current_location();
-                let invalid = lexer.slice();
-                bail!(
-                    "invalid syntax at {}, expected term, got '{}'",
-                    loc,
-                    invalid
-                );
-            }
-        }
-        // Check for next item/end of sequence
-        let next = lexer.next();
-        if next.is_none() {
-            bail!("expected ',' or '{}', got eof", terminator);
-        }
-        match next.unwrap() {
-            Token::Rbrace if terminator == '}' => {
-                return Ok(terms);
-            }
-            Token::Rbracket if terminator == ']' => {
-                return Ok(terms);
-            }
-            Token::Comma => continue,
-            _token => {
-                let loc = lexer.current_location();
-                let invalid = lexer.slice();
-                bail!(
-                    "invalid syntax at {}, expected ',' or '{}', got '{}'",
-                    loc,
-                    terminator,
-                    invalid
-                );
-            }
-        }
+        Ok(app)
     }
 }
 
@@ -600,19 +481,34 @@ mod test {
     const NOT_EVEN_A_RESOURCE: &'static str = r#""hi"."#;
     const INVALID_APP_RESOURCE: &'static str = "{}.";
     const MISSING_TRAILING_DOT: &'static str = "{application, simple, []}";
-    const UNRECOGNIZED_SYNTAX: &'static str =
-        "{application, simple, [{mod, {simple_app, [#{foo => bar}]}}]}";
+
+    fn fail_with(reporter: Reporter, codemap: &CodeMap) -> ! {
+        let message = reporter.to_string(codemap);
+        panic!("{}", message);
+    }
+
+    fn parse(source: &str) -> Arc<App> {
+        let reporter = Reporter::new();
+        let codemap = Arc::new(CodeMap::new());
+        match App::parse_str(&reporter, codemap.clone(), source) {
+            Ok(parsed) => parsed,
+            Err(err) => {
+                reporter.diagnostic(err.to_diagnostic());
+                fail_with(reporter, &codemap)
+            }
+        }
+    }
 
     #[test]
     fn simple_app_resource_test() {
-        let app = App::parse_str(SIMPLE).unwrap();
+        let app = parse(SIMPLE);
         let name = app.name.as_str().get();
         assert_eq!(name, "simple");
     }
 
     #[test]
     fn rich_app_resource_test() {
-        let app = App::parse_str(RICH).unwrap();
+        let app = parse(RICH);
         let name = app.name.as_str().get();
         assert_eq!(name, "example");
         assert_eq!(app.version.as_ref().map(|s| s.as_str()), Some("0.1.0-rc0"));
@@ -625,26 +521,20 @@ mod test {
     }
 
     #[test]
-    #[should_panic(expected = "expected tuple, but got '\"hi\"'")]
+    #[should_panic(expected = "expected a tuple")]
     fn invalid_manifest_not_even_a_resource() {
-        App::parse_str(NOT_EVEN_A_RESOURCE).unwrap();
+        parse(NOT_EVEN_A_RESOURCE);
     }
 
     #[test]
-    #[should_panic(expected = "invalid resource, application spec must be a tuple of 3 elements")]
+    #[should_panic(expected = "expected a 3-tuple, but found 0 elements")]
     fn invalid_manifest_invalid_resource() {
-        App::parse_str(INVALID_APP_RESOURCE).unwrap();
+        parse(INVALID_APP_RESOURCE);
     }
 
     #[test]
-    #[should_panic(expected = "expected '.' to follow term starting at 1:1, but got eof")]
+    #[should_panic(expected = "unexpected end of file")]
     fn invalid_manifest_missing_trailing_dot() {
-        App::parse_str(MISSING_TRAILING_DOT).unwrap();
-    }
-
-    #[test]
-    #[should_panic(expected = "invalid syntax at 1:18, expected term, got '#'")]
-    fn invalid_manifest_unrecognized_syntax() {
-        App::parse_str(UNRECOGNIZED_SYNTAX).unwrap();
+        parse(MISSING_TRAILING_DOT);
     }
 }

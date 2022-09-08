@@ -16,7 +16,6 @@ firefly_intern = { path = "../intern" }
 firefly_number = { path = "../../library/number" }
 firefly_parser = { path = "../parser" }
 firefly_util = { path = "../util" }
-firefly_syntax_erl = { path = "../syntax_erl" }
 
 anyhow = "1.0"
 lalrpop-util = "0.19"

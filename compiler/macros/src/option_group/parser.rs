@@ -9,13 +9,23 @@ use syn::parse_quote;
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
 use syn::token;
-use syn::AttributeArgs;
+use syn::visit_mut::VisitMut;
+use syn::{Attribute, AttributeArgs};
 use syn::{Error, Result};
 use syn::{Expr, ExprLit};
 use syn::{Lit, LitBool, LitInt, LitStr};
 use syn::{Meta, MetaList, MetaNameValue, NestedMeta};
 
 use crate::utils;
+
+struct DisableDocTests;
+impl VisitMut for DisableDocTests {
+    fn visit_attribute_mut(&mut self, attr: &mut Attribute) {
+        if attr.path.is_ident("doc") {
+            *attr = parse_quote! { #[doc = ""] };
+        }
+    }
+}
 
 // Parses an options struct with attributes.
 //
@@ -60,7 +70,9 @@ pub struct OptionGroupStruct {
 }
 impl quote::ToTokens for OptionGroupStruct {
     fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
-        self.def.to_tokens(tokens);
+        let mut def = self.def.clone();
+        DisableDocTests.visit_item_struct_mut(&mut def);
+        def.to_tokens(tokens)
     }
 }
 impl Parse for OptionGroupStruct {

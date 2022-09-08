@@ -98,11 +98,13 @@ pub struct DebuggingOptions {
     #[option]
     /// Prints diagnostics for LLVM optimization remarks produced during codegen
     pub print_llvm_optimization_remarks: bool,
-    /// A comma-separated list of sanitizers to enable:
-    ///     address = enable the address sanitizer
-    ///     leak    = enable the leak sanitizer
-    ///     memory  = enable the memory sanitizer
-    ///     thread  = enable the thread sanitizer
+    /**
+     *  A comma-separated list of sanitizers to enable:
+     *      address = enable the address sanitizer
+     *      leak    = enable the leak sanitizer
+     *      memory  = enable the memory sanitizer
+     *      thread  = enable the thread sanitizer
+     */
     #[option(takes_value(true), value_name("SANITIZERS"), requires_delimiter(true))]
     pub sanitizers: Vec<Sanitizer>,
     /// Enable origins tracking in MemorySanitizer

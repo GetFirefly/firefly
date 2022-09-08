@@ -80,6 +80,12 @@ impl Reporter {
         reporter.print(codemap);
     }
 
+    /// Produces a string containing the output that would be printed to standard error
+    pub fn to_string(&self, codemap: &CodeMap) -> String {
+        let reporter = self.0.borrow();
+        reporter.to_string(codemap)
+    }
+
     /// Get a slice of all the diagnostics reported since creation
     pub fn diagnostics(&self) -> Ref<'_, [Diagnostic]> {
         Ref::map(self.0.borrow(), |r| r.diagnostics())
@@ -196,6 +202,18 @@ impl ReporterImpl {
         for diag in &self.diagnostics {
             term::emit(&mut out, &config, codemap, &diag).unwrap();
         }
+    }
+
+    fn to_string(&self, codemap: &CodeMap) -> String {
+        use term::termcolor::Buffer;
+        use term::Config;
+        let config = Config::default();
+        let mut out = Buffer::no_color();
+        for diag in &self.diagnostics {
+            term::emit(&mut out, &config, codemap, &diag).unwrap();
+        }
+        let s = String::from_utf8_lossy(out.as_slice());
+        s.into_owned()
     }
 
     fn diagnostics(&self) -> &[Diagnostic] {

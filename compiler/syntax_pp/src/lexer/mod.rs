@@ -1,20 +1,29 @@
+mod errors;
+mod token;
+
+pub use self::errors::LexicalError;
+pub use self::token::Token;
+
+use crate::parser::ParserError;
+
+use std::ops::Range;
 use std::str::FromStr;
 
 use firefly_diagnostics::*;
 use firefly_intern::Symbol;
-use firefly_number::{Float, Integer};
-use firefly_parser::{Scanner, Source};
-use firefly_syntax_erl::LexicalError;
-
-use super::{LexicalToken, Token};
+use firefly_number::{Float, FloatError, Integer};
+use firefly_parser::{EscapeStm, EscapeStmAction, Scanner, Source};
 
 pub struct Lexer<S> {
     scanner: Scanner<S>,
+
+    /// Escape sequence state machine.
+    escape: EscapeStm<SourceIndex>,
+
     token: Token,
     token_start: SourceIndex,
     token_end: SourceIndex,
     eof: bool,
-    buffer: String,
 }
 impl<S> Lexer<S>
 where
@@ -24,11 +33,11 @@ where
         let start = scanner.start();
         let mut lexer = Self {
             scanner,
+            escape: EscapeStm::new(),
             token: Token::EOF,
             token_start: start,
             token_end: start,
             eof: false,
-            buffer: String::new(),
         };
         lexer.advance();
         lexer
@@ -40,7 +49,7 @@ where
         }
 
         let token = std::mem::replace(&mut self.token, Token::EOF);
-        let result = Some(Ok(LexicalToken(
+        let result = Some(Ok((
             self.token_start.clone(),
             token,
             self.token_end.clone(),
@@ -88,8 +97,18 @@ where
         self.scanner.peek().1
     }
 
+    #[inline]
+    fn peek_next(&mut self) -> char {
+        let (_, c) = self.scanner.peek_next();
+        c
+    }
+
     fn read(&mut self) -> char {
         self.scanner.read().1
+    }
+
+    fn index(&mut self) -> SourceIndex {
+        self.scanner.read().0
     }
 
     fn skip(&mut self) {
@@ -104,10 +123,34 @@ where
         self.scanner.slice(self.span())
     }
 
+    fn slice_span(&self, span: impl Into<Range<usize>>) -> &str {
+        self.scanner.slice(span)
+    }
+
     fn skip_whitespace(&mut self) {
         while self.read().is_whitespace() {
             self.skip();
         }
+    }
+
+    fn lex_comment(&mut self) -> Token {
+        let mut c = self.read();
+
+        loop {
+            if c == '\n' {
+                break;
+            }
+
+            if c == '\0' {
+                self.eof = true;
+                break;
+            }
+
+            self.skip();
+            c = self.read();
+        }
+
+        return Token::Comment;
     }
 
     fn lex_unquoted_atom(&mut self) -> Token {
@@ -124,53 +167,88 @@ where
             }
         }
 
-        Token::from_bare_atom(self.slice())
+        Token::from_atom(Symbol::intern(self.slice()))
     }
 
-    fn lex_quoted_atom(&mut self) -> Token {
-        let c = self.pop();
-        debug_assert!(c == '\'');
-
-        self.buffer.clear();
-
-        loop {
-            match self.read() {
-                '\\' => unimplemented!(),
-                '\'' => {
-                    self.skip();
-                    break;
-                }
-                c => {
-                    self.skip();
-                    self.buffer.push(c);
-                }
-            }
-        }
-
-        Token::from_bare_atom(self.buffer.as_str())
-    }
-
+    #[inline]
     fn lex_string(&mut self) -> Token {
-        let c = self.pop();
-        debug_assert!(c == '"');
-
-        self.buffer.clear();
-
+        let quote = self.pop();
+        debug_assert!(quote == '"' || quote == '\'');
+        let mut buf = None;
         loop {
             match self.read() {
-                '\\' => unimplemented!(),
-                '"' => {
-                    self.skip();
-                    break;
+                '\\' => match self.lex_escape_sequence() {
+                    Ok(_c) => (),
+                    Err(err) => return Token::Err(err),
+                },
+                '\0' if quote == '"' => {
+                    return Token::Err(LexicalError::UnclosedString { span: self.span() });
                 }
-                c => {
+                '\0' if quote == '\'' => {
+                    return Token::Err(LexicalError::UnclosedAtom { span: self.span() });
+                }
+                c if c == quote => {
+                    let span = self.span().shrink_front(ByteOffset(1));
+
                     self.skip();
-                    self.buffer.push(c);
+                    self.advance_start();
+                    if self.read() == quote {
+                        self.skip();
+
+                        buf = Some(self.slice_span(span).to_string());
+                        continue;
+                    }
+
+                    let symbol = if let Some(mut buf) = buf {
+                        buf.push_str(self.slice_span(span));
+                        Symbol::intern(&buf)
+                    } else {
+                        Symbol::intern(self.slice_span(span))
+                    };
+
+                    let token = Token::StringLiteral(symbol);
+                    return token;
+                }
+                _ => {
+                    self.skip();
+                    continue;
                 }
             }
         }
+    }
 
-        Token::StringLiteral(Symbol::intern(&self.buffer))
+    #[inline]
+    fn lex_escape_sequence(&mut self) -> Result<u64, LexicalError> {
+        let start_idx = self.index();
+
+        let c = self.read();
+        debug_assert_eq!(c, '\\');
+
+        self.escape.reset();
+
+        let mut byte_idx = 0;
+
+        loop {
+            let c = self.read();
+            let idx = start_idx + byte_idx;
+
+            let c = if c == '\0' { None } else { Some(c) };
+            let res = self.escape.transition(c, idx);
+
+            match res {
+                Ok((action, result)) => {
+                    if let EscapeStmAction::Next = action {
+                        byte_idx += c.map(|c| c.len_utf8()).unwrap_or(0);
+                        self.pop();
+                    }
+
+                    if let Some(result) = result {
+                        return Ok(result.cp);
+                    }
+                }
+                Err(err) => Err(LexicalError::EscapeError { source: err })?,
+            }
+        }
     }
 
     #[inline]
@@ -219,7 +297,6 @@ where
         // -10
         // ^
         //
-        let negative = c == '-';
         if c == '-' || c == '+' {
             num.push(self.pop());
         }
@@ -233,7 +310,7 @@ where
         // ^^
         //
         if let Err(err) = self.lex_digits(10, false, &mut num) {
-            return Token::Error(err);
+            return Token::Err(err);
         }
 
         // If we have a dot with a trailing number, we lex a float.
@@ -277,20 +354,6 @@ where
         to_integer_literal(&num, 10)
     }
 
-    fn lex_float(&mut self) -> Token {
-        let c = self.pop();
-        debug_assert!(c.is_digit(10));
-
-        while self.read().is_digit(10) {
-            self.pop();
-        }
-
-        match f64::from_str(self.slice()) {
-            Ok(f) => Token::FloatLiteral(Float::new(f)),
-            Err(e) => panic!("unhandled float parsing error: {}", &e),
-        }
-    }
-
     // Called after consuming a number up to and including the '.'
     #[inline]
     fn lex_float(&mut self, num: String, seen_e: bool) -> Token {
@@ -301,7 +364,7 @@ where
         num.push(c);
 
         if let Err(err) = self.lex_digits(10, true, &mut num) {
-            return Token::Error(err);
+            return Token::Err(err);
         }
 
         c = self.read();
@@ -320,14 +383,14 @@ where
             }
 
             if !c.is_digit(10) {
-                return Token::Error(LexicalError::InvalidFloat {
+                return Token::Err(LexicalError::InvalidFloat {
                     span: self.span(),
                     reason: "expected digits after scientific notation".to_string(),
                 });
             }
 
             if let Err(err) = self.lex_digits(10, false, &mut num) {
-                return Token::Error(err);
+                return Token::Err(err);
             }
         }
 
@@ -337,14 +400,14 @@ where
     fn to_float_literal(&self, num: String) -> Token {
         let reason = match f64::from_str(&num) {
             Ok(f) => match Float::new(f) {
-                Ok(f) => return Token::Float(f),
+                Ok(f) => return Token::FloatLiteral(f),
                 Err(FloatError::Nan) => "float cannot be NaN".to_string(),
                 Err(FloatError::Infinite) => "float cannot be -Inf or Inf".to_string(),
             },
             Err(e) => e.to_string(),
         };
 
-        Token::Error(LexicalError::InvalidFloat {
+        Token::Err(LexicalError::InvalidFloat {
             span: self.span(),
             reason,
         })
@@ -361,12 +424,28 @@ macro_rules! pop {
     }};
 }
 
+macro_rules! pop2 {
+    ($lex:ident) => {{
+        $lex.skip();
+        $lex.skip();
+    }};
+    ($lex:ident, $code:expr) => {{
+        $lex.skip();
+        $lex.skip();
+        $code
+    }};
+}
+
 impl<S> Lexer<S>
 where
     S: Source,
 {
     fn tokenize(&mut self) -> Token {
         let c = self.read();
+
+        if c == '%' {
+            return self.lex_comment();
+        }
 
         if c == '\0' {
             self.eof = true;
@@ -378,17 +457,28 @@ where
         }
 
         match self.read() {
-            '{' => pop!(self, Token::CurlyOpen),
-            '}' => pop!(self, Token::CurlyClose),
-            '[' => pop!(self, Token::SquareOpen),
-            ']' => pop!(self, Token::SquareClose),
+            '{' => pop!(self, Token::LBrace),
+            '}' => pop!(self, Token::RBrace),
+            '[' => pop!(self, Token::LBracket),
+            ']' => pop!(self, Token::RBracket),
+            '#' => pop!(self, Token::Pound),
+            '=' => match self.peek() {
+                '>' => pop2!(self, Token::RightArrow),
+                _ => Token::Err(LexicalError::UnexpectedCharacter {
+                    start: self.span().start(),
+                    found: self.peek_next(),
+                }),
+            },
+            '|' => pop!(self, Token::Bar),
             ',' => pop!(self, Token::Comma),
             '.' => pop!(self, Token::Dot),
-            '|' => pop!(self, Token::Pipe),
             'a'..='z' | 'A'..='Z' => self.lex_unquoted_atom(),
             '0'..='9' => self.lex_number(),
-            '\'' => self.lex_quoted_atom(),
             '"' => self.lex_string(),
+            '\'' => match self.lex_string() {
+                Token::StringLiteral(s) => Token::from_atom(s),
+                other => other,
+            },
             c => unimplemented!("{}", c),
         }
     }
@@ -398,10 +488,19 @@ impl<S> Iterator for Lexer<S>
 where
     S: Source,
 {
-    type Item = Result<(SourceIndex, Token, SourceIndex), ()>;
+    type Item = Result<(SourceIndex, Token, SourceIndex), ParserError>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.lex()
+        let mut res = self.lex();
+        loop {
+            match res {
+                Some(Ok((_, Token::Comment, _))) => {
+                    res = self.lex();
+                }
+                _ => break,
+            }
+        }
+        res.map(|result| result.map_err(|err| err.into()))
     }
 }
 

@@ -8,7 +8,6 @@ macro_rules! span {
     };
 }
 
-/// Convenience function for building parser errors
 #[cfg_attr(rustfmt, rustfmt_skip)]
 #[allow(unknown_lints)]
 #[allow(clippy)]
@@ -46,9 +45,6 @@ use crate::lexer::Lexer;
 use crate::preprocessor::{MacroContainer, MacroDef, MacroIdent, Preprocessed, Preprocessor};
 
 pub use self::errors::*;
-
-/// The type of result returned from parsing functions
-pub type ParseResult<T> = Result<T, Vec<ParserError>>;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParseConfig {

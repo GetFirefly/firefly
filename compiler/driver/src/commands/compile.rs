@@ -11,7 +11,7 @@ use salsa::{ParallelDatabase, Snapshot};
 use firefly_codegen as codegen;
 use firefly_codegen::linker;
 use firefly_codegen::meta::{CodegenResults, CompiledModule, ProjectInfo};
-use firefly_diagnostics::{CodeMap, Diagnostic, Label};
+use firefly_diagnostics::{CodeMap, Diagnostic, Label, Reporter};
 use firefly_session::{CodegenOptions, DebuggingOptions, Options};
 use firefly_syntax_base::{ApplicationMetadata, Deprecation, FunctionName, ModuleMetadata};
 use firefly_util::diagnostics::Emitter;
@@ -30,10 +30,20 @@ pub fn handle_command<'a>(
     cwd: PathBuf,
     emitter: Option<Arc<dyn Emitter>>,
 ) -> anyhow::Result<()> {
-    // Extract options from provided arguments
-    let options = Options::new(c_opts, z_opts, cwd, &matches)?;
     // Construct empty code map for use in compilation
     let codemap = Arc::new(CodeMap::new());
+    let options = {
+        // This is used for diagnostics while parsing .app/.app.src files
+        let reporter = Reporter::new();
+        let result = Options::new(&reporter, codemap.clone(), c_opts, z_opts, cwd, &matches);
+        match result {
+            Ok(options) => options,
+            Err(err) => {
+                reporter.print(&codemap);
+                return Err(err);
+            }
+        }
+    };
     // Set up diagnostics
     let diagnostics = create_diagnostics_handler(&options, codemap.clone(), emitter);
 

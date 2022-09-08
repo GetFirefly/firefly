@@ -16,7 +16,6 @@ mod lexer;
 mod parser;
 pub mod passes;
 mod preprocessor;
-mod util;
 mod visit;
 
 pub use self::ast::*;

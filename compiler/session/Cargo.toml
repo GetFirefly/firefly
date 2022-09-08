@@ -10,10 +10,11 @@ anyhow = "1.0"
 clap = "2.34"
 log = "0.4"
 thiserror = "1.0"
-logos = "0.12"
-logos-derive = "0.12"
 
 firefly_compiler_macros = { path = "../macros" }
+firefly_diagnostics = { path = "../diagnostics" }
 firefly_intern = { path = "../intern" }
 firefly_target = { path = "../target" }
 firefly_util = { path = "../util" }
+firefly_syntax_pp = { path = "../syntax_pp" }
+firefly_parser = { path = "../parser" }

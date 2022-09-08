@@ -7,7 +7,7 @@ use firefly_intern::Symbol;
 use firefly_number::{Float, FloatError, Integer};
 use firefly_parser::{Scanner, Source};
 
-use crate::util::escape_stm::{EscapeStm, EscapeStmAction};
+use firefly_parser::{EscapeStm, EscapeStmAction};
 
 use super::errors::LexicalError;
 use super::token::*;

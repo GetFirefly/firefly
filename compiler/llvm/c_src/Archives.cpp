@@ -27,7 +27,8 @@ struct FireflyArchiveIterator {
   std::unique_ptr<Error> err;
 
   FireflyArchiveIterator(Archive::child_iterator current,
-                       Archive::child_iterator end, std::unique_ptr<Error> err)
+                         Archive::child_iterator end,
+                         std::unique_ptr<Error> err)
       : first(true), current(current), end(end), err(std::move(err)) {}
 };
 
@@ -38,7 +39,7 @@ typedef Archive::Child const *LLVMFireflyArchiveChildConstRef;
 typedef FireflyArchiveIterator *LLVMFireflyArchiveIteratorRef;
 
 extern "C" LLVMFireflyArchiveRef LLVMFireflyOpenArchive(MlirStringRef path,
-                                                    char **error) {
+                                                        char **error) {
   ErrorOr<std::unique_ptr<MemoryBuffer>> bufferOr =
       MemoryBuffer::getFile(unwrap(path), -1, false);
   if (!bufferOr) {
@@ -66,7 +67,8 @@ extern "C" void LLVMFireflyDestroyArchive(LLVMFireflyArchiveRef archive) {
 }
 
 extern "C" LLVMFireflyArchiveIteratorRef
-LLVMFireflyArchiveIteratorNew(LLVMFireflyArchiveRef fireflyArchive, char **error) {
+LLVMFireflyArchiveIteratorNew(LLVMFireflyArchiveRef fireflyArchive,
+                              char **error) {
   Archive *archive = fireflyArchive->getBinary();
   std::unique_ptr<Error> err = std::make_unique<Error>(Error::success());
   auto cur = archive->child_begin(*err);
@@ -80,7 +82,8 @@ LLVMFireflyArchiveIteratorNew(LLVMFireflyArchiveRef fireflyArchive, char **error
 }
 
 extern "C" LLVMFireflyArchiveChildConstRef
-LLVMFireflyArchiveIteratorNext(LLVMFireflyArchiveIteratorRef iter, char **error) {
+LLVMFireflyArchiveIteratorNext(LLVMFireflyArchiveIteratorRef iter,
+                               char **error) {
   *error = nullptr;
   if (iter->current == iter->end)
     return nullptr;
@@ -113,12 +116,14 @@ extern "C" void LLVMFireflyArchiveChildFree(LLVMFireflyArchiveChildRef child) {
   delete child;
 }
 
-extern "C" void LLVMFireflyArchiveIteratorFree(LLVMFireflyArchiveIteratorRef iter) {
+extern "C" void
+LLVMFireflyArchiveIteratorFree(LLVMFireflyArchiveIteratorRef iter) {
   delete iter;
 }
 
 extern "C" MlirStringRef
-LLVMFireflyArchiveChildName(LLVMFireflyArchiveChildConstRef child, char **error) {
+LLVMFireflyArchiveChildName(LLVMFireflyArchiveChildConstRef child,
+                            char **error) {
   Expected<StringRef> nameOrErr = child->getName();
   if (!nameOrErr) {
     auto errString = toString(nameOrErr.takeError());
@@ -142,7 +147,8 @@ LLVMFireflyArchiveChildData(LLVMFireflyArchiveChildRef child, char **error) {
 }
 
 extern "C" LLVMFireflyNewArchiveMemberRef
-LLVMFireflyNewArchiveMemberFromFile(MlirStringRef name, MlirStringRef filename) {
+LLVMFireflyNewArchiveMemberFromFile(MlirStringRef name,
+                                    MlirStringRef filename) {
   FireflyNewArchiveMember *member = new FireflyNewArchiveMember;
   member->filename = unwrap(filename);
   member->name = unwrap(name);
@@ -151,7 +157,7 @@ LLVMFireflyNewArchiveMemberFromFile(MlirStringRef name, MlirStringRef filename) 
 
 extern "C" LLVMFireflyNewArchiveMemberRef
 LLVMFireflyNewArchiveMemberFromChild(MlirStringRef name,
-                                   LLVMFireflyArchiveChildRef child) {
+                                     LLVMFireflyArchiveChildRef child) {
   assert(child);
   FireflyNewArchiveMember *member = new FireflyNewArchiveMember;
   member->name = unwrap(name);
@@ -166,14 +172,14 @@ LLVMFireflyNewArchiveMemberFree(LLVMFireflyNewArchiveMemberRef member) {
 
 extern "C" bool
 LLVMFireflyWriteArchive(MlirStringRef filename, size_t numMembers,
-                      const LLVMFireflyNewArchiveMemberRef *newMembers,
-                      bool writeSymbtab, Archive::Kind kind, char **error) {
+                        const LLVMFireflyNewArchiveMemberRef *newMembers,
+                        bool writeSymbtab, Archive::Kind kind, char **error) {
   std::vector<NewArchiveMember> members;
 
   for (size_t i = 0; i < numMembers; i++) {
     auto member = newMembers[i];
     assert(!member->name.empty());
-    if (member->filename.empty()) {
+    if (!member->filename.empty()) {
       Expected<NewArchiveMember> mOrErr =
           NewArchiveMember::getFile(member->filename, /*deterministic=*/true);
       if (!mOrErr) {

@@ -52,6 +52,9 @@ pub struct CodegenOptions {
     pub function_sections: Option<bool>,
     #[option(hidden(true))]
     pub gcc_ld: Option<LdImpl>,
+    /// If set, disables linking the default init, requiring one to be linked manually
+    #[option]
+    pub no_default_init: bool,
     #[option(value_name("N"), takes_value(true), hidden(true))]
     /// Set the threshold for inlining a function
     pub inline_threshold: Option<u64>,

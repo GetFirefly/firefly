@@ -12,6 +12,9 @@
 | x86_64  | unknown | linux-gnu        | Linux | firefly/otp    | [![x86_64-unknown-linux-gnu firefly/otp](https://github.com/GetFirefly/firefly/workflows/x86_64-unknown-linux-gnu%20firefly%2Fotp/badge.svg?branch=develop)](https://github.com/GetFirefly/firefly/actions?query=workflow%3A%22x86_64-unknown-linux-gnu+firefly%2Fotp%22+branch%3Adevelop)
 | x86_64  | unknown | linux-gnu        | Linux | runtime full | [![x86_64-unknown-linux-gnu Runtime Full](https://github.com/GetFirefly/firefly/workflows/x86_64-unknown-linux-gnu%20Runtime%20Full/badge.svg?branch=develop)](https://github.com/GetFirefly/firefly/actions?query=workflow%3A%22x86_64-unknown-linux-gnu+Runtime+Full%22+branch%3Adevelop)
 
+* [Getting Started](#getting-started)
+  * [Installation](#install)
+  * [Usage](#usage)
 * [Contributing](#contributing)
   * [Tools](#contrib-tools)
   * [Building Firefly](#contrib-building-firefly)
@@ -21,6 +24,227 @@
 * [Goals](#goals)
 * [Non-Goals](#non-goals)
 * [Architecture](#architecture)
+
+<a name="getting-started"/>
+
+## Getting Started
+
+<a name="install"/>
+
+### Installation
+
+**NOTE: This section is a placeholder for the moment until we get our toolchain packaging implemented**
+
+To use Firefly, you'll need to download our toolchain [here](https://https://github.com/GetFirefly/firefly/releases/), and install it like so:
+
+    > tar -xzf firefly.tar.gz /usr/local/
+
+This will install the `firefly` executable to `/usr/local/bin/firefly` and various supporting files to appropriate locations under `/usr/local`.
+If you install to a different target directory, make sure you add the `bin` folder to your PATH, for example:
+
+    > tar -xzf firefly.tar.gz $HOME/.local/share/firefly
+    > export PATH=$HOME/.local/share/firefly/bin:$PATH
+
+<a name="usage"/>
+
+### Usage
+
+**NOTE:** This section reflects the way Firefly is supposed to work, but the current implementation may 
+lack functionality described here. However, if you encounter something broken, feel free to open an issue
+if there isn't one already, and we'll ensure it gets tracked as we continue to improve the project.
+
+You should now be able to run `firefly`, start by reviewing the output of the `help` command:
+
+    > firefly help
+
+This will print out the various ways you can use the Firefly compiler. Obviously, the most interesting is the ability
+to compile some code, so let's see how that works.
+
+Firefly can compile executables or static/dynamic libraries. By default an executable is produced
+which acts very similar to an OTP release, but this behavior can be customized depending on how
+you want the executable to be used. For example, when compiling an executable that you wish to use
+as a CLI tool, you might want a specific module/function to always be called with the arguments passed 
+to the program when the system has booted. There are options to the `compile` command that allow you to
+do this, and much more. It is even possible to provide your own init, and handle everything manually,
+including management of the core supervision tree.
+
+**NOTE:** Firefly does not do any dependency management itself, and we have not yet provided Rebar/Mix 
+shims to integrate Firefly as a compiler with those tools, so compiling an application and all of its 
+dependencies is still somewhat of a manual process. This will be addressed in the near future.
+
+Firefly allows you to compile Erlang sources a couple of ways, let's take a look at each:
+
+#### Compiling Files/Directories
+
+**NOTE:** Since Firefly is not compiling for a virtual machine, it does not produce BEAM bytecode like `erlc`
+does. Instead, it produces either an executable or a static/dynamic library depending on the type of 
+application being compiled, unless otherwise overridden by compiler options. By default, for
+OTP applications (i.e. apps which define the `mod` key in their application manifest), Firefly will produce 
+an executable that runs that application much like an OTP release would. For library applications (i.e. apps 
+that do not define the `mod` key in their manifest), Firefly will produce a static library which can be linked 
+into an executable at another time. You may specify `--bin` to force production of an executable, or `--lib` to 
+force production of a library. If you want to compile a shared library, pass `--lib --dynamic`.
+
+You can compile one or more Erlang source files by specifying their paths like so:
+
+    > firefly compile src/foo.erl src/bar.erl
+    
+**NOTE:** Since there is no application manifest available, these sources will be treated as modules of an anonymous 
+library application with the same name as the current working directory. As such, the output of the above
+command will be a static library.
+
+Alternatively, you can compile all the files found in one or more directories, by specifying their path:
+
+    > firefly compile app1/ app2/
+    
+In this case, each directory will be treated as an application; if no `.app` or `.app.src` manifest is found in
+a directory, then a new anonymous library application with the same name as the directory will be used as the
+container for the sources in that directory. Since no root application manifest was provided, an anonymous library
+application with the same name as the current working directory will be used as the "root" of the dependency tree.
+In other words, if the name of our current directory is `myapp`, then in the example above, `app1` and `app2` will
+be treated as dependencies of the `myapp` application, and will result in a static library being produced containing
+all three applications.
+
+When specifying files individually on the command line, you can control the default app properties using compiler flags,
+and use that to manage what type of output gets produced. For example:
+
+    > firefly compile --app-name myapp --app-module foo src/foo.erl src/bar.erl
+    
+This is equivalent to:
+
+    > firefly compile --app src/myapp.app src/foo.erl src/bar.erl
+    
+Where `src/myapp.app` looks like:
+
+    {application, myapp, [{mod, {foo, []}}]}.
+    
+In both cases, the result is an executable containing the `myapp` application, which consists of two modules: `foo` and `bar`.
+
+Let's assume that `src/foo.erl` contains the following:
+
+    -module(foo).
+    -behaviour(application).
+    -export([start/2]).
+    
+    start(_, _) ->
+        erlang:display("hello"),
+        bar:start_link().
+        
+    stop(_) -> ok.
+   
+Then we should see the following when we run our compiled executable:
+
+    > _build/firefly/arm64-apple-macosx11.0.0/myapp
+    "hello"
+
+**NOTE:** The directory under `_build/firefly` contains the target triple the executable was compiled for, and
+since this example was compiled on an M1, the triple reflects that.
+
+#### Compiling Projects
+
+Firefly also recognizes the conventional Erlang project structure. For example, let's say you have an application called `hello`:
+
+    hello/
+    |-include/
+    |-src/
+      |-hello.app.src
+      |-hello.erl
+      |-hello_sup.erl
+
+Where `hello.app` contains:
+
+    {application, hello, [{vsn, "1.0"}, {mod, {hello, []}}]}.
+
+and `hello.erl` contains:
+
+    -module(hello).
+    -behaviour(application).
+    -export([start/2]).
+
+    start(_, _) ->
+      erlang:display(<<"hello world!">>),
+      hello_sup:start_link().
+
+From the root of the `hello/` directory, you can compile this to an executable like so:
+
+    > firefly compile
+
+If we run it, it should print our greeting:
+
+    > _build/firefly/arm64-apple-macosx11.0.0/hello
+    <<"hello world!">>
+
+**NOTE:** The directory under `_build/firefly` contains the target triple the executable was compiled for, and
+since this example was compiled on an M1, the triple reflects that.
+
+If you instead wish to compile `hello` as a library, you can compile with:
+
+    > firefly compile --lib
+
+This will produce the static archive `_build/firefly/<target>/hello.a`.
+
+If you want to compile an application and link in a previously-compiled library, you can do that like so:
+
+    # Assume we previously compiled an app called `foo` as a static archive and moved it to `_build/firefly/<target>/foo.a`
+    > firefly compile -L _build/firefly/<target>/ -lfoo
+    
+This tells the compiler to use `_build/firefly/<target>/` as a search path for the linker, and to link the library named `foo`.
+
+#### Replacing Erlc
+
+Now that you've learned how to use Firefly to compile Erlang sources, what's the best approach for compiling a real world Erlang
+project?
+
+Let's assume you are in a directory containing a standard Erlang project called `myapp`, and all of your dependencies are located 
+in the `_build/default/lib` (the default for rebar3), then the following will compile your application and all its declared dependencies 
+(based on the app manifest) into an executable:
+
+    > firefly compile --bin
+    
+This works because Firefly has an application manifest to work from, and can infer the location of the sources for the dependencies.
+
+However, if your project is less conventional, then you might want to follow a different approach instead, by compiling
+each application to a library, and then compiling the root application as an executable while linking in all of the dependencies:
+
+    > firefly compile --lib -o foo.a deps/foo
+    > firefly compile --lib -o bar.a deps/bar
+    > firefly compile --bin -L. -lfoo -lbar src/
+    
+The above assumes that `deps/foo` and `deps/bar` are directories containing application manifests, and compiles both to static libraries
+in the current working directory. The last line will create an executable containing the `foo` and `bar` applications, as well as the application
+contained in `src`.
+
+This method is more manual, but provides a lot of flexibility for those who need it.
+
+#### Barebones
+
+**NOTE:** This is primarily for experimentation and development work, but might be of interest to
+those interested in implementing inits, or even alternative Erlang standard libraries.
+
+To compile an executable which simply invokes `init:boot/1` and leaves the definition of that function
+up to you, you can use the following:
+
+    > firefly compile -C no_default_init --bin init.erl
+
+The resulting executable performs none of the default initialization work that the standard runtime normally
+does, i.e. there is no init, so no application master/controller, and as a result, none of the normal OTP 
+startup sequence occurs. This does however provide you an opportunity to handle this yourself, however you like;
+albeit with the major caveat that using any standard library modules without doing the proper initialization
+or providing the things needed by those modules will almost certainly fail. Erlang without the default
+init is a very interesting environment to play in!
+
+As an example, consider if `init.erl` above is defined as the following:
+
+```erlang
+-module(init).
+-exports([boot/1]).
+
+boot(Args) ->
+    erlang:display(Args).
+```
+
+Running the resulting executable will print the default arguments the runtime provides to the init
+and then exit.
 
 <a name="contributing"/>
 

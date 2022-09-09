@@ -1,4 +1,4 @@
-%% RUN: @firefly compile -o @tempfile @file && @tempfile
+%% RUN: @firefly compile -C no_default_init --bin -o @tempfile @file && @tempfile
 
 %% CHECK: {ok, captured}
 -module(init).

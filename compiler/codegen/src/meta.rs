@@ -35,10 +35,17 @@ pub struct CodegenResults {
     pub project_info: ProjectInfo,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Hash)]
 pub struct Dependency {
     pub name: Symbol,
     pub source: Option<PathBuf>,
+}
+
+#[derive(Clone, Debug, Hash)]
+pub struct NativeLibrary {
+    pub kind: NativeLibraryKind,
+    pub name: Option<String>,
+    pub verbatim: Option<bool>,
 }
 
 #[derive(Debug)]
@@ -210,11 +217,4 @@ impl Default for ProjectInfo {
             windows_subsystem: None,
         }
     }
-}
-
-#[derive(Clone, Debug, Hash)]
-pub struct NativeLibrary {
-    pub kind: NativeLibraryKind,
-    pub name: Option<String>,
-    pub verbatim: Option<bool>,
 }

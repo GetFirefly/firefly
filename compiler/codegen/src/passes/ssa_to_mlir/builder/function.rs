@@ -304,6 +304,7 @@ impl<'m> ModuleBuilder<'m> {
                 op.set_attribute_by_name("utf8", builder.get_bool_attr(true));
                 op.set_attribute_by_name("latin1", builder.get_bool_attr(true));
             }
+            _ => unreachable!(),
         }
         op.get_result(0).base()
     }

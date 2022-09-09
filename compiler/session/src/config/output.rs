@@ -408,7 +408,7 @@ pub fn calculate_outputs(
     for variant in OutputType::variants().iter().copied() {
         outputs.insert(variant, None);
     }
-    if !options.app_type.requires_link() {
+    if !options.project_type.requires_link() {
         outputs.remove(&OutputType::Link);
     }
 

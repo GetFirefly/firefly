@@ -48,8 +48,12 @@ impl Define {
 // The top-level command-line options struct.
 #[derive(Clone, Debug)]
 pub struct Options {
+    /// This is the root application being compiled
     pub app: Arc<App>,
-    pub app_type: ProjectType,
+    /// This is the set of applications that are implicit/explicit dependencies of the root application
+    pub dependencies: HashMap<Symbol, Arc<App>>,
+    /// This is the type of project/output being compiled
+    pub project_type: ProjectType,
     pub output_types: OutputTypes,
     pub color: ColorChoice,
     pub warnings_as_errors: bool,
@@ -71,7 +75,8 @@ pub struct Options {
     pub debugging_opts: DebuggingOptions,
 
     pub current_dir: PathBuf,
-    pub input_files: Vec<FileName>,
+    /// This is the set of inputs per application
+    pub input_files: HashMap<Symbol, Vec<FileName>>,
     pub output_file: Option<PathBuf>,
     pub output_dir: Option<PathBuf>,
     // Remap source path prefixes in all output (messages, object files, debug, etc.).
@@ -99,10 +104,14 @@ impl Options {
         cwd: PathBuf,
         args: &ArgMatches<'a>,
     ) -> anyhow::Result<Self> {
-        let input_files = match args.values_of_os("inputs") {
+        let (app, dependencies, input_files) = match args.values_of_os("inputs") {
             None => {
                 // By default treat the current working directory as a standard Erlang app
-                vec![FileName::Real(cwd.clone())]
+                let inputs = vec![FileName::Real(cwd.clone())];
+                let app = detect_app(reporter, codemap, args, cwd.as_path(), inputs.as_slice())?;
+                let mut input_files = HashMap::new();
+                input_files.insert(app.name, inputs);
+                (app, HashMap::default(), input_files)
             }
             Some(mut input_args) => {
                 let num_inputs = input_args.len();
@@ -110,62 +119,129 @@ impl Options {
                 let first = first_os.to_str();
 
                 // Check the input argument first to see if help was requested
-                let first_filename = match first {
+                match first {
                     Some("help") => return Err(HelpRequested("compile", None).into()),
-                    Some("-") => "stdin".into(),
-                    Some(path) => PathBuf::from(path).into(),
-                    None => PathBuf::from(first_os).into(),
-                };
-
-                // Make sure stdin is not combined with other inputs
-                if num_inputs > 1 && first == Some("-") {
-                    bail!("stdin as an input cannot be combined with other inputs");
-                }
-
-                let mut filenames: Vec<FileName> = Vec::with_capacity(num_inputs);
-                filenames.push(first_filename);
-
-                for input_arg in input_args {
-                    match input_arg.to_str() {
-                        Some("-") => {
-                            bail!("stdin as an input cannot be combined with other inputs")
+                    Some("-") => {
+                        if num_inputs > 1 {
+                            bail!("stdin as an input cannot be combined with other inputs");
                         }
-                        Some(path) => filenames.push(PathBuf::from(path).into()),
-                        None => filenames.push(PathBuf::from(input_arg).into()),
+                        let inputs = vec!["stdin".into()];
+                        let app =
+                            detect_app(reporter, codemap, args, cwd.as_path(), inputs.as_slice())?;
+                        let mut input_files = HashMap::new();
+                        input_files.insert(app.name, inputs);
+                        (app, HashMap::default(), input_files)
+                    }
+                    other => {
+                        // Each directory is its own app, all assorted source files are associated to the root app
+                        let first_filename: FileName = other
+                            .map(PathBuf::from)
+                            .unwrap_or_else(|| PathBuf::from(first_os))
+                            .into();
+                        let mut dirs = vec![];
+                        let mut files = vec![];
+                        if first_filename.is_dir() {
+                            dirs.push(first_filename);
+                        } else {
+                            files.push(first_filename);
+                        }
+
+                        for input_arg in input_args {
+                            let path = PathBuf::from(input_arg);
+                            if !path.exists() {
+                                bail!(
+                                    "invalid input path, no such file or directory: {}",
+                                    path.display()
+                                );
+                            }
+                            if path.is_dir() {
+                                dirs.push(path.into());
+                            } else {
+                                files.push(path.into());
+                            }
+                        }
+
+                        let mut dependencies = HashMap::new();
+                        let mut input_files = HashMap::new();
+
+                        if files.is_empty() {
+                            // We have only directories to process, create an app for each one and register the inputs
+                            // If we have only a single directory, treat it as the root application
+                            if dirs.len() == 1 {
+                                let app = detect_app(
+                                    reporter,
+                                    codemap,
+                                    args,
+                                    cwd.as_path(),
+                                    dirs.as_slice(),
+                                )?;
+                                input_files.insert(app.name, dirs);
+                                (app, dependencies, input_files)
+                            } else {
+                                // Don't use the root args when handling dependencies
+                                let empty_args = ArgMatches::default();
+                                for appdir in dirs.drain(..) {
+                                    let app = detect_app(
+                                        reporter,
+                                        codemap.clone(),
+                                        &empty_args,
+                                        cwd.as_path(),
+                                        core::slice::from_ref(&appdir),
+                                    )?;
+                                    input_files.insert(app.name, vec![appdir]);
+                                    dependencies.insert(app.name, app);
+                                }
+                                let app = detect_app(reporter, codemap, args, cwd.as_path(), &[])?;
+                                input_files.insert(app.name, vec![]);
+                                (app, dependencies, input_files)
+                            }
+                        } else if dirs.is_empty() {
+                            // We have only files to process, which all belong to the root app
+                            let app = detect_app(
+                                reporter,
+                                codemap,
+                                args,
+                                cwd.as_path(),
+                                files.as_slice(),
+                            )?;
+                            input_files.insert(app.name, files);
+                            (app, dependencies, input_files)
+                        } else {
+                            // We have a mix of files and directories
+                            let empty_args = ArgMatches::default();
+                            for appdir in dirs.drain(..) {
+                                let app = detect_app(
+                                    reporter,
+                                    codemap.clone(),
+                                    &empty_args,
+                                    cwd.as_path(),
+                                    core::slice::from_ref(&appdir),
+                                )?;
+                                input_files.insert(app.name, vec![appdir]);
+                                dependencies.insert(app.name, app);
+                            }
+                            let app = detect_app(
+                                reporter,
+                                codemap,
+                                args,
+                                cwd.as_path(),
+                                files.as_slice(),
+                            )?;
+                            input_files.insert(app.name, files);
+                            (app, dependencies, input_files)
+                        }
                     }
                 }
-
-                // Perform initial validation of inputs
-                //
-                // The full expansion of given inputs is deferred to later, but we want to make sure
-                // we catch obviously bad things like missing paths, etc.
-                for filename in filenames.iter() {
-                    match filename {
-                        FileName::Real(ref path) if !path.exists() => {
-                            bail!(
-                                "invalid input path, no such file or directory: {}",
-                                path.display()
-                            );
-                        }
-                        _ => (),
-                    }
-                }
-
-                filenames
             }
         };
 
-        // Output/artifacts
-        let app = detect_app(
-            reporter,
-            codemap,
-            args,
-            cwd.as_path(),
-            input_files.as_slice(),
-        )?;
-        let app_type_opt: Option<ProjectType> =
-            ParseOption::parse_option(&option!("app-type"), &args)?;
-        let app_type = app_type_opt.unwrap_or(ProjectType::Executable);
+        let project_type = if args.is_present("bin") || app.otp_module.is_some() {
+            ProjectType::Executable
+        } else if args.is_present("dynamic") {
+            ProjectType::Dylib
+        } else {
+            ProjectType::Staticlib
+        };
         let output_types = OutputTypes::parse_option(&option!("emit"), &args)?;
         let color_arg = ColorArg::parse_option(&option!("color"), &args)?;
 
@@ -265,7 +341,8 @@ impl Options {
 
         Ok(Self {
             app,
-            app_type,
+            dependencies,
+            project_type,
             output_types,
             color: color_arg.into(),
             warnings_as_errors,
@@ -308,9 +385,7 @@ impl Options {
         cwd: PathBuf,
         args: &ArgMatches<'a>,
     ) -> anyhow::Result<Self> {
-        let input_files = vec![FileName::Real(cwd.clone())];
-        let app = detect_app(reporter, codemap, args, &cwd, input_files.as_slice())?;
-        let app_type = ProjectType::Executable;
+        let app = detect_app(reporter, codemap, args, &cwd, &[])?;
 
         let target_opt: Option<Target> = ParseOption::parse_option(&option!("target"), &args)?;
         let target = target_opt.unwrap_or_else(|| {
@@ -345,7 +420,8 @@ impl Options {
 
         Ok(Self {
             app,
-            app_type,
+            dependencies: HashMap::default(),
+            project_type: ProjectType::Executable,
             output_types: OutputTypes::default(),
             color: ColorChoice::Auto,
             warnings_as_errors: false,
@@ -363,7 +439,7 @@ impl Options {
             codegen_opts,
             debugging_opts,
             current_dir: cwd,
-            input_files,
+            input_files: HashMap::default(),
             output_file: None,
             output_dir: None,
             source_path_prefix: vec![],
@@ -573,11 +649,15 @@ fn detect_app<'a>(
     // For the remaining variations, the version is always handled the same
     let version = args.value_of("app-version").map(|v| v.to_string());
 
+    // If the application module was manually specified, use it
+    let otp_module = args.value_of("app-module").map(Symbol::intern);
+
     // If the application name was manually specified, use it
     if let Some(name) = args.value_of("app-name") {
         let name = Symbol::intern(name);
         let mut app = App::new(name);
         app.version = version;
+        app.otp_module = otp_module;
         return Ok(Arc::new(app));
     }
 
@@ -588,14 +668,17 @@ fn detect_app<'a>(
     // * directory: try to treat that directory as a standard Erlang application
     // * file: use the file name as the name of the application
     //
-    // Otherwise, if we have multiple inputs, we use the name
+    // Otherwise, if we have multiple inputs we use the name
     // of the current working directory as the application name.
     if input_file_names.len() == 1 {
         let input = &input_file_names[0];
         if input.is_dir() {
             let input_dir: &Path = input.as_ref();
             let srcdir = input_dir.join("src");
-            if let Ok(Some(app)) = try_load_app(reporter, codemap, &srcdir) {
+            if let Ok(Some(app)) = try_load_app(reporter, codemap.clone(), &srcdir) {
+                return Ok(app);
+            }
+            if let Ok(Some(app)) = try_load_app(reporter, codemap, input_dir) {
                 return Ok(app);
             }
         }
@@ -605,11 +688,13 @@ fn detect_app<'a>(
         };
         let mut app = App::new(name);
         app.version = version;
+        app.otp_module = otp_module;
         Ok(Arc::new(app))
     } else {
         let name = Symbol::intern(cwd.file_name().unwrap().to_str().unwrap());
         let mut app = App::new(name);
         app.version = version;
+        app.otp_module = otp_module;
         Ok(Arc::new(app))
     }
 }

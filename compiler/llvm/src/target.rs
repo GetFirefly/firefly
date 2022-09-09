@@ -303,7 +303,7 @@ impl TargetMachine {
             .relocation_model
             .unwrap_or(default_reloc_model);
         let position_independent_code =
-            options.app_type == ProjectType::Executable && reloc_model == RelocModel::Pic;
+            options.project_type == ProjectType::Executable && reloc_model == RelocModel::Pic;
         let function_sections = options.target.options.function_sections;
         let data_sections = function_sections;
         let emit_stack_size_section = options.debugging_opts.emit_stack_sizes;

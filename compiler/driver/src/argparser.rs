@@ -96,6 +96,32 @@ fn compile_command<'a, 'b>() -> App<'a, 'b> {
                 .value_name("INPUTS"),
         )
         .arg(
+            Arg::with_name("bin")
+                 .help("Tells the compiler to build this application into an executable (the default)")
+                 .long("bin")
+                 .conflicts_with("lib")
+        )
+        .arg(
+            Arg::with_name("lib")
+                 .help("Tells the compiler to build this application into a library")
+                 .long("lib")
+                 .conflicts_with("bin")
+        )
+        .arg(
+            Arg::with_name("dynamic")
+                 .help("When combined with --lib, builds this application as a shared library")
+                 .long("dynamic")
+                 .conflicts_with("bin")
+                 .conflicts_with("static")
+        )
+        .arg(
+            Arg::with_name("static")
+                 .help("When combined with --lib, builds this application as a static library (the default)")
+                 .long("static")
+                 .conflicts_with("bin")
+                 .conflicts_with("dynamic")
+        )
+        .arg(
             Arg::with_name("app-name")
                 .help("Specify the name of the Erlang application being built")
                 .long("app-name")
@@ -103,12 +129,11 @@ fn compile_command<'a, 'b>() -> App<'a, 'b> {
                 .value_name("NAME"),
         )
         .arg(
-            Arg::with_name("app-type")
-                 .help("Specify the type of Erlang application to emit")
-                 .long("app-type")
-                 .takes_value(true)
-                 .value_name("TYPE")
-                 .possible_values(&["bin", "lib", "dylib", "staticlib"])
+            Arg::with_name("app-module")
+                .help("Specify the name of the application callback module for this application")
+                .long("app-module")
+                .takes_value(true)
+                .value_name("MODULE"),
         )
         .arg(
             Arg::with_name("app-version")
@@ -123,8 +148,8 @@ fn compile_command<'a, 'b>() -> App<'a, 'b> {
                  .takes_value(true)
                  .value_name("PATH")
                 .conflicts_with("app-name")
-                .conflicts_with("app-type")
                 .conflicts_with("app-version")
+                .conflicts_with("app-module")
         )
         .arg(
             Arg::with_name("output")

@@ -1,4 +1,6 @@
 #![deny(warnings)]
+#![feature(iterator_try_collect)]
+#![feature(map_first_last)]
 
 mod argparser;
 mod commands;

@@ -42,7 +42,7 @@ pub fn link_binary(
     diagnostics: &DiagnosticsHandler,
     codegen_results: &CodegenResults,
 ) -> anyhow::Result<()> {
-    let project_type = options.app_type;
+    let project_type = options.project_type;
     if invalid_output_for_target(options) {
         return Err(anyhow!(
             "invalid output type `{:?}` for target os `{}`",
@@ -589,7 +589,7 @@ fn preserve_objects_for_their_debuginfo(options: &Options) -> (bool, bool) {
     }
 
     // If we're only producing artifacts that are archives, no need to preserve the objects
-    if options.app_type == ProjectType::Staticlib {
+    if options.project_type == ProjectType::Staticlib {
         return (false, false);
     }
 
@@ -1667,7 +1667,7 @@ fn add_gcc_ld_path(
 
 /// Checks if target supports project_type as output
 fn invalid_output_for_target(options: &Options) -> bool {
-    let project_type = options.app_type;
+    let project_type = options.project_type;
     match project_type {
         ProjectType::Cdylib | ProjectType::Dylib => {
             if !options.target.options.dynamic_linking {

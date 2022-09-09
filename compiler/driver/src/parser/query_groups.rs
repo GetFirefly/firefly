@@ -2,6 +2,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::thread::ThreadId;
 
+use firefly_intern::Symbol;
 use firefly_llvm as llvm;
 use firefly_mlir as mlir;
 use firefly_session::{InputType, Options};
@@ -44,7 +45,7 @@ pub trait Parser: CompilerOutput {
 
     /// Returns all of the input sources
     #[salsa::invoke(queries::inputs)]
-    fn inputs(&self) -> Result<Vec<InternedInput>, ErrorReported>;
+    fn inputs(&self, app: Symbol) -> Result<Vec<InternedInput>, ErrorReported>;
 
     /// Returns the type of an interned input
     #[salsa::invoke(queries::input_type)]

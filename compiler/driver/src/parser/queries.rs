@@ -5,7 +5,7 @@ use std::thread::ThreadId;
 use log::debug;
 
 use firefly_diagnostics::{Reporter, ToDiagnostic};
-use firefly_intern::symbols;
+use firefly_intern::{symbols, Symbol};
 use firefly_llvm as llvm;
 use firefly_mlir as mlir;
 use firefly_session::{Input, InputType};
@@ -113,22 +113,24 @@ where
     Arc::new(mlir::OwnedContext::new(&options, &diagnostics))
 }
 
-pub(crate) fn inputs<P>(db: &P) -> Result<Vec<InternedInput>, ErrorReported>
+pub(crate) fn inputs<P>(db: &P, app: Symbol) -> Result<Vec<InternedInput>, ErrorReported>
 where
     P: Parser,
 {
     use std::io::{self, Read};
 
-    // Fetch all of the inputs associated with the current application
+    // Fetch all of the inputs associated with the given application
     let options = db.options();
     let mut inputs: Vec<InternedInput> = Vec::new();
 
-    for input in options.input_files.iter() {
+    let input_files = options.input_files.get(&app).unwrap();
+
+    for input in input_files.iter() {
         // We can get three types of input:
         //
         // 1. `stdin` for standard input
         // 2. `path/to/file.erl` for a single file
-        // 3. `path/to/dir` for a directory containing a standard Erlang application
+        // 3. `path/to/dir` for a directory containing Erlang sources
         match input {
             // Read from standard input
             &FileName::Virtual(ref name) if name == "stdin" => {

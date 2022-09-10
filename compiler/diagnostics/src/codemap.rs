@@ -122,6 +122,24 @@ impl CodeMap {
         self.files.iter().map(|r| r.value().clone())
     }
 
+    /// Get a SourceSpan corresponding to the given line:column
+    ///
+    /// NOTE: The returned SourceSpan points only to line:column, it does not
+    /// span any neighboring source locations, callers must extend the returned
+    /// SourceSpan if so desired.
+    pub fn line_column_to_span(
+        &self,
+        file_id: SourceId,
+        line: impl Into<LineIndex>,
+        column: impl Into<ColumnIndex>,
+    ) -> Result<SourceSpan, Error> {
+        let f = self.get(file_id)?;
+        let span = f.line_column_to_span(line.into(), column.into())?;
+        let start = SourceIndex::new(file_id, span.start());
+        let end = SourceIndex::new(file_id, span.end());
+        Ok(SourceSpan::new(start, end))
+    }
+
     pub fn line_span(
         &self,
         file_id: SourceId,

@@ -97,6 +97,32 @@ impl SourceFile {
         }
     }
 
+    /// Returns a codespan::Span that points to the location given by the provided line:column
+    pub fn line_column_to_span(
+        &self,
+        line_index: LineIndex,
+        column_index: ColumnIndex,
+    ) -> Result<codespan::Span, Error> {
+        let column_index = column_index.to_usize();
+        let line_span = self.line_span(line_index)?;
+        let line_src = self
+            .source
+            .as_str()
+            .get(line_span.start().to_usize()..line_span.end().to_usize())
+            .unwrap();
+        if line_src.len() < column_index {
+            let base = line_span.start().to_usize();
+            return Err(Error::IndexTooLarge {
+                given: base + column_index,
+                max: base + line_src.len(),
+            });
+        }
+        let (pre, _) = line_src.split_at(column_index);
+        let start = line_span.start();
+        let offset = ByteOffset::from_str_len(pre);
+        Ok(codespan::Span::new(start + offset, start + offset))
+    }
+
     pub fn location<I: Into<ByteIndex>>(&self, byte_index: I) -> Result<Location, Error> {
         let byte_index = byte_index.into();
         let line_index = self.line_index(byte_index);

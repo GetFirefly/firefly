@@ -207,13 +207,7 @@ mod test {
         ($codemap:expr, $name:expr, $body:expr) => {{
             let mut errs = Reporter::new();
             let codemap = $codemap;
-            let module = Module::new_with_forms(
-                &mut errs,
-                codemap.clone(),
-                SourceSpan::UNKNOWN,
-                $name,
-                $body,
-            );
+            let module = Module::new_with_forms(&mut errs, SourceSpan::UNKNOWN, $name, $body);
             if errs.is_failed() {
                 fail_with(errs, codemap, "failed to create expected module!");
             }

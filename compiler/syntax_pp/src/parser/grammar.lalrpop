@@ -109,7 +109,6 @@ Type: Type = {
     <FunType> => Type::Function(Box::new(<>)),
     "{" "type" "," <loc:Location> "," "fun" "," <_nil:Nil> "}" => Type::AnyFun(Box::new(AnyFunType::new(loc, None))),
     "{" "type" "," <loc:Location> "," "fun" "," "[" <_any:AnyType> "," <return_type:Type> "]" "}" => Type::AnyFun(Box::new(AnyFunType::new(loc, Some(return_type)))),
-    <ProductType> => Type::Product(Box::new(<>)),
     "{" "type" "," <loc:Location> "," "union" "," "[" <types:Comma<Type>> "]" "}"
         => Type::Union(Box::new(UnionType::new(loc, types))),
     "{" "type" "," <loc:Location> "," "bounded_fun" "," "[" <fun:FunType> "," "[" <constraints:Comma<Constraint>> "]" "]" "}" => {

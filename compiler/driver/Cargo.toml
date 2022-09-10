@@ -32,7 +32,9 @@ firefly_llvm = { path = "../llvm" }
 firefly_mlir = { path = "../mlir" }
 firefly_pass = { path = "../pass" }
 firefly_parser = { path = "../parser" }
+firefly_beam = { path = "../../library/beam" }
 firefly_syntax_base = { path = "../syntax_base" }
+firefly_syntax_pp = { path = "../syntax_pp" }
 firefly_syntax_erl = { path = "../syntax_erl" }
 firefly_syntax_core = { path = "../syntax_core" }
 firefly_syntax_ssa = { path = "../syntax_ssa" }

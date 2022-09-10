@@ -88,6 +88,19 @@ pub struct Callback {
     pub function: Ident,
     pub sigs: Vec<TypeSig>,
 }
+impl Callback {
+    pub fn is_impl(&self, name: &FunctionName) -> bool {
+        if self.module.map(|id| id.name) != name.module || self.function.name != name.function {
+            return false;
+        }
+        for sig in self.sigs.iter() {
+            if name.arity as usize == sig.params.len() {
+                return true;
+            }
+        }
+        false
+    }
+}
 impl PartialEq for Callback {
     fn eq(&self, other: &Self) -> bool {
         self.optional == other.optional

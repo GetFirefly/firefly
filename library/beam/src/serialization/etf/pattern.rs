@@ -858,7 +858,10 @@ pub struct Location;
 impl<'a> Pattern<'a> for Location {
     type Output = crate::ast::Location;
     fn try_match(&self, input: &'a Term) -> MatchResult<'a, Self::Output> {
-        input.as_match((U32, U32)).map(|loc| loc.into())
+        input.as_match(Or(((U32, U32), U32))).map(|loc| match loc {
+            Union2::A(loc) => loc.into(),
+            Union2::B(line) => crate::ast::Location { line, column: 1 },
+        })
     }
 }
 

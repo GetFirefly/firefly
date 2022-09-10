@@ -63,7 +63,7 @@ pub Module: Module = {
             None => Vec::new(),
             Some(body) => body,
         };
-        Module::new_with_forms(reporter, codemap.clone(), span!(l, r), name, body)
+        Module::new_with_forms(reporter, span!(l, r), name, body)
     }
 };
 

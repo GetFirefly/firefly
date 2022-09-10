@@ -564,6 +564,7 @@ dependencies = [
  "async-task 1.3.1",
  "clap",
  "crossbeam",
+ "firefly_beam",
  "firefly_codegen",
  "firefly_diagnostics",
  "firefly_intern",
@@ -576,6 +577,7 @@ dependencies = [
  "firefly_syntax_core",
  "firefly_syntax_erl",
  "firefly_syntax_kernel",
+ "firefly_syntax_pp",
  "firefly_syntax_ssa",
  "firefly_target",
  "firefly_util",
@@ -843,6 +845,8 @@ name = "firefly_syntax_erl"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "either",
+ "firefly_beam",
  "firefly_binary",
  "firefly_diagnostics",
  "firefly_intern",
@@ -851,6 +855,7 @@ dependencies = [
  "firefly_pass",
  "firefly_syntax_base",
  "firefly_syntax_core",
+ "firefly_syntax_pp",
  "firefly_util",
  "itertools",
  "lalrpop",

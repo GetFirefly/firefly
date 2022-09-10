@@ -1,8 +1,5 @@
 use std::collections::BTreeMap;
 use std::collections::{HashMap, HashSet};
-use std::sync::Arc;
-
-use anyhow::anyhow;
 
 use firefly_diagnostics::*;
 use firefly_syntax_base::*;
@@ -141,19 +138,6 @@ impl Module {
         }
     }
 
-    /// Called by the parser for Erlang Abstract Format, which relies on us detecting the module name in the given forms
-    pub fn new_from_pp(
-        reporter: &Reporter,
-        codemap: Arc<CodeMap>,
-        span: SourceSpan,
-        body: Vec<TopLevel>,
-    ) -> anyhow::Result<Self> {
-        let name = body.iter().find_map(|t| t.module_name()).ok_or_else(|| {
-            anyhow!("invalid module, no module declaration present in given forms")
-        })?;
-        Ok(Self::new_with_forms(reporter, codemap, span, name, body))
-    }
-
     /// Called by the parser to create the module once all of the top-level expressions have been
     /// parsed, in other words this is the last function called when parsing a module.
     ///
@@ -161,7 +145,6 @@ impl Module {
     ///
     pub fn new_with_forms(
         reporter: &Reporter,
-        _codemap: Arc<CodeMap>,
         span: SourceSpan,
         name: Ident,
         mut forms: Vec<TopLevel>,

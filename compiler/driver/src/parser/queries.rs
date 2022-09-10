@@ -191,7 +191,11 @@ pub(crate) fn input_ast<P>(
 where
     P: Parser,
 {
+    use firefly_beam::AbstractCode;
     use firefly_parser as parse;
+    use firefly_pass::Pass;
+    use firefly_syntax_erl::passes::AbstractErlangToAst;
+    use firefly_syntax_pp as syntax_pp;
 
     let options = db.options();
     let codemap = db.codemap().clone();
@@ -202,31 +206,71 @@ where
         Reporter::new()
     };
 
-    let result = match db.input_type(input) {
-        InputType::Erlang => {
-            let parser = parse::Parser::new(config, codemap.clone());
-            match db.lookup_intern_input(input) {
+    let input_type = db.input_type(input);
+
+    // For standard Erlang sources, we need only parse the source file
+    if input_type == InputType::Erlang {
+        let parser = parse::Parser::new(config, codemap.clone());
+        let result = match db.lookup_intern_input(input) {
+            Input::File(ref path) => {
+                parser.parse_file::<syntax_erl::Module, &Path, _>(reporter.clone(), path)
+            }
+            Input::Str { ref input, .. } => {
+                parser.parse_string::<syntax_erl::Module, _, _>(reporter.clone(), input)
+            }
+        };
+
+        match result {
+            Ok(module) => {
+                reporter.print(&codemap);
+                db.maybe_emit_file_with_opts(&options, input, &module)?;
+                return Ok(module);
+            }
+            Err(e) => {
+                reporter.diagnostic(e.to_diagnostic());
+                reporter.print(&codemap);
+                bail!(db, "parsing failed, see diagnostics for details");
+            }
+        }
+    }
+
+    // For Abstract Erlang, either in source form or from a BEAM, we need to obtain the
+    // Abstract Erlang syntax tree, and then convert it to our normal Erlang syntax tree
+    let ast = match input_type {
+        InputType::AbstractErlang => {
+            let parser = parse::Parser::new((), codemap.clone());
+            let result = match db.lookup_intern_input(input) {
                 Input::File(ref path) => {
-                    parser.parse_file::<syntax_erl::Module, &Path, _>(reporter.clone(), path)
+                    parser.parse_file::<syntax_pp::ast::Ast, &Path, _>(reporter.clone(), path)
                 }
                 Input::Str { ref input, .. } => {
-                    parser.parse_string::<syntax_erl::Module, _, _>(reporter.clone(), input)
+                    parser.parse_string::<syntax_pp::ast::Ast, _, _>(reporter.clone(), input)
                 }
-            }
+            };
+            unwrap_or_bail!(db, reporter, &codemap, result)
+        }
+        InputType::BEAM => {
+            let result = match db.lookup_intern_input(input) {
+                Input::File(ref path) => AbstractCode::from_beam_file(path).map(|code| code.into()),
+                Input::Str { .. } => {
+                    bail!(db, "beam parsing is only supported on files");
+                }
+            };
+            unwrap_or_bail!(db, reporter, &codemap, result)
         }
         ty => bail!(db, "invalid input type: {}", ty),
     };
 
-    match result {
+    let mut passes = AbstractErlangToAst::new(reporter.clone(), codemap.clone());
+    match passes.run(ast) {
         Ok(module) => {
             reporter.print(&codemap);
             db.maybe_emit_file_with_opts(&options, input, &module)?;
             Ok(module)
         }
-        Err(e) => {
-            reporter.diagnostic(e.to_diagnostic());
+        Err(ref e) => {
             reporter.print(&codemap);
-            bail!(db, "parsing failed, see diagnostics for details");
+            bail!(db, format!("{}", e));
         }
     }
 }
@@ -356,7 +400,7 @@ where
                 }
             }
         }
-        InputType::Erlang | InputType::AbstractErlang | InputType::SSA => {
+        InputType::Erlang | InputType::AbstractErlang => {
             debug!("generating mlir for {:?} on {:?}", input, thread_id);
             let module = db.input_ssa(input, app)?;
             let codemap = db.codemap();

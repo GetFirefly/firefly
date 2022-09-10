@@ -885,9 +885,13 @@ impl<'a> FromTerm<'a> for TypeDef {
             "attribute",
             pattern::Location,
             Or(("opaque", "type")),
-            (atom(), ty(), VarList(var())),
+            (atom(), any(), VarList(var())),
         ))
-        .map(|(_, loc, kind, (name, ty, vars))| {
+        .map(|(_, loc, kind, (name, maybe_ty, vars))| {
+            let ty = match maybe_ty.as_match(ty()) {
+                Ok(ty) => ty,
+                Err(err) => panic!("unrecognized type construct: {:#?}", &err),
+            };
             let mut def = Self::new(loc, name, vars, ty);
             def.is_opaque = kind.is_a();
             def

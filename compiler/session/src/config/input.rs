@@ -8,7 +8,7 @@ use firefly_util::diagnostics::FileName;
 pub enum InputType {
     Erlang,
     AbstractErlang,
-    SSA,
+    BEAM,
     MLIR,
     Unknown(Option<String>),
 }
@@ -16,7 +16,7 @@ impl InputType {
     const TYPES: &'static [InputType] = &[
         InputType::Erlang,
         InputType::AbstractErlang,
-        InputType::SSA,
+        InputType::BEAM,
         InputType::MLIR,
     ];
 
@@ -27,8 +27,8 @@ impl InputType {
         match path.extension().and_then(|s| s.to_str()) {
             None => false,
             Some("erl") => true,
-            Some("abstr") => true,
-            Some("ssa") => true,
+            Some("P") => true,
+            Some("beam") => true,
             Some("mlir") => true,
             Some(_) => false,
         }
@@ -40,10 +40,10 @@ impl InputType {
         }
         match path.extension().and_then(|s| s.to_str()) {
             None => false,
-            Some("erl") if self == &Self::Erlang => true,
-            Some("abstr") if self == &Self::AbstractErlang => true,
-            Some("ssa") if self == &Self::SSA => true,
-            Some("mlir") if self == &Self::MLIR => true,
+            Some("erl") => self == &Self::Erlang,
+            Some("P") => self == &Self::AbstractErlang,
+            Some("beam") => self == &Self::BEAM,
+            Some("mlir") => self == &Self::MLIR,
             Some(other) => match self {
                 Self::Unknown(None) => true,
                 Self::Unknown(Some(ext)) => ext.as_str() == other,
@@ -64,8 +64,8 @@ impl fmt::Display for InputType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::Erlang => f.write_str("erl"),
-            Self::AbstractErlang => f.write_str("abstr"),
-            Self::SSA => f.write_str("ssa"),
+            Self::AbstractErlang => f.write_str("P"),
+            Self::BEAM => f.write_str("beam"),
             Self::MLIR => f.write_str("mlir"),
             Self::Unknown(None) => f.write_str("unknown (no extension)"),
             Self::Unknown(Some(ref ext)) => write!(f, "unknown ({})", ext),
@@ -98,8 +98,8 @@ impl Input {
         match self {
             Input::File(ref file) => match file.extension().and_then(|ext| ext.to_str()) {
                 Some("erl") => InputType::Erlang,
-                Some("abstr") => InputType::AbstractErlang,
-                Some("ssa") => InputType::SSA,
+                Some("P") => InputType::AbstractErlang,
+                Some("beam") => InputType::BEAM,
                 Some("mlir") => InputType::MLIR,
                 Some(t) => InputType::Unknown(Some(t.to_string())),
                 None => InputType::Unknown(None),
@@ -107,10 +107,10 @@ impl Input {
             Input::Str { ref name, .. } => {
                 if name.ends_with(".erl") {
                     InputType::Erlang
-                } else if name.ends_with(".abstr") {
+                } else if name.ends_with(".P") {
                     InputType::AbstractErlang
-                } else if name.ends_with(".ssa") {
-                    InputType::SSA
+                } else if name.ends_with(".beam") {
+                    InputType::BEAM
                 } else if name.ends_with(".mlir") {
                     InputType::MLIR
                 } else {

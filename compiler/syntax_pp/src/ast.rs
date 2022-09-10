@@ -1,6 +1,7 @@
 pub use firefly_beam::ast::*;
 
 use firefly_beam::serialization::etf;
+use firefly_beam::AbstractCode;
 use firefly_diagnostics::{SourceSpan, Span, Spanned};
 use firefly_intern::Symbol;
 
@@ -8,6 +9,11 @@ use firefly_intern::Symbol;
 #[derive(Debug, Clone)]
 pub struct Ast {
     pub forms: Vec<Form>,
+}
+impl From<AbstractCode> for Ast {
+    fn from(code: AbstractCode) -> Self {
+        Self { forms: code.forms }
+    }
 }
 
 /// This is the root of a document containing a single term

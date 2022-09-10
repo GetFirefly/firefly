@@ -3347,11 +3347,29 @@ fn ta_sanitize_as(exprs: &mut Vec<ast::Expr>) {
 fn try_build_stacktrace(mut clauses: Vec<IClause>, raw_stack: Ident) -> Vec<IClause> {
     let mut output = Vec::with_capacity(clauses.len());
     for mut clause in clauses.drain(..) {
-        assert_eq!(
-            clause.patterns.len(),
-            3,
-            "unexpected number of catch clause patterns"
-        );
+        match clause.patterns.len() {
+            1 => {
+                // This occurs when the original input was Abstract Erlang format which treats
+                // the clause pattern as an implicit tuple, so we need to unwrap the tuple before
+                // proceeding
+                match clause.patterns.pop().unwrap() {
+                    IExpr::Tuple(ITuple { elements, .. }) => {
+                        assert_eq!(
+                            elements.len(),
+                            3,
+                            "unexpected number of catch clause pattern elements"
+                        );
+                        clause.patterns = elements;
+                    }
+                    other => panic!("unexpected catch clause pattern: {:#?}", &other),
+                }
+            }
+            3 => (),
+            n => panic!(
+                "unexpected number of catch clause patterns, expected 1 or 3, got {}",
+                n
+            ),
+        };
         let mut stk = clause.patterns.pop().unwrap();
         match stk {
             IExpr::Var(Var { name, .. }) if name == symbols::Underscore => {

@@ -10,6 +10,7 @@ license = "MIT OR Apache-2.0"
 build = "build.rs"
 
 [dependencies]
+firefly_beam = { path = "../../library/beam" }
 firefly_binary = { path = "../../library/binary" }
 firefly_diagnostics = { path = "../diagnostics" }
 firefly_intern = { path = "../intern" }
@@ -18,9 +19,11 @@ firefly_pass = { path = "../pass" }
 firefly_parser = { path = "../parser" }
 firefly_syntax_base = { path = "../syntax_base" }
 firefly_syntax_core = { path = "../syntax_core" }
+firefly_syntax_pp = { path = "../syntax_pp" }
 firefly_util = { path = "../util" }
 
 anyhow = "1.0"
+either = "1.8"
 itertools = "0.10"
 lalrpop-util = "0.19"
 lazy_static = "1.4"

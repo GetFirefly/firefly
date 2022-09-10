@@ -5,9 +5,10 @@ use super::*;
 
 /// This struct is used to perform pattern matching against a bitstring/binary.
 ///
-/// It operates on a captured BitSlice so that the internal machinery for traversing
+/// It operates on a captured Selection so that the internal machinery for traversing
 /// bits/bytes can be handled in one place, and to keep this struct focused on the
 /// pattern matching semantics.
+#[derive(Clone)]
 pub struct Matcher<'a> {
     selection: Selection<'a>,
 }

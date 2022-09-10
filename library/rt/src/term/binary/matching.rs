@@ -64,6 +64,7 @@ impl fmt::Debug for MatchResult {
 
 /// A slice of another binary or bitstring value
 #[repr(C)]
+#[derive(Clone)]
 pub struct MatchContext {
     /// This a thin pointer to the original term we're borrowing from
     /// This is necessary to properly keep the owner live, either from the perspective
@@ -102,13 +103,29 @@ impl MatchContext {
         GcBox::new_in(Self { owner, matcher }, alloc)
     }
 
+    /// Clones this match context to the given allocator
+    pub fn clone_to<A: Allocator>(&self, alloc: A) -> Result<GcBox<Self>, AllocError> {
+        GcBox::new_in(
+            Self {
+                owner: self.owner,
+                matcher: self.matcher.clone(),
+            },
+            alloc,
+        )
+    }
+
     #[inline]
     pub fn owner(&self) -> OpaqueTerm {
         self.owner
     }
 
     #[inline]
-    pub fn matcher(&mut self) -> &mut Matcher<'static> {
+    pub fn matcher(&self) -> &Matcher<'static> {
+        &self.matcher
+    }
+
+    #[inline]
+    pub fn matcher_mut(&mut self) -> &mut Matcher<'static> {
         &mut self.matcher
     }
 

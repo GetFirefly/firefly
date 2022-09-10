@@ -483,15 +483,18 @@ pub extern "C-unwind" fn bs_match_start(
 
 #[export_name = "__firefly_bs_match"]
 pub extern "C-unwind" fn bs_match(
-    mut ctx: NonNull<MatchContext>,
+    ctx: NonNull<MatchContext>,
     spec: BinaryEntrySpecifier,
     size: OpaqueTerm,
 ) -> MatchResult {
     scheduler::with_current(|scheduler| {
         let arc_proc = scheduler.current_process();
         let proc = arc_proc.deref();
-        let context = unsafe { ctx.as_mut() };
-        let matcher = context.matcher();
+        // We perform matching with a stack copy of the context since we don't want to mutate the original
+        // If the match is unsuccessful, we simply discard it; but if it is successful, we store it
+        // on the process heap and use it for subsequent dependent matching operations
+        let mut context = unsafe { ctx.as_ref().clone() };
+        let matcher = context.matcher_mut();
         match spec {
             BinaryEntrySpecifier::Integer {
                 signed,
@@ -502,24 +505,38 @@ pub extern "C-unwind" fn bs_match(
                 let size: usize = size.try_into().expect("invalid size");
                 let bitsize = unit as usize * size;
                 if bitsize == 0 {
+                    // Since we we haven't modified the context, we can simply return the original
                     MatchResult::ok(OpaqueTerm::ZERO, ctx)
                 } else if bitsize > 52 {
                     match matcher.match_bigint(bitsize, signed, endianness) {
                         None => MatchResult::err(ctx),
                         Some(i) => {
                             let big = GcBox::new_in(i, proc).unwrap();
+                            // Store the new context on the process heap and return it
+                            let context = context.clone_to(proc).unwrap();
+                            let ctx = unsafe { NonNull::new_unchecked(GcBox::into_raw(context)) };
                             MatchResult::ok(OpaqueTerm::from(big), ctx)
                         }
                     }
                 } else if signed {
                     match matcher.match_ap_number::<i64, 8>(bitsize, endianness) {
                         None => MatchResult::err(ctx),
-                        Some(i) => MatchResult::ok(i.try_into().unwrap(), ctx),
+                        Some(i) => {
+                            // Store the new context on the process heap and return it
+                            let context = context.clone_to(proc).unwrap();
+                            let ctx = unsafe { NonNull::new_unchecked(GcBox::into_raw(context)) };
+                            MatchResult::ok(i.try_into().unwrap(), ctx)
+                        }
                     }
                 } else {
                     match matcher.match_ap_number::<u64, 8>(bitsize, endianness) {
                         None => MatchResult::err(ctx),
-                        Some(i) => MatchResult::ok((i as i64).try_into().unwrap(), ctx),
+                        Some(i) => {
+                            // Store the new context on the process heap and return it
+                            let context = context.clone_to(proc).unwrap();
+                            let ctx = unsafe { NonNull::new_unchecked(GcBox::into_raw(context)) };
+                            MatchResult::ok((i as i64).try_into().unwrap(), ctx)
+                        }
                     }
                 }
             }
@@ -528,11 +545,15 @@ pub extern "C-unwind" fn bs_match(
                 let size: usize = size.try_into().expect("invalid size");
                 let bitsize = unit as usize * size;
                 match bitsize {
+                    // No clone needed as we haven't modified the original
                     0 => MatchResult::ok(0.0f64.into(), ctx),
                     16 => match matcher.match_number::<f16, 2>(endianness) {
                         None => MatchResult::err(ctx),
                         Some(n) => {
                             let f: f64 = n.into();
+                            // Store the new context on the process heap and return it
+                            let context = context.clone_to(proc).unwrap();
+                            let ctx = unsafe { NonNull::new_unchecked(GcBox::into_raw(context)) };
                             MatchResult::ok(f.into(), ctx)
                         }
                     },
@@ -540,12 +561,20 @@ pub extern "C-unwind" fn bs_match(
                         None => MatchResult::err(ctx),
                         Some(n) => {
                             let f: f64 = n.into();
+                            // Store the new context on the process heap and return it
+                            let context = context.clone_to(proc).unwrap();
+                            let ctx = unsafe { NonNull::new_unchecked(GcBox::into_raw(context)) };
                             MatchResult::ok(f.into(), ctx)
                         }
                     },
                     64 => match matcher.match_number::<f64, 8>(endianness) {
                         None => MatchResult::err(ctx),
-                        Some(f) => MatchResult::ok(f.into(), ctx),
+                        Some(f) => {
+                            // Store the new context on the process heap and return it
+                            let context = context.clone_to(proc).unwrap();
+                            let ctx = unsafe { NonNull::new_unchecked(GcBox::into_raw(context)) };
+                            MatchResult::ok(f.into(), ctx)
+                        }
                     },
                     bitsize => panic!(
                         "invalid bitsize for floats, must be 16, 32 or 64, got {}",
@@ -567,6 +596,10 @@ pub extern "C-unwind" fn bs_match(
                                     proc,
                                 )
                                 .unwrap();
+                                // Store the new context on the process heap and return it
+                                let context = context.clone_to(proc).unwrap();
+                                let ctx =
+                                    unsafe { NonNull::new_unchecked(GcBox::into_raw(context)) };
                                 MatchResult::ok(OpaqueTerm::from(bin), ctx)
                             }
                         }
@@ -580,6 +613,10 @@ pub extern "C-unwind" fn bs_match(
                                     proc,
                                 )
                                 .unwrap();
+                                // Store the new context on the process heap and return it
+                                let context = context.clone_to(proc).unwrap();
+                                let ctx =
+                                    unsafe { NonNull::new_unchecked(GcBox::into_raw(context)) };
                                 MatchResult::ok(OpaqueTerm::from(bin), ctx)
                             }
                             None => MatchResult::err(ctx),
@@ -593,6 +630,9 @@ pub extern "C-unwind" fn bs_match(
                             proc,
                         )
                         .unwrap();
+                        // Store the new context on the process heap and return it
+                        let context = context.clone_to(proc).unwrap();
+                        let ctx = unsafe { NonNull::new_unchecked(GcBox::into_raw(context)) };
                         MatchResult::ok(OpaqueTerm::from(bin), ctx)
                     }
                     other => panic!("expected an immediate integer or none, got {:#?}", &other),
@@ -600,15 +640,30 @@ pub extern "C-unwind" fn bs_match(
             }
             BinaryEntrySpecifier::Utf8 => match matcher.match_utf8() {
                 None => MatchResult::err(ctx),
-                Some(c) => MatchResult::ok(c.into(), ctx),
+                Some(c) => {
+                    // Store the new context on the process heap and return it
+                    let context = context.clone_to(proc).unwrap();
+                    let ctx = unsafe { NonNull::new_unchecked(GcBox::into_raw(context)) };
+                    MatchResult::ok(c.into(), ctx)
+                }
             },
             BinaryEntrySpecifier::Utf16 { endianness } => match matcher.match_utf16(endianness) {
                 None => MatchResult::err(ctx),
-                Some(c) => MatchResult::ok(c.into(), ctx),
+                Some(c) => {
+                    // Store the new context on the process heap and return it
+                    let context = context.clone_to(proc).unwrap();
+                    let ctx = unsafe { NonNull::new_unchecked(GcBox::into_raw(context)) };
+                    MatchResult::ok(c.into(), ctx)
+                }
             },
             BinaryEntrySpecifier::Utf32 { endianness } => match matcher.match_utf32(endianness) {
                 None => MatchResult::err(ctx),
-                Some(c) => MatchResult::ok(c.into(), ctx),
+                Some(c) => {
+                    // Store the new context on the process heap and return it
+                    let context = context.clone_to(proc).unwrap();
+                    let ctx = unsafe { NonNull::new_unchecked(GcBox::into_raw(context)) };
+                    MatchResult::ok(c.into(), ctx)
+                }
             },
         }
     })
@@ -622,7 +677,7 @@ pub extern "C-unwind" fn bs_match_skip(
     value: u64,
 ) -> ErlangResult<NonNull<MatchContext>, NonNull<MatchContext>> {
     let context = unsafe { ctx.as_mut() };
-    let matcher = context.matcher();
+    let matcher = context.matcher_mut();
     match spec {
         BinaryEntrySpecifier::Integer {
             signed,

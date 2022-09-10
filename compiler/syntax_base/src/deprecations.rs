@@ -2,22 +2,31 @@ use core::fmt;
 use core::hash::{Hash, Hasher};
 
 use firefly_diagnostics::{SourceSpan, Span, Spanned};
-use firefly_intern::Ident;
+use firefly_intern::{symbols, Ident, Symbol};
 
 use crate::FunctionName;
 
 /// Represents a deprecated function or module
 #[derive(Debug, Copy, Clone, Spanned)]
 pub enum Deprecation {
+    /// Represents deprecation of an entire module
     Module {
         #[span]
         span: SourceSpan,
         flag: DeprecatedFlag,
     },
+    /// Represents deprecation of a specific function
     Function {
         #[span]
         span: SourceSpan,
         function: Span<FunctionName>,
+        flag: DeprecatedFlag,
+    },
+    /// Represents deprecation of a function `name` of any arity
+    FunctionAnyArity {
+        #[span]
+        span: SourceSpan,
+        name: Symbol,
         flag: DeprecatedFlag,
     },
 }
@@ -35,6 +44,9 @@ impl PartialEq for Deprecation {
                     function: ref y1, ..
                 },
             ) => x1 == y1,
+            (Self::FunctionAnyArity { name: x, .. }, Self::FunctionAnyArity { name: y, .. }) => {
+                x == y
+            }
             _ => false,
         }
     }
@@ -52,6 +64,10 @@ impl Hash for Deprecation {
                 flag.hash(state);
                 function.hash(state)
             }
+            Self::FunctionAnyArity { name, flag, .. } => {
+                flag.hash(state);
+                name.hash(state)
+            }
         }
     }
 }
@@ -62,6 +78,16 @@ pub enum DeprecatedFlag {
     NextVersion,
     NextMajorRelease,
     Description(Ident),
+}
+impl From<Symbol> for DeprecatedFlag {
+    fn from(sym: Symbol) -> Self {
+        match sym {
+            symbols::Eventually => Self::Eventually,
+            symbols::NextVersion => Self::NextVersion,
+            symbols::NextMajorRelease => Self::NextMajorRelease,
+            other => Self::Description(Ident::with_empty_span(other)),
+        }
+    }
 }
 impl fmt::Display for DeprecatedFlag {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

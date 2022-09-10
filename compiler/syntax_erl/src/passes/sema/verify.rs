@@ -287,6 +287,8 @@ impl<'a> VisitMut<()> for VerifyCallsVisitor<'a> {
                             );
                             ControlFlow::Continue(())
                         }
+                        // These deprecation types have all been converted to Deprecation::Function
+                        Some(Deprecation::FunctionAnyArity { .. }) => unreachable!(),
                     }
                 }
                 (None, Some(f)) => {
@@ -329,6 +331,8 @@ impl<'a> VisitMut<()> for VerifyCallsVisitor<'a> {
                                         ],
                                     );
                                 }
+                                // These deprecation types have all been converted to Deprecation::Function
+                                Some(Deprecation::FunctionAnyArity { .. }) => unreachable!(),
                             },
                         }
                     }
@@ -372,6 +376,8 @@ impl<'a> VisitMut<()> for VerifyCallsVisitor<'a> {
                                 ],
                             );
                         }
+                        // These deprecation types have all been converted to Deprecation::Function
+                        Some(Deprecation::FunctionAnyArity { .. }) => unreachable!(),
                     }
                 }
                 if name.arity > arity {
@@ -423,6 +429,8 @@ impl<'a> VisitMut<()> for VerifyCallsVisitor<'a> {
                                     &[(span, note.as_str()), (dspan, "deprecation declared here")],
                                 );
                             }
+                            // These deprecation types have all been converted to Deprecation::Function
+                            Some(Deprecation::FunctionAnyArity { .. }) => unreachable!(),
                         },
                     }
                 }
@@ -501,6 +509,10 @@ impl<'a> VisitMut<()> for VerifyCallsVisitor<'a> {
                                                 ],
                                             );
                                         }
+                                        // These deprecation types have all been converted to Deprecation::Function
+                                        Some(Deprecation::FunctionAnyArity { .. }) => {
+                                            unreachable!()
+                                        }
                                     }
                                 }
                             }
@@ -558,6 +570,8 @@ impl<'a> VisitMut<()> for VerifyCallsVisitor<'a> {
                                     &[(span, note.as_str()), (dspan, "deprecation declared here")],
                                 );
                             }
+                            // These deprecation types have all been converted to Deprecation::Function
+                            Some(Deprecation::FunctionAnyArity { .. }) => unreachable!(),
                         },
                     }
                 }

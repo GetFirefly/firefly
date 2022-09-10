@@ -337,6 +337,21 @@ pub fn analyze_attribute(reporter: &Reporter, module: &mut Module, attr: Attribu
                             }
                         }
                     }
+                    Deprecation::FunctionAnyArity { span, .. } => {
+                        if let Some(ref mod_dep) = module.deprecation.as_ref() {
+                            reporter.show_warning("redundant deprecation", &[(span, "module is deprecated, so deprecating functions is redundant"), (mod_dep.span(), "module deprecation occurs here")]);
+                            return;
+                        }
+
+                        match module.deprecations.get(&deprecation) {
+                            None => {
+                                module.deprecations.insert(deprecation);
+                            }
+                            Some(ref prev_dep) => {
+                                reporter.show_warning("conflicting deprecation", &[(span, "this deprecation is a duplicate of a previous declaration"), (prev_dep.span(), "first declared here")]);
+                            }
+                        }
+                    }
                 }
             }
         }

@@ -11,7 +11,7 @@ use salsa::{ParallelDatabase, Snapshot};
 use firefly_codegen as codegen;
 use firefly_codegen::linker;
 use firefly_codegen::meta::{CodegenResults, CompiledModule, ProjectInfo};
-use firefly_diagnostics::{CodeMap, Diagnostic, Label, Reporter};
+use firefly_diagnostics::{CodeMap, Diagnostic, Label, Reporter, Span};
 use firefly_intern::Symbol;
 use firefly_session::{CodegenOptions, DebuggingOptions, Options};
 use firefly_syntax_base::{ApplicationMetadata, Deprecation, FunctionName, ModuleMetadata};
@@ -232,6 +232,25 @@ where
                         continue;
                     }
                     Deprecation::Module { .. } => continue,
+                    Deprecation::FunctionAnyArity {
+                        span,
+                        name: deprecated_name,
+                        flag,
+                    } => {
+                        // Search for matching functions and deprecate them
+                        for function in module.functions.keys().copied() {
+                            if function.function == deprecated_name {
+                                deprecations.insert(
+                                    function.resolve(name.name),
+                                    Deprecation::Function {
+                                        span,
+                                        function: Span::new(span, function),
+                                        flag,
+                                    },
+                                );
+                            }
+                        }
+                    }
                     Deprecation::Function {
                         span,
                         function,

@@ -16,9 +16,12 @@ pub struct Config {
     #[clap(value_parser)]
     tests: PathBuf,
 
-    /// The extension of the files that should be parsed for tests
-    #[clap(long, default_value = "erl", value_parser = clap::builder::NonEmptyStringValueParser::new())]
-    file_type: String,
+    /// Specify an extension to consider when looking for files to parse for tests
+    #[clap(long = "extension", short = 't', default_value = "erl", action = clap::ArgAction::Append, value_parser = clap::builder::NonEmptyStringValueParser::new())]
+    file_types: Vec<String>,
+
+    #[clap(last(true))]
+    only: Vec<String>,
 }
 
 pub fn run(config: &Config) -> anyhow::Result<()> {
@@ -27,7 +30,13 @@ pub fn run(config: &Config) -> anyhow::Result<()> {
         .as_ref()
         .cloned()
         .unwrap_or_else(|| std::env::current_dir().unwrap());
-    let lit_dir = config.tests.as_path().to_str().unwrap();
+
+    let test_path = config.tests.as_path();
+    let lit_dir = if test_path.is_file() {
+        test_path.parent().unwrap().to_str().unwrap()
+    } else {
+        test_path.to_str().unwrap()
+    };
 
     let firefly_exe = workspace.join("bin/firefly");
     if !firefly_exe.is_file() {
@@ -38,15 +47,18 @@ pub fn run(config: &Config) -> anyhow::Result<()> {
     }
 
     lit::run::tests(EventHandler::default(), |runner| {
-        runner.add_search_path(lit_dir);
-        runner.add_extension(config.file_type.as_str());
+        runner.add_search_path(test_path.to_str().unwrap());
+        for ty in config.file_types.iter() {
+            runner.add_extension(ty.as_str());
+        }
 
         runner
             .constants
             .insert("tests".to_owned(), lit_dir.to_string());
-        runner
-            .constants
-            .insert("firefly".to_owned(), firefly_exe.to_str().unwrap().to_string());
+        runner.constants.insert(
+            "firefly".to_owned(),
+            firefly_exe.to_str().unwrap().to_string(),
+        );
     })
     .map_err(|_| anyhow!("lit tests failed, see output for details"))
 }

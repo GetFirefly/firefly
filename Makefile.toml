@@ -267,7 +267,17 @@ category = "Test"
 description = "Runs file-based checks using lit"
 env = { RUSTFLAGS = "-Z unstable-options -C link-args=-Wl,-rpath,${LLVM_PREFIX}/lib" }
 command = "bin/firefly-make"
-args = ["lit", "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/test/lit"]
+args = ["lit", "-t", "erl", "-t", "P", "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/test/lit"]
+dependencies = [
+  "firefly",
+]
+
+[tasks.lit]
+category = "Test"
+description = "Invokes lit with the given arguments"
+env = { RUSTFLAGS = "-Z unstable-options -C link-args=-Wl,-rpath,${LLVM_PREFIX}/lib" }
+command = "bin/firefly-make"
+args = ["lit", "${@}"]
 dependencies = [
   "firefly",
 ]

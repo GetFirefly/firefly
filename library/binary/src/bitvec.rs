@@ -40,6 +40,16 @@ impl<A: Allocator> fmt::Debug for BitVec<A> {
             .finish()
     }
 }
+impl<A: Allocator> From<Vec<u8, A>> for BitVec<A> {
+    fn from(data: Vec<u8, A>) -> Self {
+        let pos = if data.is_empty() { 0 } else { data.len() - 1 };
+        Self {
+            data,
+            pos,
+            bit_offset: 0,
+        }
+    }
+}
 impl BitVec {
     /// Create a new, empty BitVec
     pub fn new() -> Self {
@@ -64,6 +74,17 @@ impl BitVec {
     }
 }
 impl<A: Allocator> BitVec<A> {
+    /// Convert a Vec<u8, A> + bit offset into a BitVec<A>
+    pub fn from_vec_with_trailing_bits(data: Vec<u8, A>, bit_offset: u8) -> Self {
+        assert!(bit_offset < 8);
+        let pos = if data.is_empty() { 0 } else { data.len() - 1 };
+        Self {
+            data,
+            pos,
+            bit_offset,
+        }
+    }
+
     /// Create a new, empty BitVec using the given allocator
     pub fn new_in(alloc: A) -> Self {
         Self {

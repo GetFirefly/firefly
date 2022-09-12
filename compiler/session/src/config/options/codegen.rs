@@ -43,6 +43,9 @@ pub struct CodegenOptions {
     pub default_linker_libraries: bool,
     #[option(default_value("false"), hidden(true))]
     pub embed_bitcode: bool,
+    /// Export symbols from executables, as if they were dynamic libraries
+    #[option(default_value("false"), hidden(true))]
+    pub export_executable_symbols: bool,
     #[option(hidden(true))]
     pub force_frame_pointers: Option<bool>,
     #[option(hidden(true))]

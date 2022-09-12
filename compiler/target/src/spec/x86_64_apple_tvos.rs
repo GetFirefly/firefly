@@ -1,5 +1,5 @@
 use super::apple_sdk_base::{opts, Arch};
-use crate::spec::{EncodingType, Target, TargetOptions};
+use crate::spec::{StackProbeType, Target, TargetOptions};
 
 pub fn target() -> Target {
     let base = opts("tvos", Arch::X86_64);
@@ -9,10 +9,9 @@ pub fn target() -> Target {
         data_layout: "e-m:o-i64:64-f80:128-n8:16:32:64-S128".into(),
         arch: "x86_64".into(),
         options: TargetOptions {
-            encoding: EncodingType::Encoding64Nanboxed,
             max_atomic_width: Some(64),
             // don't use probe-stack=inline-asm until rust#83139 and rust#84667 are resolved
-            stack_probes: false,
+            stack_probes: StackProbeType::Call,
             ..base
         },
     }

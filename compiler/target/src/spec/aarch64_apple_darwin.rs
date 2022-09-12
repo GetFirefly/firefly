@@ -1,12 +1,10 @@
-use crate::spec::{FramePointer, LinkerFlavor, Target, TargetOptions};
+use crate::spec::{FramePointer, Target, TargetOptions};
 
 pub fn target() -> Target {
-    let mut base = super::apple_base::opts("macos");
+    let arch = "arm64";
+    let mut base = super::apple_base::opts("macos", arch, "");
     base.cpu = "apple-a14".into();
     base.max_atomic_width = Some(128);
-
-    base.pre_link_args
-        .insert(LinkerFlavor::Gcc, vec!["-arch".into(), "arm64".into()]);
 
     base.link_env_remove
         .extend(super::apple_base::macos_link_env_remove());
@@ -14,7 +12,7 @@ pub fn target() -> Target {
     // Clang automatically chooses a more specific target based on
     // MACOSX_DEPLOYMENT_TARGET.  To enable cross-language LTO to work
     // correctly, we do too.
-    let llvm_target = super::apple_base::macos_llvm_target("arm64");
+    let llvm_target = super::apple_base::macos_llvm_target(arch);
 
     Target {
         llvm_target: llvm_target.into(),

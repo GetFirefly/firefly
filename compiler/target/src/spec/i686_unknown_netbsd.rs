@@ -1,4 +1,4 @@
-use crate::spec::{LinkerFlavor, Target, TargetOptions};
+use crate::spec::{LinkerFlavor, StackProbeType, Target, TargetOptions};
 
 pub fn target() -> Target {
     let mut base = super::netbsd_base::opts();
@@ -9,7 +9,7 @@ pub fn target() -> Target {
         .or_default()
         .push("-m32".into());
     // don't use probe-stack=inline-asm until rust#83139 and rust#84667 are resolved
-    base.stack_probes = false;
+    base.stack_probes = StackProbeType::Call;
 
     Target {
         llvm_target: "i686-unknown-netbsdelf".into(),

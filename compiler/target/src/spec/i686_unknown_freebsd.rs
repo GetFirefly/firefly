@@ -1,4 +1,4 @@
-use crate::spec::{LinkerFlavor, Target};
+use crate::spec::{LinkerFlavor, StackProbeType, Target};
 
 pub fn target() -> Target {
     let mut base = super::freebsd_base::opts();
@@ -8,7 +8,7 @@ pub fn target() -> Target {
     pre_link_args.push("-m32".into());
     pre_link_args.push("-Wl,-znotext".into());
     // don't use probe-stack=inline-asm until rust#83139 and rust#84667 are resolved
-    base.stack_probes = false;
+    base.stack_probes = StackProbeType::Call;
 
     Target {
         llvm_target: "i686-unknown-freebsd".into(),

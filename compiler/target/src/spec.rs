@@ -8,9 +8,13 @@ mod freebsd_base;
 mod linux_base;
 mod linux_gnu_base;
 mod linux_musl_base;
+mod msvc_base;
 mod netbsd_base;
 mod openbsd_base;
 mod wasm_base;
+mod windows_gnu_base;
+mod windows_gnullvm_base;
+mod windows_msvc_base;
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;
@@ -38,7 +42,7 @@ impl EncodingType {
 }
 
 use self::abi::Abi;
-use self::crt_objects::{CrtObjects, CrtObjectsFallback};
+use self::crt_objects::{CrtObjects, LinkSelfContainedDefault};
 
 #[derive(Error, Debug)]
 #[error("invalid linker flavor: '{0}'")]
@@ -55,31 +59,29 @@ pub enum TargetError {
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum LinkerFlavor {
-    Em,
     Gcc,
-    L4Bender,
     Ld,
-    Msvc,
     Lld(LldFlavor),
-    PtxLinker,
-    BpfLinker,
+    Msvc,
+    EmCc,
+    Bpf,
+    Ptx,
 }
 impl fmt::Display for LinkerFlavor {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Self::Em => f.write_str("emcc"),
             Self::Gcc => f.write_str("cc"),
-            Self::L4Bender => f.write_str("l4-bender"),
             Self::Ld => f.write_str("ld"),
-            Self::Msvc => f.write_str("link.exe"),
             Self::Lld(_) => f.write_str("lld"),
-            Self::PtxLinker => f.write_str("ptx-linker"),
-            Self::BpfLinker => f.write_str("bpf-linker"),
+            Self::Msvc => f.write_str("link.exe"),
+            Self::EmCc => f.write_str("emcc"),
+            Self::Bpf => f.write_str("bpf-linker"),
+            Self::Ptx => f.write_str("ptx-linker"),
         }
     }
 }
 
-pub type LinkArgs = BTreeMap<LinkerFlavor, Vec<String>>;
+pub type LinkArgs = BTreeMap<LinkerFlavor, Vec<Cow<'static, str>>>;
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -140,17 +142,16 @@ macro_rules! flavor_mappings {
 }
 
 flavor_mappings! {
-    ((LinkerFlavor::Em), "em"),
     ((LinkerFlavor::Gcc), "gcc"),
-    ((LinkerFlavor::L4Bender), "l4-bender"),
     ((LinkerFlavor::Ld), "ld"),
-    ((LinkerFlavor::Msvc), "msvc"),
-    ((LinkerFlavor::PtxLinker), "ptx-linker"),
-    ((LinkerFlavor::BpfLinker), "bpf-linker"),
-    ((LinkerFlavor::Lld(LldFlavor::Wasm)), "wasm-ld"),
-    ((LinkerFlavor::Lld(LldFlavor::Ld64)), "ld64.lld"),
     ((LinkerFlavor::Lld(LldFlavor::Ld)), "ld.lld"),
+    ((LinkerFlavor::Lld(LldFlavor::Ld64)), "ld64.lld"),
     ((LinkerFlavor::Lld(LldFlavor::Link)), "lld-link"),
+    ((LinkerFlavor::Lld(LldFlavor::Wasm)), "wasm-ld"),
+    ((LinkerFlavor::Msvc), "msvc"),
+    ((LinkerFlavor::EmCc), "em"),
+    ((LinkerFlavor::Bpf), "bpf-linker"),
+    ((LinkerFlavor::Ptx), "ptx-linker"),
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
@@ -346,7 +347,43 @@ impl fmt::Display for LinkOutputKind {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum DebuginfoKind {
+    /// DWARF debuginfo (such as that used on `x86_64_unknown_linux_gnu`).
+    #[default]
+    Dwarf,
+    /// DWARF debuginfo in dSYM files (such as on Apple platforms).
+    DwarfDsym,
+    /// Program database files (such as on Windows).
+    Pdb,
+}
+impl DebuginfoKind {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Dwarf => "dwarf",
+            Self::DwarfDsym => "dwarf-dsym",
+            Self::Pdb => "pdb",
+        }
+    }
+}
+impl fmt::Display for DebuginfoKind {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+impl FromStr for DebuginfoKind {
+    type Err = ();
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "dwarf" => Ok(Self::Dwarf),
+            "dwarf-dsym" => Ok(Self::DwarfDsym),
+            "pdb" => Ok(Self::Pdb),
+            _ => Err(()),
+        }
+    }
+}
+
+#[derive(Default, Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SplitDebugInfo {
     /// Split debug-information is disabled, meaning that on supported platforms
     /// you can find all debug information in the executable itself. This is
@@ -355,6 +392,7 @@ pub enum SplitDebugInfo {
     /// * Windows - not supported
     /// * macOS - don't run `dsymutil`
     /// * ELF - `.dwarf_*` sections
+    #[default]
     Off,
     /// Split debug-information can be found in a "packed" location separate
     /// from the final artifact. This is supported on all platforms.
@@ -456,6 +494,23 @@ impl FromStr for MergeFunctions {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum StackProbeType {
+    /// Don't emit any stack probes.
+    None,
+    /// It is harmless to use this option even on targets that do not have backend support for
+    /// stack probes as the failure mode is the same as if no stack-probe option was specified in
+    /// the first place.
+    Inline,
+    /// Call `__rust_probestack` whenever stack needs to be probed.
+    Call,
+    /// Use inline option for LLVM versions later than specified in `min_llvm_version_for_inline`
+    /// and call `__rust_probestack` otherwise.
+    InlineOrCall {
+        min_llvm_version_for_inline: (u32, u32, u32),
+    },
+}
+
 macro_rules! supported_targets {
     ( $(($( $triple:literal, )+ $module:ident ),)+ ) => {
         $(mod $module;)+
@@ -484,39 +539,61 @@ macro_rules! supported_targets {
 }
 
 supported_targets! {
+    ("armv7-apple-ios", armv7_apple_ios),
+    ("armv7s-apple-ios", armv7s_apple_ios),
+    ("armv7k-apple-watchos", armv7k_apple_watchos),
+
     ("aarch64-apple-darwin", aarch64_apple_darwin),
     ("aarch64-apple-ios", aarch64_apple_ios),
+    ("aarch64-apple-ios-macabi", aarch64_apple_ios_macabi),
+    ("aarch64-apple-ios-sim", aarch64_apple_ios_sim),
     ("aarch64-apple-tvos", aarch64_apple_tvos),
+    ("aarch64-apple-watchos-sim", aarch64_apple_watchos_sim),
+
     ("aarch64-linux-android", aarch64_linux_android),
 
-    ("aarch64-unknown-freebsd", aarch64_unknown_freebsd),
     ("aarch64-unknown-linux-gnu", aarch64_unknown_linux_gnu),
     ("aarch64-unknown-linux-musl", aarch64_unknown_linux_musl),
+
+    ("aarch64-unknown-freebsd", aarch64_unknown_freebsd),
     ("aarch64-unknown-netbsd", aarch64_unknown_netbsd),
     ("aarch64-unknown-openbsd", aarch64_unknown_openbsd),
 
     ("i686-apple-darwin", i686_apple_darwin),
+
     ("i686-linux-android", i686_linux_android),
-    ("i686-unknown-freebsd", i686_unknown_freebsd),
+
     ("i686-unknown-linux-gnu", i686_unknown_linux_gnu),
     ("i686-unknown-linux-musl", i686_unknown_linux_musl),
+
+    ("i686-unknown-freebsd", i686_unknown_freebsd),
     ("i686-unknown-netbsd", i686_unknown_netbsd),
     ("i686-unknown-openbsd", i686_unknown_openbsd),
 
     ("wasm32-unknown-emscripten", wasm32_unknown_emscripten),
     ("wasm32-unknown-unknown", wasm32_unknown_unknown),
     ("wasm32-wasi", wasm32_wasi),
+    ("wasm64-unknown-unknown", wasm64_unknown_unknown),
 
     ("x86_64-apple-darwin", x86_64_apple_darwin),
     ("x86_64-apple-ios", x86_64_apple_ios),
+    ("x86_64-apple-ios-macabi", x86_64_apple_ios_macabi),
     ("x86_64-apple-tvos", x86_64_apple_tvos),
+    ("x86_64-apple-watchos-sim", x86_64_apple_watchos_sim),
+
     ("x86_64-linux-android", x86_64_linux_android),
-    ("x86_64-unknown-dragonfly", x86_64_unknown_dragonfly),
-    ("x86_64-unknown-freebsd", x86_64_unknown_freebsd),
+
     ("x86_64-unknown-linux-gnu", x86_64_unknown_linux_gnu),
     ("x86_64-unknown-linux-musl", x86_64_unknown_linux_musl),
+
+    ("x86_64-unknown-dragonfly", x86_64_unknown_dragonfly),
+    ("x86_64-unknown-freebsd", x86_64_unknown_freebsd),
     ("x86_64-unknown-netbsd", x86_64_unknown_netbsd),
     ("x86_64-unknown-openbsd", x86_64_unknown_openbsd),
+
+    ("x86_64-pc-windows-msvc", x86_64_pc_windows_msvc),
+    ("x86_64-pc-windows-gnu", x86_64_pc_windows_gnu),
+    ("x86_64-pc-windows-gnullvm", x86_64_pc_windows_gnullvm),
 }
 
 #[repr(u32)]
@@ -618,20 +695,22 @@ pub struct TargetOptions {
     pub linker: Option<Cow<'static, str>>,
     /// LLD flavor used if `lld` (or `firefly-lld`) is specified as a linker without clarifying its flavor
     pub lld_flavor: LldFlavor,
+    /// Whether the linker support GNU-like arguments such as -O. Defaults to false.
+    pub linker_is_gnu: bool,
 
-    /// Linker arguments that are passed *before* any user-defined libraries.
-    pub pre_link_args: LinkArgs, // ... unconditionally
     /// Objects to link before and after all other object code.
     pub pre_link_objects: CrtObjects,
     pub post_link_objects: CrtObjects,
     /// Same as `(pre|post)_link_objects`, but when we fail to pull the objects with help of the
     /// target's native gcc and fall back to the "self-contained" mode and pull them manually.
     /// See `crt_objects.rs` for some more detailed documentation.
-    pub pre_link_objects_fallback: CrtObjects,
-    pub post_link_objects_fallback: CrtObjects,
+    pub pre_link_objects_self_contained: CrtObjects,
+    pub post_link_objects_self_contained: CrtObjects,
     /// Which logic to use to determine whether to fall back to the "self-contained" mode or not.
-    pub crt_objects_fallback: Option<CrtObjectsFallback>,
+    pub link_self_contained: LinkSelfContainedDefault,
 
+    /// Linker arguments that are passed *before* any user-defined libraries.
+    pub pre_link_args: LinkArgs, // ... unconditionally
     /// Linker arguments that are unconditionally passed after any
     /// user-defined but before post_link_objects. Standard platform
     /// libraries that should be always be linked to, usually go here.
@@ -645,6 +724,7 @@ pub struct TargetOptions {
     /// Linker arguments that are unconditionally passed *after* any
     /// user-defined libraries.
     pub post_link_args: LinkArgs,
+
     /// Optional link script applied to `dylib` and `executable` crate types.
     /// This is a string containing the script, not a path. Can only be applied
     /// to linkers where `linker_is_gnu` is true.
@@ -729,8 +809,6 @@ pub struct TargetOptions {
     /// Default supported Version of DWARF on this platform.
     /// Useful because some platforms (osx, bsd) only want up to DWARF2
     pub default_dwarf_version: u32,
-    /// Whether the linker support GNU-like arguments such as -O. Defaults to false.
-    pub linker_is_gnu: bool,
     /// The MinGW toolchain has a known issue that prevents it from correctly
     /// handling COFF object files with more than 2<sup>15</sup> sections. Since each weak
     /// symbol needs its own COMDAT section, weak linkage implies a large
@@ -801,7 +879,7 @@ pub struct TargetOptions {
     pub crt_static_respected: bool,
 
     /// Whether or not stack probes (__rust_probestack) are enabled
-    pub stack_probes: bool,
+    pub stack_probes: StackProbeType,
 
     /// The minimum alignment for global symbols.
     pub min_global_align: Option<u64>,
@@ -886,9 +964,13 @@ pub struct TargetOptions {
     /// thumb and arm interworking.
     pub has_thumb_interworking: bool,
 
+    /// Which kind of debuginfo is used by this target?
+    pub debuginfo_kind: DebuginfoKind,
     /// How to handle split debug information, if at all. Specifying `None` has
     /// target-specific meaning.
     pub split_debuginfo: SplitDebugInfo,
+    /// Which kinds of split debuginfo are supported by the target?
+    pub supported_split_debuginfo: Cow<'static, [SplitDebugInfo]>,
 
     /// If present it's a default value to use for adjusting the C ABI.
     pub default_adjusted_cabi: Option<Abi>,
@@ -920,8 +1002,7 @@ impl Default for TargetOptions {
             linker_flavor: LinkerFlavor::Gcc,
             linker: option_env!("CFG_DEFAULT_LINKER").map(|s| s.into()),
             lld_flavor: LldFlavor::Ld,
-            pre_link_args: LinkArgs::new(),
-            post_link_args: LinkArgs::new(),
+            linker_is_gnu: true,
             link_script: None,
             asm_args: Vec::new(),
             cpu: "generic".into(),
@@ -948,7 +1029,6 @@ impl Default for TargetOptions {
             is_like_msvc: false,
             is_like_wasm: false,
             default_dwarf_version: 4,
-            linker_is_gnu: true,
             allows_weak_linkage: true,
             has_rpath: false,
             no_default_libraries: true,
@@ -958,9 +1038,11 @@ impl Default for TargetOptions {
             relro_level: RelroLevel::None,
             pre_link_objects: Default::default(),
             post_link_objects: Default::default(),
-            pre_link_objects_fallback: Default::default(),
-            post_link_objects_fallback: Default::default(),
-            crt_objects_fallback: None,
+            pre_link_objects_self_contained: Default::default(),
+            post_link_objects_self_contained: Default::default(),
+            link_self_contained: LinkSelfContainedDefault::False,
+            pre_link_args: LinkArgs::new(),
+            post_link_args: LinkArgs::new(),
             late_link_args: LinkArgs::new(),
             late_link_args_dynamic: LinkArgs::new(),
             late_link_args_static: LinkArgs::new(),
@@ -980,7 +1062,7 @@ impl Default for TargetOptions {
             crt_static_allows_dylibs: false,
             crt_static_default: false,
             crt_static_respected: false,
-            stack_probes: false,
+            stack_probes: StackProbeType::None,
             min_global_align: None,
             default_codegen_units: None,
             trap_unreachable: true,
@@ -1002,12 +1084,52 @@ impl Default for TargetOptions {
             use_ctors_section: false,
             eh_frame_header: true,
             has_thumb_interworking: false,
-            split_debuginfo: SplitDebugInfo::Off,
+            debuginfo_kind: Default::default(),
+            split_debuginfo: Default::default(),
+            supported_split_debuginfo: Cow::Borrowed(&[SplitDebugInfo::Off]),
             default_adjusted_cabi: None,
             c_enum_min_bits: 32,
             generate_arange_section: true,
             supports_stack_protector: true,
         }
+    }
+}
+
+/// Add arguments for the given flavor and also for its "twin" flavors
+/// that have a compatible command line interface.
+fn add_link_args(link_args: &mut LinkArgs, flavor: LinkerFlavor, args: &[&'static str]) {
+    let mut insert = |flavor| {
+        link_args
+            .entry(flavor)
+            .or_default()
+            .extend(args.iter().copied().map(Cow::Borrowed))
+    };
+    insert(flavor);
+    match flavor {
+        LinkerFlavor::Ld => insert(LinkerFlavor::Lld(LldFlavor::Ld)),
+        LinkerFlavor::Msvc => insert(LinkerFlavor::Lld(LldFlavor::Link)),
+        LinkerFlavor::Lld(LldFlavor::Ld64) | LinkerFlavor::Lld(LldFlavor::Wasm) => {}
+        LinkerFlavor::Lld(lld_flavor) => {
+            panic!("add_link_args: use non-LLD flavor for {:?}", lld_flavor)
+        }
+        LinkerFlavor::Gcc | LinkerFlavor::EmCc | LinkerFlavor::Bpf | LinkerFlavor::Ptx => {}
+    }
+}
+
+impl TargetOptions {
+    fn link_args(flavor: LinkerFlavor, args: &[&'static str]) -> LinkArgs {
+        let mut link_args = LinkArgs::new();
+        add_link_args(&mut link_args, flavor, args);
+        link_args
+    }
+
+    fn add_pre_link_args(&mut self, flavor: LinkerFlavor, args: &[&'static str]) {
+        add_link_args(&mut self.pre_link_args, flavor, args);
+    }
+
+    #[allow(unused)]
+    fn add_post_link_args(&mut self, flavor: LinkerFlavor, args: &[&'static str]) {
+        add_link_args(&mut self.post_link_args, flavor, args);
     }
 }
 
@@ -1061,7 +1183,8 @@ impl Target {
             | PlatformIntrinsic
             | Unadjusted
             | Cdecl { .. }
-            | EfiApi => true,
+            | EfiApi
+            | RustCold => true,
             X86Interrupt => ["x86", "x86_64"].contains(&&self.arch[..]),
             Aapcs { .. } => "arm" == self.arch,
             CCmseNonSecureCall => ["arm", "aarch64"].contains(&&self.arch[..]),

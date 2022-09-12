@@ -6,11 +6,13 @@ use std::ffi::OsString;
 use std::fmt;
 use std::fs;
 use std::io;
+use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::process::{Output, Stdio};
 use std::str;
 
 use anyhow::{anyhow, Context};
+use cc::windows_registry;
 use log::info;
 use tempfile::Builder as TempFileBuilder;
 use thiserror::private::PathAsDisplay;
@@ -21,7 +23,7 @@ use firefly_session::search_paths::PathKind;
 use firefly_session::{
     CFGuard, DebugInfo, LdImpl, Options, ProjectType, Sanitizer, SplitDwarfKind, Strip,
 };
-use firefly_target::crt_objects::CrtObjectsFallback;
+use firefly_target::crt_objects::LinkSelfContainedDefault;
 use firefly_target::{
     LinkOutputKind, LinkerFlavor, LldFlavor, PanicStrategy, RelocModel, RelroLevel, SplitDebugInfo,
 };
@@ -30,7 +32,7 @@ use firefly_util::fs::{fix_windows_verbatim_for_gcc, NativeLibraryKind};
 
 use crate::linker::command::Command;
 use crate::linker::rpath::{self, RPathConfig};
-use crate::linker::Linker;
+use crate::linker::{self, Linker};
 use crate::meta::CodegenResults;
 
 use super::archive::{ArchiveBuilder, LlvmArchiveBuilder};
@@ -224,7 +226,7 @@ fn link_natively(
     info!("preparing {:?} to {:?}", project_type, output_file);
     let (linker_path, flavor) = linker_and_flavor(options);
 
-    let (is_ld, mut cmd) = linker_with_args(
+    let mut cmd = linker_with_args(
         &linker_path,
         flavor,
         options,
@@ -234,6 +236,8 @@ fn link_natively(
         output_file,
         codegen_results,
     );
+
+    linker::disable_localization(&mut cmd);
 
     for &(ref k, ref v) in &options.target.options.link_env {
         cmd.env(k.as_ref(), v.as_ref());
@@ -249,69 +253,110 @@ fn link_natively(
     // May have not found libraries in the right formats.
     diagnostics.abort_if_errors();
 
-    if is_ld {
-        todo!("invoke firefly-lld");
-    } else {
-        match exec_linker(options, &mut cmd, output_file, tmpdir) {
-            Ok(prog) => {
-                if !prog.status.success() {
-                    let mut output = prog.stderr.clone();
-                    output.extend_from_slice(&prog.stdout);
-                    let escaped_output = escape_stdout_stderr_string(&output);
+    match exec_linker(options, &mut cmd, output_file, tmpdir) {
+        Ok(prog) => {
+            if !prog.status.success() {
+                let mut output = prog.stderr.clone();
+                output.extend_from_slice(&prog.stdout);
+                let escaped_output = escape_stdout_stderr_string(&output);
+                let mut err = diagnostics.diagnostic(Severity::Error);
+                err.with_message(format!(
+                    "linking with `{}` failed: {}",
+                    linker_path.display(),
+                    prog.status
+                ));
+                err.with_note(format!("{:?}", &cmd));
+                if escaped_output.contains("undefined reference to") {
+                    err.with_note(escaped_output);
+                    err.with_note(
+                        "some `extern` functions couldn't be found; some native libraries may \
+                        need to be installed or have their path specified",
+                    );
+                    err.with_note("use the `-l` flag to specify native libraries to link");
+                } else {
+                    err.with_note(escaped_output);
+                }
+                err.emit();
+
+                // If MSVC's `link.exe` was expected but the return code
+                // is not a Microsoft LNK error then suggest a way to fix or
+                // install the Visual Studio build tools.
+                if let Some(code) = prog.status.code() {
+                    if options.target.options.is_like_msvc
+                        && flavor == LinkerFlavor::Msvc
+                        // Respect the command line override
+                        && options.codegen_opts.linker.is_none()
+                        // Match exactly "link.exe"
+                        && linker_path.to_str() == Some("link.exe")
+                        // All Microsoft `link.exe` linking error codes are
+                        // four digit numbers in the range 1000 to 9999 inclusive
+                        && (code < 1000 || code > 9999)
+                    {
+                        let is_vs_installed = windows_registry::find_vs_version().is_ok();
+                        let has_linker =
+                            windows_registry::find_tool(&options.target.triple(), "link.exe")
+                                .is_some();
+                        diagnostics.note("`link.exe` returned an unexpected error");
+                        if is_vs_installed && has_linker {
+                            // the linker is broken
+                            diagnostics.note(
+                                "the Visual Studio build tools may need to be repaired \
+                                                          using the Visual Studio installer",
+                            );
+                            diagnostics.note(
+                                "or a necessary component may be missing from the \
+                                                          \"C++ build tools\" workload",
+                            );
+                        } else if is_vs_installed {
+                            // the linker is not installed
+                            diagnostics.note(
+                                "in the Visual Studio installer, ensure the \
+                                                          \"C++ build tools\" workload is selected",
+                            );
+                        } else {
+                            // visual studio is not installed
+                            diagnostics.note(
+                                "you may need to install Visual Studio build tools with the \
+                                                          \"C++ build tools\" workload",
+                            );
+                        }
+                    }
+                }
+            }
+            diagnostics.abort_if_errors();
+        }
+        Err(e) => {
+            let linker_not_found = e.kind() == io::ErrorKind::NotFound;
+            let mut linker_error = {
+                if linker_not_found {
+                    let mut err = diagnostics.diagnostic(Severity::Error);
+                    err.with_message(format!("linker `{}` not found", linker_path.display()));
+                    err
+                } else {
                     let mut err = diagnostics.diagnostic(Severity::Error);
                     err.with_message(format!(
-                        "linking with `{}` failed: {}",
-                        linker_path.display(),
-                        prog.status
+                        "could not exec the linker `{}`",
+                        linker_path.display()
                     ));
-                    err.with_note(format!("{:?}", &cmd));
-                    if escaped_output.contains("undefined reference to") {
-                        err.with_note(escaped_output);
-                        err.with_note(
-                            "some `extern` functions couldn't be found; some native libraries may \
-                         need to be installed or have their path specified",
-                        );
-                        err.with_note("use the `-l` flag to specify native libraries to link");
-                    } else {
-                        err.with_note(escaped_output);
-                    }
-                    err.emit();
+                    err
                 }
-                diagnostics.abort_if_errors();
+            };
+            linker_error.with_note(e.to_string());
+            if !linker_not_found {
+                linker_error.with_note(format!("{:?}", &cmd));
             }
-            Err(e) => {
-                let linker_not_found = e.kind() == io::ErrorKind::NotFound;
-                let mut linker_error = {
-                    if linker_not_found {
-                        let mut err = diagnostics.diagnostic(Severity::Error);
-                        err.with_message(format!("linker `{}` not found", linker_path.display()));
-                        err
-                    } else {
-                        let mut err = diagnostics.diagnostic(Severity::Error);
-                        err.with_message(format!(
-                            "could not exec the linker `{}`",
-                            linker_path.display()
-                        ));
-                        err
-                    }
-                };
-                linker_error.with_note(e.to_string());
-                if !linker_not_found {
-                    linker_error.with_note(format!("{:?}", &cmd));
-                }
-                linker_error.emit();
-                if options.target.options.is_like_msvc && linker_not_found {
-                    diagnostics.note(
-                        "the msvc targets depend on the msvc linker \
-                     but `link.exe` was not found",
-                    );
-                    diagnostics.note(
-                        "please ensure that one of VS 2013-2022 was installed \
-                     with the Visual C++ option",
-                    );
-                }
-                diagnostics.abort_if_errors();
+            linker_error.emit();
+            if options.target.options.is_like_msvc && linker_not_found {
+                diagnostics.note(
+                    "the msvc targets depend on the msvc linker \
+                    but `link.exe` was not found",
+                );
+                diagnostics.note(
+                    "please ensure that one of VS 2013-2022 was installed \
+                    with the Visual C++ option",
+                );
             }
+            diagnostics.abort_if_errors();
         }
     }
 
@@ -363,10 +408,16 @@ fn link_natively(
     }
 
     if options.target.options.is_like_osx {
-        match options.codegen_opts.strip {
-            Strip::DebugInfo => strip_symbols_in_osx(options, diagnostics, output_file, Some("-S")),
-            Strip::Symbols => strip_symbols_in_osx(options, diagnostics, output_file, None),
-            Strip::None => (),
+        match (options.codegen_opts.strip, project_type) {
+            (Strip::DebugInfo, _) => {
+                strip_symbols_in_osx(options, diagnostics, output_file, Some("-S"))
+            }
+            // Per the manpage, `-x` is the maximum safe strip level for dynamic libraries. (rust-lang/rust#93988)
+            (Strip::Symbols, ProjectType::Dylib | ProjectType::Cdylib) => {
+                strip_symbols_in_osx(options, diagnostics, output_file, Some("-x"))
+            }
+            (Strip::Symbols, _) => strip_symbols_in_osx(options, diagnostics, output_file, None),
+            (Strip::None, _) => (),
         }
     }
 
@@ -497,13 +548,6 @@ pub fn linker_and_flavor(options: &Options) -> (PathBuf, LinkerFlavor) {
             // Only the linker flavor is known; use the default linker for the selected flavor
             (None, Some(flavor)) => {
                 let prog = match flavor {
-                    LinkerFlavor::Em => {
-                        if cfg!(windows) {
-                            "emcc.bat"
-                        } else {
-                            "emcc"
-                        }
-                    }
                     LinkerFlavor::Gcc => {
                         if cfg!(any(target_os = "solaris", target_os = "illumos")) {
                             // On historical Solaris systems, "cc" may have
@@ -518,8 +562,15 @@ pub fn linker_and_flavor(options: &Options) -> (PathBuf, LinkerFlavor) {
                         }
                     }
                     LinkerFlavor::Ld => "ld",
-                    LinkerFlavor::Msvc => "link.exe",
                     LinkerFlavor::Lld(_) => "lld",
+                    LinkerFlavor::Msvc => "link.exe",
+                    LinkerFlavor::EmCc => {
+                        if cfg!(windows) {
+                            "emcc.bat"
+                        } else {
+                            "emcc"
+                        }
+                    }
                     f => {
                         panic!("invalid linker flavor '{}': flavor is unimplemented", f)
                     }
@@ -533,7 +584,7 @@ pub fn linker_and_flavor(options: &Options) -> (PathBuf, LinkerFlavor) {
                     .expect("couldn't extract file stem from specified linker");
 
                 let flavor = if stem == "emcc" {
-                    LinkerFlavor::Em
+                    LinkerFlavor::EmCc
                 } else if stem == "gcc"
                     || stem.ends_with("-gcc")
                     || stem == "clang"
@@ -855,28 +906,27 @@ fn detect_self_contained_mingw(options: &Options) -> bool {
     true
 }
 
-/// Whether we link to our own CRT objects instead of relying on gcc to pull them.
+/// Various toolchain components used during linking are used from firefly distribution
+/// instead of being found somewhere on the host system.
+///
 /// We only provide such support for a very limited number of targets.
-fn crt_objects_fallback(options: &Options, project_type: ProjectType) -> bool {
+fn self_contained(options: &Options, project_type: ProjectType) -> bool {
     if let Some(self_contained) = options.codegen_opts.link_self_contained {
         return self_contained;
     }
 
-    match options.target.options.crt_objects_fallback {
+    match options.target.options.link_self_contained {
+        LinkSelfContainedDefault::False => false,
+        LinkSelfContainedDefault::True => true,
         // FIXME: Find a better heuristic for "native musl toolchain is available",
         // based on host and linker path, for example.
         // (https://github.com/rust-lang/rust/pull/71769#issuecomment-626330237).
-        Some(CrtObjectsFallback::Musl) => options.crt_static(Some(project_type)),
-        // FIXME: Find some heuristic for "native mingw toolchain is available",
-        // likely based on `get_crt_libs_path` (https://github.com/rust-lang/rust/pull/67429).
-        Some(CrtObjectsFallback::Mingw) => {
+        LinkSelfContainedDefault::Musl => options.crt_static(Some(project_type)),
+        LinkSelfContainedDefault::Mingw => {
             options.host == options.target
                 && options.target.options.vendor != "uwp"
                 && detect_self_contained_mingw(options)
         }
-        // FIXME: Figure out cases in which WASM needs to link with a native toolchain.
-        Some(CrtObjectsFallback::Wasm) => true,
-        None => false,
     }
 }
 
@@ -889,7 +939,7 @@ fn add_pre_link_objects(
 ) {
     let opts = &options.target.options;
     let objects = if self_contained {
-        &opts.pre_link_objects_fallback
+        &opts.pre_link_objects_self_contained
     } else {
         &opts.pre_link_objects
     };
@@ -907,7 +957,7 @@ fn add_post_link_objects(
 ) {
     let opts = &options.target.options;
     let objects = if self_contained {
-        &opts.post_link_objects_fallback
+        &opts.post_link_objects_self_contained
     } else {
         &opts.post_link_objects
     };
@@ -920,7 +970,7 @@ fn add_post_link_objects(
 /// FIXME: Determine where exactly these args need to be inserted.
 fn add_pre_link_args(cmd: &mut dyn Linker, options: &Options, flavor: LinkerFlavor) {
     if let Some(args) = options.target.options.pre_link_args.get(&flavor) {
-        cmd.args(args);
+        cmd.args(args.iter().map(Deref::deref));
     }
     if let Some(args) = options.codegen_opts.pre_link_args.as_ref() {
         for arg in args {
@@ -987,15 +1037,15 @@ fn add_late_link_args(
     let any_dynamic_crate = project_type == ProjectType::Dylib;
     if any_dynamic_crate {
         if let Some(args) = options.target.options.late_link_args_dynamic.get(&flavor) {
-            cmd.args(args);
+            cmd.args(args.iter().map(Deref::deref));
         }
     } else {
         if let Some(args) = options.target.options.late_link_args_static.get(&flavor) {
-            cmd.args(args);
+            cmd.args(args.iter().map(Deref::deref));
         }
     }
     if let Some(args) = options.target.options.late_link_args.get(&flavor) {
-        cmd.args(args);
+        cmd.args(args.iter().map(Deref::deref));
     }
 }
 
@@ -1003,7 +1053,7 @@ fn add_late_link_args(
 /// FIXME: Determine where exactly these args need to be inserted.
 fn add_post_link_args(cmd: &mut dyn Linker, options: &Options, flavor: LinkerFlavor) {
     if let Some(args) = options.target.options.post_link_args.get(&flavor) {
-        cmd.args(args);
+        cmd.args(args.iter().map(Deref::deref));
     }
 }
 
@@ -1084,14 +1134,14 @@ fn linker_with_args(
     tmpdir: &Path,
     out_filename: &Path,
     codegen_results: &CodegenResults,
-) -> (bool, Command) {
-    let crt_objects_fallback = crt_objects_fallback(options, project_type);
+) -> Command {
+    let self_contained = self_contained(options, project_type);
     let cmd = &mut *super::get_linker(
         options,
         diagnostics,
         path,
         flavor,
-        crt_objects_fallback,
+        self_contained,
         codegen_results.project_info.target_cpu.as_str(),
     );
     let link_output_kind = link_output_kind(options, project_type);
@@ -1118,7 +1168,7 @@ fn linker_with_args(
     // ------------ Object code and libraries, order-dependent ------------
 
     // Pre-link CRT objects.
-    add_pre_link_objects(cmd, options, link_output_kind, crt_objects_fallback);
+    add_pre_link_objects(cmd, options, link_output_kind, self_contained);
 
     // Sanitizer libraries.
     add_sanitizer_libraries(cmd, options, project_type);
@@ -1208,7 +1258,7 @@ fn linker_with_args(
         options,
         diagnostics,
         link_output_kind,
-        crt_objects_fallback,
+        self_contained,
         flavor,
         project_type,
         codegen_results,
@@ -1224,7 +1274,7 @@ fn linker_with_args(
     // ------------ Object code and libraries, order-dependent ------------
 
     // Post-link CRT objects.
-    add_post_link_objects(cmd, options, link_output_kind, crt_objects_fallback);
+    add_post_link_objects(cmd, options, link_output_kind, self_contained);
 
     // ------------ Late order-dependent options ------------
 
@@ -1234,9 +1284,7 @@ fn linker_with_args(
     // to it and remove the option.
     add_post_link_args(cmd, options, flavor);
 
-    let is_ld = cmd.is_ld();
-    let command = cmd.take_cmd();
-    (is_ld, command)
+    cmd.take_cmd()
 }
 
 fn add_order_independent_options(
@@ -1244,7 +1292,7 @@ fn add_order_independent_options(
     options: &Options,
     diagnostics: &DiagnosticsHandler,
     link_output_kind: LinkOutputKind,
-    crt_objects_fallback: bool,
+    self_contained: bool,
     flavor: LinkerFlavor,
     project_type: ProjectType,
     codegen_results: &CodegenResults,
@@ -1257,7 +1305,10 @@ fn add_order_independent_options(
 
     add_link_script(cmd, options, diagnostics, tmpdir, project_type);
 
-    if options.target.options.os == "fuchsia" && project_type == ProjectType::Executable {
+    if options.target.options.os == "fuchsia"
+        && project_type == ProjectType::Executable
+        && flavor != LinkerFlavor::Gcc
+    {
         let prefix = if options
             .debugging_opts
             .sanitizers
@@ -1277,7 +1328,7 @@ fn add_order_independent_options(
     // Make the binary compatible with data execution prevention schemes.
     cmd.add_no_exec();
 
-    if crt_objects_fallback {
+    if self_contained {
         cmd.no_crt_objects();
     }
 
@@ -1292,11 +1343,11 @@ fn add_order_independent_options(
         );
     }
 
-    if flavor == LinkerFlavor::PtxLinker {
+    if flavor == LinkerFlavor::Ptx {
         // Provide the linker with fallback to internal `target-cpu`.
         cmd.arg("--fallback-arch");
         cmd.arg(&codegen_results.project_info.target_cpu);
-    } else if flavor == LinkerFlavor::BpfLinker {
+    } else if flavor == LinkerFlavor::Bpf {
         cmd.arg("--cpu");
         cmd.arg(&codegen_results.project_info.target_cpu);
         cmd.arg("--cpu-features");
@@ -1311,7 +1362,7 @@ fn add_order_independent_options(
 
     cmd.linker_plugin_lto();
 
-    add_library_search_dirs(cmd, options, crt_objects_fallback);
+    add_library_search_dirs(cmd, options, self_contained);
 
     cmd.output_filename(out_filename);
 
@@ -1323,7 +1374,30 @@ fn add_order_independent_options(
 
     // Try to strip as much out of the generated object by removing unused
     // sections if possible. See more comments in linker.rs
-    // cmd.gc_sections(/*keep_metadata=*/project_type == ProjectType::Dylib)
+    //
+    // NOTE: The default here is `true`, i.e. we DON'T garbage collect sections
+    // that are unreachable from the entry point. This is because apply/3 makes
+    // it impossible to see what symbols are actually reachable statically, so we
+    // have to be pessimistic and assume everything is reachable.
+    //
+    // TODO(pauls): We should track the list of atoms/functions that are defined
+    // in Erlang code, and then pass a list of just those symbols to the linker
+    // to force them to be exported, but permit the linker to clean up anything
+    // else that is unreachable. Right now we can't get rid of anything
+    if !options.codegen_opts.link_dead_code.unwrap_or(true) {
+        // If PGO is enabled sometimes gc_sections will remove the profile data section
+        // as it appears to be unused. This can then cause the PGO profile file to lose
+        // some functions. If we are generating a profile we shouldn't strip those metadata
+        // sections to ensure we have all the data for PGO.
+        let keep_metadata = project_type == ProjectType::Dylib; // || options.codegen_opts.profile_generate.enabled();
+        if project_type != ProjectType::Executable
+            || !options.codegen_opts.export_executable_symbols
+        {
+            cmd.gc_sections(keep_metadata)
+        } else {
+            cmd.no_gc_sections();
+        }
+    }
 
     cmd.set_output_kind(link_output_kind, out_filename);
 
@@ -1512,21 +1586,32 @@ fn add_apple_sdk(
     let os = &options.target.options.os;
     let llvm_target = &options.target.llvm_target;
     if options.target.options.vendor != "apple"
-        || !matches!(os.as_ref(), "ios" | "tvos")
-        || flavor != LinkerFlavor::Gcc
+        || !matches!(os.as_ref(), "ios" | "tvos" | "watchos" | "macos")
+        || (flavor != LinkerFlavor::Gcc && flavor != LinkerFlavor::Lld(LldFlavor::Ld64))
     {
         return;
     }
+
+    if os == "macos" && flavor != LinkerFlavor::Lld(LldFlavor::Ld64) {
+        return;
+    }
+
     let sdk_name = match (arch.as_ref(), os.as_ref()) {
         ("aarch64", "tvos") => "appletvos",
         ("x86_64", "tvos") => "appletvsimulator",
         ("arm", "ios") => "iphoneos",
         ("aarch64", "ios") if llvm_target.contains("macabi") => "macosx",
-        ("aarch64", "ios") if llvm_target.contains("sim") => "iphonesimulator",
+        ("aarch64", "ios") if llvm_target.ends_with("-simulator") => "iphonesimulator",
         ("aarch64", "ios") => "iphoneos",
         ("x86", "ios") => "iphonesimulator",
         ("x86_64", "ios") if llvm_target.contains("macabi") => "macosx",
         ("x86_64", "ios") => "iphonesimulator",
+        ("x86_64", "watchos") => "watchsimulator",
+        ("arm64_32", "watchos") => "watchos",
+        ("aarch64", "watchos") if llvm_target.ends_with("-simulator") => "watchsimulator",
+        ("aarch64", "watchos") => "watchos",
+        ("arm", "watchos") => "watchos",
+        (_, "macos") => "macosx",
         _ => {
             diagnostics.error(format!("unsupported arch `{}` for os `{}`", arch, os));
             return;
@@ -1539,16 +1624,15 @@ fn add_apple_sdk(
             return;
         }
     };
-    if llvm_target.contains("macabi") {
-        cmd.args(&["-target", llvm_target])
-    } else {
-        let arch_name = llvm_target
-            .split('-')
-            .next()
-            .expect("LLVM target must have a hyphen");
-        cmd.args(&["-arch", arch_name])
+    match flavor {
+        LinkerFlavor::Gcc => {
+            cmd.args(&["-isysroot", &sdk_root, "-Wl,-syslibroot", &sdk_root]);
+        }
+        LinkerFlavor::Lld(LldFlavor::Ld64) => {
+            cmd.args(&["-syslibroot", &sdk_root]);
+        }
+        _ => unreachable!(),
     }
-    cmd.args(&["-isysroot", &sdk_root, "-Wl,-syslibroot", &sdk_root]);
 }
 
 fn get_apple_sdk_root(sdk_name: &str) -> Result<String, String> {
@@ -1576,6 +1660,11 @@ fn get_apple_sdk_root(sdk_name: &str) -> Result<String, String> {
             "macosx10.15"
                 if sdkroot.contains("iPhoneOS.platform")
                     || sdkroot.contains("iPhoneSimulator.platform") => {}
+            "watchos"
+                if sdkroot.contains("WatchSimulator.platform")
+                    || sdkroot.contains("MacOSX.platform") => {}
+            "watchsimulator"
+                if sdkroot.contains("WatchOS.platform") || sdkroot.contains("MacOSX.platform") => {}
             // Ignore `SDKROOT` if it's not a valid path.
             _ if !p.is_absolute() || p == Path::new("/") || !p.exists() => {}
             _ => return Ok(sdkroot),
@@ -1612,48 +1701,23 @@ fn add_gcc_ld_path(
         if let LinkerFlavor::Gcc = flavor {
             match ld_impl {
                 LdImpl::Lld => {
-                    if options.target.options.lld_flavor == LldFlavor::Ld64 {
-                        let tools_path = options.get_tools_search_paths(false);
-                        let ld64_exe = tools_path
-                            .into_iter()
-                            .map(|p| p.join("gcc-ld"))
-                            .map(|p| {
-                                p.join(if options.host.options.is_like_windows {
-                                    "ld64.exe"
-                                } else {
-                                    "ld64"
-                                })
-                            })
-                            .find(|p| p.exists())
-                            .unwrap_or_else(|| {
-                                diagnostics.fatal("firefly-lld (as ld64) not found").raise()
-                            });
-                        cmd.cmd().arg({
-                            let mut arg = OsString::from("-fuse-ld=");
-                            arg.push(ld64_exe);
-                            arg
-                        });
-                    } else {
-                        let tools_path = options.get_tools_search_paths(false);
-                        let lld_path = tools_path
-                            .into_iter()
-                            .map(|p| p.join("gcc-ld"))
-                            .find(|p| {
-                                p.join(if options.host.options.is_like_windows {
-                                    "ld.exe"
-                                } else {
-                                    "ld"
-                                })
-                                .exists()
-                            })
-                            .unwrap_or_else(|| {
-                                diagnostics.fatal("firefly-lld (as ld) not found").raise()
-                            });
+                    // Implement the "self-contained" part of -Zgcc-ld
+                    // by adding the firefly distribution directories to the tool search path.
+                    for path in options.get_tools_search_paths(false) {
                         cmd.cmd().arg({
                             let mut arg = OsString::from("-B");
-                            arg.push(lld_path);
+                            arg.push(path.join("gcc-ld"));
                             arg
                         });
+                    }
+                    // Implement the "linker flavor" part of -Zgcc-ld
+                    // by asking cc to use some kind of lld.
+                    cmd.arg("-fuse-ld=lld");
+                    if options.target.options.lld_flavor != LldFlavor::Ld {
+                        // Tell clang to use a non-default LLD flavor.
+                        // Gcc doesn't understand the target option, but we currently assume
+                        // that gcc is not used for Apple and Wasm targets (rust-lang/rust#97402).
+                        cmd.arg(format!("--target={}", options.target.llvm_target));
                     }
                 }
             }

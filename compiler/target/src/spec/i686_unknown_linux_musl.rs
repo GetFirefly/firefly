@@ -1,4 +1,4 @@
-use crate::spec::{FramePointer, LinkerFlavor, Target};
+use crate::spec::{FramePointer, LinkerFlavor, StackProbeType, Target};
 
 pub fn target() -> Target {
     let mut base = super::linux_musl_base::opts();
@@ -13,7 +13,7 @@ pub fn target() -> Target {
         .or_default()
         .push("-Wl,-melf_i386".into());
     // don't use probe-stack=inline-asm until rust#83139 and rust#84667 are resolved
-    base.stack_probes = false;
+    base.stack_probes = StackProbeType::Call;
 
     // The unwinder used by i686-unknown-linux-musl, the LLVM libunwind
     // implementation, apparently relies on frame pointers existing... somehow.

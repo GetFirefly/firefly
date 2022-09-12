@@ -21,6 +21,19 @@ use firefly_util::diagnostics::DiagnosticsHandler;
 use self::command::Command;
 pub use self::link::link_binary;
 
+/// Disables non-English messages from localized linkers.
+/// Such messages may cause issues with text encoding on Windows (rust-lang/rust#35785)
+/// and prevent inspection of linker output in case of errors, which we occasionally do.
+/// This should be acceptable because other messages from rustc are in English anyway,
+/// and may also be desirable to improve searchability of the linker diagnostics.
+pub fn disable_localization(linker: &mut Command) {
+    // No harm in setting both env vars simultaneously.
+    // Unix-style linkers.
+    linker.env("LC_ALL", "C");
+    // MSVC's `link.exe`.
+    linker.env("VSLANG", "1033");
+}
+
 // The third parameter is for env vars, used on windows to set up the
 // path for MSVC to find its DLLs, and gcc to find its bundled
 // toolchain
@@ -119,16 +132,6 @@ pub fn get_linker<'a>(
 
     assert!(cmd.get_args().is_empty() || options.target.options.vendor == "uwp");
     match flavor {
-        LinkerFlavor::Lld(LldFlavor::Link) | LinkerFlavor::Msvc => Box::new(MsvcLinker {
-            cmd,
-            options,
-            diagnostics,
-        }) as Box<dyn Linker>,
-        LinkerFlavor::Em => Box::new(EmLinker {
-            cmd,
-            options,
-            diagnostics,
-        }) as Box<dyn Linker>,
         LinkerFlavor::Gcc => Box::new(GccLinker {
             cmd,
             options,
@@ -149,9 +152,21 @@ pub fn get_linker<'a>(
             is_ld: true,
         }) as Box<dyn Linker>,
 
+        LinkerFlavor::Lld(LldFlavor::Link) | LinkerFlavor::Msvc => Box::new(MsvcLinker {
+            cmd,
+            options,
+            diagnostics,
+        }) as Box<dyn Linker>,
+
         LinkerFlavor::Lld(LldFlavor::Wasm) => {
             Box::new(WasmLd::new(cmd, options, diagnostics)) as Box<dyn Linker>
         }
+
+        LinkerFlavor::EmCc => Box::new(EmLinker {
+            cmd,
+            options,
+            diagnostics,
+        }) as Box<dyn Linker>,
 
         other => panic!("unsupported linker flavor: {}", other),
     }

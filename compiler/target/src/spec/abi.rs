@@ -30,6 +30,7 @@ pub enum Abi {
     RustCall,
     PlatformIntrinsic,
     Unadjusted,
+    RustCold,
     Erlang,
 }
 
@@ -43,10 +44,6 @@ pub struct AbiData {
 
 #[allow(non_upper_case_globals)]
 const AbiDatas: &[AbiData] = &[
-    AbiData {
-        abi: Abi::Erlang,
-        name: "Erlang",
-    },
     AbiData {
         abi: Abi::Rust,
         name: "Rust",
@@ -183,6 +180,14 @@ const AbiDatas: &[AbiData] = &[
         abi: Abi::Unadjusted,
         name: "unadjusted",
     },
+    AbiData {
+        abi: Abi::RustCold,
+        name: "rust-cold",
+    },
+    AbiData {
+        abi: Abi::Erlang,
+        name: "Erlang",
+    },
 ];
 
 /// Returns the ABI with the given name (if any).
@@ -244,7 +249,8 @@ impl Abi {
             RustCall => 31,
             PlatformIntrinsic => 32,
             Unadjusted => 33,
-            Erlang => 34,
+            RustCold => 34,
+            Erlang => 35,
         };
         debug_assert!(
             AbiDatas

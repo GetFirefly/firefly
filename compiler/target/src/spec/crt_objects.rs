@@ -54,7 +54,6 @@ pub(super) fn new(obj_table: &[(LinkOutputKind, &[&'static str])]) -> CrtObjects
         .collect()
 }
 
-#[allow(dead_code)]
 pub(super) fn all(obj: &'static str) -> CrtObjects {
     new(&[
         (LinkOutputKind::DynamicNoPicExe, &[obj]),
@@ -66,7 +65,7 @@ pub(super) fn all(obj: &'static str) -> CrtObjects {
     ])
 }
 
-pub(super) fn pre_musl_fallback() -> CrtObjects {
+pub(super) fn pre_musl_self_contained() -> CrtObjects {
     new(&[
         (
             LinkOutputKind::DynamicNoPicExe,
@@ -89,7 +88,7 @@ pub(super) fn pre_musl_fallback() -> CrtObjects {
     ])
 }
 
-pub(super) fn post_musl_fallback() -> CrtObjects {
+pub(super) fn post_musl_self_contained() -> CrtObjects {
     new(&[
         (LinkOutputKind::DynamicNoPicExe, &["crtend.o", "crtn.o"]),
         (LinkOutputKind::DynamicPicExe, &["crtendS.o", "crtn.o"]),
@@ -100,8 +99,7 @@ pub(super) fn post_musl_fallback() -> CrtObjects {
     ])
 }
 
-#[allow(dead_code)]
-pub(super) fn pre_mingw_fallback() -> CrtObjects {
+pub(super) fn pre_mingw_self_contained() -> CrtObjects {
     new(&[
         (LinkOutputKind::DynamicNoPicExe, &["crt2.o", "rsbegin.o"]),
         (LinkOutputKind::DynamicPicExe, &["crt2.o", "rsbegin.o"]),
@@ -112,22 +110,19 @@ pub(super) fn pre_mingw_fallback() -> CrtObjects {
     ])
 }
 
-#[allow(dead_code)]
-pub(super) fn post_mingw_fallback() -> CrtObjects {
+pub(super) fn post_mingw_self_contained() -> CrtObjects {
     all("rsend.o")
 }
 
-#[allow(dead_code)]
 pub(super) fn pre_mingw() -> CrtObjects {
     all("rsbegin.o")
 }
 
-#[allow(dead_code)]
 pub(super) fn post_mingw() -> CrtObjects {
     all("rsend.o")
 }
 
-pub(super) fn pre_wasi_fallback() -> CrtObjects {
+pub(super) fn pre_wasi_self_contained() -> CrtObjects {
     // Use crt1-command.o instead of crt1.o to enable support for new-style
     // commands. See https://reviews.llvm.org/D81689 for more info.
     new(&[
@@ -139,26 +134,28 @@ pub(super) fn pre_wasi_fallback() -> CrtObjects {
     ])
 }
 
-pub(super) fn post_wasi_fallback() -> CrtObjects {
+pub(super) fn post_wasi_self_contained() -> CrtObjects {
     new(&[])
 }
 
 /// Which logic to use to determine whether to fall back to the "self-contained" mode or not.
 #[derive(Clone, Copy, PartialEq, Hash, Debug)]
-pub enum CrtObjectsFallback {
+pub enum LinkSelfContainedDefault {
+    False,
+    True,
     Musl,
     Mingw,
-    Wasm,
 }
 
-impl FromStr for CrtObjectsFallback {
+impl FromStr for LinkSelfContainedDefault {
     type Err = ();
 
-    fn from_str(s: &str) -> Result<CrtObjectsFallback, ()> {
+    fn from_str(s: &str) -> Result<Self, ()> {
         Ok(match s {
-            "musl" => CrtObjectsFallback::Musl,
-            "mingw" => CrtObjectsFallback::Mingw,
-            "wasm" => CrtObjectsFallback::Wasm,
+            "false" => Self::False,
+            "true" | "wasm" => Self::True,
+            "musl" => Self::Musl,
+            "mingw" => Self::Mingw,
             _ => return Err(()),
         })
     }

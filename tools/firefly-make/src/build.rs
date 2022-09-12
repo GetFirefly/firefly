@@ -9,14 +9,9 @@ use std::sync::OnceLock;
 use anyhow::bail;
 use cargo_metadata::{Message, MetadataCommand};
 use clap::Args;
-use serde::Deserialize;
 use walkdir::{DirEntry, WalkDir};
 
-#[derive(Deserialize)]
-struct TargetSpec {
-    #[serde(rename = "llvm-target")]
-    llvm_target: String,
-}
+use crate::util;
 
 #[derive(Args)]
 pub struct Config {
@@ -119,7 +114,7 @@ impl Config {
     }
 
     pub fn llvm_target(&self) -> &str {
-        get_llvm_target(self.toolchain(), self.rust_target())
+        util::get_llvm_target(self.toolchain(), self.rust_target())
     }
 
     pub fn is_darwin(&self) -> bool {
@@ -484,7 +479,7 @@ pub fn run(config: &Config) -> anyhow::Result<()> {
     // for `-C gcc-ld=lld`
     let lld_wrapper = target_dir.join(exe("firefly-lld", &llvm_target));
     let gcc_ld_dir = install_target_bin_dir.join("gcc-ld");
-    fs::create_dir(&gcc_ld_dir).unwrap();
+    fs::create_dir_all(&gcc_ld_dir).unwrap();
 
     for lld_name in &["ld.lld", "ld64.lld", "lld-link", "wasm-ld"] {
         let dest = gcc_ld_dir.join(exe(lld_name, &llvm_target));
@@ -541,39 +536,6 @@ pub fn run(config: &Config) -> anyhow::Result<()> {
 
     println!("Install complete!");
     Ok(())
-}
-
-static LLVM_TARGET: OnceLock<String> = OnceLock::new();
-
-fn get_llvm_target(toolchain_name: &str, target: &str) -> &'static str {
-    let target = LLVM_TARGET.get_or_init(|| {
-        let mut rustc_cmd = Command::new("rustup");
-        let rustc_cmd = rustc_cmd
-            .arg("run")
-            .arg(toolchain_name)
-            .args(&["rustc"])
-            .args(&["-Z", "unstable-options"])
-            .args(&["--print", "target-spec-json", "--target"])
-            .arg(target);
-
-        let output = rustc_cmd
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .output()
-            .unwrap();
-
-        if !output.status.success() {
-            panic!(
-                "unable to determine llvm target triple!: {}",
-                String::from_utf8(output.stderr).unwrap()
-            );
-        }
-
-        let spec: TargetSpec = serde_json::from_slice(output.stdout.as_slice()).unwrap();
-        spec.llvm_target
-    });
-    target.as_str()
 }
 
 static RUST_SYSROOT: OnceLock<PathBuf> = OnceLock::new();

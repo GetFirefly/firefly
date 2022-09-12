@@ -4,7 +4,9 @@
 #![feature(once_cell)]
 
 mod build;
+mod dist;
 mod lit;
+mod util;
 
 use clap::{Parser, Subcommand};
 
@@ -20,6 +22,8 @@ struct Interface {
 enum Commands {
     /// Build the compiler and supporting toolchain
     Build(self::build::Config),
+    /// Prepare a distribution of the compiler and supporting toolchain
+    Dist(self::dist::Config),
     /// Run lit tests against the compiler
     Lit(self::lit::Config),
 }
@@ -29,6 +33,7 @@ fn main() -> anyhow::Result<()> {
 
     match &cli.command {
         Commands::Build(ref config) => self::build::run(config),
+        Commands::Dist(ref config) => self::dist::run(config),
         Commands::Lit(ref config) => self::lit::run(config),
     }
 }

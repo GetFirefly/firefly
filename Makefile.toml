@@ -363,6 +363,15 @@ command = "rustup"
 env = { CARGO_TARGET_DIR = "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/tools/firefly-make/target" }
 args = ["run", "${CARGO_MAKE_TOOLCHAIN}", "cargo", "-Z", "unstable-options", "build", "--manifest-path", "tools/firefly-lld/Cargo.toml", "--release", "--out-dir", "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/tools/firefly-make/target"]
 
+[tasks.release]
+category = "Release"
+description = "Packages a distribution of the Firefly compiler"
+command = "bin/firefly-make"
+args = ["dist", "@@remove-empty(CARGO_MAKE_CARGO_VERBOSE_FLAGS)"]
+dependencies = [
+  "firefly"
+]
+
 [tasks.require-ninja]
 private = true
 script = ['''

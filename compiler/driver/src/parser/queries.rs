@@ -31,7 +31,11 @@ macro_rules! unwrap_or_bail {
     ($db:ident, $reporter:expr, $codemap:expr, $e:expr) => {
         match $e {
             Ok(result) => {
-                $reporter.print($codemap);
+                let reporter = $reporter;
+                reporter.print($codemap);
+                if reporter.is_failed() {
+                    bail!($db, "error occurred, see diagnostics for details");
+                }
                 result
             }
             Err(ref e) => {
@@ -224,6 +228,9 @@ where
             Ok(module) => {
                 reporter.print(&codemap);
                 db.maybe_emit_file_with_opts(&options, input, &module)?;
+                if reporter.is_failed() {
+                    bail!(db, "parsing failed, see diagnostics for details");
+                }
                 return Ok(module);
             }
             Err(e) => {
@@ -247,7 +254,7 @@ where
                     parser.parse_string::<syntax_pp::ast::Ast, _, _>(reporter.clone(), input)
                 }
             };
-            unwrap_or_bail!(db, reporter, &codemap, result)
+            unwrap_or_bail!(db, &reporter, &codemap, result)
         }
         InputType::BEAM => {
             let result = match db.lookup_intern_input(input) {
@@ -256,7 +263,7 @@ where
                     bail!(db, "beam parsing is only supported on files");
                 }
             };
-            unwrap_or_bail!(db, reporter, &codemap, result)
+            unwrap_or_bail!(db, &reporter, &codemap, result)
         }
         ty => bail!(db, "invalid input type: {}", ty),
     };
@@ -266,6 +273,9 @@ where
         Ok(module) => {
             reporter.print(&codemap);
             db.maybe_emit_file_with_opts(&options, input, &module)?;
+            if reporter.is_failed() {
+                bail!(db, "parsing failed, see diagnostics for details");
+            }
             Ok(module)
         }
         Err(ref e) => {
@@ -302,7 +312,7 @@ where
         .chain(CanonicalizeSyntax::new(reporter.clone(), codemap.clone()))
         .chain(AstToCore::new(reporter.clone()));
 
-    let module = unwrap_or_bail!(db, reporter, &codemap, passes.run(ast));
+    let module = unwrap_or_bail!(db, &reporter, &codemap, passes.run(ast));
 
     db.maybe_emit_file(input, &module)?;
 
@@ -332,7 +342,7 @@ where
         Reporter::new()
     };
     let mut passes = CoreToKernel::new(reporter.clone());
-    let module = unwrap_or_bail!(db, reporter, &codemap, passes.run(ast));
+    let module = unwrap_or_bail!(db, &reporter, &codemap, passes.run(ast));
 
     db.maybe_emit_file(input, &module)?;
 
@@ -363,7 +373,7 @@ where
     };
 
     let mut passes = KernelToSsa::new(reporter.clone());
-    let module = unwrap_or_bail!(db, reporter, &codemap, passes.run(cst));
+    let module = unwrap_or_bail!(db, &reporter, &codemap, passes.run(cst));
 
     db.maybe_emit_file(input, &module)?;
 

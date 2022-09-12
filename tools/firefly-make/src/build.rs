@@ -370,6 +370,7 @@ pub fn run(config: &Config) -> anyhow::Result<()> {
     let install_bin_dir = install_dir.join("bin");
     let install_host_lib_dir = install_dir.join("lib");
     let install_target_lib_dir = install_dir.join(&format!("lib/fireflylib/{}/lib", &llvm_target));
+    let install_target_bin_dir = install_dir.join(&format!("lib/fireflylib/{}/bin", &llvm_target));
 
     println!("Preparing to install Firefly to {}", install_dir.display());
 
@@ -383,6 +384,10 @@ pub fn run(config: &Config) -> anyhow::Result<()> {
     if !install_target_lib_dir.exists() {
         fs::create_dir_all(&install_target_lib_dir)
             .expect("failed to create install target libs directory");
+    }
+    if !install_target_bin_dir.exists() {
+        fs::create_dir_all(&install_target_bin_dir)
+            .expect("failed to create install target bin directory");
     }
 
     let walker = WalkDir::new(&install_host_lib_dir).into_iter();
@@ -469,6 +474,21 @@ pub fn run(config: &Config) -> anyhow::Result<()> {
         } else {
             panic!("Unable to find archive (.a/.rlib) for dependency: {}", lib);
         }
+    }
+
+    println!("Installing toolchain binaries..");
+    let llvm_bins = config.llvm_prefix().join("bin");
+    let lld_src = llvm_bins.join(exe("lld", &llvm_target));
+    let lld_dest = install_target_bin_dir.join(exe("firefly-lld", &llvm_target));
+    fs::copy(lld_src, lld_dest).expect("could not copy lld");
+    // for `-C gcc-ld=lld`
+    let lld_wrapper = target_dir.join(exe("firefly-lld", &llvm_target));
+    let gcc_ld_dir = install_target_bin_dir.join("gcc-ld");
+    fs::create_dir(&gcc_ld_dir).unwrap();
+
+    for lld_name in &["ld.lld", "ld64.lld", "lld-link", "wasm-ld"] {
+        let dest = gcc_ld_dir.join(exe(lld_name, &llvm_target));
+        fs::copy(lld_wrapper.as_path(), dest).expect("could not copy firefly-lld wrapper");
     }
 
     if config.link_dynamic() {
@@ -642,4 +662,12 @@ fn symlink(src: &Path, dst: PathBuf) {
 
     fs::remove_file(dst.as_path()).ok();
     symlink_file(src, dst.as_path()).unwrap()
+}
+
+fn exe(name: &str, target: &str) -> String {
+    if target.contains("windows") {
+        format!("{}.exe", name)
+    } else {
+        name.to_string()
+    }
 }

@@ -346,6 +346,7 @@ dependencies = [
   "require-ninja",
   "require-cmake",
   "firefly-make",
+  "firefly-lld",
 ]
 
 [tasks.firefly-make]
@@ -354,6 +355,13 @@ description = "Builds the firefly-make helper"
 command = "rustup"
 env = { CARGO_TARGET_DIR = "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/tools/firefly-make/target" }
 args = ["run", "${CARGO_MAKE_TOOLCHAIN}", "cargo", "-Z", "unstable-options", "build", "--manifest-path", "tools/firefly-make/Cargo.toml", "--release", "--out-dir", "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/bin"]
+
+[tasks.firefly-lld]
+category = "Tools"
+description = "Builds the firefly-lld wrapper"
+command = "rustup"
+env = { CARGO_TARGET_DIR = "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/tools/firefly-make/target" }
+args = ["run", "${CARGO_MAKE_TOOLCHAIN}", "cargo", "-Z", "unstable-options", "build", "--manifest-path", "tools/firefly-lld/Cargo.toml", "--release", "--out-dir", "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/tools/firefly-make/target"]
 
 [tasks.require-ninja]
 private = true

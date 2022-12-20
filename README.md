@@ -36,7 +36,7 @@
 
 **NOTE: This section is a placeholder for the moment until we get our toolchain packaging implemented**
 
-To use Firefly, you'll need to download our toolchain [here](https://https://github.com/GetFirefly/firefly/releases/), and install it like so:
+To use Firefly, you'll need to download our toolchain [here](https://github.com/GetFirefly/firefly/releases/), and install it like so:
 
     > tar -xzf firefly.tar.gz /usr/local/
 

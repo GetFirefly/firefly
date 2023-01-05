@@ -3,11 +3,9 @@ mod with_small_integer;
 
 use std::time::Duration;
 
-use proptest::strategy::{Just, Strategy};
+use proptest::strategy::Just;
 
-use liblumen_alloc::atom;
-use liblumen_alloc::erts::term::prelude::*;
-use liblumen_alloc::erts::time::Milliseconds;
+use firefly_rt::term::{atoms, Term};
 
 use crate::runtime::time::monotonic;
 

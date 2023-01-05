@@ -1,7 +1,5 @@
 use super::*;
 
-use proptest::strategy::Strategy;
-
 #[test]
 fn without_function_right_returns_true() {
     run!(
@@ -9,7 +7,7 @@ fn without_function_right_returns_true() {
             (
                 strategy::term::is_function(arc_process.clone()),
                 strategy::term(arc_process.clone())
-                    .prop_filter("Right must not be function", |v| !v.is_boxed_function()),
+                    .prop_filter("Right must not be function", |v| !v.is_closure()),
             )
         },
         |(left, right)| {

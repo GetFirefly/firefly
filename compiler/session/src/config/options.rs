@@ -496,7 +496,9 @@ impl Options {
 
     /// Returns `true` if there will be an output file generated.
     pub fn will_create_output_file(&self) -> bool {
-        !(self.debugging_opts.parse_only || self.debugging_opts.analyze_only) // The file is just being parsed/analyzed
+        !(self.debugging_opts.parse_only || self.debugging_opts.analyze_only) // The file is just
+                                                                              // being parsed/
+                                                                              // analyzed
     }
 
     /// Returns a list of directories where target-specific tool binaries are located.

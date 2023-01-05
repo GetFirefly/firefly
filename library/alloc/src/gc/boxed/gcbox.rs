@@ -154,9 +154,9 @@ where
     ///
     /// In our case, we have opaque pointers on process heaps that are always allocated via GcBox,
     /// and we need to be able to cast them back to their original types efficiently. To do so, we
-    /// use a combination of this function, a jump table of type ids, and subsequent unchecked casts.
-    /// This allows for efficient pointer casts while ensuring we don't improperly cast a pointer to
-    /// the wrong type.
+    /// use a combination of this function, a jump table of type ids, and subsequent unchecked
+    /// casts. This allows for efficient pointer casts while ensuring we don't improperly cast a
+    /// pointer to the wrong type.
     pub unsafe fn type_id(raw: *mut ()) -> TypeId {
         debug_assert!(!raw.is_null());
         let header = &*header(raw);

@@ -78,7 +78,6 @@ use firefly_intern::Ident;
 /// To correctly rewrite fun bodies, we will need to keep addtional
 /// information in a record so that we can remove `X` from the known
 /// variables when rewriting the body of the fun.
-///
 #[derive(Clone, Default)]
 pub struct Known {
     base: Vector<RedBlackTreeSet<Ident>>,

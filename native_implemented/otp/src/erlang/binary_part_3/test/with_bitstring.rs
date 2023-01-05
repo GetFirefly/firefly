@@ -1,7 +1,5 @@
 use super::*;
 
-use proptest::strategy::Strategy;
-
 mod with_bit_count;
 // `without_bit_count` in integration tests
 // `without_integer_start_without_integer_length_errors_badarg` in integration tests

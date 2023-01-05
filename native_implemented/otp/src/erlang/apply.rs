@@ -1,15 +1,17 @@
+use std::ptr::NonNull;
+
 use anyhow::*;
 
-use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::term::prelude::*;
+use firefly_rt::error::ErlangException;
+use firefly_rt::term::{Term, TypeError};
 
 use crate::runtime::context::term_is_not_type;
 
-pub fn arguments_term_to_vec(arguments: Term) -> exception::Result<Vec<Term>> {
+pub fn arguments_term_to_vec(arguments: Term) -> Result<Vec<Term>, NonNull<ErlangException>> {
     let mut argument_vec: Vec<Term> = Vec::new();
 
-    match arguments.decode().unwrap() {
-        TypedTerm::List(arguments_boxed_cons) => {
+    match arguments {
+        Term::Cons(arguments_boxed_cons) => {
             for result in arguments_boxed_cons.iter() {
                 match result {
                     Ok(element) => argument_vec.push(element),
@@ -27,7 +29,7 @@ pub fn arguments_term_to_vec(arguments: Term) -> exception::Result<Vec<Term>> {
 
             Ok(argument_vec)
         }
-        TypedTerm::Nil => Ok(argument_vec),
+        Term::Nil => Ok(argument_vec),
         _ => Err(TypeError)
             .context(term_is_not_type(
                 "arguments",

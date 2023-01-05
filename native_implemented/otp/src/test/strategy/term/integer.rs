@@ -3,8 +3,6 @@ use std::sync::Arc;
 use proptest::prop_oneof;
 use proptest::strategy::{BoxedStrategy, Strategy};
 
-use liblumen_alloc::erts::Process;
-
 use super::*;
 
 pub mod big;
@@ -51,7 +49,7 @@ pub fn positive(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
 }
 
 pub fn small(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
-    (SmallInteger::MIN_VALUE..=SmallInteger::MAX_VALUE)
-        .prop_map(move |i| arc_process.integer(i))
+    (Integer::MIN_SMALL..=Integer::MAX_SMALL)
+        .prop_map(move |i| arc_process.integer(i).unwrap())
         .boxed()
 }

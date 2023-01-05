@@ -16,7 +16,7 @@ fn without_atom_pid_or_tuple_destination_errors_badarg() {
             )
         },
         |(arc_process, milliseconds, destination, message, abs_value)| {
-            let time = arc_process.integer(milliseconds);
+            let time = arc_process.integer(milliseconds).unwrap();
             let options = options(abs_value, &arc_process);
 
             prop_assert_is_not_boolean!(

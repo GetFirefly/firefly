@@ -38,7 +38,7 @@ fn with_empty_list_returns_binary() {
                 .prop_map(|(arc_process, binary)| {
                     (
                         arc_process.clone(),
-                        arc_process.cons(binary, Term::NIL),
+                        arc_process.cons(binary, Term::Nil),
                         binary,
                     )
                 })
@@ -79,8 +79,8 @@ fn with_byte_errors_badarg() {
 fn with_list_without_byte_tail_returns_binary() {
     with(|head, process| {
         let tail_head_byte = 3;
-        let tail_head = process.integer(tail_head_byte);
-        let tail_tail = Term::NIL;
+        let tail_head = process.integer(tail_head_byte).unwrap();
+        let tail_tail = Term::Nil;
         let tail = process.cons(tail_head, tail_tail);
         let iolist = process.cons(head, tail);
 

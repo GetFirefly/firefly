@@ -1,6 +1,5 @@
-use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::closure::*;
-use liblumen_alloc::erts::term::prelude::*;
+use firefly_rt::process::Process;
+use firefly_rt::term::Term;
 
 pub fn anonymous_closure(process: &Process) -> Term {
     process.anonymous_closure_with_env_from_slice(

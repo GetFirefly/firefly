@@ -31,22 +31,22 @@ fn with_atom_option_errors_badarg() {
 
 #[test]
 fn with_local_reference_option_errors_badarg() {
-    with_option_errors_badarg(|process| process.next_reference());
+    with_option_errors_badarg(|process| process.next_local_reference_term());
 }
 
 #[test]
 fn with_small_integer_option_errors_badarg() {
-    with_option_errors_badarg(|process| process.integer(0));
+    with_option_errors_badarg(|process| process.integer(0).unwrap());
 }
 
 #[test]
 fn with_big_integer_option_errors_badarg() {
-    with_option_errors_badarg(|process| process.integer(SmallInteger::MAX_VALUE + 1));
+    with_option_errors_badarg(|process| process.integer(Integer::MAX_SMALL + 1).unwrap());
 }
 
 #[test]
 fn with_float_option_errors_badarg() {
-    with_option_errors_badarg(|process| process.float(1.0));
+    with_option_errors_badarg(|process| 1.0.into());
 }
 
 #[test]
@@ -61,7 +61,7 @@ fn with_external_pid_option_errors_badarg() {
 
 #[test]
 fn with_tuple_option_errors_badarg() {
-    with_option_errors_badarg(|process| process.tuple_from_slice(&[]));
+    with_option_errors_badarg(|process| process.tuple_term_from_term_slice(&[]));
 }
 
 #[test]
@@ -71,12 +71,12 @@ fn with_map_option_errors_badarg() {
 
 #[test]
 fn with_empty_list_option_errors_badarg() {
-    with_option_errors_badarg(|process| process.cons(process.integer(0), process.integer(1)));
+    with_option_errors_badarg(|process| process.cons(process.integer(0).unwrap(), process.integer(1).unwrap()));
 }
 
 #[test]
 fn with_list_option_errors_badarg() {
-    with_option_errors_badarg(|process| process.cons(process.integer(0), process.integer(1)));
+    with_option_errors_badarg(|process| process.cons(process.integer(0).unwrap(), process.integer(1).unwrap()));
 }
 
 #[test]
@@ -94,8 +94,8 @@ where
     O: FnOnce(&Process) -> Term,
 {
     with_process(|process| {
-        let timer_reference = process.next_reference();
-        let options = process.cons(option(process), Term::NIL);
+        let timer_reference = process.next_local_reference_term();
+        let options = process.cons(option(process), Term::Nil);
 
         assert_badarg!(
             result(process, timer_reference, options),

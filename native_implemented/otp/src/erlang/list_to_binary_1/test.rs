@@ -1,6 +1,5 @@
 mod with_list;
 
-use std::convert::TryInto;
 use std::sync::Arc;
 
 use proptest::arbitrary::any;
@@ -8,8 +7,8 @@ use proptest::strategy::{BoxedStrategy, Just, Strategy};
 use proptest::test_runner::{Config, TestRunner};
 use proptest::{prop_assert, prop_assert_eq, prop_oneof};
 
-use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::prelude::*;
+use firefly_rt::process::Process;
+use firefly_rt::term::Term;
 
 use crate::erlang::list_to_binary_1::result;
 use crate::test::strategy;
@@ -39,7 +38,7 @@ fn without_list_errors_badarg() {
 fn with_empty_list_returns_empty_binary() {
     with_process(|process| {
         assert_eq!(
-            result(process, Term::NIL),
+            result(process, Term::Nil),
             Ok(process.binary_from_bytes(&[]))
         );
     });
@@ -63,9 +62,9 @@ fn otp_doctest_returns_binary() {
         let iolist = process.improper_list_from_slice(
             &[
                 bin1,
-                process.integer(1),
-                process.list_from_slice(&[process.integer(2), process.integer(3), bin2]),
-                process.integer(4),
+                process.integer(1).unwrap(),
+                process.list_from_slice(&[process.integer(2).unwrap(), process.integer(3).unwrap(), bin2]).unwrap(),
+                process.integer(4).unwrap(),
             ],
             bin3,
         );
@@ -99,7 +98,7 @@ fn with_procbin_in_list_returns_binary() {
         let procbin = process.binary_from_bytes(&bytes);
         // We expect this to be a procbin, since it's > 64 bytes. Make sure it is.
         assert!(procbin.is_boxed_procbin());
-        let list = process.list_from_slice(&[procbin]);
+        let list = process.list_from_slice(&[procbin]).unwrap();
 
         assert_eq!(result(process, list), Ok(process.binary_from_bytes(&bytes)))
     });
@@ -107,7 +106,7 @@ fn with_procbin_in_list_returns_binary() {
 
 fn byte(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     any::<u8>()
-        .prop_map(move |byte| arc_process.integer(byte))
+        .prop_map(move |byte| arc_process.integer(byte).unwrap())
         .boxed()
 }
 
@@ -139,7 +138,7 @@ fn recursive(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
 }
 
 fn tail(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
-    prop_oneof![strategy::term::is_binary(arc_process), Just(Term::NIL)].boxed()
+    prop_oneof![strategy::term::is_binary(arc_process), Just(Term::Nil)].boxed()
 }
 
 fn top(arc_process: Arc<Process>) -> BoxedStrategy<Term> {

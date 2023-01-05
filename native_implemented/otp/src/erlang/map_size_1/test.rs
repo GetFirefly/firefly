@@ -1,7 +1,7 @@
 use proptest::prop_assert_eq;
-use proptest::strategy::{Just, Strategy};
+use proptest::strategy::Just;
 
-use liblumen_alloc::erts::term::prelude::Term;
+use firefly_rt::term::Term;
 
 use crate::erlang::map_size_1::result;
 use crate::test::strategy;
@@ -46,7 +46,7 @@ fn with_map_returns_number_of_entries() {
                     (
                         arc_process.clone(),
                         arc_process.map_from_slice(&entry_vec),
-                        arc_process.integer(entry_vec.len()),
+                        arc_process.integer(entry_vec.len().unwrap()),
                     )
                 })
         },

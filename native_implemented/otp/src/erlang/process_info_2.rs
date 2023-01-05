@@ -1,19 +1,17 @@
 #[cfg(all(not(target_arch = "wasm32"), test))]
 mod test;
 
+use std::ptr::NonNull;
 use anyhow::*;
 
-use liblumen_alloc::atom;
-use liblumen_alloc::borrow::clone_to_process::CloneToProcess;
-use liblumen_alloc::erts::exception::{self, InternalResult};
-use liblumen_alloc::erts::message::{self, MessageData};
-use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::prelude::*;
+use firefly_rt::error::ErlangException;
+use firefly_rt::process::Process;
+use firefly_rt::term::{Atom, atoms, Term};
 
 use crate::runtime::registry::pid_to_process;
 
 #[native_implemented::function(erlang:process_info/2)]
-pub fn result(process: &Process, pid: Term, item: Term) -> exception::Result<Term> {
+pub fn result(process: &Process, pid: Term, item: Term) -> Result<Term, NonNull<ErlangException>> {
     let pid_pid = term_try_into_local_pid!(pid)?;
     let item_atom: Atom = term_try_into_atom!(item)?;
 
@@ -22,7 +20,7 @@ pub fn result(process: &Process, pid: Term, item: Term) -> exception::Result<Ter
     } else {
         match pid_to_process(&pid_pid) {
             Some(pid_arc_process) => process_info(&pid_arc_process, item_atom),
-            None => Ok(atom!("undefined")),
+            None => Ok(atoms::Undefined.into()),
         }
     }
     .map_err(From::from)
@@ -31,7 +29,7 @@ pub fn result(process: &Process, pid: Term, item: Term) -> exception::Result<Ter
 // Private
 
 fn process_info(process: &Process, item: Atom) -> InternalResult<Term> {
-    match item.name() {
+    match item.as_str() {
         "backtrace" => unimplemented!(),
         "binary" => unimplemented!(),
         "catchlevel" => unimplemented!(),
@@ -81,20 +79,20 @@ fn process_info(process: &Process, item: Atom) -> InternalResult<Term> {
 }
 
 fn links(process: &Process) -> Term {
-    let tag = atom!("links");
+    let tag = atoms::Links.into();
 
     let vec: Vec<Term> = process
         .linked_pid_set
         .iter()
         .map(|ref_multi| ref_multi.encode().unwrap())
         .collect();
-    let value = process.list_from_slice(&vec);
+    let value = process.list_from_slice(&vec).unwrap();
 
-    process.tuple_from_slice(&[tag, value])
+    process.tuple_term_from_term_slice(&[tag, value])
 }
 
 fn messages(process: &Process) -> Term {
-    let tag = atom!("messages");
+    let tag = atoms::Messages.into();
 
     let vec: Vec<Term> = process
         .mailbox
@@ -109,56 +107,56 @@ fn messages(process: &Process) -> Term {
         })
         .collect();
 
-    let value = process.list_from_slice(&vec);
+    let value = process.list_from_slice(&vec).unwrap();
 
-    process.tuple_from_slice(&[tag, value])
+    process.tuple_term_from_term_slice(&[tag, value])
 }
 
 fn monitored_by(process: &Process) -> Term {
-    let tag = atom!("monitored_by");
+    let tag = atoms::MonitoredBy.into();
 
     let vec: Vec<Term> = process
         .monitor_by_reference
         .iter()
         .map(|ref_multi| ref_multi.monitoring_pid().encode().unwrap())
         .collect();
-    let value = process.list_from_slice(&vec);
+    let value = process.list_from_slice(&vec).unwrap();
 
-    process.tuple_from_slice(&[tag, value])
+    process.tuple_term_from_term_slice(&[tag, value])
 }
 
 fn monitors(process: &Process) -> Term {
-    let monitor_type = atom!("process");
+    let monitor_type = atoms::Process.into();
     let mut vec = Vec::new();
 
     for ref_multi in process.monitored_pid_by_reference.iter() {
         let pid = ref_multi.value();
         let monitor_value = pid.encode().unwrap();
-        let monitor = process.tuple_from_slice(&[monitor_type, monitor_value]);
+        let monitor = process.tuple_term_from_term_slice(&[monitor_type, monitor_value]);
         vec.push(monitor);
     }
 
-    let tag = atom!("monitors");
-    let value = process.list_from_slice(&vec);
+    let tag = atoms::Monitors.into();
+    let value = process.list_from_slice(&vec).unwrap();
 
-    process.tuple_from_slice(&[tag, value])
+    process.tuple_term_from_term_slice(&[tag, value])
 }
 
 fn registered_name(process: &Process) -> Term {
     match *process.registered_name.read() {
         Some(registered_name) => {
-            let tag = atom!("registered_name");
+            let tag = atoms::RegisteredName.into();
             let value = registered_name.encode().unwrap();
 
-            process.tuple_from_slice(&[tag, value])
+            process.tuple_term_from_term_slice(&[tag, value])
         }
-        None => Term::NIL,
+        None => Term::Nil,
     }
 }
 
 fn trap_exit(process: &Process) -> Term {
-    let tag = atom!("trap_exit");
+    let tag = atoms::TrapExit.into();
     let value = process.traps_exit().into();
 
-    process.tuple_from_slice(&[tag, value])
+    process.tuple_term_from_term_slice(&[tag, value])
 }

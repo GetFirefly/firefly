@@ -35,7 +35,7 @@ fn with_binary_encoding_small_atom_utf8_that_does_not_exist_errors_badarg() {
 }
 
 fn options(process: &Process) -> Term {
-    process.cons(Atom::str_to_term("safe"), Term::NIL)
+    process.cons(Atom::str_to_term("safe"), Term::Nil)
 }
 
 fn tried_to_convert_to_an_atom_that_doesnt_exist(byte_vec: Vec<u8>) {

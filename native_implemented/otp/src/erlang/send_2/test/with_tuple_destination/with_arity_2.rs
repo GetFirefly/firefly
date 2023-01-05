@@ -15,7 +15,7 @@ fn without_atom_name_errors_badarg() {
             )
         },
         |(arc_process, name, message)| {
-            let destination = arc_process.tuple_from_slice(&[name, erlang::node_0::result()]);
+            let destination = arc_process.tuple_term_from_term_slice(&[name, erlang::node_0::result()]);
 
             prop_assert_badarg!(
                         result(&arc_process, destination, message),
@@ -29,32 +29,32 @@ fn without_atom_name_errors_badarg() {
 
 #[test]
 fn with_local_reference_name_errors_badarg() {
-    with_name_errors_badarg(|process| process.next_reference());
+    with_name_errors_badarg(|process| process.next_local_reference_term());
 }
 
 #[test]
 fn with_empty_list_name_errors_badarg() {
-    with_name_errors_badarg(|_| Term::NIL);
+    with_name_errors_badarg(|_| Term::Nil);
 }
 
 #[test]
 fn with_list_name_errors_badarg() {
-    with_name_errors_badarg(|process| process.cons(process.integer(0), process.integer(1)));
+    with_name_errors_badarg(|process| process.cons(process.integer(0).unwrap(), process.integer(1).unwrap()));
 }
 
 #[test]
 fn with_small_integer_name_errors_badarg() {
-    with_name_errors_badarg(|process| process.integer(0));
+    with_name_errors_badarg(|process| process.integer(0).unwrap());
 }
 
 #[test]
 fn with_big_integer_name_errors_badarg() {
-    with_name_errors_badarg(|process| process.integer(SmallInteger::MAX_VALUE + 1));
+    with_name_errors_badarg(|process| process.integer(Integer::MAX_SMALL + 1).unwrap());
 }
 
 #[test]
 fn with_float_name_errors_badarg() {
-    with_name_errors_badarg(|process| process.float(1.0));
+    with_name_errors_badarg(|process| 1.0.into());
 }
 
 #[test]
@@ -69,7 +69,7 @@ fn with_external_pid_name_errors_badarg() {
 
 #[test]
 fn with_tuple_name_errors_badarg() {
-    with_name_errors_badarg(|process| process.tuple_from_slice(&[]));
+    with_name_errors_badarg(|process| process.tuple_term_from_term_slice(&[]));
 }
 
 #[test]
@@ -92,7 +92,7 @@ where
     N: FnOnce(&Process) -> Term,
 {
     with_process(|process| {
-        let destination = process.tuple_from_slice(&[name(process), erlang::node_0::result()]);
+        let destination = process.tuple_term_from_term_slice(&[name(process), erlang::node_0::result()]);
         let message = Atom::str_to_term("message");
 
         assert_badarg!(

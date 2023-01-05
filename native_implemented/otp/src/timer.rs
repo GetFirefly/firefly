@@ -1,5 +1,3 @@
-use liblumen_alloc::erts::term::prelude::Atom;
-
 pub mod tc_3;
 
 pub mod cancel;

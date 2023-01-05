@@ -2,9 +2,9 @@ use std::ops::{Index, IndexMut};
 use std::ptr::NonNull;
 
 use cranelift_entity::EntityRef;
+use firefly_arena::TypedArena;
 use intrusive_collections::linked_list::{Cursor, CursorMut, LinkedList};
 use intrusive_collections::{intrusive_adapter, LinkedListLink, UnsafeRef};
-use firefly_arena::TypedArena;
 
 /// This struct holds the data for each node in an ArenaMap/OrderedArenaMap
 #[derive(Clone)]
@@ -44,22 +44,25 @@ intrusive_adapter!(pub LayoutAdapter<K, V> = UnsafeRef<LayoutNode<K, V>>: Layout
 ///
 /// # Pros
 ///
-/// * Once allocated, values stored in the map have a stable location, this can be useful for when you
+/// * Once allocated, values stored in the map have a stable location, this can be useful for when
+///   you
 /// expect to store elements of the map in an intrusive collection.
-/// * Keys can be more efficiently sized, i.e. rather than pointers/usize keys, you can choose arbitrarily
+/// * Keys can be more efficiently sized, i.e. rather than pointers/usize keys, you can choose
+///   arbitrarily
 /// small bitwidths, as long as there is sufficient keyspace for your use case.
-/// * Attempt to keep data in the map as contiguous in memory as possible. This is again useful for when
-/// the data is also linked into an intrusive collection, like a linked list, where traversing the list
-/// will end up visiting many of the nodes in the map. If each node was its own Box, this would cause
-/// thrashing of the cache - ArenaMap sidesteps this by allocating values in chunks of memory that are
-/// friendlier to the cache.
+/// * Attempt to keep data in the map as contiguous in memory as possible. This is again useful for
+///   when
+/// the data is also linked into an intrusive collection, like a linked list, where traversing the
+/// list will end up visiting many of the nodes in the map. If each node was its own Box, this would
+/// cause thrashing of the cache - ArenaMap sidesteps this by allocating values in chunks of memory
+/// that are friendlier to the cache.
 ///
 /// # Cons
 ///
 /// * Memory allocated for data stored in the map is not released until the map is dropped. This is
-/// a tradeoff made to ensure that the data has a stable location in memory, but the flip side of that
-/// is increased memory usage for maps that stick around for a long time. In our case, these maps are
-/// relatively short-lived, so it isn't a problem in practice.
+/// a tradeoff made to ensure that the data has a stable location in memory, but the flip side of
+/// that is increased memory usage for maps that stick around for a long time. In our case, these
+/// maps are relatively short-lived, so it isn't a problem in practice.
 /// * It doesn't provide as rich of an API as HashMap and friends
 pub struct ArenaMap<K: EntityRef, V: Clone> {
     keys: Vec<Option<NonNull<V>>>,
@@ -195,16 +198,18 @@ impl<K: EntityRef, V: Clone> IndexMut<K> for ArenaMap<K, V> {
 /// OrderedArenaMap is an extension of ArenaMap that provides for arbitrary ordering of keys/values
 ///
 /// This is done using an intrusive linked list alongside an ArenaMap. The list is used to link one
-/// key/value pair to the next, so any ordering you wish to implement is possible. This is particularly
-/// useful for layout of blocks in a function, or instructions within blocks, as you can precisely position
-/// them relative to other blocks/instructions.
+/// key/value pair to the next, so any ordering you wish to implement is possible. This is
+/// particularly useful for layout of blocks in a function, or instructions within blocks, as you
+/// can precisely position them relative to other blocks/instructions.
 ///
 /// Because the linked list is intrusive, it is virtually free in terms of space, but comes with the
-/// standard overhead for traversals. That said, there are a couple of niceties that give it good overall
-/// performance:
+/// standard overhead for traversals. That said, there are a couple of niceties that give it good
+/// overall performance:
 ///
-/// * It is a doubly-linked list, so you can traverse equally efficiently front-to-back or back-to-front,
-/// * It has O(1) indexing; given a key, we can directly obtain a reference to a node, and with that,
+/// * It is a doubly-linked list, so you can traverse equally efficiently front-to-back or
+///   back-to-front,
+/// * It has O(1) indexing; given a key, we can directly obtain a reference to a node, and with
+///   that,
 /// obtain a cursor over the list starting at that node.
 pub struct OrderedArenaMap<K: EntityRef, V: Clone> {
     list: LinkedList<LayoutAdapter<K, V>>,
@@ -267,7 +272,8 @@ impl<K: EntityRef, V: Clone> OrderedArenaMap<K, V> {
         self.map.get(key).map(|data| data.value())
     }
 
-    /// Returns a mutable reference to the value associated with the given key, if present and linked
+    /// Returns a mutable reference to the value associated with the given key, if present and
+    /// linked
     pub fn get_mut(&mut self, key: K) -> Option<&mut V> {
         self.map.get_mut(key).map(|data| data.value_mut())
     }
@@ -278,7 +284,8 @@ impl<K: EntityRef, V: Clone> OrderedArenaMap<K, V> {
         self.map.alloc_key()
     }
 
-    /// Used with `create` when ready to associate data with the allocated key, linking it in to the end of the list
+    /// Used with `create` when ready to associate data with the allocated key, linking it in to the
+    /// end of the list
     pub fn append(&mut self, key: K, value: V) {
         debug_assert!(!self.contains(key));
         let data = self.alloc_node(key, value);
@@ -353,8 +360,8 @@ impl<K: EntityRef, V: Clone> OrderedArenaMap<K, V> {
         unsafe { self.list.cursor_from_ptr(ptr) }
     }
 
-    /// Returns a cursor which can be used to traverse the map mutably, in order (front to back), starting
-    /// at the key given.
+    /// Returns a cursor which can be used to traverse the map mutably, in order (front to back),
+    /// starting at the key given.
     pub fn cursor_mut_at(&mut self, key: K) -> CursorMut<'_, LayoutAdapter<K, V>> {
         let ptr = &self.map[key] as *const LayoutNode<K, V>;
         unsafe { self.list.cursor_mut_from_ptr(ptr) }

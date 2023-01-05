@@ -8,7 +8,7 @@
 use web_sys::WebSocket;
 
 use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::process::Process;
+use liblumen_rt::process::Process;
 use liblumen_alloc::erts::term::prelude::Term;
 
 use crate::runtime::binary_to_string::binary_to_string;

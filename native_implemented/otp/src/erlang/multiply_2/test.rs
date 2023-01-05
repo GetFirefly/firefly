@@ -5,8 +5,8 @@ mod with_small_integer_multiplier;
 use proptest::prop_assert;
 use proptest::strategy::Just;
 
-use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::prelude::*;
+use firefly_rt::process::Process;
+use firefly_rt::term::{Integer, Term};
 
 use crate::erlang::multiply_2::result;
 use crate::test::strategy;

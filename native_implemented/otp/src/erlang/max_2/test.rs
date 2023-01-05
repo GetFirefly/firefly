@@ -13,11 +13,10 @@ mod with_subbinary_first;
 mod with_tuple_first;
 
 use proptest::prop_assert_eq;
-use proptest::strategy::Strategy;
 use proptest::test_runner::{Config, TestRunner};
 
-use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::prelude::*;
+use firefly_rt::process::Process;
+use firefly_rt::term::{Atom, Integer, Term};
 
 use crate::erlang::max_2::result;
 use crate::test::with_process;

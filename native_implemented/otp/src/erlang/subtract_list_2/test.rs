@@ -3,6 +3,8 @@ mod with_proper_list_minuend;
 use proptest::prop_assert_eq;
 use proptest::strategy::Just;
 
+use firefly_rt::term::Term;
+
 use crate::erlang::subtract_list_2::result;
 use crate::test::strategy;
 

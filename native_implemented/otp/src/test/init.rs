@@ -1,6 +1,6 @@
 pub mod start_0;
 
-use liblumen_alloc::erts::term::prelude::*;
+use firefly_rt::term::Atom;
 
 fn module() -> Atom {
     Atom::from_str("init")

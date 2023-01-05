@@ -156,7 +156,8 @@ impl OwnedContext {
         let scf_dialect = DialectHandle::get(DialectType::SCF).unwrap();
         let cir_dialect = DialectHandle::get(DialectType::CIR).unwrap();
 
-        // LLVM requires special registration as its LLVM IR translation interface needs registering as well
+        // LLVM requires special registration as its LLVM IR translation interface needs registering
+        // as well
         unsafe {
             mlir_context_register_llvm_dialect_translation(context);
         }

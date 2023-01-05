@@ -1,8 +1,8 @@
 #[cfg(test)]
 mod test;
 
-use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::prelude::Term;
+use firefly_rt::process::Process;
+use firefly_rt::term::Term;
 
 use crate::erlang::unique_integer::unique_integer;
 

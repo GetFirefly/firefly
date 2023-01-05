@@ -95,7 +95,8 @@ pub trait Parser: CompilerOutput {
     /// If the input is a .mlir file, this will parse directly to an mlir module, otherwise,
     /// higher-level sources (i.e. .erl/.core) will be parsed and then lowered to mlir.
     ///
-    /// If an error occurred during parsing or lowering of the module, the result will be Err(ErrorReported).
+    /// If an error occurred during parsing or lowering of the module, the result will be
+    /// Err(ErrorReported).
     #[salsa::invoke(queries::input_mlir)]
     fn input_mlir(
         &self,

@@ -2,10 +2,11 @@ use static_assertions::assert_eq_size;
 
 use crate::Endianness;
 
-/// Represents a binary segment constructor/match specification, e.g. `<<42:8/signed-little-integer>>`
+/// Represents a binary segment constructor/match specification, e.g.
+/// `<<42:8/signed-little-integer>>`
 ///
-/// The size and layout of this type is relied upon by our compiler. It can be represented as a single i64
-/// value, and has a layout equivalent to the following struct:
+/// The size and layout of this type is relied upon by our compiler. It can be represented as a
+/// single i64 value, and has a layout equivalent to the following struct:
 ///
 /// ```rust,ignore
 /// #[repr(C)]

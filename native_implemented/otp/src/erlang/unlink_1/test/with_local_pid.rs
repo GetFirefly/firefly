@@ -1,7 +1,5 @@
 use super::*;
 
-use liblumen_alloc::erts::term::prelude::{Atom, Pid};
-
 use crate::runtime::scheduler;
 
 use crate::test;

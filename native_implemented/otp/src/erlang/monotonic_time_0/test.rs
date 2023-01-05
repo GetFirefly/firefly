@@ -1,8 +1,6 @@
 use crate::erlang::monotonic_time_0::result;
 use crate::test::with_process;
 
-use liblumen_alloc::erts::time::Milliseconds;
-
 use crate::runtime::time::monotonic;
 
 #[test]

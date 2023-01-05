@@ -4,9 +4,9 @@ mod with_small_integer_dividend;
 use proptest::prop_assert_eq;
 use proptest::strategy::{BoxedStrategy, Just};
 
-use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::prelude::*;
+use firefly_rt::error::ErlangException;
+use firefly_rt::process::Process;
+use firefly_rt::term::{Atom, Integer, Term};
 
 use crate::erlang::rem_2::result;
 use crate::runtime::scheduler::SchedulerDependentAlloc;
@@ -35,17 +35,17 @@ fn with_atom_dividend_errors_badarith() {
 
 #[test]
 fn with_local_reference_dividend_errors_badarith() {
-    with_dividend_errors_badarith(|process| process.next_reference());
+    with_dividend_errors_badarith(|process| process.next_local_reference_term());
 }
 
 #[test]
 fn with_empty_list_dividend_errors_badarith() {
-    with_dividend_errors_badarith(|_| Term::NIL);
+    with_dividend_errors_badarith(|_| Term::Nil);
 }
 
 #[test]
 fn with_list_dividend_errors_badarith() {
-    with_dividend_errors_badarith(|process| process.cons(process.integer(0), process.integer(1)));
+    with_dividend_errors_badarith(|process| process.cons(process.integer(0).unwrap(), process.integer(1).unwrap()));
 }
 
 #[test]
@@ -62,7 +62,7 @@ fn with_external_pid_dividend_errors_badarith() {
 
 #[test]
 fn with_tuple_dividend_errors_badarith() {
-    with_dividend_errors_badarith(|process| process.tuple_from_slice(&[]));
+    with_dividend_errors_badarith(|process| process.tuple_term_from_term_slice(&[]));
 }
 
 #[test]
@@ -89,7 +89,7 @@ where
 {
     errors_badarith(|process| {
         let dividend = dividend(&process);
-        let divisor = process.integer(0);
+        let divisor = process.integer(0).unwrap();
 
         result(&process, dividend, divisor)
     });
@@ -97,7 +97,7 @@ where
 
 fn errors_badarith<F>(actual: F)
 where
-    F: FnOnce(&Process) -> exception::Result<Term>,
+    F: FnOnce(&Process) -> Result<Term, NonNull<ErlangException>>,
 {
     with_process(|process| assert_badarith!(actual(&process)))
 }

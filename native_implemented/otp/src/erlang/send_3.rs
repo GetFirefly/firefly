@@ -2,10 +2,11 @@
 mod test;
 
 use std::convert::TryInto;
+use std::ptr::NonNull;
 
-use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::prelude::*;
+use firefly_rt::error::ErlangException;
+use firefly_rt::process::Process;
+use firefly_rt::term::{Atom, Term};
 
 use crate::runtime::send::{self, send, Sent};
 
@@ -17,7 +18,7 @@ pub fn result(
     destination: Term,
     message: Term,
     options: Term,
-) -> exception::Result<Term> {
+) -> Result<Term, NonNull<ErlangException>> {
     let send_options: send::Options = options.try_into()?;
 
     send(destination, message, send_options, process)

@@ -8,7 +8,7 @@
 //! Lumen.Web.Wait.with_return(remove_ok)
 //! ```
 
-use liblumen_alloc::erts::process::Process;
+use liblumen_rt::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
 #[native_implemented::label]

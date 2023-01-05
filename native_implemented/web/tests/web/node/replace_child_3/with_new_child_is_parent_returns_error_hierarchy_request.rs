@@ -15,7 +15,7 @@ pub mod label_3;
 #[path = "with_new_child_is_parent_returns_error_hierarchy_request/label_4.rs"]
 pub mod label_4;
 
-use liblumen_alloc::erts::process::Process;
+use liblumen_rt::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
 use liblumen_web::document;

@@ -450,7 +450,7 @@ fn make_reason<R: Into<OpaqueTerm>>(tag: Atom, reason: R) -> OpaqueTerm {
     scheduler::with_current(|scheduler| {
         let arc_proc = scheduler.current_process();
         let proc = arc_proc.deref();
-        Tuple::from_slice(&[tag.into(), reason.into()], proc)
+        Tuple::from_opaque_term_slice(&[tag.into(), reason.into()], proc)
             .unwrap()
             .into()
     })

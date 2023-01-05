@@ -3,8 +3,8 @@ use super::*;
 #[test]
 fn with_small_integer_subtrahend_with_underflow_returns_big_integer() {
     with_process(|process| {
-        let minuend = process.integer(SmallInteger::MIN_VALUE);
-        let subtrahend = process.integer(SmallInteger::MAX_VALUE);
+        let minuend = process.integer(Integer::MIN_SMALL).unwrap();
+        let subtrahend = process.integer(Integer::MAX_SMALL).unwrap();
 
         assert!(subtrahend.is_smallint());
 
@@ -21,7 +21,7 @@ fn with_small_integer_subtrahend_with_underflow_returns_big_integer() {
 #[test]
 fn with_small_integer_subtrahend_with_overflow_returns_big_integer() {
     with(|minuend, process| {
-        let subtrahend = process.integer(SmallInteger::MIN_VALUE);
+        let subtrahend = process.integer(Integer::MIN_SMALL).unwrap();
 
         assert!(subtrahend.is_smallint());
 
@@ -38,11 +38,11 @@ fn with_small_integer_subtrahend_with_overflow_returns_big_integer() {
 #[test]
 fn with_float_subtrahend_with_underflow_returns_min_float() {
     with(|minuend, process| {
-        let subtrahend = process.float(std::f64::MAX);
+        let subtrahend = f64::MAX.into();
 
         assert_eq!(
             result(&process, minuend, subtrahend),
-            Ok(process.float(std::f64::MIN))
+            Ok(f64::MIN.into())
         );
     })
 }
@@ -50,11 +50,11 @@ fn with_float_subtrahend_with_underflow_returns_min_float() {
 #[test]
 fn with_float_subtrahend_with_overflow_returns_max_float() {
     with(|minuend, process| {
-        let subtrahend = process.float(std::f64::MIN);
+        let subtrahend = f64::MIN.into();
 
         assert_eq!(
             result(&process, minuend, subtrahend),
-            Ok(process.float(std::f64::MAX))
+            Ok(f64::MAX.into())
         );
     })
 }
@@ -64,7 +64,7 @@ where
     F: FnOnce(Term, &Process) -> (),
 {
     with_process(|process| {
-        let minuend = process.integer(2);
+        let minuend = process.integer(2).unwrap();
 
         f(minuend, &process)
     })

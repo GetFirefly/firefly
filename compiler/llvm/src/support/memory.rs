@@ -59,7 +59,8 @@ impl fmt::Pointer for Buffer {
     }
 }
 
-/// Represents a memory buffer which borrows from some other data, so its lifetime is bound to that data
+/// Represents a memory buffer which borrows from some other data, so its lifetime is bound to that
+/// data
 #[repr(transparent)]
 pub struct MemoryBuffer<'a> {
     buffer: Buffer,
@@ -138,7 +139,8 @@ impl<'a> ToOwned for MemoryBuffer<'a> {
 
 /// Represents an owned memory buffer
 ///
-/// Creating one of these requires reading a file into memory, or copying data from some other source.
+/// Creating one of these requires reading a file into memory, or copying data from some other
+/// source.
 ///
 /// When an owned memory buffer is dropped, its underlying memory is freed
 #[repr(transparent)]

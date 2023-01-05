@@ -162,8 +162,8 @@ pub trait Builder {
 
     /// Get a type corresponding to a memref with the given element type, shape and address space.
     ///
-    /// This is slightly different than the one returned by `get_memref_type`, as it has no affine maps, i.e.
-    /// it represents a default row-major contiguous memref.
+    /// This is slightly different than the one returned by `get_memref_type`, as it has no affine
+    /// maps, i.e. it represents a default row-major contiguous memref.
     fn get_contiguous_memref_type<T: Type>(
         element_type: T,
         shape: &[u64],
@@ -172,7 +172,8 @@ pub trait Builder {
         MemRefType::get_contiguous(element_type, shape, addrspace)
     }
 
-    /// Get a type corresponding to a memref of dynamic rank, with the given element type and address space.
+    /// Get a type corresponding to a memref of dynamic rank, with the given element type and
+    /// address space.
     fn get_unranked_memref<T: Type>(element_type: T, addrspace: AddressSpace) -> MemRefType {
         MemRefType::get_unranked(element_type, addrspace)
     }
@@ -318,7 +319,8 @@ pub trait Builder {
         AffineMap::get_multi_dim_identity(self.context(), dims)
     }
     /// Gets an identity affine map on the most minor dimensions.
-    /// This function will panic if the number of dimensions is greater or equal to the number of results
+    /// This function will panic if the number of dimensions is greater or equal to the number of
+    /// results
     fn get_minor_identity_affine_map(&self, dims: usize, results: usize) -> AffineMap {
         AffineMap::get_minor_identity(self.context(), dims, results)
     }

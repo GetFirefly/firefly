@@ -1,13 +1,11 @@
 use super::*;
 
-use proptest::strategy::Strategy;
-
 #[test]
 fn without_small_integer_or_big_integer_or_float_returns_false() {
     run!(
         |arc_process| {
             (
-                strategy::term::float(arc_process.clone()),
+                strategy::term::float(),
                 strategy::term(arc_process.clone())
                     .prop_filter("Right must not be a number", |v| !v.is_number()),
             )
@@ -23,7 +21,7 @@ fn without_small_integer_or_big_integer_or_float_returns_false() {
 #[test]
 fn with_same_float_returns_true() {
     run!(
-        |arc_process| strategy::term::float(arc_process.clone()),
+        |arc_process| strategy::term::float(),
         |operand| {
             prop_assert_eq!(result(operand, operand), true.into());
 
@@ -39,7 +37,7 @@ fn with_same_value_float_right_returns_true() {
             (Just(arc_process.clone()), any::<f64>()).prop_map(|(arc_process, f)| {
                 let mut heap = arc_process.acquire_heap();
 
-                (heap.float(f).unwrap(), heap.float(f).unwrap())
+                (heap.into().unwrap(), heap.into().unwrap())
             })
         },
         |(left, right)| {
@@ -55,8 +53,8 @@ fn with_different_float_right_returns_false() {
     run!(
         |arc_process| {
             (
-                strategy::term::float(arc_process.clone()),
-                strategy::term::float(arc_process.clone()),
+                strategy::term::float(),
+                strategy::term::float(),
             )
                 .prop_filter("Right and left must be different", |(left, right)| {
                     left != right
@@ -81,7 +79,7 @@ fn with_same_value_small_integer_right_returns_true() {
                 .prop_map(|(arc_process, i)| {
                     let mut heap = arc_process.acquire_heap();
 
-                    (heap.float(i as f64).unwrap(), heap.integer(i).unwrap())
+                    (heap.into().unwrap(), heap.integer(i).unwrap())
                 })
         },
         |(left, right)| {
@@ -103,7 +101,7 @@ fn with_different_value_small_integer_right_returns_false() {
                 .prop_map(|(arc_process, i)| {
                     let mut heap = arc_process.acquire_heap();
 
-                    (heap.float(i as f64).unwrap(), heap.integer(i + 1).unwrap())
+                    (heap.into().unwrap(), heap.integer(i + 1).unwrap())
                 })
         },
         |(left, right)| {
@@ -123,7 +121,7 @@ fn with_same_value_big_integer_right_returns_true() {
                     (Just(arc_process.clone()), strategy.clone()).prop_map(|(arc_process, i)| {
                         let mut heap = arc_process.acquire_heap();
 
-                        (heap.float(i as f64).unwrap(), heap.integer(i).unwrap())
+                        (heap.into().unwrap(), heap.integer(i).unwrap())
                     })
                 },
                 |(left, right)| {
@@ -146,7 +144,7 @@ fn with_different_value_big_integer_right_returns_false() {
                     (Just(arc_process.clone()), strategy.clone()).prop_map(|(arc_process, i)| {
                         let mut heap = arc_process.acquire_heap();
 
-                        (heap.float(i as f64).unwrap(), heap.integer(i + 1).unwrap())
+                        (heap.into().unwrap(), heap.integer(i + 1).unwrap())
                     })
                 },
                 |(left, right)| {

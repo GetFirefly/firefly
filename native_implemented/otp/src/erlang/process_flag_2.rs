@@ -1,19 +1,25 @@
 #[cfg(all(not(target_arch = "wasm32"), test))]
 mod test;
 
+use std::ptr::NonNull;
+
 use anyhow::*;
 
-use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::prelude::*;
+use firefly_rt::error::ErlangException;
+use firefly_rt::process::Process;
+use firefly_rt::term::Term;
 
 use crate::runtime::context::*;
 
 #[native_implemented::function(erlang:process_flag/2)]
-pub fn result(process: &Process, flag: Term, value: Term) -> exception::Result<Term> {
+pub fn result(
+    process: &Process,
+    flag: Term,
+    value: Term,
+) -> Result<Term, NonNull<ErlangException>> {
     let flag_atom = term_try_into_atom!(flag)?;
 
-    match flag_atom.name() {
+    match flag_atom.as_str() {
         "error_handler" => unimplemented!(),
         "max_heap_size" => unimplemented!(),
         "message_queue_data" => unimplemented!(),

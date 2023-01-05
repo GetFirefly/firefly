@@ -1,4 +1,4 @@
-use liblumen_alloc::atom;
+use firefly_rt::term::{atoms, Term};
 
 use crate::erlang::{
     convert_time_unit_3, monotonic_time_1, subtract_2, system_time_1, time_offset_1,
@@ -39,7 +39,7 @@ fn approximately_system_time_minus_monotonic_time_in_perf_counter_ticks() {
 
 fn approximately_system_time_minus_monotonic_time_in_unit(unit_str: &str) {
     with_process(|process| {
-        let unit = atom!(unit_str);
+        let unit = Term::str_to_term(unit_str).into();
         let monotonic_time = monotonic_time_1::result(process, unit).unwrap();
         let system_time = system_time_1::result(process, unit).unwrap();
         let time_offset = time_offset_1::result(process, unit).unwrap();
@@ -47,11 +47,11 @@ fn approximately_system_time_minus_monotonic_time_in_unit(unit_str: &str) {
             subtract_2::result(process, system_time, monotonic_time).unwrap();
         let time_offset_delta =
             subtract_2::result(process, expected_time_offset, time_offset).unwrap();
-        let time_offset_delta_limit_seconds = process.integer(TIME_OFFSET_DELTA_LIMIT_SECONDS);
+        let time_offset_delta_limit_seconds = process.integer(TIME_OFFSET_DELTA_LIMIT_SECONDS).unwrap();
         let time_offset_delta_limit = convert_time_unit_3::result(
             process,
             time_offset_delta_limit_seconds,
-            atom!("seconds"),
+            atoms::Seconds.into(),
             unit,
         )
         .unwrap();

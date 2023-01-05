@@ -7,6 +7,7 @@ use core::str::FromStr;
 pub use num_bigint::ToBigInt;
 pub use num_traits::{FromPrimitive, Signed, ToPrimitive, Zero};
 
+use thiserror_no_std::Error;
 use num_bigint::{BigInt, ParseBigIntError};
 
 use crate::{DivisionError, Float, FloatError, ShiftError};
@@ -973,10 +974,31 @@ impl From<i16> for Integer {
         Self::Small(i.into())
     }
 }
+impl From<i32> for Integer {
+    #[inline(always)]
+    fn from(i: i32) -> Self {
+        Self::Small(i.into())
+    }
+}
 impl From<i64> for Integer {
     #[inline(always)]
     fn from(i: i64) -> Self {
         Self::new(i)
+    }
+}
+impl From<i128> for Integer {
+    #[inline(always)]
+    fn from(i: i128) -> Self {
+        match i.to_i64() {
+            Some(n) if n <= Self::MAX_SMALL || n >= Self::MIN_SMALL => Self::Small(n),
+            Some(_) | None => Self::Big(i.into())
+        }
+    }
+}
+impl From<isize> for Integer {
+    #[inline(always)]
+    fn from(i: isize) -> Self {
+        unsafe { Integer::from_isize(i).unwrap_unchecked() }
     }
 }
 impl From<u64> for Integer {
@@ -985,10 +1007,13 @@ impl From<u64> for Integer {
         unsafe { Integer::from_u64(i).unwrap_unchecked() }
     }
 }
-impl From<i32> for Integer {
+impl From<u128> for Integer {
     #[inline(always)]
-    fn from(i: i32) -> Self {
-        Self::Small(i.into())
+    fn from(i: u128) -> Self {
+        match i.to_i64() {
+            Some(n) if n <= Self::MAX_SMALL || n >= Self::MIN_SMALL => Self::Small(n),
+            Some(_) | None => Self::Big(i.into())
+        }
     }
 }
 impl From<usize> for Integer {
@@ -1012,30 +1037,40 @@ impl From<BigInt> for Integer {
         }
     }
 }
+
+/// This error type is used to indicate that a value cannot be converted to an integer
+#[derive(Error, Debug)]
+pub enum TryIntoIntegerError {
+    #[error("invalid integer conversion: wrong type")]
+    Type,
+    #[error("invalid integer conversion: value out of range")]
+    OutOfRange,
+}
+
 impl TryInto<u8> for Integer {
-    type Error = ();
+    type Error = TryIntoIntegerError;
     fn try_into(self) -> Result<u8, Self::Error> {
         match self {
-            Self::Small(i) => i.try_into().map_err(|_| ()),
-            Self::Big(_) => Err(()),
+            Self::Small(i) => i.try_into().map_err(|_| TryIntoIntegerError::OutOfRange),
+            Self::Big(_) => Err(TryIntoIntegerError::OutOfRange),
         }
     }
 }
 impl TryInto<i64> for Integer {
-    type Error = ();
+    type Error = TryIntoIntegerError;
     fn try_into(self) -> Result<i64, Self::Error> {
         match self {
             Self::Small(i) => Ok(i),
-            Self::Big(i) => i.to_i64().ok_or(()),
+            Self::Big(i) => i.to_i64().ok_or(TryIntoIntegerError::OutOfRange),
         }
     }
 }
 impl TryInto<usize> for Integer {
-    type Error = ();
+    type Error = TryIntoIntegerError;
     fn try_into(self) -> Result<usize, Self::Error> {
         match self {
-            Self::Small(i) => i.try_into().map_err(|_| ()),
-            Self::Big(i) => i.to_usize().ok_or(()),
+            Self::Small(i) => i.try_into().map_err(|_| TryIntoIntegerError::OutOfRange),
+            Self::Big(i) => i.to_usize().ok_or(TryIntoIntegerError::OutOfRange),
         }
     }
 }

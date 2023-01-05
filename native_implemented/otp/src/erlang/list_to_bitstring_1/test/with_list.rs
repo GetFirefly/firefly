@@ -22,7 +22,7 @@ fn without_byte_bitstring_or_list_element_errors_badarg() {
                 .prop_map(|(arc_process, element)| {
                     (
                         arc_process.clone(),
-                        arc_process.cons(element, Term::NIL),
+                        arc_process.cons(element, Term::Nil),
                         element,
                     )
                 })
@@ -38,7 +38,7 @@ fn without_byte_bitstring_or_list_element_errors_badarg() {
 #[test]
 fn with_empty_list_returns_empty_binary() {
     with_process(|process| {
-        let iolist = process.cons(Term::NIL, Term::NIL);
+        let iolist = process.cons(Term::Nil, Term::Nil);
 
         assert_eq!(result(process, iolist), Ok(process.binary_from_bytes(&[])));
     })
@@ -56,8 +56,8 @@ fn is_not_byte_bitstring_nor_list(arc_process: Arc<Process>) -> BoxedStrategy<Te
         .prop_filter("Element must not be a binary or byte", move |element| {
             !(element.is_bitstring()
                 || (element.is_integer()
-                    && &arc_process.integer(0) <= element
-                    && element <= &arc_process.integer(256))
+                    && &arc_process.integer(0).unwrap() <= element
+                    && element <= &arc_process.integer(256).unwrap())
                 || element.is_list())
         })
         .boxed()

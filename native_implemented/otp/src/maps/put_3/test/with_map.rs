@@ -31,12 +31,12 @@ fn with_key_puts_replacement_value() {
         TestRunner::new(Config::with_source_file(file!()))
             .run(
                 &strategy::term(arc_process.clone()).prop_map(|key| {
-                    let value = atom!("value");
+                    let value = Atom::str_to_term("value").into();
 
                     (key, arc_process.map_from_slice(&[(key, value)]))
                 }),
                 |(key, map)| {
-                    let value2 = atom!("value2");
+                    let value2 = Atom::str_to_term("value2").into();
                     let updated_map = arc_process.map_from_slice(&[(key, value2)]);
                     prop_assert_eq!(
                         result(&arc_process, key, value2, map),

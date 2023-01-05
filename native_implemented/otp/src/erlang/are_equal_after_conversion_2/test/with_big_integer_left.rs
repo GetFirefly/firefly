@@ -1,7 +1,5 @@
 use super::*;
 
-use proptest::strategy::Strategy;
-
 #[test]
 fn without_big_integer_or_float_returns_false() {
     run!(
@@ -10,7 +8,7 @@ fn without_big_integer_or_float_returns_false() {
                 strategy::term::integer::big(arc_process.clone()),
                 strategy::term(arc_process.clone())
                     .prop_filter("Right must not be a big integer or float", |v| {
-                        !(v.is_boxed_bigint() || v.is_boxed_float())
+                        !(v.is_boxed_bigint() || v.is_float())
                     }),
             )
         },
@@ -61,7 +59,7 @@ fn with_same_value_float_right_returns_true() {
             run!(
                 |arc_process| {
                     (Just(arc_process.clone()), strategy).prop_map(|(arc_process, i)| {
-                        (arc_process.integer(i), arc_process.float(i as f64))
+                        (arc_process.integer(i).unwrap(), (i as f64).into())
                     })
                 },
                 |(left, right)| {
@@ -82,7 +80,7 @@ fn with_different_value_float_right_returns_false() {
             run!(
                 |arc_process| {
                     (Just(arc_process.clone()), strategy).prop_map(|(arc_process, i)| {
-                        (arc_process.integer(i + 1), arc_process.float(i as f64))
+                        (arc_process.integer(i + 1).unwrap(), (i as f64).into())
                     })
                 },
                 |(left, right)| {

@@ -4,8 +4,9 @@ mod test;
 use num_bigint::{BigInt, ToBigInt};
 use num_traits::cast::ToPrimitive;
 
-use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::prelude::*;
+use firefly_rt::process::Process;
+use firefly_rt::*;
+use firefly_rt::term::Term;
 
 use crate::runtime::time::{system, Unit::Microsecond};
 
@@ -14,10 +15,10 @@ pub fn result(process: &Process) -> Term {
     let big_int = system::time_in_unit(Microsecond);
     let erlang_timestamp = ErlangTimestamp::from_microseconds(&big_int);
 
-    process.tuple_from_slice(&[
-        process.integer(erlang_timestamp.megaseconds as usize),
-        process.integer(erlang_timestamp.seconds as usize),
-        process.integer(erlang_timestamp.microseconds as usize),
+    process.tuple_term_from_term_slice(&[
+        process.integer(erlang_timestamp.megaseconds as usize).unwrap(),
+        process.integer(erlang_timestamp.seconds as usize).unwrap(),
+        process.integer(erlang_timestamp.microseconds as usize).unwrap(),
     ])
 }
 

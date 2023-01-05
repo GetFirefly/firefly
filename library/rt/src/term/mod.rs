@@ -27,16 +27,24 @@ pub use self::tuple::Tuple;
 pub use firefly_number::{BigInt, Float, Integer, Number};
 use firefly_number::{DivisionError, InvalidArithmeticError, Sign, ToPrimitive};
 
-use alloc::alloc::{AllocError, Layout};
+use alloc::alloc::{Allocator, AllocError, Layout};
+use alloc::format;
 use core::convert::AsRef;
 use core::fmt;
 use core::ptr::NonNull;
 
 use anyhow::anyhow;
+
+#[cfg(feature = "std")]
+use thiserror::Error;
+#[cfg(feature = "no_std")]
+use thiserror_no_std::Error;
+
 use firefly_alloc::fragment::HeapFragment;
 use firefly_alloc::gc::GcBox;
 use firefly_alloc::heap::Heap;
 use firefly_alloc::rc::{Rc, Weak};
+
 use firefly_binary::{Binary, Bitstring, Encoding};
 
 use crate::cmp::ExactEq;
@@ -128,7 +136,7 @@ impl Term {
                     Self::Tuple(ptr)
                 } else {
                     let tuple = unsafe { ptr.as_ref() };
-                    Self::Tuple(Tuple::from_slice(tuple.as_slice(), heap)?)
+                    Self::Tuple(Tuple::from_opaque_term_slice(tuple.as_opaque_term_slice(), heap)?)
                 }
             }
             Self::Map(boxed) => {
@@ -196,6 +204,96 @@ impl Term {
         Ok(cloned)
     }
 
+    pub fn list_from_slice_in<H: Heap>(slice: &[Term], heap: H) -> Result<Self, AllocError> {
+        Cons::from_slice_in(slice, heap)
+            .map(|non_null_cons| {
+                non_null_cons
+                    .map(Term::Cons)
+                    .unwrap_or(Term::Nil)
+            })
+    }
+
+    pub fn improper_list_from_slice_in<H: Heap>(slice: &[Term], last: Term, heap: H) -> Result<Self, AllocError> {
+        Cons::improper_from_slice_in(slice, last, heap)
+            .map(|non_null_cons| {
+                non_null_cons
+                    .map(Term::Cons)
+                    .unwrap_or(Term::Nil)
+            })
+    }
+
+    pub fn improper_list_from_iter_in<'a, I, H>(iter: I, last: Term, heap: H) -> Result<Self, AllocError> where I: DoubleEndedIterator + Iterator<Item = &'a Term>, H: Heap {
+        Cons::improper_from_iter_in(iter, last, heap)
+            .map(|non_null_cons| {
+                non_null_cons
+                    .map(Term::Cons)
+                    .unwrap_or(Term::Nil)
+            })
+    }
+
+    pub fn number_in<A: Allocator>(number: Number, allocator: &A) -> Result<Self, AllocError> {
+        match number {
+            Number::Float(float) => Ok(Self::Float(float)),
+            Number::Integer(integer) => Self::integer_in(integer, allocator)
+        }
+    }
+
+    pub fn integer_in<I: Into<Integer>, A: Allocator>(integer: I, allocator: A) -> Result<Self, AllocError> {
+        match integer.into() {
+            Integer::Small(small) => Ok(Self::Int(small)),
+            Integer::Big(big_int) => GcBox::new_in(big_int, allocator).map(Term::BigInt)
+        }
+    }
+
+    pub fn is_atom(&self) -> bool {
+        match self {
+            Self::Atom(..) => true,
+            _ => false
+        }
+    }
+
+    pub fn is_big_int(&self) -> bool {
+        match self {
+            Self::BigInt(..) => true,
+            _ => false
+        }
+    }
+
+    pub fn is_boolean(&self) -> bool {
+        match self {
+            Self::Atom(atom) => atom.is_boolean(),
+            _ => false
+        }
+    }
+
+    pub fn is_closure(&self) -> bool {
+        match self {
+            Self::Closure(..) => true,
+            _ => false
+        }
+    }
+
+    pub fn is_float(&self) -> bool {
+        match self {
+            Self::Float(..) => true,
+            _ => false
+        }
+    }
+
+    pub fn is_int(&self) -> bool {
+        match self {
+            Self::Int(..) => true,
+            _ => false
+        }
+    }
+
+    pub fn is_integer(&self) -> bool {
+        match self {
+            Self::Int(..) | Self::BigInt(..) => true,
+            _ => false
+        }
+    }
+
     pub fn is_none(&self) -> bool {
         match self {
             Self::None => true,
@@ -207,6 +305,51 @@ impl Term {
         match self {
             Self::Nil => true,
             _ => false,
+        }
+    }
+
+    pub fn is_number(&self) -> bool {
+        match self {
+            Self::Int(..) | Self::BigInt(..) | Self::Float(..) => true,
+            _ => false
+        }
+    }
+
+    pub fn is_pid(&self) -> bool {
+        match self {
+            Self::Pid(..) => true,
+            _ => false
+        }
+    }
+
+    pub fn is_local_pid(&self) -> bool {
+        match self {
+            Self::Pid(gc_box_pid) => match gc_box_pid.as_ref() {
+                Pid::Local {..} => true,
+                _ => false
+            }
+            _ => false
+        }
+    }
+
+    pub fn is_map(&self) -> bool {
+        match self {
+            Self::Map(..) => true,
+            _ => false
+        }
+    }
+
+    pub fn is_reference(&self) -> bool {
+        match self {
+            Self::Reference(..) => true,
+            _ => false
+        }
+    }
+
+    pub fn is_tuple(&self) -> bool {
+        match self {
+            Self::Tuple(..) => true,
+            _ => false
         }
     }
 
@@ -279,7 +422,7 @@ impl Term {
     }
 
     #[inline]
-    pub fn as_char(self) -> Result<char, ()> {
+    pub fn as_char(self) -> Result<char, TypeError> {
         self.try_into()
     }
 
@@ -480,119 +623,136 @@ impl From<&'static BinaryData> for Term {
         Self::ConstantBinary(term)
     }
 }
+/// This error type is used to indicate a type conversion error
+#[derive(Error, Debug)]
+#[error("invalid term type")]
+pub struct TypeError;
 impl TryInto<bool> for Term {
-    type Error = ();
+    type Error = TypeError;
     fn try_into(self) -> Result<bool, Self::Error> {
         match self {
             Self::Bool(b) => Ok(b),
             Self::Atom(a) if a.is_boolean() => Ok(a.as_boolean()),
-            _ => Err(()),
+            _ => Err(TypeError),
         }
     }
 }
 impl TryInto<Atom> for Term {
-    type Error = ();
+    type Error = TypeError;
     fn try_into(self) -> Result<Atom, Self::Error> {
         match self {
             Self::Atom(a) => Ok(a),
             Self::Bool(b) => Ok(b.into()),
-            _ => Err(()),
+            _ => Err(TypeError),
         }
     }
 }
 impl TryInto<char> for Term {
-    type Error = ();
+    type Error = TypeError;
     fn try_into(self) -> Result<char, Self::Error> {
         const MAX: i64 = char::MAX as u32 as i64;
 
         let i: i64 = self.try_into()?;
 
         if i >= 0 && i <= MAX {
-            (i as u32).try_into().map_err(|_| ())
+            (i as u32).try_into().map_err(|_| TypeError)
         } else {
-            Err(())
+            Err(TypeError)
+        }
+    }
+}
+impl TryInto<u8> for Term {
+    type Error = TypeError;
+    #[inline]
+    fn try_into(self) -> Result<u8, Self::Error> {
+        match self {
+            Self::Int(i) => match i.to_u8() {
+                Some(u) => Ok(u),
+                None => Err(TypeError)
+            }
+            _ => Err(TypeError)
         }
     }
 }
 impl TryInto<i64> for Term {
-    type Error = ();
+    type Error = TypeError;
     #[inline]
     fn try_into(self) -> Result<i64, Self::Error> {
         match self {
             Self::Int(i) => Ok(i),
             Self::BigInt(i) => match i.to_i64() {
                 Some(i) => Ok(i),
-                None => Err(()),
+                None => Err(TypeError),
             },
-            _ => Err(()),
+            _ => Err(TypeError),
         }
     }
 }
 impl TryInto<Integer> for Term {
-    type Error = ();
+    type Error = TypeError;
     #[inline]
     fn try_into(self) -> Result<Integer, Self::Error> {
         match self {
             Self::Int(i) => Ok(Integer::Small(i)),
             Self::BigInt(i) => Ok(Integer::Big((*i).clone())),
-            _ => Err(()),
+            _ => Err(TypeError),
         }
     }
 }
 impl TryInto<Number> for Term {
-    type Error = ();
+    type Error = TypeError;
     #[inline]
     fn try_into(self) -> Result<Number, Self::Error> {
         match self {
             Self::Int(i) => Ok(Number::Integer(Integer::Small(i))),
             Self::BigInt(i) => Ok(Number::Integer(Integer::Big((*i).clone()))),
             Self::Float(f) => Ok(Number::Float(f)),
-            _ => Err(()),
+            _ => Err(TypeError),
         }
     }
 }
 impl TryInto<NonNull<Cons>> for Term {
-    type Error = ();
+    type Error = TypeError;
     fn try_into(self) -> Result<NonNull<Cons>, Self::Error> {
         match self {
             Self::Cons(c) => Ok(c),
-            _ => Err(()),
+            _ => Err(TypeError),
         }
     }
 }
 impl TryInto<NonNull<Tuple>> for Term {
-    type Error = ();
+    type Error = TypeError;
     fn try_into(self) -> Result<NonNull<Tuple>, Self::Error> {
         match self {
             Self::Tuple(t) => Ok(t),
-            _ => Err(()),
+            _ => Err(TypeError),
         }
     }
 }
 impl TryInto<GcBox<BigInt>> for Term {
-    type Error = ();
+    type Error = TypeError;
     fn try_into(self) -> Result<GcBox<BigInt>, Self::Error> {
         match self {
             Self::BigInt(i) => Ok(i),
-            _ => Err(()),
+            _ => Err(TypeError),
         }
     }
 }
 impl TryInto<f64> for Term {
-    type Error = ();
+    type Error = TypeError;
     fn try_into(self) -> Result<f64, Self::Error> {
         match self {
             Self::Float(f) => Ok(f.into()),
-            _ => Err(()),
+            _ => Err(TypeError),
         }
     }
 }
 impl TryInto<Float> for Term {
-    type Error = ();
+    type Error = TypeError;
     fn try_into(self) -> Result<Float, Self::Error> {
         match self {
             Self::Float(f) => Ok(f),
-            _ => Err(()),
+            _ => Err(TypeError),
         }
     }
 }
@@ -852,9 +1012,10 @@ impl Ord for Term {
                     Ordering::Less
                 }
             }
-            // Numbers are smaller than all other terms, using whichever type has the highest precision.
-            // We need comparison order to preserve the ExactEq semantics, so equality between integers/floats
-            // is broken by sorting floats first due to their greater precision in most cases
+            // Numbers are smaller than all other terms, using whichever type has the highest
+            // precision. We need comparison order to preserve the ExactEq semantics, so
+            // equality between integers/floats is broken by sorting floats first due to
+            // their greater precision in most cases
             Self::Int(x) => match other {
                 Self::None => Ordering::Greater,
                 Self::Int(y) => x.cmp(y),

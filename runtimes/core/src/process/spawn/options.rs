@@ -7,7 +7,7 @@ use anyhow::*;
 use liblumen_alloc::erts::exception::Alloc;
 use liblumen_alloc::erts::process::alloc::{default_heap_size, heap, next_heap_size};
 use liblumen_alloc::erts::process::priority::Priority;
-use liblumen_alloc::erts::process::Process;
+use liblumen_rt::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::ModuleFunctionArity;
 

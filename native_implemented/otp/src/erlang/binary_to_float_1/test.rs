@@ -1,6 +1,6 @@
 use proptest::arbitrary::any;
 use proptest::prop_assert_eq;
-use proptest::strategy::{Just, Strategy};
+use proptest::strategy::Just;
 
 use crate::erlang::binary_to_float_1::result;
 use crate::test::strategy;
@@ -50,7 +50,7 @@ fn with_binary_with_f64_returns_floats() {
             })
         },
         |(arc_process, f, binary)| {
-            prop_assert_eq!(result(&arc_process, binary), Ok(arc_process.float(f)));
+            prop_assert_eq!(result(&arc_process, binary), Ok(f.into()));
 
             Ok(())
         },

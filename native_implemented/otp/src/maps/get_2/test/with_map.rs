@@ -16,7 +16,7 @@ fn without_key_errors_badkey() {
                     key != non_key
                 })
                 .prop_map(|(arc_process, key, non_key)| {
-                    let value = atom!("value");
+                    let value = Atom::str_to_term("value").into();
                     (
                         arc_process.clone(),
                         non_key,
@@ -43,12 +43,12 @@ fn with_key_returns_value() {
         TestRunner::new(Config::with_source_file(file!()))
             .run(
                 &strategy::term(arc_process.clone()).prop_map(|key| {
-                    let value = atom!("value");
+                    let value = Atom::str_to_term("value").into();
 
                     (key, arc_process.map_from_slice(&[(key, value)]))
                 }),
                 |(key, map)| {
-                    let value = atom!("value");
+                    let value = Atom::str_to_term("value").into();
                     prop_assert_eq!(result(&arc_process, key, map), Ok(value.into()));
 
                     Ok(())

@@ -25,12 +25,14 @@ pub struct Module {
     pub name: Ident,
     /// This is the list of functions defined in this module
     pub functions: Vec<Function>,
-    /// This map associates known functions (locals, builtins, imports, or externals) to a reference value
+    /// This map associates known functions (locals, builtins, imports, or externals) to a
+    /// reference value
     pub signatures: Rc<RefCell<PrimaryMap<FuncRef, Signature>>>,
-    /// This map provides a quick way to look up function references given an MFA, useful when lowering
+    /// This map provides a quick way to look up function references given an MFA, useful when
+    /// lowering
     pub callees: Rc<RefCell<BTreeMap<FunctionName, FuncRef>>>,
-    /// This map provides a quick way to look up function references for native functions which do not
-    /// use our naming convention
+    /// This map provides a quick way to look up function references for native functions which do
+    /// not use our naming convention
     pub natives: Rc<RefCell<BTreeMap<Symbol, FuncRef>>>,
     /// This pool contains de-duplicated constant values/data used in the current module
     pub constants: Rc<RefCell<ConstantPool>>,
@@ -115,7 +117,8 @@ impl Module {
 
     /// Imports a function from another module into scope as if defined in the current module
     ///
-    /// The returned reference may be modified to refer to another function if a shadowing declaration is created later
+    /// The returned reference may be modified to refer to another function if a shadowing
+    /// declaration is created later
     pub fn import_function(&mut self, mut signature: Signature) -> FuncRef {
         assert!(
             signature.module != self.name.name,
@@ -270,17 +273,20 @@ impl Module {
         Ref::map(self.signatures.borrow(), |sigs| sigs.get(callee).unwrap())
     }
 
-    /// Looks up the concrete function for the given MFA (module of None indicates that it is a local or imported function)
+    /// Looks up the concrete function for the given MFA (module of None indicates that it is a
+    /// local or imported function)
     pub fn get_callee(&self, mfa: FunctionName) -> Option<FuncRef> {
         self.callees.borrow().get(&mfa).copied()
     }
 
-    /// Returns a reference to the definition of the given funcref, if it refers to a local definition
+    /// Returns a reference to the definition of the given funcref, if it refers to a local
+    /// definition
     pub fn get_function(&self, id: FuncRef) -> Option<&Function> {
         self.functions.iter().find(|f| f.id == id)
     }
 
-    /// Returns a mutable reference to the definition of the given funcref, if it refers to a local definition
+    /// Returns a mutable reference to the definition of the given funcref, if it refers to a local
+    /// definition
     pub fn get_function_mut(&mut self, id: FuncRef) -> Option<&mut Function> {
         self.functions.iter_mut().find(|f| f.id == id)
     }

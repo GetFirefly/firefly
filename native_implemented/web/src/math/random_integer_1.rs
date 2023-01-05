@@ -9,7 +9,7 @@ use std::convert::TryInto;
 use anyhow::*;
 
 use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::process::Process;
+use liblumen_rt::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
 #[native_implemented::function(Elixir.Lumen.Web.Math:random_integer/1)]

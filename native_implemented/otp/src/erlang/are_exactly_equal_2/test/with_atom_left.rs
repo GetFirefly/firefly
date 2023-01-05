@@ -1,7 +1,5 @@
 use super::*;
 
-use proptest::strategy::Strategy;
-
 #[test]
 fn without_atom_returns_false() {
     run!(

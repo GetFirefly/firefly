@@ -17,7 +17,7 @@ fn returns_reference() {
         let monitored_monitor_count_before = monitor_count(&monitored_arc_process);
         let monitoring_monitored_count_before = monitored_count(&monitoring_arc_process);
 
-        let identifier = monitoring_arc_process.tuple_from_slice(&[registered_name, node()]);
+        let identifier = monitoring_arc_process.tuple_term_from_term_slice(&[registered_name, node()]);
 
         let monitor_reference_result = result(&monitoring_arc_process, r#type(), identifier);
 
@@ -57,7 +57,7 @@ fn returns_different_reference_each_time() {
         let monitored_monitor_count_before = monitor_count(&monitored_arc_process);
         let monitoring_monitored_count_before = monitored_count(&monitoring_arc_process);
 
-        let identifier = monitoring_arc_process.tuple_from_slice(&[registered_name, node()]);
+        let identifier = monitoring_arc_process.tuple_term_from_term_slice(&[registered_name, node()]);
         let first_monitor_reference =
             result(&monitoring_arc_process, r#type(), identifier).unwrap();
         let second_monitor_reference =
@@ -93,7 +93,7 @@ fn when_monitored_process_exits_it_sends_message_for_each_monitor_reference() {
         ));
 
         let first_identifier =
-            monitoring_arc_process.tuple_from_slice(&[first_registered_name, node()]);
+            monitoring_arc_process.tuple_term_from_term_slice(&[first_registered_name, node()]);
         let first_monitor_reference =
             result(&monitoring_arc_process, r#type(), first_identifier).unwrap();
 
@@ -107,7 +107,7 @@ fn when_monitored_process_exits_it_sends_message_for_each_monitor_reference() {
         ));
 
         let second_identifier =
-            monitoring_arc_process.tuple_from_slice(&[second_registered_name, node()]);
+            monitoring_arc_process.tuple_term_from_term_slice(&[second_registered_name, node()]);
         let second_monitor_reference =
             result(&monitoring_arc_process, r#type(), second_identifier).unwrap();
 
@@ -125,7 +125,7 @@ fn when_monitored_process_exits_it_sends_message_for_each_monitor_reference() {
 
         assert_has_message!(
             &monitoring_arc_process,
-            monitoring_arc_process.tuple_from_slice(&[
+            monitoring_arc_process.tuple_term_from_term_slice(&[
                 tag,
                 first_monitor_reference,
                 r#type(),
@@ -135,7 +135,7 @@ fn when_monitored_process_exits_it_sends_message_for_each_monitor_reference() {
         );
         assert_has_message!(
             &monitoring_arc_process,
-            monitoring_arc_process.tuple_from_slice(&[
+            monitoring_arc_process.tuple_term_from_term_slice(&[
                 tag,
                 second_monitor_reference,
                 r#type(),

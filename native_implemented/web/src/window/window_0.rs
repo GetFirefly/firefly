@@ -5,7 +5,7 @@
 //! end
 //! ```
 
-use liblumen_alloc::erts::process::Process;
+use liblumen_rt::process::Process;
 use liblumen_alloc::erts::term::prelude::Term;
 
 use crate::option_to_ok_tuple_or_error;

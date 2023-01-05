@@ -1,13 +1,11 @@
+use std::str::FromStr;
 use std::sync::Arc;
 
 use proptest::strategy::Just;
-
-use liblumen_alloc::erts::term::prelude::*;
-use liblumen_alloc::erts::Node;
-
-use crate::runtime::distribution::nodes;
+use firefly_rt::term::{Atom, Node, Pid};
 
 use crate::erlang::list_to_pid_1::result;
+use crate::runtime::distribution::nodes;
 use crate::test::strategy;
 use crate::test::with_process;
 
@@ -119,7 +117,7 @@ fn with_list_encoding_external_pid_without_known_node_errors_badarg() {
         );
 
         // MUST be a different `id` than other tests that insert the node.
-        let arc_node = Arc::new(Node::new(2, Atom::try_from_str("2@external").unwrap(), 0));
+        let arc_node = Arc::new(Node::new(2, Atom::from_str("2@external").unwrap(), 0));
 
         assert_badarg!(
             result(&process, process.charlist_from_str("<2.3.4>")),

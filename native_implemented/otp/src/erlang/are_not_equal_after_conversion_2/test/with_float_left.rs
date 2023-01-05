@@ -1,13 +1,11 @@
 use super::*;
 
-use proptest::strategy::Strategy;
-
 #[test]
 fn without_small_integer_or_big_integer_or_float_returns_true() {
     run!(
         |arc_process| {
             (
-                strategy::term::float(arc_process.clone()),
+                strategy::term::float(),
                 strategy::term(arc_process.clone())
                     .prop_filter("Right must not be a number", |v| !v.is_number()),
             )
@@ -24,7 +22,7 @@ fn without_small_integer_or_big_integer_or_float_returns_true() {
 fn with_same_float_returns_false() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
-            .run(&strategy::term::float(arc_process.clone()), |operand| {
+            .run(&strategy::term::float(), |operand| {
                 prop_assert_eq!(result(operand, operand), false.into());
 
                 Ok(())
@@ -38,7 +36,7 @@ fn with_same_value_float_right_returns_false() {
     run!(
         |arc_process| {
             (Just(arc_process.clone()), any::<f64>())
-                .prop_map(|(arc_process, f)| (arc_process.float(f), arc_process.float(f)))
+                .prop_map(|(arc_process, f)| (f.into(), f.into()))
         },
         |(left, right)| {
             prop_assert_eq!(result(left.into(), right.into()), false.into());
@@ -53,8 +51,8 @@ fn with_different_float_right_returns_true() {
     run!(
         |arc_process| {
             (
-                strategy::term::float(arc_process.clone()),
-                strategy::term::float(arc_process.clone()),
+                strategy::term::float(),
+                strategy::term::float(),
             )
                 .prop_filter("Right and left must be different", |(left, right)| {
                     left != right
@@ -76,7 +74,7 @@ fn with_same_value_small_integer_right_returns_false() {
                 Just(arc_process.clone()),
                 strategy::term::small_integer_float_integral_i64(),
             )
-                .prop_map(|(arc_process, i)| (arc_process.float(i as f64), arc_process.integer(i)))
+                .prop_map(|(arc_process, i)| ((i as f64).into(), arc_process.integer(i).unwrap()))
         },
         |(left, right)| {
             prop_assert_eq!(result(left.into(), right), false.into());
@@ -95,7 +93,7 @@ fn with_different_value_small_integer_right_returns_true() {
                 strategy::term::small_integer_float_integral_i64(),
             )
                 .prop_map(|(arc_process, i)| {
-                    (arc_process.float(i as f64), arc_process.integer(i + 1))
+                    ((i as f64).into(), arc_process.integer(i + 1).unwrap())
                 })
         },
         |(left, right)| {
@@ -113,7 +111,7 @@ fn with_same_value_big_integer_right_returns_false() {
             run!(
                 |arc_process| {
                     (Just(arc_process.clone()), strategy).prop_map(|(arc_process, i)| {
-                        (arc_process.float(i as f64), arc_process.integer(i))
+                        ((i as f64).into(), arc_process.integer(i).unwrap())
                     })
                 },
                 |(left, right)| {
@@ -134,7 +132,7 @@ fn with_different_value_big_integer_right_returns_true() {
             run!(
                 |arc_process| {
                     (Just(arc_process.clone()), strategy).prop_map(|(arc_process, i)| {
-                        (arc_process.float(i as f64), arc_process.integer(i + 1))
+                        ((i as f64).into(), arc_process.integer(i + 1).unwrap())
                     })
                 },
                 |(left, right)| {

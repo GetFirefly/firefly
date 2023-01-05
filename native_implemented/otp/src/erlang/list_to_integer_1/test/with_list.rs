@@ -1,9 +1,5 @@
 use super::*;
 
-use std::convert::TryInto;
-
-use liblumen_alloc::erts::term::prelude::SmallInteger;
-
 #[test]
 fn with_small_integer_returns_small_integer() {
     run!(
@@ -65,7 +61,7 @@ fn with_big_integer_returns_big_integer() {
             let term = result.unwrap();
 
             prop_assert!(term.is_boxed_bigint());
-            prop_assert_eq!(term, arc_process.integer(integer));
+            prop_assert_eq!(term, arc_process.integer(integer).unwrap());
 
             Ok(())
         },

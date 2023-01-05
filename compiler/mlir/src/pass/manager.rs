@@ -55,7 +55,7 @@ impl PassManagerBase {
             mlir_pass_manager_enable_crash_reproducer_generation(
                 self,
                 output_file.try_into().unwrap(),
-                /*local_reproducer=*/ true,
+                /* local_reproducer= */ true,
             );
         }
     }

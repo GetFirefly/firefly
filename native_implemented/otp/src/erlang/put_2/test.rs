@@ -1,8 +1,6 @@
 use proptest::prop_assert_eq;
 use proptest::strategy::Just;
 
-use liblumen_alloc::erts::term::prelude::*;
-
 use crate::erlang::put_2::result;
 use crate::test::strategy;
 

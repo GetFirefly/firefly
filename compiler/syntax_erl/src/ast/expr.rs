@@ -978,7 +978,8 @@ impl PartialEq for BinaryComprehension {
     }
 }
 
-/// A generator is one of two types of expressions that act as qualifiers in a commprehension, the other is a filter
+/// A generator is one of two types of expressions that act as qualifiers in a commprehension, the
+/// other is a filter
 #[derive(Debug, Clone, Spanned)]
 pub struct Generator {
     #[span]

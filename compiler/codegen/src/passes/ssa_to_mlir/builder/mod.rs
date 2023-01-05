@@ -90,13 +90,15 @@ impl<'m> ModuleBuilder<'m> {
             current_block: mlir::Block::default(),
             atoms,
             symbols: HashSet::new(),
-            // For both of these maps, we know that most functions will contain a fair number of blocks
-            // and values, so we allocate enough capacity to accomodate the size of small/medium functions
-            // (probably, this is estimated). Benchmarking in the future should be used to dial this in.
+            // For both of these maps, we know that most functions will contain a fair number of
+            // blocks and values, so we allocate enough capacity to accomodate the size
+            // of small/medium functions (probably, this is estimated). Benchmarking in
+            // the future should be used to dial this in.
             //
-            // NOTE: The size of the keys in these maps is u32, and the values are usize, and there may be
-            // some additional overhead for each map entry, so we should try and pick sizes that will result
-            // in power-of-two sizes for the allocator to make the most of the allocations
+            // NOTE: The size of the keys in these maps is u32, and the values are usize, and there
+            // may be some additional overhead for each map entry, so we should try and
+            // pick sizes that will result in power-of-two sizes for the allocator to
+            // make the most of the allocations
             blocks: HashMap::with_capacity(64),
             values: HashMap::with_capacity(64),
         }
@@ -211,7 +213,8 @@ impl<'m> ModuleBuilder<'m> {
                         .get_flat_symbol_ref_attr_by_name("firefly_eh_personality"),
                 );
                 //TODO: Need to re-enable when garbage collector lowering is implemented
-                //func.set_attribute_by_name("garbageCollector", self.builder.get_string_attr("erlang"));
+                //func.set_attribute_by_name("garbageCollector",
+                // self.builder.get_string_attr("erlang"));
             }
 
             // Register with the dispatch table for this module if public

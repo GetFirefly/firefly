@@ -1,6 +1,5 @@
 use super::*;
 
-use proptest::strategy::Strategy;
 
 #[test]
 fn without_small_integer_returns_true() {
@@ -36,7 +35,7 @@ fn with_same_small_integer_right_returns_false() {
 fn with_same_value_small_integer_right_returns_false() {
     run!(
         |arc_process| {
-            (SmallInteger::MIN_VALUE..SmallInteger::MAX_VALUE).prop_map(move |i| {
+            (Integer::MIN_SMALL..Integer::MAX_SMALL).prop_map(move |i| {
                 let mut heap = arc_process.acquire_heap();
 
                 (heap.integer(i).unwrap(), heap.integer(i).unwrap())
@@ -54,7 +53,7 @@ fn with_same_value_small_integer_right_returns_false() {
 fn with_different_small_integer_right_returns_true() {
     run!(
         |arc_process| {
-            (SmallInteger::MIN_VALUE..SmallInteger::MAX_VALUE).prop_map(move |i| {
+            (Integer::MIN_SMALL..Integer::MAX_SMALL).prop_map(move |i| {
                 let mut heap = arc_process.acquire_heap();
 
                 (heap.integer(i).unwrap(), heap.integer(i + 1).unwrap())

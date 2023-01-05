@@ -3,9 +3,9 @@ mod test;
 
 use std::sync::Arc;
 
-use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::prelude::Term;
+use firefly_rt::error::ErlangException;
+use firefly_rt::process::Process;
+use firefly_rt::term::Term;
 
 use crate::erlang::start_timer;
 use crate::runtime::timer::Format;
@@ -16,7 +16,7 @@ pub fn result(
     time: Term,
     destination: Term,
     message: Term,
-) -> exception::Result<Term> {
+) -> Result<Term, NonNull<ErlangException>> {
     start_timer(
         time,
         destination,

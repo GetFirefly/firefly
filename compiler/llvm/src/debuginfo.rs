@@ -292,7 +292,8 @@ impl<'m> DebugInfoBuilder<'m> {
         }
     }
 
-    /// Construct a builder for the given module, and do not allow for unresolved nodes attached to the module
+    /// Construct a builder for the given module, and do not allow for unresolved nodes attached to
+    /// the module
     pub fn new_strict(module: &'m mut OwnedModule, options: &Options) -> Self {
         extern "C" {
             fn LLVMCreateDIBuilderDisallowUnresolved(module: Module) -> *const LlvmDiBuilder;

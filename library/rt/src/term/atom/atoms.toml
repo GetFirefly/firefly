@@ -22,26 +22,76 @@ type = {}
 vsn = {}
 
 [errors]
-badarg = {}
-badrecord = {}
-badmap = {}
-badmatch = {}
 bad_filter = {}
 bad_generator = {}
-bad_value = {}
 bad_size = {}
+bad_value = {}
+badarg = {}
+badarith = {}
+badmap = {}
+badmatch = {}
+badrecord = {}
 case_clause = {}
+down = { value = "DOWN" }
 error = {}
 exit = {}
 function_clause = {}
 if_clause = {}
+invalid = {}
 nif_error = {}
+noproc = { value ="noproc" }
+notsup = {}
 throw = {}
 try_clause = {}
+undefined =  {}
 
 [common]
 erlang = {}
 ok = {}
 undef = {}
-utf8 = {}
 normal = {}
+
+[encoding]
+latin1 = {}
+unicode = {}
+utf8 = {}
+
+[float_to_string]
+compact = {}
+
+[process_info]
+links = {}
+messages = {}
+monitored_by = {}
+monitors = {}
+process = {}
+registered_name = {}
+trap_exit = {}
+
+[otp]
+apply = {}
+
+[seq_trace]
+label = {}
+monotonic_timestamp = {}
+print = {}
+receive = {}
+send = {}
+serial = {}
+spawn = {}
+strict_monotonic_timestamp = {}
+timestamp = {}
+
+[timer]
+abs = {}
+cancel_timer = {}
+read_timer = {}
+
+[time_units]
+millisecond = {}
+second = {}
+seconds = {}
+
+[unique_integer]
+monotonic = {}
+positive = {}

@@ -2,8 +2,6 @@ mod with_atom_name;
 
 use proptest::test_runner::{Config, TestRunner};
 
-use liblumen_alloc::erts::term::prelude::*;
-
 use crate::erlang;
 use crate::erlang::whereis_1::result;
 use crate::test::with_process_arc;

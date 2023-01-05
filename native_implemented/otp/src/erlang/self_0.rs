@@ -1,10 +1,10 @@
 #[cfg(test)]
 mod test;
 
-use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::prelude::Term;
+use firefly_rt::process::Process;
+use firefly_rt::term::Term;
 
 #[native_implemented::function(erlang:self/0)]
 pub fn result(process: &Process) -> Term {
-    process.pid_term()
+    process.pid_term().unwrap()
 }

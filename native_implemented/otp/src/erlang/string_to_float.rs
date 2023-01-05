@@ -2,9 +2,9 @@ use std::num::FpCategory;
 
 use anyhow::*;
 
-use liblumen_alloc::erts::exception::InternalResult;
-use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::prelude::*;
+use firefly_rt::process::Process;
+use firefly_rt::*;
+use firefly_rt::term::Term;
 
 use crate::runtime::context;
 
@@ -27,7 +27,7 @@ pub fn string_to_float(
                         )
                         .into())
                     } else {
-                        Ok(process.float(inner))
+                        Ok(inner.into())
                     }
                 }
                 // Erlang has no support for Nan, +inf or -inf
@@ -46,7 +46,7 @@ pub fn string_to_float(
                         // Erlang does not track the difference without +0 and -0.
                         let zero = inner.abs();
 
-                        Ok(process.float(zero))
+                        Ok(zero.into())
                     }
                 }
             }

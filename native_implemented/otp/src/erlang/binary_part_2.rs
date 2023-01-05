@@ -1,13 +1,19 @@
+use std::ptr::NonNull;
+
 use anyhow::*;
 
-use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::prelude::*;
+use firefly_rt::error::ErlangException;
+use firefly_rt::process::Process;
+use firefly_rt::term::Term;
 
 use crate::erlang;
 
 #[native_implemented::function(erlang:binary_part/2)]
-pub fn result(process: &Process, binary: Term, start_length: Term) -> exception::Result<Term> {
+pub fn result(
+    process: &Process,
+    binary: Term,
+    start_length: Term,
+) -> Result<Term, NonNull<ErlangException>> {
     let start_length_tuple = term_try_into_tuple!(start_length)?;
 
     if start_length_tuple.len() == 2 {

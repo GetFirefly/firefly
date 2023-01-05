@@ -6,10 +6,10 @@ fn without_registered_returns_empty_list() {
         assert_eq!(
             result(
                 &unregistered_process_arc,
-                unregistered_process_arc.pid_term(),
+                unregistered_process_arc.pid_term().unwrap(),
                 item()
             ),
-            Ok(Term::NIL)
+            Ok(Term::Nil)
         );
     });
 }
@@ -31,7 +31,7 @@ fn with_registered_returns_empty_list() {
                 registered_process_arc.pid_term(),
                 item()
             ),
-            Ok(registered_process_arc.tuple_from_slice(&[item(), registered_name]))
+            Ok(registered_process_arc.tuple_term_from_term_slice(&[item(), registered_name]))
         );
     });
 }

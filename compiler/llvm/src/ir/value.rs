@@ -40,7 +40,8 @@ pub enum ValueKind {
 
 /// This trait is meant to represent the llvm::Value class
 ///
-/// In LLVM, most things inherit from llvm::Value at some point, so this provides a lot of shared functionality
+/// In LLVM, most things inherit from llvm::Value at some point, so this provides a lot of shared
+/// functionality
 pub trait Value {
     /// Get the string name of this value
     fn name(&self) -> StringRef {
@@ -202,7 +203,8 @@ impl fmt::Display for ValueBase {
     }
 }
 
-/// Represents a value of aggregate type (i.e. struct or array, vectors are not considered aggregates)
+/// Represents a value of aggregate type (i.e. struct or array, vectors are not considered
+/// aggregates)
 pub trait Aggregate: Value {}
 
 /// Represents a value of pointer type

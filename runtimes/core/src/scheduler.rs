@@ -11,7 +11,7 @@ use lazy_static::lazy_static;
 
 use liblumen_core::locks::{Mutex, RwLock};
 
-use liblumen_alloc::erts::process::Process;
+use liblumen_rt::process::Process;
 pub use liblumen_alloc::erts::scheduler::id::ID;
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::Priority;

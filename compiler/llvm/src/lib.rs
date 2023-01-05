@@ -38,7 +38,13 @@ pub fn version() -> String {
         fn LLVMFireflyVersionMinor() -> u32;
     }
 
-    unsafe { format!("{}.{}", LLVMFireflyVersionMajor(), LLVMFireflyVersionMinor()) }
+    unsafe {
+        format!(
+            "{}.{}",
+            LLVMFireflyVersionMajor(),
+            LLVMFireflyVersionMinor()
+        )
+    }
 }
 
 /// Performs one-time initialization of LLVM

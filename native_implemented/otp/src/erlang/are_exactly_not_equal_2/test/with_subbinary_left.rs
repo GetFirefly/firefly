@@ -1,7 +1,5 @@
 use super::*;
 
-use proptest::strategy::Strategy;
-
 #[test]
 fn without_bitstring_right_returns_true() {
     run!(

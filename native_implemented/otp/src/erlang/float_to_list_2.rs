@@ -3,14 +3,18 @@ mod test;
 
 use std::convert::TryInto;
 
-use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::prelude::Term;
+use firefly_rt::error::ErlangException;
+use firefly_rt::process::Process;
+use firefly_rt::term::Term;
 
 use crate::erlang::float_to_string::{float_to_string, Options};
 
 #[native_implemented::function(erlang:float_to_list/2)]
-pub fn result(process: &Process, float: Term, options: Term) -> exception::Result<Term> {
+pub fn result(
+    process: &Process,
+    float: Term,
+    options: Term,
+) -> Result<Term, NonNull<ErlangException>> {
     let options_options: Options = options.try_into()?;
 
     float_to_string(float, options_options)

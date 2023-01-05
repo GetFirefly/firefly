@@ -1,4 +1,4 @@
-use liblumen_alloc::erts::term::prelude::Term;
+use firefly_rt::term::Term;
 
 /// Distribution is not supported at this time.  Always returns `false`.
 #[native_implemented::function(erlang:is_alive/0)]

@@ -607,16 +607,18 @@ pub struct TargetOptions {
     pub os: Cow<'static, str>,
     /// Environment name to use for conditional compilation. Defaults to "".
     pub env: Cow<'static, str>,
-    /// ABI name to distinguish multiple ABIs on the same OS and architecture, e.g. "eabihf". Defaults to "".
+    /// ABI name to distinguish multiple ABIs on the same OS and architecture, e.g. "eabihf".
+    /// Defaults to "".
     pub abi: Cow<'static, str>,
     /// Vendor name to use for conditional compilation. Defaults to "unknown".
     pub vendor: Cow<'static, str>,
-    /// Default linker flavor used if `-C linker-flavor` or `-C linker` are not passed on the command line.
-    /// Defaults to `LinkerFlavor::Gcc`.
+    /// Default linker flavor used if `-C linker-flavor` or `-C linker` are not passed on the
+    /// command line. Defaults to `LinkerFlavor::Gcc`.
     pub linker_flavor: LinkerFlavor,
     /// Linker to invoke
     pub linker: Option<Cow<'static, str>>,
-    /// LLD flavor used if `lld` (or `firefly-lld`) is specified as a linker without clarifying its flavor
+    /// LLD flavor used if `lld` (or `firefly-lld`) is specified as a linker without clarifying its
+    /// flavor
     pub lld_flavor: LldFlavor,
 
     /// Linker arguments that are passed *before* any user-defined libraries.
@@ -716,8 +718,8 @@ pub struct TargetOptions {
     pub is_like_windows: bool,
     /// Whether the target is like MSVC.
     /// This is a combination of several more specific properties represented as a single flag:
-    ///   - The target has all the properties from `is_like_windows`
-    ///     (for in-tree targets "is_like_msvc ⇒ is_like_windows" is ensured by a unit test),
+    ///   - The target has all the properties from `is_like_windows` (for in-tree targets
+    ///     "is_like_msvc ⇒ is_like_windows" is ensured by a unit test),
     ///   - has some MSVC-specific Windows ABI properties,
     ///   - uses a link.exe-like linker,
     ///   - uses CodeView/PDB for debuginfo and natvis for its visualization,

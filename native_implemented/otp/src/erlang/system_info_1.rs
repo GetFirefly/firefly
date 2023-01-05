@@ -1,12 +1,14 @@
+use std::ptr::NonNull;
+
 use anyhow::*;
 
-use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::term::prelude::*;
+use firefly_rt::error::ErlangException;
+use firefly_rt::term::Term;
 
 #[native_implemented::function(erlang:system_info/1)]
-pub fn result(item: Term) -> exception::Result<Term> {
-    match item.decode().unwrap() {
-        TypedTerm::Atom(atom) => match atom.name() {
+pub fn result(item: Term) -> Result<Term, NonNull<ErlangException>> {
+    match item {
+        Term::Atom(atom) => match atom.as_str() {
             "alloc_util_allocators" => unimplemented!(),
             "allocated_areas" => unimplemented!(),
             "allocator" => unimplemented!(),
@@ -91,12 +93,12 @@ pub fn result(item: Term) -> exception::Result<Term> {
             )
             .into()),
         },
-        TypedTerm::Tuple(boxed_tuple) => {
-            if boxed_tuple.len() == 2 {
-                let tag = boxed_tuple[0];
+        Term::Tuple(ref tuple) => {
+            if tuple.len() == 2 {
+                let tag = tuple[0];
 
-                match tag.decode().unwrap() {
-                    TypedTerm::Atom(tag_atom) => match tag_atom.name() {
+                match tag {
+                    Term::Atom(tag_atom) => match tag_atom.as_str() {
                         "allocator" => unimplemented!(),
                         "allocator_sizes" => unimplemented!(),
                         "cpu_topology" => unimplemented!(),
@@ -144,7 +146,7 @@ const SUPPORTED_ATOMS: &'static str = "`allocated_areas`, `allocator`, \
 const SUPPORTED_TUPLES: &'static str = "`{allocator, Alloc}`, `{allocator_sizes, Alloc}`, \
           `{cpu_topology, defined | detected | used}`, or `{wordsize, internal | external}`";
 
-fn item_is_not_supported_tuple(item: Term) -> exception::Result<Term> {
+fn item_is_not_supported_tuple(item: Term) -> Result<Term, NonNull<ErlangException>> {
     Err(anyhow!(
         "item ({}) is not a supported tuple ({})",
         item,

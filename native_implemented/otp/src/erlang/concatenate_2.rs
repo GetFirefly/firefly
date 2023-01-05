@@ -1,15 +1,16 @@
+use std::ptr::NonNull;
 use anyhow::*;
 
-use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::prelude::*;
+use firefly_rt::error::ErlangException;
+use firefly_rt::process::Process;
+use firefly_rt::term::{ImproperList, Term, TypeError};
 
 /// `++/2`
 #[native_implemented::function(erlang:++/2)]
-pub fn result(process: &Process, list: Term, term: Term) -> exception::Result<Term> {
-    match list.decode().unwrap() {
-        TypedTerm::Nil => Ok(term),
-        TypedTerm::List(cons) => match cons
+pub fn result(process: &Process, list: Term, term: Term) -> Result<Term, NonNull<ErlangException>> {
+    match list {
+        Term::Nil => Ok(term),
+        Term::Cons(cons) => match cons
             .into_iter()
             .collect::<std::result::Result<Vec<Term>, _>>()
         {

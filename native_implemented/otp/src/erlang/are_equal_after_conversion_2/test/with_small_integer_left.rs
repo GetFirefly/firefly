@@ -1,7 +1,5 @@
 use super::*;
 
-use proptest::strategy::Strategy;
-
 #[test]
 fn without_small_integer_or_float_returns_false() {
     run!(
@@ -10,7 +8,7 @@ fn without_small_integer_or_float_returns_false() {
                 strategy::term::integer::small(arc_process.clone()),
                 strategy::term(arc_process.clone())
                     .prop_filter("Right must not be a small integer or float", |v| {
-                        !(v.is_smallint() || v.is_boxed_float())
+                        !(v.is_smallint() || v.is_float())
                     }),
             )
         },
@@ -40,7 +38,7 @@ fn with_same_value_small_integer_right_returns_true() {
         |arc_process| {
             (
                 Just(arc_process.clone()),
-                SmallInteger::MIN_VALUE..SmallInteger::MAX_VALUE,
+                Integer::MIN_SMALL..Integer::MAX_SMALL,
             )
                 .prop_map(|(arc_process, i)| {
                     let mut heap = arc_process.acquire_heap();
@@ -62,7 +60,7 @@ fn with_different_small_integer_right_returns_false() {
         |arc_process| {
             (
                 Just(arc_process.clone()),
-                SmallInteger::MIN_VALUE..SmallInteger::MAX_VALUE,
+                Integer::MIN_SMALL..Integer::MAX_SMALL,
             )
                 .prop_map(|(arc_process, i)| {
                     let mut heap = arc_process.acquire_heap();
@@ -89,7 +87,7 @@ fn with_same_value_float_right_returns_true() {
                 .prop_map(|(arc_process, i)| {
                     let mut heap = arc_process.acquire_heap();
 
-                    (heap.integer(i).unwrap(), heap.float(i as f64).unwrap())
+                    (heap.integer(i).unwrap(), heap.into().unwrap())
                 })
         },
         |(left, right)| {
@@ -115,7 +113,7 @@ fn with_different_value_float_right_returns_false() {
 
                     (
                         heap.integer(i).unwrap(),
-                        heap.float((i + diff) as f64).unwrap(),
+                        ((i + diff) as f64).into(),
                     )
                 })
         },

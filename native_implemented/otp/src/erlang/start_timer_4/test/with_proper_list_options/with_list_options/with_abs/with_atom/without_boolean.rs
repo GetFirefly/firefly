@@ -17,7 +17,7 @@ fn without_non_negative_integer_time_error_badarg() {
             )
         },
         |(arc_process, time, message, abs_value)| {
-            let destination = arc_process.pid_term();
+            let destination = arc_process.pid_term().unwrap();
             let options = options(abs_value, &arc_process);
 
             prop_assert_is_not_boolean!(

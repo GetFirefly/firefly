@@ -13,7 +13,7 @@ pub mod label_2;
 #[path = "test_0/label_3.rs"]
 pub mod label_3;
 
-use liblumen_alloc::erts::process::Process;
+use liblumen_rt::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
 use liblumen_web::window;

@@ -5,6 +5,8 @@ use crate::term::Atom;
 
 use super::FunctionSymbol;
 
+pub type Arity = u8;
+
 /// This struct is a subset of `FunctionSymbol` that is used to more
 /// generally represent module/function/arity information for any function
 /// whether defined or not.
@@ -12,7 +14,7 @@ use super::FunctionSymbol;
 pub struct ModuleFunctionArity {
     pub module: Atom,
     pub function: Atom,
-    pub arity: u8,
+    pub arity: Arity,
 }
 impl ModuleFunctionArity {
     pub fn new(module: Atom, function: Atom, arity: usize) -> Self {

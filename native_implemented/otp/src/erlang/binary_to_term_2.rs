@@ -2,13 +2,15 @@
 mod test;
 
 use std::convert::TryInto;
+use std::ptr::NonNull;
 use std::u8;
 
 use anyhow::*;
 
-use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::prelude::*;
+use firefly_rt::error::ErlangException;
+use firefly_rt::process::Process;
+use firefly_rt::*;
+use firefly_rt::term::{Term, TypeError};
 
 use crate::binary::to_term::Options;
 use crate::runtime::distribution::external_term_format::{term, version};
@@ -36,20 +38,21 @@ macro_rules! maybe_aligned_maybe_binary_try_into_term {
 }
 
 #[native_implemented::function(erlang:binary_to_term/2)]
-pub fn result(process: &Process, binary: Term, options: Term) -> exception::Result<Term> {
+pub fn result(
+    process: &Process,
+    binary: Term,
+    options: Term,
+) -> Result<Term, NonNull<ErlangException>> {
     let options: Options = options.try_into()?;
 
-    match binary.decode()? {
-        TypedTerm::HeapBinary(heap_binary) => {
+    match binary {
+        Term::HeapBinary(heap_binary) => {
             versioned_tagged_bytes_try_into_term(process, &options, heap_binary.as_bytes())
         }
-        TypedTerm::MatchContext(match_context) => {
-            maybe_aligned_maybe_binary_try_into_term!(process, &options, binary, match_context)
-        }
-        TypedTerm::ProcBin(process_binary) => {
+        Term::RcBinary(process_binary) => {
             versioned_tagged_bytes_try_into_term(process, &options, process_binary.as_bytes())
         }
-        TypedTerm::SubBinary(subbinary) => {
+        Term::RefBinary(subbinary) => {
             maybe_aligned_maybe_binary_try_into_term!(process, &options, binary, subbinary)
         }
         _ => Err(TypeError)
@@ -62,16 +65,16 @@ fn versioned_tagged_bytes_try_into_term(
     process: &Process,
     options: &Options,
     bytes: &[u8],
-) -> exception::Result<Term> {
+) -> Result<Term, NonNull<ErlangException>> {
     let after_version_bytes = version::check(bytes)?;
     let (term, after_term_bytes) =
         term::decode_tagged(process, options.existing, after_version_bytes)?;
 
     let final_term = if options.used {
         let used_byte_len = bytes.len() - after_term_bytes.len();
-        let used = process.integer(used_byte_len);
+        let used = process.integer(used_byte_len).unwrap();
 
-        process.tuple_from_slice(&[term, used])
+        process.tuple_term_from_term_slice(&[term, used])
     } else {
         term
     };

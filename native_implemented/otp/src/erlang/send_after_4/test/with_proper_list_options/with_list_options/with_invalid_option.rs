@@ -1,3 +1,4 @@
+use firefly_rt::term::{Atom, Cons};
 use super::*;
 
 mod with_small_integer_time;
@@ -16,7 +17,7 @@ fn without_non_negative_integer_time_errors_badarg() {
             )
         },
         |(arc_process, time, message)| {
-            let destination = arc_process.pid_term();
+            let destination = arc_process.pid_term().unwrap();
             let options = options(&arc_process);
 
             prop_assert_badarg!(
@@ -30,5 +31,5 @@ fn without_non_negative_integer_time_errors_badarg() {
 }
 
 fn options(process: &Process) -> Term {
-    process.cons(Atom::str_to_term("invalid"), Term::NIL)
+    Term::list_from_slice_in(&[Atom::str_to_term("invalid")]).unwrap()
 }

@@ -1,15 +1,12 @@
 mod with_local_pid;
 
-use std::convert::TryInto;
-
-use proptest::strategy::{BoxedStrategy, Just, Strategy};
+use proptest::strategy::{BoxedStrategy, Just};
 use proptest::test_runner::{Config, TestRunner};
 
-use liblumen_alloc::erts::term::prelude::*;
-
-use crate::runtime::registry;
+use firefly_rt::term::{Atom, Term};
 
 use crate::erlang::process_info_2::result;
+use crate::runtime::registry;
 use crate::test;
 use crate::test::{registered_name, strategy, with_process_arc};
 

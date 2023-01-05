@@ -1387,8 +1387,9 @@ impl<'m> ModuleBuilder<'m> {
                     .base()
             }
             Opcode::EnterIndirect => {
-                // This is an indirect call, not in tail position, but the callee is known statically
-                // to be a fun, so we can skip the overhead of erlang:apply/3
+                // This is an indirect call, not in tail position, but the callee is known
+                // statically to be a fun, so we can skip the overhead of
+                // erlang:apply/3
                 let mlir_op = builder.build_enter_indirect(loc, callee, mapped_args.as_slice());
                 mlir_op.set_attribute_by_name("tail", builder.get_unit_attr());
                 mlir_op.set_attribute_by_name("musttail", builder.get_unit_attr());

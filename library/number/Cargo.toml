@@ -5,6 +5,9 @@ authors = ["Hans Elias B. Josephsen <me@hansihe.com>", "Paul Schoenfelder <pauls
 edition = "2021"
 license = "MIT OR Apache-2.0"
 
+[dependencies]
+thiserror-no-std  = "2.0"
+
 [dependencies.num-integer]
 version = "0.1"
 default-features = false

@@ -1,13 +1,11 @@
 use super::*;
 
-use proptest::strategy::Strategy;
-
 #[test]
 fn without_empty_list_returns_false() {
     run!(
         |arc_process| {
             (
-                Just(Term::NIL),
+                Just(Term::Nil),
                 strategy::term(arc_process.clone())
                     .prop_filter("Right must not be empty list", |v| !v.is_nil()),
             )
@@ -22,5 +20,5 @@ fn without_empty_list_returns_false() {
 
 #[test]
 fn with_empty_list_right_returns_true() {
-    assert_eq!(result(Term::NIL, Term::NIL), true.into());
+    assert_eq!(result(Term::Nil, Term::Nil), true.into());
 }

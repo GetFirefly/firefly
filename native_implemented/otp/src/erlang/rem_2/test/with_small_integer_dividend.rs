@@ -17,10 +17,10 @@ fn with_small_integer_divisor_returns_small_integer() {
             prop_assert_eq!(
                 result(
                     &arc_process,
-                    arc_process.integer(dividend),
-                    arc_process.integer(divisor),
+                    arc_process.integer(dividend).unwrap(),
+                    arc_process.integer(divisor).unwrap(),
                 ),
-                Ok(arc_process.integer(dividend % divisor))
+                Ok(arc_process.integer(dividend % divisor).unwrap())
             );
 
             Ok(())
@@ -48,8 +48,8 @@ fn with_big_integer_divisor_returns_dividend() {
 
 fn divisor() -> BoxedStrategy<isize> {
     prop_oneof![
-        (SmallInteger::MIN_VALUE..=-1),
-        (1..=SmallInteger::MAX_VALUE)
+        (Integer::MIN_SMALL..=-1),
+        (1..=Integer::MAX_SMALL)
     ]
     .boxed()
 }

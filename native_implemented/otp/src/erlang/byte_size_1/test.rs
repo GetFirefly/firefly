@@ -1,5 +1,7 @@
 use proptest::prop_assert_eq;
-use proptest::strategy::{Just, Strategy};
+use proptest::strategy::Just;
+
+use firefly_rt::term::Term;
 
 use crate::erlang::byte_size_1::result;
 use crate::test::strategy;
@@ -24,7 +26,7 @@ fn with_heap_binary_is_byte_count() {
         |(arc_process, byte_count, bitstring)| {
             prop_assert_eq!(
                 result(&arc_process, bitstring),
-                Ok(arc_process.integer(byte_count))
+                Ok(arc_process.integer(byte_count).unwrap())
             );
 
             Ok(())
@@ -52,7 +54,7 @@ fn with_subbinary_without_bit_count_is_byte_count() {
         |(arc_process, byte_count, bitstring)| {
             prop_assert_eq!(
                 result(&arc_process, bitstring),
-                Ok(arc_process.integer(byte_count))
+                Ok(arc_process.integer(byte_count).unwrap())
             );
 
             Ok(())
@@ -85,7 +87,7 @@ fn with_subbinary_with_bit_count_is_byte_count_plus_one() {
         |(arc_process, byte_count, bitstring)| {
             prop_assert_eq!(
                 result(&arc_process, bitstring),
-                Ok(arc_process.integer(byte_count + 1))
+                Ok(arc_process.integer(byte_count + 1).unwrap())
             );
 
             Ok(())

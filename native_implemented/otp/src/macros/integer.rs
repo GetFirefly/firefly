@@ -5,52 +5,50 @@ macro_rules! bitwise_infix_operator {
         use anyhow::*;
         use num_bigint::BigInt;
 
-        use liblumen_alloc::erts::exception::*;
-        use liblumen_alloc::erts::process::trace::Trace;
-        use liblumen_alloc::erts::term::prelude::*;
+        use firefly_rt::*;
 
-        match ($left.decode().unwrap(), $right.decode().unwrap()) {
+        match ($left, $right) {
             (
-                TypedTerm::SmallInteger(left_small_integer),
-                TypedTerm::SmallInteger(right_small_integer),
+                Term::Int(left_small_integer),
+                Term::Int(right_small_integer),
             ) => {
                 let left_isize: isize = left_small_integer.into();
                 let right_isize: isize = right_small_integer.into();
                 let output = left_isize.$infix(right_isize);
-                let output_term = $process.integer(output);
+                let output_term = $process.integer(output).unwrap();
 
                 Ok(output_term)
             }
             (
-                TypedTerm::SmallInteger(left_small_integer),
-                TypedTerm::BigInteger(right_big_integer),
+                Term::Int(left_small_integer),
+                Term::BigInt(right_big_integer),
             ) => {
                 let left_big_int: BigInteger = left_small_integer.into();
                 let right_big_int = right_big_integer.as_ref();
 
                 let output_big_int: BigInt = left_big_int.$infix(right_big_int).into();
-                let output_term = $process.integer(output_big_int);
+                let output_term = $process.integer(output_big_int).unwrap();
 
                 Ok(output_term)
             }
             (
-                TypedTerm::BigInteger(left_big_integer),
-                TypedTerm::SmallInteger(right_small_integer),
+                Term::BigInt(left_big_integer),
+                Term::Int(right_small_integer),
             ) => {
                 let left_big_int = left_big_integer.as_ref();
                 let right_big_int: BigInteger = right_small_integer.into();
 
                 let output_big_int: BigInt = left_big_int.$infix(right_big_int).into();
-                let output_term = $process.integer(output_big_int);
+                let output_term = $process.integer(output_big_int).unwrap();
 
                 Ok(output_term)
             }
-            (TypedTerm::BigInteger(left_big_integer), TypedTerm::BigInteger(right_big_integer)) => {
+            (Term::BigInt(left_big_integer), Term::BigInt(right_big_integer)) => {
                 let left_big_int = left_big_integer.as_ref();
                 let right_big_int = right_big_integer.as_ref();
 
                 let output_big_int: BigInt = left_big_int.$infix(right_big_int).into();
-                let output_term = $process.integer(output_big_int);
+                let output_term = $process.integer(output_big_int).unwrap();
 
                 Ok(output_term)
             }
@@ -77,14 +75,12 @@ macro_rules! bitshift_infix_operator {
         use anyhow::*;
         use num_bigint::BigInt;
 
-        use liblumen_alloc::erts::exception::*;
-        use liblumen_alloc::erts::term::prelude::*;
-        use liblumen_alloc::erts::process::trace::Trace;
+                use firefly_rt::*;
 
         pub const MAX_SHIFT: usize = std::mem::size_of::<isize>() * 8 - 1;
 
-        let option_shifted = match $integer.decode().unwrap() {
-            TypedTerm::SmallInteger(integer_small_integer) => {
+        let option_shifted = match $integer {
+            Term::Int(integer_small_integer) => {
                 let integer_isize: isize = integer_small_integer.into();
                 let shift_isize: isize = term_try_into_isize!($shift).map_err(ArcError::new).map_err(|source| badarith(Trace::capture(), Some(source)))?;
 
@@ -94,13 +90,13 @@ macro_rules! bitshift_infix_operator {
 
                     if shift_usize <= MAX_SHIFT {
                         let shifted = integer_isize $positive shift_usize;
-                        let shifted_term = $process.integer(shifted);
+                        let shifted_term = $process.integer(shifted).unwrap();
 
                         Some(shifted_term)
                     } else {
                         let big_int: BigInt = integer_isize.into();
                         let shifted = big_int $positive shift_usize;
-                        let shifted_term = $process.integer(shifted);
+                        let shifted_term = $process.integer(shifted).unwrap();
 
                         Some(shifted_term)
                     }
@@ -109,19 +105,19 @@ macro_rules! bitshift_infix_operator {
 
                     if shift_usize <= MAX_SHIFT {
                         let shifted = integer_isize $negative shift_usize;
-                        let shifted_term = $process.integer(shifted);
+                        let shifted_term = $process.integer(shifted).unwrap();
 
                         Some(shifted_term)
                     } else {
                         let big_int: BigInt = integer_isize.into();
                         let shifted = big_int $negative shift_usize;
-                        let shifted_term = $process.integer(shifted);
+                        let shifted_term = $process.integer(shifted).unwrap();
 
                         Some(shifted_term)
                     }
                 }
             }
-            TypedTerm::BigInteger(integer_big_integer) => {
+            Term::BigInt(integer_big_integer) => {
                 let big_int = integer_big_integer.as_ref();
                 let shift_isize: isize = term_try_into_isize!($shift).map_err(ArcError::new).map_err(|source| badarith(Trace::capture(), Some(source)))?;
 
@@ -139,7 +135,7 @@ macro_rules! bitshift_infix_operator {
 
                 // Provide a chance to convert to SmallInteger if possible
                 let shifted: BigInt = shifted.into();
-                let shifted_term = $process.integer(shifted);
+                let shifted_term = $process.integer(shifted).unwrap();
 
                 Some(shifted_term)
             }
@@ -158,12 +154,10 @@ macro_rules! integer_infix_operator {
         use anyhow::*;
         use num_bigint::BigInt;
 
-        use liblumen_alloc::erts::exception::*;
-        use liblumen_alloc::erts::term::prelude::*;
-        use liblumen_alloc::erts::process::trace::Trace;
+                use firefly_rt::*;
 
-        match ($left.decode().unwrap(), $right.decode().unwrap()) {
-            (TypedTerm::SmallInteger(left_small_integer), TypedTerm::SmallInteger(right_small_integer)) => {
+        match ($left, $right) {
+            (Term::Int(left_small_integer), Term::Int(right_small_integer)) => {
                 let left_isize: isize = left_small_integer.into();
                 let right_isize: isize = right_small_integer.into();
 
@@ -171,22 +165,22 @@ macro_rules! integer_infix_operator {
                     Err(badarith(Trace::capture(), Some(anyhow!("{} ({}) cannot be zero", stringify!($right), $right).into())))
                 } else {
                     let quotient = left_isize $infix right_isize;
-                    let quotient_term = $process.integer(quotient);
+                    let quotient_term = $process.integer(quotient).unwrap();
 
                     Ok(quotient_term)
                 }
             }
-            (TypedTerm::SmallInteger(left_small_integer), TypedTerm::BigInteger(right_big_integer)) => {
+            (Term::Int(left_small_integer), Term::BigInt(right_big_integer)) => {
                 let left_big_int: BigInteger = left_small_integer.into();
                 let right_big_int = right_big_integer.as_ref();
 
                 let quotient = left_big_int $infix right_big_int;
                 let quotient: BigInt = quotient.into();
-                let quotient_term = $process.integer(quotient);
+                let quotient_term = $process.integer(quotient).unwrap();
 
                 Ok(quotient_term)
             }
-            (TypedTerm::BigInteger(left_big_integer), TypedTerm::SmallInteger(right_small_integer)) => {
+            (Term::BigInt(left_big_integer), Term::Int(right_small_integer)) => {
                 let right_isize: isize = right_small_integer.into();
 
                 if right_isize == 0 {
@@ -197,18 +191,18 @@ macro_rules! integer_infix_operator {
 
                     let quotient = left_big_int $infix right_big_int;
                     let quotient: BigInt = quotient.into();
-                    let quotient_term = $process.integer(quotient);
+                    let quotient_term = $process.integer(quotient).unwrap();
 
                     Ok(quotient_term)
                 }
             }
-            (TypedTerm::BigInteger(left_big_integer), TypedTerm::BigInteger(right_big_integer)) => {
+            (Term::BigInt(left_big_integer), Term::BigInt(right_big_integer)) => {
                 let left_big_int = left_big_integer.as_ref();
                 let right_big_int = right_big_integer.as_ref();
 
                 let quotient = left_big_int $infix right_big_int;
                 let quotient: BigInt = quotient.into();
-                let quotient_term = $process.integer(quotient);
+                let quotient_term = $process.integer(quotient).unwrap();
 
                 Ok(quotient_term)
             }

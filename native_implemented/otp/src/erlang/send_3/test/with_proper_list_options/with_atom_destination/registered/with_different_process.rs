@@ -18,7 +18,7 @@ fn without_locked_adds_heap_message_to_mailbox_and_returns_ok() {
                 erlang::register_2::result(
                     arc_process.clone(),
                     destination,
-                    different_arc_process.pid_term(),
+                    different_arc_process.pid_term().unwrap(),
                 ),
                 Ok(true.into())
             );
@@ -53,14 +53,14 @@ fn with_locked_adds_heap_message_to_mailbox_and_returns_ok() {
                 erlang::register_2::result(
                     arc_process.clone(),
                     destination,
-                    different_arc_process.pid_term(),
+                    different_arc_process.pid_term().unwrap(),
                 ),
                 Ok(true.into())
             );
 
             let _different_process_heap_lock = different_arc_process.acquire_heap();
 
-            let destination = different_arc_process.pid_term();
+            let destination = different_arc_process.pid_term().unwrap();
 
             assert_eq!(
                 result(&arc_process, destination, message, options),

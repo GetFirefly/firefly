@@ -3,7 +3,7 @@ mod with_proper_list;
 use proptest::prop_assert_eq;
 use proptest::test_runner::{Config, TestRunner};
 
-use liblumen_alloc::erts::term::prelude::Term;
+use firefly_rt::term::Term;
 
 use crate::lists::reverse_1::result;
 use crate::test::strategy;

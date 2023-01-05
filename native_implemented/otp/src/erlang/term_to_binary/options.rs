@@ -3,7 +3,7 @@ mod minor_version;
 
 use std::convert::{TryFrom, TryInto};
 
-use liblumen_alloc::erts::term::prelude::*;
+use firefly_rt::term::{Atom, Term};
 
 use compression::*;
 use minor_version::*;
@@ -25,8 +25,8 @@ impl Default for Options {
 
 impl Options {
     fn put_option_term(&mut self, option: Term) -> Result<&Self, TryFromTermError> {
-        match option.decode().unwrap() {
-            TypedTerm::Atom(atom) => match atom.name() {
+        match option {
+            Term::Atom(atom) => match atom.as_str() {
                 "compressed" => {
                     self.compression = Default::default();
 
@@ -34,13 +34,13 @@ impl Options {
                 }
                 name => Err(TryFromTermError::AtomName(name)),
             },
-            TypedTerm::Tuple(tuple) => {
+            Term::Tuple(tuple) => {
                 if tuple.len() == 2 {
                     let atom: Atom = tuple[0]
                         .try_into()
                         .map_err(|_| TryFromTermError::KeywordKeyType)?;
 
-                    match atom.name() {
+                    match atom.as_str() {
                         "compressed" => {
                             self.compression = tuple[1]
                                 .try_into()
@@ -74,11 +74,12 @@ impl TryFrom<Term> for Options {
         let mut options_term = term;
 
         loop {
-            match options_term.decode().unwrap() {
-                TypedTerm::Nil => return Ok(options),
-                TypedTerm::List(cons) => {
-                    options.put_option_term(cons.head)?;
-                    options_term = cons.tail;
+            match options_term {
+                Term::Nil => return Ok(options),
+                Term::Cons(non_null_cons) => {
+                    let cons = unsafe { non_null_cons.as_ref() };
+                    options.put_option_term(cons.head())?;
+                    options_term = cons.tail();
 
                     continue;
                 }

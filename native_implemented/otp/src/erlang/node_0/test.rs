@@ -1,5 +1,3 @@
-use liblumen_alloc::erts::term::prelude::Atom;
-
 use crate::erlang::node_0::result;
 
 #[test]

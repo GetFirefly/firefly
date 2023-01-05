@@ -1,7 +1,7 @@
+use firefly_rt::term::Term;
+
 use crate::erlang::{add_2, multiply_2, subtract_2, system_time_1, timestamp_0, tuple_size_1};
 use crate::test::with_process;
-use liblumen_alloc::erts::term::prelude::*;
-use std::convert::TryInto;
 
 const DELTA_LIMIT_MICROSECONDS: u64 = 5_000;
 
@@ -12,7 +12,7 @@ fn returns_a_three_element_tuple() {
 
         let tuple_size_result = tuple_size_1::result(process, timestamp).unwrap();
 
-        assert_eq!(tuple_size_result, process.integer(3));
+        assert_eq!(tuple_size_result, process.integer(3).unwrap());
     });
 }
 
@@ -27,18 +27,18 @@ fn approximately_system_time() {
 
         let timestamp = timestamp_0::result(process);
 
-        let timestamp_tuple: Boxed<Tuple> = timestamp.try_into().unwrap();
+        let timestamp_tuple: NonNull<Tuple> = timestamp.try_into().unwrap();
 
         let megasecs = multiply_2::result(
             process,
             timestamp_tuple.get_element(0).unwrap(),
-            process.integer(1000000000000 as usize),
+            process.integer(1000000000000 as usize).unwrap(),
         )
         .unwrap();
         let secs = multiply_2::result(
             process,
             timestamp_tuple.get_element(1).unwrap(),
-            process.integer(1000000),
+            process.integer(1000000).unwrap(),
         )
         .unwrap();
 
@@ -51,7 +51,7 @@ fn approximately_system_time() {
         )
         .unwrap();
 
-        let delta_limit_microseconds = process.integer(DELTA_LIMIT_MICROSECONDS);
+        let delta_limit_microseconds = process.integer(DELTA_LIMIT_MICROSECONDS).unwrap();
 
         let delta = subtract_2::result(process, system_time_from_timestamp, system_time).unwrap();
 

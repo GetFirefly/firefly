@@ -76,7 +76,8 @@ impl Pass for KernelToSsa {
             functions.push((id, signature));
         }
 
-        // For every function in the module, run a function-local pass which produces the function body
+        // For every function in the module, run a function-local pass which produces the function
+        // body
         for (i, function) in module.functions.drain(..).enumerate() {
             let (id, sig) = functions.get(i).unwrap();
             let mut pass = LowerFunctionToSsa {
@@ -688,7 +689,8 @@ impl<'m> LowerFunctionToSsa<'m> {
         let tuple = builder.ins().cast(tuple, ty, span);
         // Fetch the tag element of the tuple
         let elem = builder.ins().get_element_imm(tuple, 0, span);
-        // Compare the fetched tag to the expected tag, branching to the fail block if there is a mismatch
+        // Compare the fetched tag to the expected tag, branching to the fail block if there is a
+        // mismatch
         let tag = builder.ins().atom(tag, span);
         let has_tag = builder.ins().eq_exact(elem, tag, span);
         builder.ins().br_unless(has_tag, fail, &[], span);
@@ -778,14 +780,17 @@ impl<'m> LowerFunctionToSsa<'m> {
                         // Indirect callee
                         let is_closure = v.has_annotation(symbols::Closure);
                         let callee = self.ssa_value(builder, v)?;
-                        // Optimize the case where we know that the callee is a fun that we just created
+                        // Optimize the case where we know that the callee is a fun that we just
+                        // created
                         let mut args = self.ssa_values(builder, call.args)?;
                         if is_closure {
-                            // The callee is known statically to be a fun, so we can use the optimized call path
+                            // The callee is known statically to be a fun, so we can use the
+                            // optimized call path
                             builder.ins().call_indirect(callee, args.as_slice(), span)
                         } else {
-                            // The callee is either not a fun at all, or we are unable to verify, use the safe path by
-                            // converting this to a call to apply/2
+                            // The callee is either not a fun at all, or we are unable to verify,
+                            // use the safe path by converting this to a
+                            // call to apply/2
                             let apply2 = FunctionName::new(symbols::Erlang, symbols::Apply, 2);
                             let apply2 = self.module.get_or_register_builtin(apply2);
                             let argv = args.drain(..).rfold(builder.ins().nil(span), |tail, hd| {
@@ -898,11 +903,12 @@ impl<'m> LowerFunctionToSsa<'m> {
                 // Optimize the case where we know that the callee is a fun that we just created
                 let mut args = self.ssa_values(builder, call.args)?;
                 if is_closure {
-                    // The callee is known statically to be a fun, so we can use the optimized call path
+                    // The callee is known statically to be a fun, so we can use the optimized call
+                    // path
                     builder.ins().enter_indirect(callee, args.as_slice(), span)
                 } else {
-                    // The callee is either not a fun at all, or we are unable to verify, use the safe path by
-                    // converting this to a call to apply/2
+                    // The callee is either not a fun at all, or we are unable to verify, use the
+                    // safe path by converting this to a call to apply/2
                     let apply2 = FunctionName::new(symbols::Erlang, symbols::Apply, 2);
                     let apply2 = self.module.get_or_register_builtin(apply2);
                     let argv = args.drain(..).rfold(builder.ins().nil(span), |tail, hd| {
@@ -984,7 +990,8 @@ impl<'m> LowerFunctionToSsa<'m> {
                 Ok(())
             }
             _ => {
-                // This bif is fallible, and may have side effects, so must be treated like a standard call
+                // This bif is fallible, and may have side effects, so must be treated like a
+                // standard call
                 let callee = self.module.get_or_register_builtin(bif.op);
                 let args = self.ssa_values(builder, bif.args)?;
                 let inst = builder.ins().call(callee, args.as_slice(), span);
@@ -1073,7 +1080,8 @@ impl<'m> LowerFunctionToSsa<'m> {
         let span = bif.span();
         match (bif.op.function, bif.args.as_slice()) {
             (symbols::MakeFun, [KExpr::Local(local), ..]) => {
-                // make_fun/2 requires special handling to convert to its corresponding core instruction
+                // make_fun/2 requires special handling to convert to its corresponding core
+                // instruction
                 let callee = builder
                     .get_callee(local.item)
                     .expect("undefined local function reference");
@@ -1137,7 +1145,8 @@ impl<'m> LowerFunctionToSsa<'m> {
             }
             (symbols::RemoveMessage | symbols::RecvNext, _) => {
                 let callee = self.module.get_or_register_builtin(bif.op);
-                // These ops have no arguments and no results, i.e. they are not fallible, but do have a side effect on the process mailbox
+                // These ops have no arguments and no results, i.e. they are not fallible, but do
+                // have a side effect on the process mailbox
                 assert_eq!(bif.ret.len(), 0);
                 assert_eq!(bif.args.len(), 0);
                 builder.ins().call(callee, &[], span);
@@ -1146,8 +1155,9 @@ impl<'m> LowerFunctionToSsa<'m> {
             (symbols::RecvPeekMessage, _) => {
                 let callee = self.module.get_or_register_builtin(bif.op);
                 assert_eq!(bif.ret.len(), 2);
-                // This op has a multi-value result. The first is a boolean indicating whether a message was available,
-                // the second is the message itself, or NONE, depending on whether or not a message was available
+                // This op has a multi-value result. The first is a boolean indicating whether a
+                // message was available, the second is the message itself, or NONE,
+                // depending on whether or not a message was available
                 let args = self.ssa_values(builder, bif.args)?;
                 let inst = builder.ins().call(callee, args.as_slice(), span);
                 let (msg_available, msg) = {
@@ -1165,16 +1175,17 @@ impl<'m> LowerFunctionToSsa<'m> {
                 let callee = self.module.get_or_register_builtin(bif.op);
                 assert!(bif.args.len() <= 1);
                 assert_eq!(bif.ret.len(), 1);
-                // This op has a complex multi-value result that can produce branches in three directions:
+                // This op has a complex multi-value result that can produce branches in three
+                // directions:
                 //
-                // The first result is a boolean (like in the Erlang calling convention) that indicates whether the timeout
-                // argument itself was valid.
+                // The first result is a boolean (like in the Erlang calling convention) that
+                // indicates whether the timeout argument itself was valid.
                 //
-                // If the timeout was valid, then the second result is a boolean term indicating whether or not the timeout
-                // expired.
+                // If the timeout was valid, then the second result is a boolean term indicating
+                // whether or not the timeout expired.
                 //
-                // If the timeout was invalid, then the second result is an exception, which should then be raised based on
-                // the current failure context
+                // If the timeout was invalid, then the second result is an exception, which should
+                // then be raised based on the current failure context
                 let inst = builder.ins().call(callee, &[], span);
                 let (is_err, result) = {
                     let results = builder.inst_results(inst);
@@ -1216,7 +1227,8 @@ impl<'m> LowerFunctionToSsa<'m> {
                 builder.define_var(bif.ret[0].as_var().map(|v| v.name()).unwrap(), trace);
                 Ok(())
             }
-            // The nif_start instruction is simply a marker for now, we don't have any reason to emit it to SSA
+            // The nif_start instruction is simply a marker for now, we don't have any reason to
+            // emit it to SSA
             (symbols::NifStart, _) => {
                 assert_eq!(
                     bif.args.len(),
@@ -1236,7 +1248,8 @@ impl<'m> LowerFunctionToSsa<'m> {
                 let error1 = FunctionName::new(symbols::Erlang, symbols::Error, 1);
                 let callee = self.module.get_or_register_builtin(error1);
                 // If this is a function or case clause error, the arity is dynamic, but we need
-                // to convert the argument list into an appropriate form for calling erlang:match_fail/2
+                // to convert the argument list into an appropriate form for calling
+                // erlang:match_fail/2
                 let (is_err, exception) = match bif.args[0].as_atom() {
                     Some(symbols::FunctionClause) => {
                         let mut args = self.ssa_values(builder, bif.args)?;
@@ -1325,7 +1338,8 @@ impl<'m> LowerFunctionToSsa<'m> {
                     }
                     FailContext::Catch(blk) => {
                         // This is a match failure or thrown exception in the presence of a local
-                        // handler, so we can jump straight to the handler with the exception that was constructed
+                        // handler, so we can jump straight to the handler with the exception that
+                        // was constructed
                         builder.ins().br(blk, &[exception], span);
                         Ok(())
                     }
@@ -1365,7 +1379,8 @@ impl<'m> LowerFunctionToSsa<'m> {
                     }
                     FailContext::Catch(blk) => {
                         // This is a match failure or thrown exception in the presence of a local
-                        // handler, so we can jump straight to the handler with the exception that was constructed
+                        // handler, so we can jump straight to the handler with the exception that
+                        // was constructed
                         builder.ins().br(blk, &[exception], span);
                         Ok(())
                     }
@@ -1511,39 +1526,45 @@ impl<'m> LowerFunctionToSsa<'m> {
         let handler_block = builder.create_block();
         let exception = builder.append_block_param(handler_block, Type::Exception, span);
 
-        // The result block is where the fork in control is rejoined, it receives a single block argument which is
-        // either the normal return value, or the caught/wrapped exception value
+        // The result block is where the fork in control is rejoined, it receives a single block
+        // argument which is either the normal return value, or the caught/wrapped exception
+        // value
         let result_block = builder.create_block();
         let result = builder.append_block_param(result_block, Type::Term(TermType::Any), span);
         builder.define_var(ret, result);
 
         // The exit block handles wrapping exit/error reasons in the {'EXIT', Reason} tuple
-        // It receives a single block argument which corresponds to `Reason` in the previous sentence.
+        // It receives a single block argument which corresponds to `Reason` in the previous
+        // sentence.
         let exit_block = builder.create_block();
         let exit_reason = builder.append_block_param(exit_block, Type::Term(TermType::Any), span);
 
         builder.switch_to_block(handler_block);
         let class = builder.ins().exception_class(exception, span);
         let reason = builder.ins().exception_reason(exception, span);
-        // Throws are the most common, and require no special handling, so we jump straight to the result block for them
+        // Throws are the most common, and require no special handling, so we jump straight to the
+        // result block for them
         let is_throw = builder
             .ins()
             .eq_exact_imm(class, symbols::Throw.into(), span);
         builder.ins().br_if(is_throw, result_block, &[reason], span);
-        // Exits are the next simplest, as we just wrap the reason in a tuple, so we jump straight to the exit block
+        // Exits are the next simplest, as we just wrap the reason in a tuple, so we jump straight
+        // to the exit block
         let is_exit = builder
             .ins()
             .eq_exact_imm(class, symbols::Exit.into(), span);
         builder.ins().br_if(is_exit, exit_block, &[reason], span);
         // Errors are handled in the landing pad directly
         let trace = builder.ins().exception_trace(exception, span);
-        // We have to construct a new error reason, and then jump to the exit block to wrap it in the exit tuple
+        // We have to construct a new error reason, and then jump to the exit block to wrap it in
+        // the exit tuple
         let error_reason = builder.ins().tuple_imm(2, span);
         let error_reason = builder.ins().set_element_mut(error_reason, 0, reason, span);
         let error_reason = builder.ins().set_element_mut(error_reason, 1, trace, span);
         builder.ins().br(exit_block, &[error_reason], span);
 
-        // In the exit block, we need just to construct the {'EXIT', Reason} tuple, and then jump to the result block
+        // In the exit block, we need just to construct the {'EXIT', Reason} tuple, and then jump to
+        // the result block
         builder.switch_to_block(exit_block);
         let wrapped_reason = builder.ins().tuple_imm(2, span);
         let wrapped_reason =

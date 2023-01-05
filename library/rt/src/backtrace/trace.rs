@@ -315,7 +315,7 @@ impl Trace {
         }
 
         // Then construct the stacktrace term from the frames we just built up
-        let list = Cons::from_slice(erlang_frames.as_slice(), heap)?
+        let list = Cons::from_slice_in(erlang_frames.as_slice(), heap)?
             .map(Term::Cons)
             .unwrap_or(Term::Nil);
 

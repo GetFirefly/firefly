@@ -4,9 +4,8 @@ use proptest::strategy::Just;
 use proptest::test_runner::{Config, TestRunner};
 use proptest::{prop_assert, prop_assert_eq};
 
-use liblumen_alloc::atom;
-use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::prelude::*;
+use firefly_rt::process::Process;
+use firefly_rt::term::{atoms, Term};
 
 use crate::erlang::float_to_binary_2::result;
 use crate::test::with_process_arc;

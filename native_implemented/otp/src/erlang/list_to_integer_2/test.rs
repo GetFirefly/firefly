@@ -1,8 +1,10 @@
 use proptest::arbitrary::any;
 use proptest::prop_assert_eq;
-use proptest::strategy::{Just, Strategy};
+use proptest::strategy::Just;
 
 use radix_fmt::radix;
+
+use firefly_rt::term::Term;
 
 use crate::erlang::list_to_integer_2::result;
 use crate::test::strategy;
@@ -71,14 +73,14 @@ fn with_list_with_integer_in_base_returns_integers() {
                         arc_process.clone(),
                         integer,
                         arc_process.charlist_from_str(&string),
-                        arc_process.integer(base),
+                        arc_process.integer(base).unwrap(),
                     )
                 })
         },
         |(arc_process, integer, list, base)| {
             prop_assert_eq!(
                 result(&arc_process, list, base),
-                Ok(arc_process.integer(integer))
+                Ok(arc_process.integer(integer).unwrap())
             );
 
             Ok(())
@@ -102,7 +104,7 @@ fn with_list_without_integer_in_base_errors_badarg() {
                 (
                     arc_process.clone(),
                     arc_process.charlist_from_str(&string),
-                    arc_process.integer(base),
+                    arc_process.integer(base).unwrap(),
                 )
             })
         },

@@ -1,4 +1,5 @@
 use alloc::alloc::{AllocError, Allocator, Layout};
+use alloc::format;
 use core::any::TypeId;
 use core::convert::AsRef;
 use core::fmt::{self, Debug};
@@ -25,8 +26,9 @@ impl Tuple {
     /// # Safety
     ///
     /// It is not safe to use the pointer returned from this function without first initializing all
-    /// of the tuple elements with valid values. This function does not guarantee that the elements are
-    /// in any particular state, so use of the tuple without the initialization step is undefined behavior.
+    /// of the tuple elements with valid values. This function does not guarantee that the elements
+    /// are in any particular state, so use of the tuple without the initialization step is
+    /// undefined behavior.
     pub fn new_in<A: Allocator>(capacity: usize, alloc: A) -> Result<NonNull<Tuple>, AllocError> {
         let (layout, _elements_offset) = Layout::new::<usize>()
             .align_to(16)
@@ -46,16 +48,29 @@ impl Tuple {
 
     /// Creates a new tuple in the given allocator, from a slice of elements.
     ///
-    /// This is a safer alternative to `new_in`, and ensures that the resulting pointer is valid for use
-    /// right away.
-    pub fn from_slice<A: Allocator>(
+    /// This is a safer alternative to `new_in`, and ensures that the resulting pointer is valid for
+    /// use right away.
+    pub fn from_opaque_term_slice<A: Allocator>(
         slice: &[OpaqueTerm],
         alloc: A,
     ) -> Result<NonNull<Tuple>, AllocError> {
         unsafe {
             let mut tuple = Self::new_in(slice.len(), alloc)?;
-            tuple.as_mut().copy_from_slice(slice);
+            tuple.as_mut().copy_from_opaque_term_slice(slice);
             Ok(tuple)
+        }
+    }
+
+    pub fn from_term_slice<A: Allocator>(slice: &[Term], alloc: A) -> Result<NonNull<Tuple>, AllocError> {
+        unsafe {
+            let mut non_null_tuple = Self::new_in(slice.len(), alloc)?;
+            let mut tuple = non_null_tuple.as_mut();
+            for (i, term) in slice.iter().enumerate() {
+                let opaque_term: OpaqueTerm =  (*term).into();
+                tuple.elements[i] = opaque_term;
+            }
+
+            Ok(non_null_tuple)
         }
     }
 
@@ -119,7 +134,7 @@ impl Tuple {
 
         let mut tuple = Self::new_in(self.len(), alloc)?;
         let t = unsafe { tuple.as_mut() };
-        t.copy_from_slice(self.as_slice());
+        t.copy_from_opaque_term_slice(self.as_opaque_term_slice());
 
         let element = t.elements.get_mut(index).unwrap();
         *element = value.into();
@@ -151,20 +166,20 @@ impl Tuple {
     /// Copies all of the elements from `slice` into this tuple
     ///
     /// NOTE: The slice and this tuple are asserted to be the same length
-    pub fn copy_from_slice(&mut self, slice: &[OpaqueTerm]) {
+    pub fn copy_from_opaque_term_slice(&mut self, slice: &[OpaqueTerm]) {
         assert_eq!(self.elements.len(), slice.len());
         self.elements.copy_from_slice(slice)
     }
 
     /// Get this tuple as a slice of raw elements
     #[inline]
-    pub fn as_slice(&self) -> &[OpaqueTerm] {
+    pub fn as_opaque_term_slice(&self) -> &[OpaqueTerm] {
         &self.elements
     }
 
     /// Get this tuple as a mutable slice of raw elements
     #[inline]
-    pub fn as_mut_slice(&mut self) -> &mut [OpaqueTerm] {
+    pub fn as_mut_opaque_term_slice(&mut self) -> &mut [OpaqueTerm] {
         &mut self.elements
     }
 

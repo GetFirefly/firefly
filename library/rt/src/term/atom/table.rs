@@ -81,9 +81,10 @@ pub unsafe extern "C-unwind" fn init(start: *const AtomData, end: *const AtomDat
     true
 }
 
-/// Like `get_data_or_insert`, but optimized for the case where the given atom value has static lifetime,
-/// and thus doesn't require allocating space for and cloning the value. This is faster in that regard, but
-/// still has all of the downsides that come with acquiring a write lock on the atom table.
+/// Like `get_data_or_insert`, but optimized for the case where the given atom value has static
+/// lifetime, and thus doesn't require allocating space for and cloning the value. This is faster in
+/// that regard, but still has all of the downsides that come with acquiring a write lock on the
+/// atom table.
 #[inline]
 pub(super) unsafe fn get_data_or_insert_static(
     name: &'static str,
@@ -91,12 +92,13 @@ pub(super) unsafe fn get_data_or_insert_static(
     ATOMS.write().get_data_or_insert_static(name)
 }
 
-/// Gets the atom with the given name from the global atom table, or inserts it as a new atom if not present.
+/// Gets the atom with the given name from the global atom table, or inserts it as a new atom if not
+/// present.
 ///
-/// This operation acquires a write lock on the atom table, which requires exclusive access. This means this
-/// operation must wait until all pre-existing readers/writers have released their locks, and will block all
-/// subsequent readers/writers until it has completed. Since this is relatively expensive, this should only
-/// be used when creating new atoms.
+/// This operation acquires a write lock on the atom table, which requires exclusive access. This
+/// means this operation must wait until all pre-existing readers/writers have released their locks,
+/// and will block all subsequent readers/writers until it has completed. Since this is relatively
+/// expensive, this should only be used when creating new atoms.
 #[inline]
 pub(super) unsafe fn get_data_or_insert(name: &str) -> Result<NonNull<AtomData>, AtomError> {
     ATOMS.write().get_data_or_insert(name)
@@ -118,11 +120,11 @@ struct AtomTable {
     arena: DroplessArena,
 }
 // By default, `NonNull<T>` is neither send nor sync, as such pointers may alias, however, in our
-// case, the pointers are to data which is pinned, 'static, read-only, and does not support interior mutability,
-// making such pointers trivially Send and Sync.
+// case, the pointers are to data which is pinned, 'static, read-only, and does not support interior
+// mutability, making such pointers trivially Send and Sync.
 //
-// Furthermore, to mutate the atom table (by adding new atoms), one has to acquire an exclusive write lock,
-// which guarantees that the table itself is also Send and Sync
+// Furthermore, to mutate the atom table (by adding new atoms), one has to acquire an exclusive
+// write lock, which guarantees that the table itself is also Send and Sync
 unsafe impl Send for AtomTable {}
 unsafe impl Sync for AtomTable {}
 impl Default for AtomTable {
@@ -196,7 +198,8 @@ impl AtomTable {
     }
 
     // This function is used to insert new atoms in the table during runtime
-    // SAFETY: `name` must have been checked as not existing while holding the current mutable reference.
+    // SAFETY: `name` must have been checked as not existing while holding the current mutable
+    // reference.
     unsafe fn insert(&mut self, name: &str) -> Result<NonNull<AtomData>, AtomError> {
         use core::intrinsics::unlikely;
 

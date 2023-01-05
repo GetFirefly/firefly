@@ -71,6 +71,11 @@ impl TryFrom<Term> for Pid {
         }
     }
 }
+impl Default for Pid {
+    fn default() -> Self {
+        Self::Local { id: ProcessId::default() }
+    }
+}
 impl Display for Pid {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
@@ -115,11 +120,11 @@ impl PartialOrd for Pid {
 /// This struct represents a process identifier, without the node component.
 ///
 /// Local pids in the BEAM are designed to fit in an immediate, which limits their range to a value
-/// that can be expressed in a single 32-bit word. However, because external pids are always 64 bits,
-/// (both number and serial are given a full 32-bits), we choose to use 64-bits in both cases, storing
-/// the serial in the high 32-bits, and the number in the low 32 bits. We do still impose a restriction
-/// on the maximum value of local pids, for both number and serial, that is less than 32-bits, allowing
-/// us to detect overflow when calculating the next possibly-available id.
+/// that can be expressed in a single 32-bit word. However, because external pids are always 64
+/// bits, (both number and serial are given a full 32-bits), we choose to use 64-bits in both cases,
+/// storing the serial in the high 32-bits, and the number in the low 32 bits. We do still impose a
+/// restriction on the maximum value of local pids, for both number and serial, that is less than
+/// 32-bits, allowing us to detect overflow when calculating the next possibly-available id.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct ProcessId(u64);
@@ -187,10 +192,10 @@ impl ProcessId {
     /// # Safety
     ///
     /// Process identifiers can roll over eventually, assuming the program runs long enough and
-    /// that processes are being regularly spawned. Once the pid space has been exhausted, calling this
-    /// function will produce a pid that starts over at its initial state. It is required that the scheduler
-    /// verify that a pid is unused by any live process before spawning a process with a pid returned by this
-    /// function.
+    /// that processes are being regularly spawned. Once the pid space has been exhausted, calling
+    /// this function will produce a pid that starts over at its initial state. It is required
+    /// that the scheduler verify that a pid is unused by any live process before spawning a
+    /// process with a pid returned by this function.
     pub fn next() -> Self {
         use core::sync::atomic::{AtomicU64, Ordering::SeqCst};
 
@@ -215,6 +220,12 @@ impl ProcessId {
             "invalid pid, number is too large"
         );
         Self(pid)
+    }
+}
+
+impl Default for ProcessId {
+    fn default() -> Self {
+        ProcessId::new(0, 0).unwrap()
     }
 }
 

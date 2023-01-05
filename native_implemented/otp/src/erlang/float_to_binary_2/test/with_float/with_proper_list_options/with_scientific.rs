@@ -4,8 +4,7 @@ use std::sync::Arc;
 
 use proptest::strategy::{BoxedStrategy, Just, Strategy};
 
-use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::prelude::*;
+use firefly_rt::process::Process;
 
 use crate::runtime::binary_to_string::binary_to_string;
 
@@ -70,17 +69,17 @@ fn exponent_is_at_least_2_digits() {
 
 fn digits(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     (Just(arc_process.clone()), 0..=249)
-        .prop_map(|(arc_process, u)| arc_process.integer(u))
+        .prop_map(|(arc_process, u)| arc_process.integer(u).unwrap())
         .boxed()
 }
 
 fn strategy(arc_process: Arc<Process>) -> impl Strategy<Value = (Arc<Process>, Term, Term)> {
     (
         Just(arc_process.clone()),
-        super::strategy::term::float(arc_process.clone()),
+        super::strategy::term::float(),
         (Just(arc_process.clone()), digits(arc_process.clone())).prop_map(
             |(arc_process, digits)| {
-                arc_process.list_from_slice(&[arc_process.tuple_from_slice(&[tag(), digits])])
+                arc_process.list_from_slice(&[arc_process.tuple_term_from_term_slice(&[tag(), digits])]).unwrap()
             },
         ),
     )

@@ -30,5 +30,5 @@ fn without_boolean_value_errors_badarg() {
 // integration tests
 
 fn flag() -> Term {
-    Atom::str_to_term("trap_exit")
+    atoms::TrapExit
 }

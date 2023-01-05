@@ -1,7 +1,5 @@
 use super::*;
 
-use proptest::strategy::Strategy;
-
 mod with_arity_2;
 
 #[test]
@@ -13,7 +11,7 @@ fn without_arity_2_errors_badarg() {
                 strategy::term::tuple(arc_process.clone()).prop_filter(
                     "Tuple must not be arity 2",
                     |start_length| {
-                        let start_length_tuple: Boxed<Tuple> = (*start_length).try_into().unwrap();
+                        let start_length_tuple: NonNull<Tuple> = (*start_length).try_into().unwrap();
 
                         start_length_tuple.len() != 2
                     },

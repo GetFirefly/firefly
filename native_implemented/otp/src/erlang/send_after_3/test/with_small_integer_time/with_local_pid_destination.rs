@@ -11,10 +11,10 @@ fn with_different_process_sends_message_when_timer_expires() {
             )
         },
         |(arc_process, milliseconds, message)| {
-            let time = arc_process.integer(milliseconds);
+            let time = arc_process.integer(milliseconds).unwrap();
 
             let destination_arc_process = test::process::child(&arc_process);
-            let destination = destination_arc_process.pid_term();
+            let destination = destination_arc_process.pid_term().unwrap();
 
             let start_monotonic = freeze_timeout();
 
@@ -51,8 +51,8 @@ fn with_same_process_sends_message_when_timer_expires() {
             )
         },
         |(arc_process, milliseconds, message)| {
-            let time = arc_process.integer(milliseconds);
-            let destination = arc_process.pid_term();
+            let time = arc_process.integer(milliseconds).unwrap();
+            let destination = arc_process.pid_term().unwrap();
 
             let start_monotonic = freeze_timeout();
 
@@ -89,7 +89,7 @@ fn without_process_sends_nothing_when_timer_expires() {
             )
         },
         |(arc_process, milliseconds, message)| {
-            let time = arc_process.integer(milliseconds);
+            let time = arc_process.integer(milliseconds).unwrap();
             let destination = Pid::next_term();
 
             let start_monotonic = freeze_timeout();

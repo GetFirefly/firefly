@@ -1,5 +1,5 @@
 [package]
-name = "liblumen_otp"
+name = "firefly_otp"
 version = "0.1.0"
 authors = ["Luke Imhoff <Kronic.Deth@gmail.com>"]
 edition = "2021"
@@ -10,9 +10,11 @@ crate-type = ["staticlib", "rlib"]
 
 [dependencies]
 anyhow = "1.0"
+firefly_alloc = { path = "../../library/alloc" }
+firefly_number = { path = "../../library/number" }
+firefly_rt = { path = "../../library/rt" }
+firefly_rt_tiny = { path = "../../runtimes/tiny" }
 lazy_static = "1.4"
-liblumen_alloc = { path = "../../library/alloc" }
-lumen_rt_core = { path = "../../runtimes/core" }
 native_implemented = { path = "../macro" }
 num-bigint = "0.4"
 num-traits = "0.2"
@@ -35,8 +37,6 @@ features = ['console']
 
 [dev-dependencies]
 libc = "0.2"
-lumen_rt_tiny = { path = "../../runtimes/tiny" }
-lumen = { path = "../../lumen" }
 panic-control = "0.1.4"
 process_control = "3.3"
 # get rid of colors in backtraces for easier matching in integration tests

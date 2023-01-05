@@ -1,7 +1,5 @@
 use super::*;
 
-use proptest::strategy::Strategy;
-
 #[test]
 fn without_list_or_bitstring_second_returns_second() {
     run!(
@@ -24,13 +22,13 @@ fn without_list_or_bitstring_second_returns_second() {
 
 #[test]
 fn with_empty_list_second_returns_second() {
-    min(|_, _| Term::NIL, Second);
+    min(|_, _| Term::Nil, Second);
 }
 
 #[test]
 fn with_lesser_list_second_returns_second() {
     min(
-        |_, process| process.cons(process.integer(0), process.integer(0)),
+        |_, process| process.cons(process.integer(0).unwrap(), process.integer(0).unwrap()),
         Second,
     );
 }
@@ -43,7 +41,7 @@ fn with_same_list_second_returns_first() {
 #[test]
 fn with_same_value_list_second_returns_first() {
     min(
-        |_, process| process.cons(process.integer(0), process.integer(1)),
+        |_, process| process.cons(process.integer(0).unwrap(), process.integer(1).unwrap()),
         First,
     );
 }
@@ -51,7 +49,7 @@ fn with_same_value_list_second_returns_first() {
 #[test]
 fn with_greater_list_second_returns_first() {
     min(
-        |_, process| process.cons(process.integer(0), process.integer(2)),
+        |_, process| process.cons(process.integer(0).unwrap(), process.integer(2).unwrap()),
         First,
     );
 }
@@ -78,7 +76,7 @@ where
     R: FnOnce(Term, &Process) -> Term,
 {
     super::min(
-        |process| process.cons(process.integer(0), process.integer(1)),
+        |process| process.cons(process.integer(0).unwrap(), process.integer(1).unwrap()),
         second,
         which,
     );

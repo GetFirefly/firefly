@@ -1,10 +1,11 @@
 use std::convert::TryInto;
+use std::ptr::NonNull;
 
 use anyhow::*;
 
-use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::prelude::*;
+use firefly_rt::error::ErlangException;
+use firefly_rt::process::Process;
+use firefly_rt::term::Term;
 
 use crate::runtime::context::{r#type, term_is_not_type};
 
@@ -27,16 +28,15 @@ pub fn element_type_context(iolist_or_binary: Term, element: Term) -> String {
 pub fn result(
     process: &Process,
     iolist_or_binary: Term,
-    try_into: fn(&Process, Term) -> exception::Result<Term>,
-) -> exception::Result<Term> {
-    match iolist_or_binary.decode()? {
-        TypedTerm::Nil
-        | TypedTerm::List(_)
-        | TypedTerm::BinaryLiteral(_)
-        | TypedTerm::HeapBinary(_)
-        | TypedTerm::MatchContext(_)
-        | TypedTerm::ProcBin(_)
-        | TypedTerm::SubBinary(_) => try_into(process, iolist_or_binary),
+    try_into: fn(&Process, Term) -> Result<Term, NonNull<ErlangException>>,
+) -> Result<Term, NonNull<ErlangException>> {
+    match iolist_or_binary {
+        Term::Nil
+        | Term::Cons(_)
+        | Term::ConstantBinary(_)
+        | Term::HeapBinary(_)
+        | Term::RcBinary(_)
+        | Term::RefBinary(_) => try_into(process, iolist_or_binary),
         _ => Err(TypeError)
             .context(term_is_not_type(
                 "iolist_or_binary",
@@ -47,26 +47,31 @@ pub fn result(
     }
 }
 
-pub fn to_binary(process: &Process, name: &'static str, value: Term) -> exception::Result<Term> {
+pub fn to_binary(
+    process: &Process,
+    name: &'static str,
+    value: Term,
+) -> Result<Term, NonNull<ErlangException>> {
     let mut byte_vec: Vec<u8> = Vec::new();
     let mut stack: Vec<Term> = vec![value];
 
     while let Some(top) = stack.pop() {
-        match top.decode()? {
-            TypedTerm::SmallInteger(small_integer) => {
+        match top {
+            Term::Int(small_integer) => {
                 let top_byte = small_integer
                     .try_into()
                     .with_context(|| element_context(name, value, top))?;
 
                 byte_vec.push(top_byte);
             }
-            TypedTerm::Nil => (),
-            TypedTerm::List(boxed_cons) => {
+            Term::Nil => (),
+            Term::Cons(non_null_cons) => {
+                let cons = unsafe { non_null_cons.as_ref() };
                 // @type iolist :: maybe_improper_list(byte() | binary() | iolist(),
                 // binary() | []) means that `byte()` isn't allowed
                 // for `tail`s unlike `head`.
 
-                let tail = boxed_cons.tail;
+                let tail = cons.tail();
                 let result_u8: Result<u8, _> = tail.try_into();
 
                 match result_u8 {
@@ -81,12 +86,12 @@ pub fn to_binary(process: &Process, name: &'static str, value: Term) -> exceptio
                     Err(_) => stack.push(tail),
                 };
 
-                stack.push(boxed_cons.head);
+                stack.push(cons.head());
             }
-            TypedTerm::HeapBinary(heap_binary) => {
+            Term::HeapBinary(heap_binary) => {
                 byte_vec.extend_from_slice(heap_binary.as_bytes());
             }
-            TypedTerm::SubBinary(subbinary) => {
+            Term::RefBinary(subbinary) => {
                 if subbinary.is_binary() {
                     if subbinary.is_aligned() {
                         byte_vec.extend(unsafe { subbinary.as_bytes_unchecked() });
@@ -99,7 +104,7 @@ pub fn to_binary(process: &Process, name: &'static str, value: Term) -> exceptio
                         .map_err(From::from);
                 }
             }
-            TypedTerm::ProcBin(procbin) => {
+            Term::RcBinary(procbin) => {
                 byte_vec.extend_from_slice(procbin.as_bytes());
             }
             _ => {

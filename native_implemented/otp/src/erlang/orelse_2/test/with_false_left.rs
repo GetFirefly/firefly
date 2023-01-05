@@ -17,32 +17,32 @@ fn with_true_right_returns_true() {
 
 #[test]
 fn with_local_reference_right_returns_true() {
-    with_right_returns_right(|process| process.next_reference());
+    with_right_returns_right(|process| process.next_local_reference_term());
 }
 
 #[test]
 fn with_empty_list_right_returns_true() {
-    with_right_returns_right(|_| Term::NIL);
+    with_right_returns_right(|_| Term::Nil);
 }
 
 #[test]
 fn with_list_right_returns_true() {
-    with_right_returns_right(|process| process.cons(process.integer(0), process.integer(1)));
+    with_right_returns_right(|process| process.cons(process.integer(0).unwrap(), process.integer(1).unwrap()));
 }
 
 #[test]
 fn with_small_integer_right_returns_true() {
-    with_right_returns_right(|process| process.integer(1))
+    with_right_returns_right(|process| process.integer(1).unwrap())
 }
 
 #[test]
 fn with_big_integer_right_returns_true() {
-    with_right_returns_right(|process| process.integer(SmallInteger::MAX_VALUE + 1))
+    with_right_returns_right(|process| process.integer(Integer::MAX_SMALL + 1).unwrap())
 }
 
 #[test]
 fn with_float_right_returns_true() {
-    with_right_returns_right(|process| process.float(1.0));
+    with_right_returns_right(|process| 1.0.into());
 }
 
 #[test]
@@ -57,7 +57,7 @@ fn with_external_pid_right_returns_true() {
 
 #[test]
 fn with_tuple_right_returns_true() {
-    with_right_returns_right(|process| process.tuple_from_slice(&[]));
+    with_right_returns_right(|process| process.tuple_term_from_term_slice(&[]));
 }
 
 #[test]

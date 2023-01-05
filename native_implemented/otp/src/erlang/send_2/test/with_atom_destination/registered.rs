@@ -13,7 +13,7 @@ fn with_same_process_address_process_message_to_mailbox_and_returns_message() {
                 erlang::register_2::result(
                     arc_process.clone(),
                     destination,
-                    arc_process.pid_term()
+                    arc_process.pid_term().unwrap()
                 ),
                 Ok(true.into())
             );

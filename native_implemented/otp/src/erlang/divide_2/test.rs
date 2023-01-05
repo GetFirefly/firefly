@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
 use proptest::prop_assert;
-use proptest::strategy::{BoxedStrategy, Just, Strategy};
+use proptest::strategy::{BoxedStrategy, Just};
 
-use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::prelude::*;
+use firefly_rt::process::Process;
+use firefly_rt::term::Term;
 
 use crate::erlang::divide_2::result;
 use crate::test::strategy;
@@ -37,13 +37,13 @@ fn with_number_dividend_without_zero_number_divisor_returns_float() {
 fn number_is_not_zero(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     strategy::term::is_number(arc_process)
         .prop_filter("Number must not be zero", |number| {
-            match number.decode().unwrap() {
-                TypedTerm::SmallInteger(small_integer) => {
+            match number {
+                Term::Int(small_integer) => {
                     let i: isize = small_integer.into();
 
                     i != 0
                 }
-                TypedTerm::Float(float) => {
+                Term::Float(float) => {
                     let f: f64 = float.into();
 
                     f != 0.0

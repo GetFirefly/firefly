@@ -1,9 +1,8 @@
 use proptest::strategy::Just;
 use proptest::{prop_assert, prop_assert_eq};
 
-use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::scheduler;
-use liblumen_alloc::erts::term::prelude::*;
+use firefly_rt::process::Process;
+use firefly_rt::term::{Atom, Term};
 
 use crate::erlang::binary_to_term_1;
 use crate::erlang::term_to_binary_1::result;
@@ -31,7 +30,7 @@ fn roundtrips_through_binary_to_term() {
 fn with_negative_float_returns_new_float_ext() {
     with_process(|process| {
         assert_eq!(
-            result(process, process.float(std::f64::MIN)),
+            result(process, f64::MIN.into()),
             process.binary_from_bytes(&[
                 VERSION_NUMBER,
                 NEW_FLOAT_EXT,
@@ -53,7 +52,7 @@ fn with_negative_float_returns_new_float_ext() {
 fn with_zero_float_returns_new_float_ext() {
     with_process(|process| {
         assert_eq!(
-            result(process, process.float(0.0)),
+            result(process, 0.0.into()),
             process.binary_from_bytes(&[
                 VERSION_NUMBER,
                 NEW_FLOAT_EXT,
@@ -75,7 +74,7 @@ fn with_zero_float_returns_new_float_ext() {
 fn with_positive_float_returns_new_float_ext() {
     with_process(|process| {
         assert_eq!(
-            result(process, process.float(std::f64::MAX)),
+            result(process, f64::MAX.into()),
             process.binary_from_bytes(&[
                 VERSION_NUMBER,
                 NEW_FLOAT_EXT,
@@ -144,7 +143,7 @@ fn with_unsigned_byte_small_integer_returns_small_integer_ext() {
         let small_integer_u8 = 0b1010_1010_u8;
 
         assert_eq!(
-            result(process, process.integer(small_integer_u8)),
+            result(process, process.integer(small_integer_u8).unwrap()),
             process.binary_from_bytes(&[VERSION_NUMBER, SMALL_INTEGER_EXT, small_integer_u8])
         );
     });
@@ -157,7 +156,7 @@ fn with_negative_i32_small_integer_returns_integer_ext() {
         let small_integer_i32 = std::i32::MIN;
 
         assert_eq!(
-            result(process, process.integer(small_integer_i32)),
+            result(process, process.integer(small_integer_i32).unwrap()),
             process.binary_from_bytes(&[
                 VERSION_NUMBER,
                 INTEGER_EXT,
@@ -177,7 +176,7 @@ fn with_positive_i32_small_integer_returns_integer_ext() {
         let small_integer_i32 = std::i32::MAX;
 
         assert_eq!(
-            result(process, process.integer(small_integer_i32)),
+            result(process, process.integer(small_integer_i32).unwrap()),
             process.binary_from_bytes(&[
                 VERSION_NUMBER,
                 INTEGER_EXT,
@@ -262,7 +261,7 @@ fn with_pid_returns_pid_ext() {
 fn with_empty_tuple_returns_small_tuple_ext() {
     with_process(|process| {
         assert_eq!(
-            result(process, process.tuple_from_slice(&[])),
+            result(process, process.tuple_term_from_term_slice(&[])),
             process.binary_from_bytes(&[VERSION_NUMBER, SMALL_TUPLE_EXT, 0])
         );
     });
@@ -288,7 +287,7 @@ fn with_non_empty_tuple_returns_small_tuple_ext() {
 fn with_empty_list_returns_nil_ext() {
     with_process(|process| {
         assert_eq!(
-            result(process, Term::NIL),
+            result(process, Term::Nil),
             process.binary_from_bytes(&[VERSION_NUMBER, NIL_EXT])
         );
     });
@@ -338,7 +337,7 @@ fn with_improper_list_returns_list_ext() {
 fn with_proper_list_returns_list_ext() {
     with_process(|process| {
         assert_eq!(
-            result(process, process.list_from_slice(&[process.integer(256)])),
+            result(process, process.list_from_slice(&[process.integer(256).unwrap()])).unwrap(),
             process.binary_from_bytes(&[131, 108, 0, 0, 0, 1, 98, 0, 0, 1, 0, 106])
         )
     });
@@ -352,9 +351,9 @@ fn with_nested_list_returns_list_ext() {
             result(
                 process,
                 process.list_from_slice(&[
-                    process.list_from_slice(&[process.integer(1100), process.integer(1200)]),
-                    process.list_from_slice(&[process.integer(2100), process.integer(2200)])
-                ])
+                    process.list_from_slice(&[process.integer(1100).unwrap(), process.integer(1200).unwrap_or()]).unwrap(),
+                    process.list_from_slice(&[process.integer(2100).unwrap(), process.integer(2200).unwrap()]).unwrap()
+                ]).unwrap()
             ),
             process.binary_from_bytes(&[
                 131, 108, 0, 0, 0, 2, 108, 0, 0, 0, 2, 98, 0, 0, 4, 76, 98, 0, 0, 4, 176, 106, 108,
@@ -510,7 +509,7 @@ fn with_subbinary_with_binary_without_aligned_returns_binary_ext() {
 fn with_small_integer_returns_small_big_ext() {
     with_process(|process| {
         assert_eq!(
-            result(process, process.integer(9_999_999_999_i64)),
+            result(process, process.integer(9_999_999_999_i64).unwrap()),
             process.binary_from_bytes(&[131, 110, 5, 0, 255, 227, 11, 84, 2])
         )
     })
@@ -520,7 +519,7 @@ fn with_small_integer_returns_small_big_ext() {
 #[test]
 fn with_big_integer_returns_small_big_ext() {
     with_process(|process| {
-        let big_integer = process.integer(9_223_372_036_854_775_807_i64);
+        let big_integer = process.integer(9_223_372_036_854_775_807_i64).unwrap();
 
         assert!(big_integer.is_boxed_bigint());
 
@@ -594,7 +593,7 @@ fn non_empty_atom_byte_vec() -> Vec<u8> {
 }
 
 fn non_empty_tuple_term(process: &Process) -> Term {
-    process.tuple_from_slice(&[non_empty_atom_term()])
+    process.tuple_term_from_term_slice(&[non_empty_atom_term()])
 }
 
 fn non_empty_tuple_byte_vec() -> Vec<u8> {

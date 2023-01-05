@@ -422,7 +422,8 @@ impl fmt::Display for Visibility {
     }
 }
 impl Visibility {
-    /// Returns true if this function is imported from another module or the standard library prelude
+    /// Returns true if this function is imported from another module or the standard library
+    /// prelude
     #[inline(always)]
     pub fn is_imported(&self) -> bool {
         self.contains(Self::IMPORTED)
@@ -508,10 +509,10 @@ pub enum CallConv {
 /// i.e. the visibility flags encode information about the signature relative to that module
 /// specifically, not all modules.
 ///
-/// Signatures can be compared for equality, but when doing so, all of the module-specific contextual
-/// information is ignored, and only the function name (i.e. MFA) is considered. The signature types
-/// are ignored, as type information is only used for optimization, and in many cases we may not have
-/// complete type information anyway.
+/// Signatures can be compared for equality, but when doing so, all of the module-specific
+/// contextual information is ignored, and only the function name (i.e. MFA) is considered. The
+/// signature types are ignored, as type information is only used for optimization, and in many
+/// cases we may not have complete type information anyway.
 #[derive(Debug, Clone)]
 pub struct Signature {
     pub visibility: Visibility,

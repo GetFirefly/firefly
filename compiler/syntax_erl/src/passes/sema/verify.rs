@@ -107,7 +107,8 @@ impl Pass for VerifyOnLoadFunctions {
     }
 }
 
-/// Like `VerifyExports`, but for `-nifs`; ensures all NIF declarations have a corresponding definition.
+/// Like `VerifyExports`, but for `-nifs`; ensures all NIF declarations have a corresponding
+/// definition.
 pub struct VerifyNifs {
     reporter: Reporter,
 }
@@ -182,14 +183,16 @@ impl Pass for VerifyTypeSpecs {
     }
 }
 
-/// Verifies that the callee of local function calls is defined or imported, or is dynamic and thus not statically analyzable
+/// Verifies that the callee of local function calls is defined or imported, or is dynamic and thus
+/// not statically analyzable
 ///
 /// Additionally, checks if the callee is known to be deprecated and raises appropriate diagnostics.
 ///
-/// NOTE: We could extend this analysis to cover calls to other modules, since at the point this analysis is run, we have
-/// access to the entire set of modules that was provided to the compiler, however this does not account for cases in which
-/// we're only compiling a library and thus only a subset of the modules is known - we could make such analysis optional and
-/// only perform it when the full set of modules is known.
+/// NOTE: We could extend this analysis to cover calls to other modules, since at the point this
+/// analysis is run, we have access to the entire set of modules that was provided to the compiler,
+/// however this does not account for cases in which we're only compiling a library and thus only a
+/// subset of the modules is known - we could make such analysis optional and only perform it when
+/// the full set of modules is known.
 pub struct VerifyCalls<'app> {
     reporter: Reporter,
     app: &'app ApplicationMetadata,

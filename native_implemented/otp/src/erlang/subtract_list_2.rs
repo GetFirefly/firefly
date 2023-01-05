@@ -1,19 +1,25 @@
 #[cfg(all(not(target_arch = "wasm32"), test))]
 mod test;
 
+use std::ptr::NonNull;
+
 use anyhow::*;
 
-use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::prelude::*;
+use firefly_rt::error::ErlangException;
+use firefly_rt::process::Process;
+use firefly_rt::term::Term;
 
 /// `--/2`
 #[native_implemented::function(erlang:--/2)]
-pub fn result(process: &Process, minuend: Term, subtrahend: Term) -> exception::Result<Term> {
-    match minuend.decode().unwrap() {
-        TypedTerm::Nil => match subtrahend.decode()? {
-            TypedTerm::Nil => Ok(minuend),
-            TypedTerm::List(subtrahend_cons) => {
+pub fn result(
+    process: &Process,
+    minuend: Term,
+    subtrahend: Term,
+) -> Result<Term, NonNull<ErlangException>> {
+    match minuend {
+        Term::Nil => match subtrahend {
+            Term::Nil => Ok(minuend),
+            Term::Cons(subtrahend_cons) => {
                 if subtrahend_cons.is_proper() {
                     Ok(minuend)
                 } else {
@@ -22,8 +28,8 @@ pub fn result(process: &Process, minuend: Term, subtrahend: Term) -> exception::
             }
             _ => Err(TypeError).context(is_not_a_proper_list("subtrahend", subtrahend)),
         },
-        TypedTerm::List(minuend_cons) => match subtrahend.decode()? {
-            TypedTerm::Nil => {
+        Term::Cons(minuend_cons) => match subtrahend {
+            Term::Nil => {
                 if minuend_cons.is_proper() {
                     Ok(minuend)
                 } else {
@@ -32,7 +38,7 @@ pub fn result(process: &Process, minuend: Term, subtrahend: Term) -> exception::
                         .map_err(From::from)
                 }
             }
-            TypedTerm::List(subtrahend_cons) => {
+            Term::Cons(subtrahend_cons) => {
                 match minuend_cons
                     .into_iter()
                     .collect::<std::result::Result<Vec<Term>, _>>()
@@ -57,7 +63,7 @@ pub fn result(process: &Process, minuend: Term, subtrahend: Term) -> exception::
                             };
                         }
 
-                        Ok(process.list_from_slice(&minuend_vec))
+                        Ok(process.list_from_slice(&minuend_vec)).unwrap()
                     }
                     Err(ImproperList { .. }) => {
                         Err(ImproperListError).context(is_not_a_proper_list("minuend", minuend))
@@ -66,8 +72,8 @@ pub fn result(process: &Process, minuend: Term, subtrahend: Term) -> exception::
             }
             _ => Err(TypeError).context(is_not_a_proper_list("subtrahend", subtrahend)),
         },
-        _ => match subtrahend.decode().unwrap() {
-            TypedTerm::Nil | TypedTerm::List(_) => {
+        _ => match subtrahend {
+            Term::Nil | Term::Cons(_) => {
                 Err(TypeError).context(is_not_a_proper_list("minuend", minuend))
             }
             _ => Err(TypeError).context(format!(

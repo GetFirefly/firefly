@@ -1,3 +1,5 @@
+use firefly_rt::term::Term;
+
 use crate::erlang::monotonic_time_0;
 use crate::erlang::subtract_2;
 use crate::erlang::system_time_0;
@@ -19,7 +21,7 @@ fn approximately_system_time_minus_monotonic_time() {
             subtract_2::result(process, expected_time_offset, time_offset).unwrap();
 
         assert!(
-            time_offset_delta <= process.integer(TIME_OFFSET_DELTA_LIMIT),
+            time_offset_delta <= process.integer(TIME_OFFSET_DELTA_LIMIT).unwrap(),
             "time_offset_delta ({:?}) <= TIME_OFFSET_DELTA_LIMIT ({:?})",
             time_offset_delta,
             TIME_OFFSET_DELTA_LIMIT

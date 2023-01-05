@@ -1,4 +1,4 @@
-use liblumen_alloc::erts::term::prelude::*;
+use firefly_rt::term::Term;
 
 pub fn returned() -> Term {
     Atom::str_to_term("returned_from_fn")

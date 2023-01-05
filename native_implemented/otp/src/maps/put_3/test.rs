@@ -1,10 +1,7 @@
 mod with_map;
 
 use proptest::prop_assert_eq;
-use proptest::strategy::Strategy;
 use proptest::test_runner::{Config, TestRunner};
-
-use liblumen_alloc::atom;
 
 use crate::maps::put_3::result;
 use crate::test::strategy;

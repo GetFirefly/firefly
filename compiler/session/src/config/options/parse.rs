@@ -200,7 +200,7 @@ impl ParseOption for ColorArg {
     }
 }
 
-pub(in crate) fn invalid_value(info: &OptionInfo, description: &str) -> clap::Error {
+pub(crate) fn invalid_value(info: &OptionInfo, description: &str) -> clap::Error {
     clap::Error {
         kind: ErrorKind::InvalidValue,
         message: description.to_string(),
@@ -208,7 +208,7 @@ pub(in crate) fn invalid_value(info: &OptionInfo, description: &str) -> clap::Er
     }
 }
 
-pub(in crate) fn required_option_missing(info: &OptionInfo) -> clap::Error {
+pub(crate) fn required_option_missing(info: &OptionInfo) -> clap::Error {
     clap::Error {
         kind: ErrorKind::MissingRequiredArgument,
         message: format!("required argument was not provided"),

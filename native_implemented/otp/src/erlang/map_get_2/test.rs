@@ -1,5 +1,5 @@
 use proptest::prop_assert_eq;
-use proptest::strategy::{Just, Strategy};
+use proptest::strategy::Just;
 use proptest::test_runner::{Config, TestRunner};
 
 use crate::erlang::map_get_2::result;

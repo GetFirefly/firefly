@@ -8,8 +8,8 @@ use num_bigint::BigInt;
 use proptest::prop_oneof;
 use proptest::strategy::{BoxedStrategy, Strategy};
 
-use liblumen_alloc::erts::term::prelude::*;
-use liblumen_alloc::erts::Process;
+use firefly_rt::process::Process;
+use firefly_rt::term::{Atom, Term};
 
 use crate::test::strategy;
 
@@ -34,7 +34,7 @@ pub fn anonymous(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
 }
 
 pub fn arity(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
-    arity_u8().prop_map(move |u| arc_process.integer(u)).boxed()
+    arity_u8().prop_map(move |u| arc_process.integer(u).unwrap()).boxed()
 }
 
 pub fn arity_or_arguments(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
@@ -59,16 +59,16 @@ pub fn export(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
 
 pub fn is_not_arity_or_arguments(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     super::super::term(arc_process)
-        .prop_filter("Arity and argument must be neither an arity (>= 0) or arguments (an empty or non-empty proper list)", |term| match term.decode().unwrap() {
-            TypedTerm::Nil => false,
-            TypedTerm::List(cons) => !cons.is_proper(),
-            TypedTerm::BigInteger(big_integer) => {
+        .prop_filter("Arity and argument must be neither an arity (>= 0) or arguments (an empty or non-empty proper list)", |term| match term {
+            Term::Nil => false,
+            Term::Cons(cons) => !cons.is_proper(),
+            Term::BigInt(big_integer) => {
                 let big_int: &BigInt = big_integer.as_ref().into();
                 let zero_big_int: &BigInt = &0.into();
 
                 big_int < zero_big_int
             }
-            TypedTerm::SmallInteger(small_integer) => {
+            Term::Int(small_integer) => {
                 let i: isize = small_integer.into();
 
                 i < 0

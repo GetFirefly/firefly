@@ -257,11 +257,15 @@ impl EnumAttribute {
     /// The value is optional for most enum attributes, but a handful accept or require a value:
     ///
     /// * alignment (indicates that the pointer or vector of pointers has the specified alignment)
-    /// * allocsize (indicates the annotated function will always return at least the given number of bytes or null)
-    /// * dereferenceable (indicates that the parameter/return pointer is dereferenceable with the given number of bytes)
-    /// * dereferenceable_or_null (indicates the parameter/return pointer is either null or dereferenceable to N bytes)
+    /// * allocsize (indicates the annotated function will always return at least the given number
+    ///   of bytes or null)
+    /// * dereferenceable (indicates that the parameter/return pointer is dereferenceable with the
+    ///   given number of bytes)
+    /// * dereferenceable_or_null (indicates the parameter/return pointer is either null or
+    ///   dereferenceable to N bytes)
     /// * alignstack (specifies the desired alignment, power of two)
-    /// * uwtable (if value is given, specifies what kind of unwind tables to generate, 1 = sync/normal, 2 = async/instruction precise)
+    /// * uwtable (if value is given, specifies what kind of unwind tables to generate, 1 =
+    ///   sync/normal, 2 = async/instruction precise)
     /// * vscale_range (the minimum vscale value for the given function, must be greater than 0)
     pub fn new(context: Context, kind: AttributeKind, value: Option<u64>) -> Self {
         extern "C" {
@@ -306,7 +310,8 @@ impl EnumAttribute {
     }
 }
 
-/// Represents an known attribute defined in LLVM's attribute kind enumeration that has a type parameter
+/// Represents an known attribute defined in LLVM's attribute kind enumeration that has a type
+/// parameter
 #[repr(transparent)]
 #[derive(Copy, Clone)]
 pub struct TypeAttribute(AttributeBase);

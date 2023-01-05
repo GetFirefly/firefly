@@ -13,7 +13,7 @@ fn without_pid_pid_returns_badarg() {
             )
         },
         |(arc_process, group_leader_arc_process, pid)| {
-            let group_leader = group_leader_arc_process.pid_term();
+            let group_leader = group_leader_arc_process.pid_term().unwrap();
 
             prop_assert_is_not_local_pid!(result(&arc_process, group_leader, pid), pid);
 

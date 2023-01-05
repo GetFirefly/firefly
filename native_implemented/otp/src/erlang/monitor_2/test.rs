@@ -1,14 +1,13 @@
 mod with_process_type;
 
-use std::convert::TryInto;
 use std::sync::Arc;
 
 use proptest::prop_oneof;
 use proptest::strategy::{BoxedStrategy, Just, Strategy};
 use proptest::test_runner::{Config, TestRunner};
 
-use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::prelude::*;
+use firefly_rt::process::Process;
+use firefly_rt::term::{Atom, Term};
 
 use crate::runtime::{registry, scheduler};
 
@@ -39,8 +38,8 @@ fn without_supported_type_errors_badarg() {
 fn unsupported_type(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     strategy::term(arc_process)
         .prop_filter("Type cannot be :process", |r#type| {
-            match r#type.decode().unwrap() {
-                TypedTerm::Atom(atom) => match atom.name() {
+            match r#type {
+                Term::Atom(atom) => match atom.as_str() {
                     "process" | "port" | "time_offset" => false,
                     _ => true,
                 },

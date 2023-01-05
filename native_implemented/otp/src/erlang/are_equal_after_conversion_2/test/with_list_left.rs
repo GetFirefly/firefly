@@ -1,7 +1,6 @@
 use super::*;
 
 use proptest::collection::SizeRange;
-use proptest::strategy::Strategy;
 
 use crate::test::strategy::NON_EMPTY_RANGE_INCLUSIVE;
 
@@ -47,14 +46,14 @@ fn with_same_value_list_right_returns_true() {
 
                     match vec.len() {
                         1 => (
-                            heap.list_from_slice(&vec)
+                            Term::list_from_slice_in(&vec, heap).unwrap()
                                 .unwrap()
                                 .map(|l| l.into())
-                                .unwrap_or(Term::NIL),
-                            heap.list_from_slice(&vec)
+                                .unwrap_or(Term::Nil),
+                            Term::list_from_slice_in(&vec, heap).unwrap()
                                 .unwrap()
                                 .map(|l| l.into())
-                                .unwrap_or(Term::NIL),
+                                .unwrap_or(Term::Nil),
                         ),
                         len => {
                             let last_index = len - 1;
@@ -63,11 +62,11 @@ fn with_same_value_list_right_returns_true() {
                                 heap.improper_list_from_slice(&vec[0..last_index], vec[last_index])
                                     .unwrap()
                                     .map(|l| l.into())
-                                    .unwrap_or(Term::NIL),
+                                    .unwrap_or(Term::Nil),
                                 heap.improper_list_from_slice(&vec[0..last_index], vec[last_index])
                                     .unwrap()
                                     .map(|l| l.into())
-                                    .unwrap_or(Term::NIL),
+                                    .unwrap_or(Term::Nil),
                             )
                         }
                     }

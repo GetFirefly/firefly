@@ -8,7 +8,7 @@
 
 mod label_1;
 
-use liblumen_alloc::erts::process::Process;
+use liblumen_rt::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
 use liblumen_otp::erlang;

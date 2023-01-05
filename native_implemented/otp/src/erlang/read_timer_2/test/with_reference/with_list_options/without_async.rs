@@ -5,7 +5,7 @@ mod with_timer;
 #[test]
 fn without_timer_returns_false() {
     with_process(|process| {
-        let timer_reference = process.next_reference();
+        let timer_reference = process.next_local_reference_term();
 
         assert_eq!(
             result(process, timer_reference, options(process)),
@@ -15,5 +15,5 @@ fn without_timer_returns_false() {
 }
 
 fn options(_process: &Process) -> Term {
-    Term::NIL
+    Term::Nil
 }

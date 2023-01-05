@@ -103,8 +103,9 @@ impl FileName {
 
     /// Tries to return this filename as a `&str`, avoiding any allocations
     ///
-    /// This will only return None if the filename is a path which requires lossy conversion to unicode.
-    /// See `to_string` if you want an infallible conversion to a Rust string, albeit at the cost of an allocation
+    /// This will only return None if the filename is a path which requires lossy conversion to
+    /// unicode. See `to_string` if you want an infallible conversion to a Rust string, albeit
+    /// at the cost of an allocation
     pub fn as_str(&self) -> Option<&str> {
         match self {
             FileName::Real(ref path) => path.to_str(),

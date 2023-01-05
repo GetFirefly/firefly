@@ -1,6 +1,8 @@
 use proptest::prop_assert_eq;
 use proptest::strategy::Just;
 
+use firefly_rt::term::Term;
+
 use crate::erlang::tuple_to_list_1::result;
 use crate::test::strategy;
 
@@ -31,8 +33,8 @@ fn with_tuple_returns_list() {
             )
         },
         |(arc_process, element_vec)| {
-            let tuple = arc_process.tuple_from_slice(&element_vec);
-            let list = arc_process.list_from_slice(&element_vec);
+            let tuple = arc_process.tuple_term_from_term_slice(&element_vec);
+            let list = arc_process.list_from_slice(&element_vec).unwrap();
 
             prop_assert_eq!(result(&arc_process, tuple), Ok(list));
 

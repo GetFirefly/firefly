@@ -39,7 +39,7 @@ fn with_empty_list_returns_binary_containing_subbinary_bytes() {
                     (
                         arc_process.clone(),
                         element,
-                        arc_process.cons(element, Term::NIL),
+                        arc_process.cons(element, Term::Nil),
                     )
                 })
         },
@@ -82,9 +82,9 @@ fn with_byte_errors_badarg() {
 fn with_list_without_byte_tail_returns_binary() {
     with(|head, process| {
         let tail_head_byte = 254;
-        let tail_head = process.integer(tail_head_byte);
+        let tail_head = process.integer(tail_head_byte).unwrap();
 
-        let tail_tail = Term::NIL;
+        let tail_tail = Term::Nil;
 
         let tail = process.cons(tail_head, tail_tail);
 

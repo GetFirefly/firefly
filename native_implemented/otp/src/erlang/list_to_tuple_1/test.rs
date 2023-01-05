@@ -3,7 +3,7 @@ use proptest::prop_assert_eq;
 use proptest::strategy::{Just, Strategy};
 use proptest::test_runner::{Config, TestRunner};
 
-use liblumen_alloc::erts::term::prelude::*;
+use firefly_rt::term::{Atom, Term};
 
 use crate::erlang::list_to_tuple_1::result;
 use crate::test::strategy;
@@ -28,9 +28,9 @@ fn without_list_errors_badarg() {
 #[test]
 fn with_empty_list_returns_empty_tuple() {
     with_process(|process| {
-        let list = Term::NIL;
+        let list = Term::Nil;
 
-        assert_eq!(result(process, list), Ok(process.tuple_from_slice(&[])));
+        assert_eq!(result(process, list), Ok(process.tuple_term_from_term_slice(&[])));
     });
 }
 
@@ -43,8 +43,8 @@ fn with_non_empty_proper_list_returns_tuple() {
             .run(
                 &proptest::collection::vec(strategy::term(arc_process.clone()), size_range)
                     .prop_map(|vec| {
-                        let list = arc_process.list_from_slice(&vec);
-                        let tuple = arc_process.tuple_from_slice(&vec);
+                        let list = arc_process.list_from_slice(&vec).unwrap();
+                        let tuple = arc_process.tuple_term_from_term_slice(&vec);
 
                         (list, tuple)
                     }),
@@ -87,17 +87,17 @@ fn with_nested_list_returns_tuple_with_list_element() {
         let (second_element, list) = {
             let second_element = process.cons(
                 Atom::str_to_term("Ericsson_B"),
-                process.cons(process.integer(163), Term::NIL),
+                process.cons(process.integer(163).unwrap(), Term::Nil),
             );
 
-            let list = process.cons(first_element, process.cons(second_element, Term::NIL));
+            let list = process.cons(first_element, process.cons(second_element, Term::Nil));
 
             (second_element, list)
         };
 
         assert_eq!(
             result(process, list),
-            Ok(process.tuple_from_slice(&[first_element, second_element],))
+            Ok(process.tuple_term_from_term_slice(&[first_element, second_element],))
         );
     });
 }

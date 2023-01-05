@@ -6,7 +6,7 @@ use anyhow::*;
 
 use liblumen_alloc::erts::exception::{self, badmap, Exception};
 use liblumen_alloc::erts::process::trace::Trace;
-use liblumen_alloc::erts::process::Process;
+use liblumen_rt::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
 use crate::time;

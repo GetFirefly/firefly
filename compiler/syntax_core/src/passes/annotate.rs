@@ -1024,7 +1024,6 @@ impl AnnotateVariableUsage {
     /// compilation in Core Erlang, there is a need to rename all
     /// shadowing variables to avoid changing the semantics of the Erlang
     /// program.
-    ///
     fn rename_shadowing_clauses(
         &mut self,
         mut clauses: Vec<IClause>,

@@ -6,8 +6,9 @@ pub mod is_big_integer_1;
 pub mod is_small_integer_1;
 pub mod log_exit_1;
 
-use liblumen_alloc::erts::term::prelude::*;
+use firefly_rt::*;
+use firefly_rt::term::Atom;
 
 pub fn module() -> Atom {
-    Atom::from_str("lumen")
+    Atom::from_str("lumen").unwrap()
 }

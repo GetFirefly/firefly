@@ -69,9 +69,9 @@ where
     ///
     /// In our case, we have opaque pointers on process heaps that are always allocated via Rc,
     /// and we need to be able to cast them back to their original types efficiently. To do so, we
-    /// use a combination of this function, a jump table of type ids, and subsequent unchecked casts.
-    /// This allows for efficient pointer casts while ensuring we don't improperly cast a pointer to
-    /// the wrong type.
+    /// use a combination of this function, a jump table of type ids, and subsequent unchecked
+    /// casts. This allows for efficient pointer casts while ensuring we don't improperly cast a
+    /// pointer to the wrong type.
     #[inline]
     pub unsafe fn type_id(raw: *mut ()) -> TypeId {
         Rc::<T>::type_id(raw)
@@ -337,9 +337,9 @@ where
     ///
     /// In our case, we have opaque pointers on process heaps that are always allocated via Rc,
     /// and we need to be able to cast them back to their original types efficiently. To do so, we
-    /// use a combination of this function, a jump table of type ids, and subsequent unchecked casts.
-    /// This allows for efficient pointer casts while ensuring we don't improperly cast a pointer to
-    /// the wrong type.
+    /// use a combination of this function, a jump table of type ids, and subsequent unchecked
+    /// casts. This allows for efficient pointer casts while ensuring we don't improperly cast a
+    /// pointer to the wrong type.
     pub unsafe fn type_id(raw: *mut ()) -> TypeId {
         debug_assert!(!raw.is_null());
         let header = &*header(raw);
@@ -444,10 +444,11 @@ where
     /// Makes a mutable reference into the given `Rc`.
     ///
     /// If there are other `Rc` pointers to the same allocation, then this function will
-    /// clone the underlying data to a new allocation to ensure unique ownership, i.e. clone-on-write.
+    /// clone the underlying data to a new allocation to ensure unique ownership, i.e.
+    /// clone-on-write.
     ///
-    /// See `get_mut` for a non-cloning version of this, with the tradeoff that it can only be used on
-    /// unique references.
+    /// See `get_mut` for a non-cloning version of this, with the tradeoff that it can only be used
+    /// on unique references.
     pub fn make_mut(this: &mut Self) -> &mut T {
         if this.is_unique() {
             unsafe { Self::get_mut_unchecked(this) }

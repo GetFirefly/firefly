@@ -141,7 +141,8 @@ impl Module {
         }
     }
 
-    /// Called by the parser for Erlang Abstract Format, which relies on us detecting the module name in the given forms
+    /// Called by the parser for Erlang Abstract Format, which relies on us detecting the module
+    /// name in the given forms
     pub fn new_from_pp(
         reporter: &Reporter,
         codemap: Arc<CodeMap>,
@@ -158,7 +159,6 @@ impl Module {
     /// parsed, in other words this is the last function called when parsing a module.
     ///
     /// As a result, this function performs initial semantic analysis of the module.
-    ///
     pub fn new_with_forms(
         reporter: &Reporter,
         _codemap: Arc<CodeMap>,

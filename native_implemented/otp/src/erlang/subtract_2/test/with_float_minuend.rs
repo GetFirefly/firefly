@@ -6,7 +6,7 @@ fn with_float_minuend_with_integer_subtrahend_returns_float() {
         |arc_process| {
             (
                 Just(arc_process.clone()),
-                strategy::term::float(arc_process.clone()),
+                strategy::term::float(),
                 strategy::term::is_integer(arc_process.clone()),
             )
         },
@@ -17,7 +17,7 @@ fn with_float_minuend_with_integer_subtrahend_returns_float() {
 
             let difference = result.unwrap();
 
-            prop_assert!(difference.is_boxed_float());
+            prop_assert!(difference.is_float());
 
             Ok(())
         },
@@ -41,7 +41,7 @@ fn with_float_minuend_with_float_subtrahend_returns_float() {
 
             let difference = result.unwrap();
 
-            prop_assert!(difference.is_boxed_float());
+            prop_assert!(difference.is_float());
 
             Ok(())
         },
@@ -51,11 +51,11 @@ fn with_float_minuend_with_float_subtrahend_returns_float() {
 #[test]
 fn with_float_subtrahend_with_underflow_returns_min_float() {
     with(|minuend, process| {
-        let subtrahend = process.float(std::f64::MAX);
+        let subtrahend = f64::MAX.into();
 
         assert_eq!(
             result(&process, minuend, subtrahend),
-            Ok(process.float(std::f64::MIN))
+            Ok(f64::MIN.into())
         );
     })
 }
@@ -63,11 +63,11 @@ fn with_float_subtrahend_with_underflow_returns_min_float() {
 #[test]
 fn with_float_subtrahend_with_overflow_returns_max_float() {
     with(|minuend, process| {
-        let subtrahend = process.float(std::f64::MIN);
+        let subtrahend = f64::MIN.into();
 
         assert_eq!(
             result(&process, minuend, subtrahend),
-            Ok(process.float(std::f64::MAX))
+            Ok(f64::MAX.into())
         );
     })
 }
@@ -77,7 +77,7 @@ where
     F: FnOnce(Term, &Process) -> (),
 {
     with_process(|process| {
-        let minuend = process.float(2.0);
+        let minuend = 2.0.into();
 
         f(minuend, &process)
     })

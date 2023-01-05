@@ -1,7 +1,7 @@
 use proptest::prop_assert_eq;
-use proptest::strategy::{Just, Strategy};
+use proptest::strategy::Just;
 
-use liblumen_alloc::erts::term::prelude::*;
+use firefly_rt::term::Term;
 
 use crate::erlang::size_1::result;
 use crate::test::strategy;
@@ -14,7 +14,7 @@ fn without_tuple_or_bitstring_errors_badarg() {
                 Just(arc_process.clone()),
                 strategy::term(arc_process.clone())
                     .prop_filter("Term must not be a tuple or bitstring", |term| {
-                        !(term.is_boxed_tuple() || term.is_bitstring())
+                        !(term.is_tuple() || term.is_bitstring())
                     }),
             )
         },
@@ -49,7 +49,7 @@ fn with_tuple_returns_arity() {
             })
         },
         |(arc_process, size, term)| {
-            prop_assert_eq!(result(&arc_process, term), Ok(arc_process.integer(size)));
+            prop_assert_eq!(result(&arc_process, term), Ok(arc_process.integer(size).unwrap()));
 
             Ok(())
         },
@@ -66,15 +66,15 @@ fn with_bitstring_is_byte_len() {
             )
         },
         |(arc_process, term)| {
-            let full_byte_len = match term.decode().unwrap() {
-                TypedTerm::HeapBinary(heap_binary) => heap_binary.full_byte_len(),
-                TypedTerm::SubBinary(subbinary) => subbinary.full_byte_len(),
+            let full_byte_len = match term {
+                Term::HeapBinary(heap_binary) => heap_binary.full_byte_len(),
+                Term::RefBinary(subbinary) => subbinary.full_byte_len(),
                 _ => unreachable!(),
             };
 
             prop_assert_eq!(
                 result(&arc_process, term),
-                Ok(arc_process.integer(full_byte_len))
+                Ok(arc_process.integer(full_byte_len).unwrap())
             );
 
             Ok(())

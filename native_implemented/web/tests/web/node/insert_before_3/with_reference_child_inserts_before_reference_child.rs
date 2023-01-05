@@ -21,7 +21,7 @@ pub mod label_5;
 #[path = "with_reference_child_inserts_before_reference_child/label_6.rs"]
 pub mod label_6;
 
-use liblumen_alloc::erts::process::Process;
+use liblumen_rt::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
 use liblumen_web::document;

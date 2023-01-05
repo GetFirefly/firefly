@@ -20,7 +20,7 @@ fn with_number_atom_reference_function_port_or_pid_returns_false() {
 #[test]
 fn with_smaller_tuple_right_returns_false() {
     is_equal_or_less_than(
-        |_, process| process.tuple_from_slice(&[process.integer(1)]),
+        |_, process| process.tuple_term_from_term_slice(&[process.integer(1).unwrap()]),
         false,
     );
 }
@@ -28,7 +28,7 @@ fn with_smaller_tuple_right_returns_false() {
 #[test]
 fn with_same_size_tuple_with_lesser_elements_returns_false() {
     is_equal_or_less_than(
-        |_, process| process.tuple_from_slice(&[process.integer(1), process.integer(1)]),
+        |_, process| process.tuple_term_from_term_slice(&[process.integer(1).unwrap(), process.integer(1).unwrap()]),
         false,
     );
 }
@@ -36,7 +36,7 @@ fn with_same_size_tuple_with_lesser_elements_returns_false() {
 #[test]
 fn with_same_value_tuple_returns_true() {
     is_equal_or_less_than(
-        |_, process| process.tuple_from_slice(&[process.integer(1), process.integer(2)]),
+        |_, process| process.tuple_term_from_term_slice(&[process.integer(1).unwrap(), process.integer(2).unwrap()]),
         true,
     );
 }
@@ -44,7 +44,7 @@ fn with_same_value_tuple_returns_true() {
 #[test]
 fn with_same_size_tuple_with_greater_elements_returns_true() {
     is_equal_or_less_than(
-        |_, process| process.tuple_from_slice(&[process.integer(1), process.integer(3)]),
+        |_, process| process.tuple_term_from_term_slice(&[process.integer(1).unwrap(), process.integer(3).unwrap()]),
         true,
     );
 }
@@ -53,7 +53,7 @@ fn with_same_size_tuple_with_greater_elements_returns_true() {
 fn with_greater_size_tuple_returns_true() {
     is_equal_or_less_than(
         |_, process| {
-            process.tuple_from_slice(&[process.integer(1), process.integer(2), process.integer(3)])
+            process.tuple_term_from_term_slice(&[process.integer(1).unwrap(), process.integer(2).unwrap(), process.integer(3).unwrap()])
         },
         true,
     );
@@ -81,7 +81,7 @@ where
     R: FnOnce(Term, &Process) -> Term,
 {
     super::is_equal_or_less_than(
-        |process| process.tuple_from_slice(&[process.integer(1), process.integer(2)]),
+        |process| process.tuple_term_from_term_slice(&[process.integer(1).unwrap(), process.integer(2).unwrap()]),
         right,
         expected,
     );

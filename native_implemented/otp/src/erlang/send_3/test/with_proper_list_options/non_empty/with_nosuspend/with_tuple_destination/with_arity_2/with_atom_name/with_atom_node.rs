@@ -8,12 +8,12 @@ fn with_different_node_returns_nosuspend() {
             let name = registered_name();
 
             prop_assert_eq!(
-                erlang::register_2::result(arc_process.clone(), name, arc_process.pid_term()),
+                erlang::register_2::result(arc_process.clone(), name, arc_process.pid_term().unwrap()),
                 Ok(true.into())
             );
 
             let destination =
-                arc_process.tuple_from_slice(&[name, Atom::str_to_term("node@example.com")]);
+                arc_process.tuple_term_from_term_slice(&[name, Atom::str_to_term("node@example.com")]);
             let options = options(&arc_process);
 
             prop_assert_eq!(

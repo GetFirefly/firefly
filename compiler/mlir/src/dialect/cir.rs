@@ -12,7 +12,8 @@ use crate::support::StringRef;
 
 /// Primary builder for the CIR dialect
 ///
-/// Wraps mlir::OpBuilder and provides functionality for constructing dialect operations, types, and attributes
+/// Wraps mlir::OpBuilder and provides functionality for constructing dialect operations, types, and
+/// attributes
 #[derive(Copy, Clone)]
 pub struct CirBuilder<'a, B: OpBuilder> {
     builder: &'a B,
@@ -2630,7 +2631,8 @@ impl<'a> SwitchBuilder<'a> {
 
     /// Extends the switch with a default case
     ///
-    /// NOTE: A default case is required, and must be provided prior to `build`, or creation will fail
+    /// NOTE: A default case is required, and must be provided prior to `build`, or creation will
+    /// fail
     pub fn with_default(&mut self, dest: Block, operands: &[ValueBase]) -> &mut Self {
         if self.default.is_null() {
             self.default = dest;
@@ -2719,7 +2721,7 @@ impl Operation for IfOp {
 impl<'a, B: OpBuilder> CirBuilder<'a, B> {
     #[inline]
     pub fn build_if<V: Value>(&self, loc: Location, cond: V, results: &[TypeBase]) -> IfOp {
-        self.build_if_else(loc, cond, results, /*with_else=*/ false)
+        self.build_if_else(loc, cond, results, /* with_else= */ false)
     }
 
     #[inline]
@@ -2801,10 +2803,10 @@ impl<'a, B: OpBuilder> CirBuilder<'a, B> {
 
 /// This op is used to support multiple blocks in a region nested within IfOp/ForOp
 ///
-/// Both of the ops mentioned only permit a single block in their regions, but since more complex control flow
-/// is commonly needed in the body of an if/for expression, it is necessary to use this op which can contain
-/// arbitrarily many blocks in its one region. It accepts no operands, but operations within are able to access
-/// all SSA values that dominate it directly.
+/// Both of the ops mentioned only permit a single block in their regions, but since more complex
+/// control flow is commonly needed in the body of an if/for expression, it is necessary to use this
+/// op which can contain arbitrarily many blocks in its one region. It accepts no operands, but
+/// operations within are able to access all SSA values that dominate it directly.
 #[repr(transparent)]
 #[derive(Copy, Clone)]
 pub struct ExecuteRegionOp(OperationBase);

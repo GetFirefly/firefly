@@ -63,7 +63,8 @@ fn main() {
         .arg(&libstd_rlib)
         .stdout(Stdio::piped());
     let symbols = output(nm_cmd);
-    // Find the first line containing the mangled symbol for std::rt::lang_start_internal, and postprocess it
+    // Find the first line containing the mangled symbol for std::rt::lang_start_internal, and
+    // postprocess it
     let lang_start_symbol = symbols
         .lines()
         .map(|line| line.trim())

@@ -260,7 +260,8 @@ impl<'m> ExpandRecordsVisitor<'m> {
                     Ident::with_empty_span(symbols::Underscore).into(),
                 ));
             } else {
-                // This is a constructor, so use the default expression, then the default initializer, or the atom 'undefined' if neither are present
+                // This is a constructor, so use the default expression, then the default
+                // initializer, or the atom 'undefined' if neither are present
                 match record.default.as_ref() {
                     Some(box default_expr) => elements.push(default_expr.clone()),
                     None => match defined.value.as_ref() {
@@ -411,7 +412,8 @@ impl<'m> ExpandRecordsVisitor<'m> {
         // Generate vars for use in the pattern match phase
         let bound_var = self.next_var(Some(span));
         let catch_all_var = self.next_var(Some(span));
-        // Expand the updates to a sequence of nested setelement calls such that they evaluate in the correct order
+        // Expand the updates to a sequence of nested setelement calls such that they evaluate in
+        // the correct order
         let expanded_updates = record_update
             .updates
             .iter()
@@ -446,7 +448,8 @@ impl<'m> ExpandRecordsVisitor<'m> {
                     }))
                 },
             )?;
-        // Generate an empty pattern, i.e. all wildcards, that validates the input is a tuple of the appropriate type/shape
+        // Generate an empty pattern, i.e. all wildcards, that validates the input is a tuple of the
+        // appropriate type/shape
         let tuple_pattern = self.expand_record(&Record {
             span,
             name,

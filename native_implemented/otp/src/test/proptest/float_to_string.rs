@@ -4,19 +4,19 @@ use proptest::strategy::BoxedStrategy;
 
 pub fn without_valid_option_errors_badarg(
     source_file: &'static str,
-    result: fn(&Process, Term, Term) -> exception::Result<Term>,
+    result: fn(&Process, Term, Term) -> Result<Term, NonNull<ErlangException>>,
 ) {
     run(
         source_file,
         |arc_process| {
             (
                 Just(arc_process.clone()),
-                super::strategy::term::float(arc_process.clone()),
+                super::strategy::term::float(),
                 (
                     Just(arc_process.clone()),
                     is_not_option(arc_process.clone()),
                 )
-                    .prop_map(|(arc_process, option)| arc_process.list_from_slice(&[option])),
+                    .prop_map(|(arc_process, option)| arc_process.list_from_slice(&[option])).unwrap(),
             )
         },
         |(arc_process, float, options)| {
@@ -37,22 +37,22 @@ fn is_not_option(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
 }
 
 fn is_option(term: &Term) -> bool {
-    match term.decode().unwrap() {
-        TypedTerm::Atom(atom) => atom.name() == "compact",
-        TypedTerm::Tuple(tuple) => {
+    match term {
+        Term::Atom(atom) => atom.as_str() == "compact",
+        Term::Tuple(tuple) => {
             (tuple.len() == 2) && {
-                match tuple[0].decode().unwrap() {
-                    TypedTerm::Atom(tag_atom) => match tag_atom.name() {
-                        "decimals" => match tuple[1].decode().unwrap() {
-                            TypedTerm::SmallInteger(small_integer) => {
+                match tuple[0] {
+                    Term::Atom(tag_atom) => match tag_atom.as_str() {
+                        "decimals" => match tuple[1] {
+                            Term::Int(small_integer) => {
                                 let i: isize = small_integer.into();
 
                                 0 <= i && i <= 253
                             }
                             _ => false,
                         },
-                        "scientific" => match tuple[1].decode().unwrap() {
-                            TypedTerm::SmallInteger(small_integer) => {
+                        "scientific" => match tuple[1] {
+                            Term::Int(small_integer) => {
                                 let i: isize = small_integer.into();
 
                                 0 <= i && i <= 249

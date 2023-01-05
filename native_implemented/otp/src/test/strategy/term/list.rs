@@ -6,8 +6,8 @@ use proptest::collection::SizeRange;
 use proptest::prop_oneof;
 use proptest::strategy::{BoxedStrategy, Just, Strategy};
 
-use liblumen_alloc::erts::term::prelude::Term;
-use liblumen_alloc::erts::Process;
+use firefly_rt::process::Process;
+use firefly_rt::term::Term;
 
 use crate::test::strategy::{self, NON_EMPTY_RANGE_INCLUSIVE};
 
@@ -30,8 +30,8 @@ pub fn intermediate(
 ) -> BoxedStrategy<Term> {
     proptest::collection::vec(element, size_range)
         .prop_map(move |vec| match vec.len() {
-            0 => Term::NIL,
-            1 => arc_process.list_from_slice(&vec),
+            0 => Term::Nil,
+            1 => arc_process.list_from_slice(&vec).unwrap(),
             len => {
                 let last_index = len - 1;
 
@@ -46,7 +46,7 @@ pub fn non_empty_maybe_improper(arc_process: Arc<Process>) -> BoxedStrategy<Term
 
     proptest::collection::vec(strategy::term(arc_process.clone()), size_range)
         .prop_map(move |vec| match vec.len() {
-            1 => arc_process.list_from_slice(&vec),
+            1 => arc_process.list_from_slice(&vec).unwrap(),
             len => {
                 let last_index = len - 1;
 
@@ -63,10 +63,10 @@ pub fn non_empty_proper(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
         Just(arc_process.clone()),
         proptest::collection::vec(strategy::term(arc_process), size_range),
     )
-        .prop_map(|(arc_process, vec)| arc_process.list_from_slice(&vec))
+        .prop_map(|(arc_process, vec)| arc_process.list_from_slice(&vec)).unwrap()
         .boxed()
 }
 
 pub fn proper(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
-    prop_oneof![Just(Term::NIL), non_empty_proper(arc_process)].boxed()
+    prop_oneof![Just(Term::Nil), non_empty_proper(arc_process)].boxed()
 }

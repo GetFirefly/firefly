@@ -30,7 +30,7 @@ fn with_same_process_adds_process_message_to_mailbox_and_returns_message() {
             )
         },
         |(arc_process, message)| {
-            let destination = arc_process.pid_term();
+            let destination = arc_process.pid_term().unwrap();
 
             prop_assert_eq!(result(&arc_process, destination, message), Ok(message));
 

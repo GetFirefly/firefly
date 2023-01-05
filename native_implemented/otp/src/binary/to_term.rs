@@ -1,8 +1,8 @@
-use std::convert::{TryFrom, TryInto};
+use std::convert::TryFrom;
 
 use anyhow::*;
-
-use liblumen_alloc::erts::term::prelude::*;
+use firefly_rt::term::{Atom, Term};
+use crate::proplist::TryPropListFromTermError;
 
 use crate::runtime::proplist::TryPropListFromTermError;
 
@@ -17,7 +17,7 @@ impl Options {
     fn put_option_term(&mut self, option: Term) -> anyhow::Result<&Options> {
         let atom: Atom = option.try_into().context(SUPPORTED_OPTIONS_CONTEXT)?;
 
-        match atom.name() {
+        match atom.as_str() {
             "safe" => {
                 self.existing = true;
 
@@ -43,11 +43,12 @@ impl TryFrom<Term> for Options {
         let mut options_term = term;
 
         loop {
-            match options_term.decode().unwrap() {
-                TypedTerm::Nil => return Ok(options),
-                TypedTerm::List(cons) => {
-                    options.put_option_term(cons.head)?;
-                    options_term = cons.tail;
+            match options_term {
+                Term::Nil => return Ok(options),
+                Term::Cons(non_null_cons) => {
+                    let cons = unsafe { non_null_cons.as_ref() };
+                    options.put_option_term(cons.head())?;
+                    options_term = cons.tail();
 
                     continue;
                 }

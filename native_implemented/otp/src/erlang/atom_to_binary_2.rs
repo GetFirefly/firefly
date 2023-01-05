@@ -1,15 +1,19 @@
 use std::convert::TryInto;
+use std::ptr::NonNull;
 
-use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::string::Encoding;
-use liblumen_alloc::erts::term::prelude::*;
+use firefly_rt::error::ErlangException;
+use firefly_rt::process::Process;
+use firefly_rt::term::Term;
 
 #[native_implemented::function(erlang:atom_to_binary/2)]
-pub fn result(process: &Process, atom: Term, encoding: Term) -> exception::Result<Term> {
+pub fn result(
+    process: &Process,
+    atom: Term,
+    encoding: Term,
+) -> Result<Term, NonNull<ErlangException>> {
     let atom_atom = term_try_into_atom!(atom)?;
     let _: Encoding = encoding.try_into()?;
-    let binary = process.binary_from_str(atom_atom.name());
+    let binary = process.binary_from_str(atom_atom.as_str());
 
     Ok(binary)
 }

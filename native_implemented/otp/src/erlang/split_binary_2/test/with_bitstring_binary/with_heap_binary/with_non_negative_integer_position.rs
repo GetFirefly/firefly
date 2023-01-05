@@ -1,7 +1,5 @@
 use super::*;
 
-use proptest::strategy::Strategy;
-
 #[test]
 fn with_less_than_byte_len_returns_binary_prefix_and_suffix_binary() {
     run!(
@@ -18,7 +16,7 @@ fn with_less_than_byte_len_returns_binary_prefix_and_suffix_binary() {
         },
         |(arc_process, byte_vec, index)| {
             let binary = arc_process.binary_from_bytes(&byte_vec);
-            let position = arc_process.integer(index);
+            let position = arc_process.integer(index).unwrap();
 
             let prefix_bytes = &byte_vec[0..index];
             let prefix = arc_process.binary_from_bytes(prefix_bytes);
@@ -28,7 +26,7 @@ fn with_less_than_byte_len_returns_binary_prefix_and_suffix_binary() {
 
             prop_assert_eq!(
                 result(&arc_process, binary, position),
-                Ok(arc_process.tuple_from_slice(&[prefix, suffix]))
+                Ok(arc_process.tuple_term_from_term_slice(&[prefix, suffix]))
             );
 
             Ok(())
@@ -42,11 +40,11 @@ fn with_byte_len_returns_subbinary_and_empty_suffix() {
         |arc_process| (Just(arc_process.clone()), strategy::byte_vec()),
         |(arc_process, byte_vec)| {
             let binary = arc_process.binary_from_bytes(&byte_vec);
-            let position = arc_process.integer(byte_vec.len());
+            let position = arc_process.integer(byte_vec.len().unwrap());
 
             prop_assert_eq!(
                 result(&arc_process, binary, position),
-                Ok(arc_process.tuple_from_slice(&[binary, arc_process.binary_from_bytes(&[])],))
+                Ok(arc_process.tuple_term_from_term_slice(&[binary, arc_process.binary_from_bytes(&[])],))
             );
 
             Ok(())
@@ -69,7 +67,7 @@ fn with_greater_than_byte_len_errors_badarg() {
         },
         |(arc_process, byte_vec, index)| {
             let binary = arc_process.binary_from_bytes(&byte_vec);
-            let position = arc_process.integer(index);
+            let position = arc_process.integer(index).unwrap();
 
             prop_assert_badarg!(
                 result(&arc_process, binary, position),

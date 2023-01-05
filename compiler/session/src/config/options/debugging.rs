@@ -115,7 +115,7 @@ pub struct DebuggingOptions {
      *
      *     split  = sections which do not require reloation are split out and ignored (default)
      *     single = sections which do not require relocation are ignored
-     **/
+     */
     #[option(
         takes_value(true),
         value_name("KIND"),

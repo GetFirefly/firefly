@@ -1,16 +1,23 @@
 use std::convert::TryInto;
+use std::ptr::NonNull;
 
 use anyhow::*;
 
-use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::prelude::*;
+use firefly_number::TryIntoIntegerError;
+
+use firefly_rt::error::ErlangException;
+use firefly_rt::process::Process;
+use firefly_rt::term::{OneBasedIndex, Term};
 
 use crate::runtime::context::*;
 
 /// `delete_element/2`
 #[native_implemented::function(erlang:delete_element/2)]
-pub fn result(process: &Process, index: Term, tuple: Term) -> exception::Result<Term> {
+pub fn result(
+    process: &Process,
+    index: Term,
+    tuple: Term,
+) -> Result<Term, NonNull<ErlangException>> {
     let initial_inner_tuple = term_try_into_tuple!(tuple)?;
     let initial_len = initial_inner_tuple.len();
 
@@ -23,7 +30,7 @@ pub fn result(process: &Process, index: Term, tuple: Term) -> exception::Result<
         if index_zero_based < initial_len {
             let mut new_elements_vec = initial_inner_tuple[..].to_vec();
             new_elements_vec.remove(index_zero_based);
-            let smaller_tuple = process.tuple_from_slice(&new_elements_vec);
+            let smaller_tuple = process.tuple_term_from_term_slice(&new_elements_vec).unwrap();
 
             Ok(smaller_tuple)
         } else {

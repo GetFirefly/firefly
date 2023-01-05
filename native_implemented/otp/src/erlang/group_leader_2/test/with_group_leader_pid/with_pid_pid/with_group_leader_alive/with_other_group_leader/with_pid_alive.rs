@@ -9,7 +9,7 @@ fn with_self_pid_sets_group_leader() {
             (
                 Just(arc_process.clone()),
                 strategy::process(),
-                Just(arc_process.pid_term()),
+                Just(arc_process.pid_term().unwrap()),
             )
         },
         |(arc_process, group_leader_arc_pid, pid)| {

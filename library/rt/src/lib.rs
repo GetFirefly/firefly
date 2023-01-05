@@ -58,3 +58,4 @@ pub mod function;
 pub mod intrinsics;
 pub mod process;
 pub mod term;
+pub mod time;

@@ -32,7 +32,7 @@ use web_sys::{DomException, Window};
 use liblumen_core::entry;
 
 use liblumen_alloc::atom;
-use liblumen_alloc::erts::process::Process;
+use liblumen_rt::process::Process;
 use liblumen_alloc::erts::term::prelude::Term;
 use liblumen_alloc::erts::time::Milliseconds;
 

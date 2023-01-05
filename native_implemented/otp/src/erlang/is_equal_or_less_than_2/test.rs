@@ -18,8 +18,8 @@ use proptest::prop_assert_eq;
 use proptest::strategy::BoxedStrategy;
 use proptest::test_runner::{Config, TestRunner};
 
-use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::prelude::*;
+use firefly_rt::process::Process;
+use firefly_rt::term::{Atom, Integer, Term};
 
 use crate::erlang::is_equal_or_less_than_2::result;
 use crate::test::{external_arc_node, strategy};

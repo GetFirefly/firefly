@@ -6,7 +6,7 @@ use std::sync::Arc;
 use proptest::arbitrary::any;
 use proptest::strategy::{BoxedStrategy, Strategy};
 
-use liblumen_alloc::erts::Node;
+use firefly_rt::term::Node;
 
 use crate::runtime::distribution::nodes;
 

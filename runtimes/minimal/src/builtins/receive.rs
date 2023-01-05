@@ -2,7 +2,7 @@ use std::convert::TryInto;
 use std::sync::Arc;
 
 use liblumen_alloc::erts::message::Message;
-use liblumen_alloc::erts::process::Process;
+use liblumen_rt::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::timeout::{ReceiveTimeout, Timeout};
 

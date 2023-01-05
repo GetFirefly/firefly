@@ -1,14 +1,11 @@
 use std::ptr::NonNull;
 
 use anyhow::*;
+use firefly_rt::backtrace::Trace;
+use firefly_rt::error::ErlangException;
 
-use liblumen_alloc::erts::apply::{find_symbol, DynamicCallee};
-use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::process::ffi::ErlangResult;
-use liblumen_alloc::erts::process::trace::Trace;
-use liblumen_alloc::erts::process::{Frame, Native};
-use liblumen_alloc::erts::term::prelude::*;
-use liblumen_alloc::{Arity, ModuleFunctionArity};
+use firefly_rt::function::{Arity, DynamicCallee, ErlangResult, find_symbol, ModuleFunctionArity};
+use firefly_rt::term::{atoms, Term};
 
 use crate::erlang::apply::arguments_term_to_vec;
 
@@ -29,7 +26,7 @@ pub extern "C-unwind" fn apply_3(module: Term, function: Term, arguments: Term) 
         Err(exception) => arc_process.return_status(Err(exception)),
     }
 }
-fn apply_3_impl(module: Term, function: Term, arguments: Term) -> exception::Result<ErlangResult> {
+fn apply_3_impl(module: Term, function: Term, arguments: Term) -> Result<ErlangResult, NonNull<ErlangException>> {
     let module_atom = term_try_into_atom!(module)?;
     let function_atom = term_try_into_atom!(function)?;
     let argument_vec = arguments_term_to_vec(arguments)?;
@@ -51,8 +48,8 @@ fn apply_3_impl(module: Term, function: Term, arguments: Term) -> exception::Res
                 Some(
                     anyhow!(
                         "{}:{}/{} is not exported",
-                        module_atom.name(),
-                        function_atom.name(),
+                        module_atom.as_str(),
+                        function_atom.as_str(),
                         arity
                     )
                     .into(),
@@ -73,13 +70,12 @@ pub fn frame_for_native(native: Native) -> Frame {
 
 pub fn module_function_arity() -> ModuleFunctionArity {
     ModuleFunctionArity {
-        module: Atom::from_str("erlang"),
-        function: Atom::from_str("apply"),
+        module: atoms::Erlang,
+        function: atoms::Apply,
         arity: ARITY,
     }
 }
 
 pub const ARITY: Arity = 3;
-pub const NATIVE: Native = Native::Three(apply_3);
 pub const CLOSURE_NATIVE: Option<NonNull<std::ffi::c_void>> =
     Some(unsafe { NonNull::new_unchecked(apply_3 as *mut std::ffi::c_void) });

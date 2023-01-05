@@ -132,7 +132,8 @@ pub trait Bitstring: fmt::Debug {
 
     /// Attempts to access the underlying data as a `str`
     ///
-    /// Returns `None` if the bitstring is not aligned and binary, and if the data is not valid UTF-8
+    /// Returns `None` if the bitstring is not aligned and binary, and if the data is not valid
+    /// UTF-8
     ///
     /// If the encoding is known to be UTF-8, this operation can be very efficient,
     /// otherwise, the data must be examined for validity first, which is linear
@@ -376,7 +377,8 @@ impl Bitstring for String {
     }
 }
 
-/// This trait provides common behavior for all types which are always composed of aligned and binary data.
+/// This trait provides common behavior for all types which are always composed of aligned and
+/// binary data.
 pub trait Binary: Bitstring {
     /// Returns the set of flags that apply to this binary
     fn flags(&self) -> BinaryFlags;
@@ -568,11 +570,12 @@ impl Aligned for str {}
 impl Aligned for String {}
 impl Aligned for Vec<u8> {}
 
-/// A trait that represents the ability to obtain the byte representation of a endianness-sensitive value,
-/// namely numerics.
+/// A trait that represents the ability to obtain the byte representation of a endianness-sensitive
+/// value, namely numerics.
 ///
-/// This trait can only be implemented on Copy types, and is expected to return an array of bytes of the exact
-/// size as the type being converted. This matches how the methods on the standard library numeric types work.
+/// This trait can only be implemented on Copy types, and is expected to return an array of bytes of
+/// the exact size as the type being converted. This matches how the methods on the standard library
+/// numeric types work.
 pub trait ToEndianBytes<const N: usize>: Copy {
     /// Converts this value to bytes in big-endian order
     ///

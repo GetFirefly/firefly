@@ -13,16 +13,14 @@ mod with_small_integer_left;
 mod with_subbinary_left;
 mod with_tuple_left;
 
-use std::convert::TryInto;
 use std::ptr::NonNull;
 
 use proptest::arbitrary::any;
 use proptest::prop_assert_eq;
-use proptest::strategy::{Just, Strategy};
+use proptest::strategy::Just;
 use proptest::test_runner::{Config, TestRunner};
 
-use liblumen_alloc::erts::process::alloc::TermAlloc;
-use liblumen_alloc::erts::term::prelude::*;
+use firefly_rt::term::{Integer, Term};
 
 use crate::erlang::are_equal_after_conversion_2::result;
 use crate::test::strategy;

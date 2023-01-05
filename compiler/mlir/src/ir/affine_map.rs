@@ -41,7 +41,8 @@ impl AffineMap {
     }
 
     /// Creates an identity affine map on the most minor dimensions.
-    /// This function will panic if the number of dimensions is greater or equal to the number of results
+    /// This function will panic if the number of dimensions is greater or equal to the number of
+    /// results
     pub fn get_minor_identity(context: Context, dims: usize, results: usize) -> Self {
         assert!(
             dims < results,

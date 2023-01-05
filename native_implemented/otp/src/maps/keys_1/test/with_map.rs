@@ -5,7 +5,7 @@ fn returns_empty_list_of_keys() {
     with_process_arc(|arc_process| {
         let empty_map = arc_process.map_from_slice(&[]);
 
-        assert_eq!(result(&arc_process, empty_map), Ok(Term::NIL));
+        assert_eq!(result(&arc_process, empty_map), Ok(Term::Nil));
     });
 }
 
@@ -15,10 +15,10 @@ fn returns_list_of_keys() {
         TestRunner::new(Config::with_source_file(file!()))
             .run(
                 &(strategy::term(arc_process.clone())).prop_map(|key| {
-                    let value = atom!("value");
+                    let value = Atom::str_to_term("value").into();
 
                     (
-                        arc_process.list_from_slice(&[key]),
+                        arc_process.list_from_slice(&[key]).unwrap(),
                         arc_process.map_from_slice(&[(key, value)]),
                     )
                 }),

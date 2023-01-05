@@ -17,16 +17,16 @@ fn with_positive_index_greater_than_length_errors_badarg() {
                             arc_process.clone(),
                             len,
                             default_value,
-                            arc_process.integer(len + index_offset),
+                            arc_process.integer(len + index_offset).unwrap(),
                             index_element,
                         )
                     },
                 )
         },
         |(arc_process, arity_usize, default_value, position, element)| {
-            let arity = arc_process.integer(arity_usize);
-            let init = arc_process.tuple_from_slice(&[position, element]);
-            let init_list = arc_process.list_from_slice(&[init]);
+            let arity = arc_process.integer(arity_usize).unwrap();
+            let init = arc_process.tuple_term_from_term_slice(&[position, element]);
+            let init_list = arc_process.list_from_slice(&[init]).unwrap();
 
             prop_assert_badarg!(
                 result(&arc_process, arity, default_value, init_list),
@@ -61,10 +61,10 @@ fn with_positive_index_less_than_or_equal_to_length_replaces_default_value_at_in
                     )
                 }),
             |(arc_process, arity_usize, default_value, zero_based_index, init_list_element)| {
-                let arity = arc_process.integer(arity_usize);
-                let one_based_index = arc_process.integer(zero_based_index + 1);
+                let arity = arc_process.integer(arity_usize).unwrap();
+                let one_based_index = arc_process.integer(zero_based_index + 1).unwrap();
                 let init_list = arc_process.list_from_slice(&[
-                    arc_process.tuple_from_slice(&[one_based_index, init_list_element])
+                    arc_process.tuple_term_from_term_slice(&[one_based_index, init_list_element])
                 ]);
 
                 let result = result(&arc_process, arity, default_value, init_list);
@@ -75,14 +75,14 @@ fn with_positive_index_less_than_or_equal_to_length_replaces_default_value_at_in
 
                 prop_assert!(tuple_term.is_boxed());
 
-                let boxed_tuple: Result<Boxed<Tuple>, _> = tuple_term.try_into();
-                prop_assert!(boxed_tuple.is_ok());
+                let result_non_null_tuple: Result<NonNull<Tuple>, _> = tuple_term.try_into();
+                prop_assert!(result_non_null_tuple.is_ok());
 
-                let tuple = boxed_tuple.unwrap();
+                let non_null_tuple = result_non_null_tuple.unwrap();
 
-                prop_assert_eq!(tuple.len(), arity_usize);
+                prop_assert_eq!(non_null_tuple.len(), arity_usize);
 
-                for (index, element) in tuple.iter().enumerate() {
+                for (index, element) in non_null_tuple.iter().enumerate() {
                     if index == zero_based_index {
                         prop_assert_eq!(element, &init_list_element);
                     } else {
@@ -129,13 +129,13 @@ fn with_multiple_values_at_same_index_then_last_value_is_used() {
                 init_list_ignored_element,
                 init_list_used_element,
             )| {
-                let arity = arc_process.integer(arity_usize);
-                let init_list_one_base_index = arc_process.integer(init_list_zero_based_index + 1);
+                let arity = arc_process.integer(arity_usize).unwrap();
+                let init_list_one_base_index = arc_process.integer(init_list_zero_based_index + 1).unwrap();
                 let init_list = arc_process.list_from_slice(&[
                     arc_process
-                        .tuple_from_slice(&[init_list_one_base_index, init_list_ignored_element]),
+                        .tuple_term_from_term_slice(&[init_list_one_base_index, init_list_ignored_element]),
                     arc_process
-                        .tuple_from_slice(&[init_list_one_base_index, init_list_used_element]),
+                        .tuple_term_from_term_slice(&[init_list_one_base_index, init_list_used_element]),
                 ]);
 
                 let result = result(&arc_process, arity, default_value, init_list);
@@ -146,14 +146,14 @@ fn with_multiple_values_at_same_index_then_last_value_is_used() {
 
                 prop_assert!(tuple_term.is_boxed());
 
-                let boxed_tuple: Result<Boxed<Tuple>, _> = tuple_term.try_into();
-                prop_assert!(boxed_tuple.is_ok());
+                let result_non_null_tuple: Result<NonNull<Tuple>, _> = tuple_term.try_into();
+                prop_assert!(result_non_null_tuple.is_ok());
 
-                let tuple = boxed_tuple.unwrap();
+                let non_null_tuple = result_non_null_tuple.unwrap();
 
-                prop_assert_eq!(tuple.len(), arity_usize);
+                prop_assert_eq!(non_null_tuple.len(), arity_usize);
 
-                for (index, element) in tuple.iter().enumerate() {
+                for (index, element) in non_null_tuple.iter().enumerate() {
                     if index == init_list_zero_based_index {
                         prop_assert_eq!(element, &init_list_used_element);
                     } else {

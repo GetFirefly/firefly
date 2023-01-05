@@ -1,3 +1,4 @@
+use firefly_rt::term::Atom;
 use super::*;
 
 #[test]
@@ -13,7 +14,7 @@ fn without_key_returns_equivalent_map() {
                         key != non_key
                     })
                     .prop_map(|(key, non_key)| {
-                        let value = atom!("value");
+                        let value = Atom::str_to_term("value");
 
                         (non_key, arc_process.map_from_slice(&[(key, value)]))
                     }),
@@ -33,7 +34,7 @@ fn with_key_returns_new_map() {
         TestRunner::new(Config::with_source_file(file!()))
             .run(
                 &strategy::term(arc_process.clone()).prop_map(|key| {
-                    let value = atom!("value");
+                    let value = Atom::str_to_term("value").into();
 
                     (key, arc_process.map_from_slice(&[(key, value)]))
                 }),

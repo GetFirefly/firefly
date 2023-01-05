@@ -7,7 +7,7 @@ use crate::test::strategy::NON_EMPTY_RANGE_INCLUSIVE;
 #[test]
 fn with_empty_list_returns_empty_list() {
     with_process_arc(|arc_process| {
-        assert_eq!(result(&arc_process, Term::NIL), Ok(Term::NIL));
+        assert_eq!(result(&arc_process, Term::Nil), Ok(Term::Nil));
     });
 }
 
@@ -20,10 +20,10 @@ fn reverses_order_of_elements_of_list() {
             .run(
                 &proptest::collection::vec(strategy::term(arc_process.clone()), size_range),
                 |vec| {
-                    let list = arc_process.list_from_slice(&vec);
+                    let list = arc_process.list_from_slice(&vec).unwrap();
 
                     let reversed_vec: Vec<Term> = vec.iter().rev().copied().collect();
-                    let reversed = arc_process.list_from_slice(&reversed_vec);
+                    let reversed = arc_process.list_from_slice(&reversed_vec).unwrap();
 
                     prop_assert_eq!(result(&arc_process, list), Ok(reversed));
 

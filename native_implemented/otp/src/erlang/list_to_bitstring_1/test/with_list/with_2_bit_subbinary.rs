@@ -33,7 +33,7 @@ fn with_empty_list_returns_bitstring() {
                 strategy::term::binary::sub::with_bit_count(2, arc_process.clone()),
             )
                 .prop_map(|(arc_process, head)| {
-                    (arc_process.clone(), arc_process.cons(head, Term::NIL), head)
+                    (arc_process.clone(), arc_process.cons(head, Term::Nil), head)
                 })
         },
         |(arc_process, list, bitstring)| {
@@ -46,14 +46,14 @@ fn with_empty_list_returns_bitstring() {
 
 #[test]
 fn with_byte_tail_errors_badarg() {
-    with_tail_errors_badarg(|process| process.integer(2))
+    with_tail_errors_badarg(|process| process.integer(2).unwrap())
 }
 
 #[test]
 fn with_proper_list_returns_binary() {
     with(|head, process| {
-        let tail_head = process.integer(254);
-        let tail_tail = Term::NIL;
+        let tail_head = process.integer(254).unwrap();
+        let tail_tail = Term::Nil;
         let tail = process.cons(tail_head, tail_tail);
 
         let iolist = process.cons(head, tail);

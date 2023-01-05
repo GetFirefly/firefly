@@ -13,7 +13,7 @@ fn unregistered_sends_nothing_when_timer_expires() {
             )
         },
         |(arc_process, milliseconds, message)| {
-            let time = arc_process.integer(milliseconds);
+            let time = arc_process.integer(milliseconds).unwrap();
             let destination = registered_name();
             let options = options(&arc_process);
 
@@ -33,7 +33,7 @@ fn unregistered_sends_nothing_when_timer_expires() {
             // No sleeping is necessary because timeout is in the past and so the timer will
             // timeout at once
 
-            crate::runtime::timer::timeout();
+            runtime::timer::timeout();
 
             prop_assert!(!has_message(&arc_process, message));
 

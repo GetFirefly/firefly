@@ -97,6 +97,11 @@ impl From<i64> for Number {
         Self::Integer(i.into())
     }
 }
+impl From<u64> for Number {
+    fn from(i: u64) -> Self {
+        Self::Integer(i.into())
+    }
+}
 impl From<usize> for Number {
     fn from(i: usize) -> Self {
         Self::Integer(i.into())

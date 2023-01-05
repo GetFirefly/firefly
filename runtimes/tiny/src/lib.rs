@@ -1,10 +1,12 @@
+#![feature(allocator_api)]
 #![feature(c_unwind)]
-#![feature(once_cell)]
-#![feature(ptr_metadata)]
-#![feature(process_exitcode_internals)]
-#![feature(thread_local)]
-#![feature(let_else)]
 #![feature(iterator_try_collect)]
+#![feature(let_else)]
+#![feature(once_cell)]
+#![feature(process_exitcode_internals)]
+#![feature(ptr_metadata)]
+#![feature(thread_local)]
+#![feature(thread_id_value)]
 
 extern crate firefly_crt;
 
@@ -12,7 +14,7 @@ mod env;
 mod erlang;
 mod init;
 mod intrinsic;
-mod scheduler;
+pub mod scheduler;
 mod sys;
 
 use bus::Bus;

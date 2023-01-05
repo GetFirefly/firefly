@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
-use proptest::strategy::{BoxedStrategy, Strategy};
+use proptest::strategy::BoxedStrategy;
 
-use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::prelude::*;
+use firefly_rt::process::Process;
+use firefly_rt::term::Term;
 
 pub fn with_arity(arc_process: Arc<Process>, arity: u8) -> BoxedStrategy<Term> {
     (super::module_atom(), super::function())

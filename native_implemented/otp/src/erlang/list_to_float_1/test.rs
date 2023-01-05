@@ -1,6 +1,6 @@
 use proptest::arbitrary::any;
 use proptest::prop_assert_eq;
-use proptest::strategy::{Just, Strategy};
+use proptest::strategy::Just;
 use proptest::test_runner::{Config, TestRunner};
 
 use crate::erlang::list_to_float_1::result;
@@ -56,7 +56,7 @@ fn with_list_with_f64_returns_floats() {
                 )
             }),
             |(arc_process, f, list)| {
-                prop_assert_eq!(result(&arc_process, list), Ok(arc_process.float(f)));
+                prop_assert_eq!(result(&arc_process, list), Ok(f.into()));
 
                 Ok(())
             },

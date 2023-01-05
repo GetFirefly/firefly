@@ -12,14 +12,14 @@ fn errors_badarg() {
                 )
             }),
             |(milliseconds, arc_process, message)| {
-                let time = arc_process.integer(milliseconds);
+                let time = arc_process.integer(milliseconds).unwrap();
                 let destination = registered_name();
 
                 prop_assert_eq!(
                     erlang::register_2::result(
                         arc_process.clone(),
                         destination,
-                        arc_process.pid_term()
+                        arc_process.pid_term().unwrap()
                     ),
                     Ok(true.into())
                 );

@@ -406,9 +406,11 @@ impl Opcode {
             Self::Tuple => 1,
             // Getting a tuple element takes the tuple and the index of the element
             Self::GetElement => 2,
-            // Setting a tuple element takes two value arguments, the tuple, and the element, the index is immediate
+            // Setting a tuple element takes two value arguments, the tuple, and the element, the
+            // index is immediate
             Self::SetElement | Self::SetElementMut => 2,
-            // Cons constructors/concat/subtract take two arguments, the head and tail elements/lists
+            // Cons constructors/concat/subtract take two arguments, the head and tail
+            // elements/lists
             Self::Cons | Self::ListConcat | Self::ListSubtract => 2,
             // Creating a fun only requires the callee, the environment is variable-sized
             Self::MakeFun => 0,
@@ -430,7 +432,8 @@ impl Opcode {
             Self::RecvNext | Self::RecvPeek | Self::RecvPop | Self::RecvWait | Self::RecvDone => 1,
             // These exception primops expect the exception value
             Self::ExceptionClass | Self::ExceptionReason | Self::ExceptionTrace => 1,
-            // These primops expect either no arguments, an immediate or a value, so the number is not fixed
+            // These primops expect either no arguments, an immediate or a value, so the number is
+            // not fixed
             Self::BitsMatchStart | Self::NifStart => 0,
             // Raising errors requires the class, the error value, and the stacktrace
             Self::Raise => 3,

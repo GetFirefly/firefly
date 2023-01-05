@@ -360,10 +360,10 @@ where
             builder.push(arg.into())?;
         }
         let arglist: OpaqueTerm = builder.finish().unwrap().into();
-        Tuple::from_slice(&[module, function, arglist, locs], alloc)?
+        Tuple::from_opaque_term_slice(&[module, function, arglist, locs], alloc)?
     } else {
         let arity: OpaqueTerm = Term::Int(mfa.arity as i64).into();
-        Tuple::from_slice(&[module, function, arity, locs], alloc)?
+        Tuple::from_opaque_term_slice(&[module, function, arity, locs], alloc)?
     };
 
     Ok(frame.into())
@@ -382,12 +382,12 @@ where
     let line_key = atoms::Line.into();
     let file = if let Some(f) = filename {
         let filename = to_trimmed_charlist(f, alloc).unwrap_or(OpaqueTerm::NIL);
-        Tuple::from_slice(&[file_key, filename], alloc)?
+        Tuple::from_opaque_term_slice(&[file_key, filename], alloc)?
     } else {
-        Tuple::from_slice(&[file_key, OpaqueTerm::NIL], alloc)?
+        Tuple::from_opaque_term_slice(&[file_key, OpaqueTerm::NIL], alloc)?
     };
     let line = Term::Int(line.unwrap_or_default().try_into().unwrap());
-    let line = Tuple::from_slice(&[line_key, line.into()], alloc)?;
+    let line = Tuple::from_opaque_term_slice(&[line_key, line.into()], alloc)?;
 
     let mut builder = ListBuilder::new(alloc);
     builder.push(line.into())?;

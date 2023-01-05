@@ -1,5 +1,5 @@
-use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::prelude::Term;
+use firefly_rt::process::Process;
+use firefly_rt::term::Term;
 
 #[native_implemented::function(erlang:get_keys/1)]
 pub fn result(process: &Process, value: Term) -> Term {

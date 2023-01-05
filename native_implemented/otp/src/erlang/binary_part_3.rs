@@ -2,12 +2,13 @@
 mod test;
 
 use std::convert::TryInto;
+use std::ptr::NonNull;
 
 use anyhow::*;
 
-use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::prelude::*;
+use firefly_rt::error::ErlangException;
+use firefly_rt::process::Process;
+use firefly_rt::term::{Term, TypeError};
 
 use crate::binary::{start_length_to_part_range, PartRange};
 use crate::runtime::context::*;
@@ -18,14 +19,14 @@ pub fn result(
     binary: Term,
     start: Term,
     length: Term,
-) -> exception::Result<Term> {
+) -> Result<Term, NonNull<ErlangException>> {
     let start_usize: usize = start
         .try_into()
         .with_context(|| term_is_not_non_negative_integer("start", start))?;
     let length_isize = term_try_into_isize!(length)?;
 
-    match binary.decode().unwrap() {
-        TypedTerm::HeapBinary(heap_binary) => {
+    match binary {
+        Term::HeapBinary(heap_binary) => {
             let available_byte_count = heap_binary.full_byte_len();
             let PartRange {
                 byte_offset,
@@ -40,7 +41,7 @@ pub fn result(
 
             Ok(binary_part)
         }
-        TypedTerm::ProcBin(process_binary) => {
+        Term::RcBinary(process_binary) => {
             let available_byte_count = process_binary.full_byte_len();
             let PartRange {
                 byte_offset,
@@ -55,7 +56,7 @@ pub fn result(
 
             Ok(binary_part)
         }
-        TypedTerm::SubBinary(subbinary) => {
+        Term::RefBinary(subbinary) => {
             let PartRange {
                 byte_offset,
                 byte_len,

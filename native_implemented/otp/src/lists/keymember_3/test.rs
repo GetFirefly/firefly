@@ -1,10 +1,10 @@
 mod with_one_based_index;
 
 use proptest::prop_assert_eq;
-use proptest::strategy::{Just, Strategy};
+use proptest::strategy::Just;
 use proptest::test_runner::{Config, TestRunner};
 
-use liblumen_alloc::erts::term::prelude::*;
+use firefly_rt::term::Term;
 
 use crate::lists::keymember_3::result;
 use crate::test::strategy;

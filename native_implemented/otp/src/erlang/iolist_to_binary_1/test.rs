@@ -1,7 +1,7 @@
 use proptest::prop_assert;
 use proptest::strategy::Just;
 
-use liblumen_alloc::erts::term::prelude::*;
+use firefly_rt::term::{Atom, Term};
 
 use crate::erlang::iolist_to_binary_1::result;
 use crate::test::strategy::term::is_iolist_or_binary;
@@ -43,9 +43,9 @@ fn otp_doctest_returns_binary() {
         let iolist = process.improper_list_from_slice(
             &[
                 bin1,
-                process.integer(1),
-                process.list_from_slice(&[process.integer(2), process.integer(3), bin2]),
-                process.integer(4),
+                process.integer(1).unwrap(),
+                process.list_from_slice(&[process.integer(2).unwrap(), process.integer(3).unwrap(), bin2]).unwrap(),
+                process.integer(4).unwrap(),
             ],
             bin3,
         );
@@ -76,7 +76,7 @@ fn with_procbin_in_list_returns_binary() {
         let procbin = process.binary_from_bytes(&bytes);
         // We expect this to be a procbin, since it's > 64 bytes. Make sure it is.
         assert!(procbin.is_boxed_procbin());
-        let iolist = process.list_from_slice(&[procbin]);
+        let iolist = process.list_from_slice(&[procbin]).unwrap();
 
         assert_eq!(
             result(process, iolist),
@@ -124,7 +124,7 @@ fn with_subbinary_returns_binary() {
 #[test]
 fn with_improper_list_smallint_tail_errors_badarg() {
     with_process(|process| {
-        let tail = process.integer(42);
+        let tail = process.integer(42).unwrap();
         let iolist = process.improper_list_from_slice(
             &[process.subbinary_from_original(
                 process.binary_from_bytes(&[1, 2, 3, 4, 5]),
@@ -148,7 +148,7 @@ fn with_improper_list_smallint_tail_errors_badarg() {
 fn with_atom_in_iolist_errors_badarg() {
     with_process(|process| {
         let element = Atom::str_to_term("foo");
-        let iolist = process.list_from_slice(&[element]);
+        let iolist = process.list_from_slice(&[element]).unwrap();
 
         assert_badarg!(
             result(process, iolist),

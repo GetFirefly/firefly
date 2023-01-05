@@ -1,11 +1,13 @@
 #[cfg(all(not(target_arch = "wasm32"), test))]
 mod test;
 
+use std::ptr::NonNull;
+
 use anyhow::*;
 
-use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::prelude::*;
+use firefly_rt::error::ErlangException;
+use firefly_rt::process::Process;
+use firefly_rt::term::{Pid, Term};
 
 use crate::runtime::registry::pid_to_process;
 
@@ -16,7 +18,11 @@ macro_rules! is_not_alive {
 }
 
 #[native_implemented::function(erlang:group_leader/2)]
-pub fn result(process: &Process, group_leader: Term, pid: Term) -> exception::Result<Term> {
+pub fn result(
+    process: &Process,
+    group_leader: Term,
+    pid: Term,
+) -> Result<Term, NonNull<ErlangException>> {
     let group_leader_pid: Pid = term_try_into_local_pid!(group_leader)?;
 
     if (group_leader_pid == process.pid()) || pid_to_process(&group_leader_pid).is_some() {
@@ -41,6 +47,6 @@ pub fn result(process: &Process, group_leader: Term, pid: Term) -> exception::Re
     }
 }
 
-fn is_not_alive(name: &'static str, value: Term) -> exception::Result<Term> {
+fn is_not_alive(name: &'static str, value: Term) -> Result<Term, NonNull<ErlangException>> {
     Err(anyhow!("{} ({}) is not alive", name, value)).map_err(From::from)
 }

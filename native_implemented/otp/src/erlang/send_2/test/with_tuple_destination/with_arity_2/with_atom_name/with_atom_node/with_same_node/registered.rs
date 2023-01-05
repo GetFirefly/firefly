@@ -14,11 +14,11 @@ fn with_same_process_adds_process_message_to_mailbox_and_returns_message() {
                 Ok(true.into()),
                 "Cannot register process ({:?}) pid ({:?}) with name ({:?})",
                 arc_process,
-                arc_process.pid_term(),
+                arc_process.pid_term().unwrap(),
                 name
             );
 
-            let destination = arc_process.tuple_from_slice(&[name, erlang::node_0::result()]);
+            let destination = arc_process.tuple_term_from_term_slice(&[name, erlang::node_0::result()]);
 
             prop_assert_eq!(result(&arc_process, destination, message), Ok(message));
 

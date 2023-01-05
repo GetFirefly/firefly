@@ -1,14 +1,14 @@
 use crate::erlang::unique_integer_0::result;
 use crate::test::with_process;
 
-use liblumen_alloc::erts::term::prelude::Encoded;
+use firefly_rt::term::Term;
 
 #[test]
 fn returns_non_monotonic_negative_and_positive_integer() {
     with_process(|process| {
         let first_unique_integer = result(process);
 
-        let zero = process.integer(0);
+        let zero = process.integer(0).unwrap();
 
         assert!(first_unique_integer.is_integer());
         assert!(first_unique_integer <= zero);

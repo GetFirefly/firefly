@@ -9,7 +9,7 @@
 //! ```
 
 use liblumen_alloc::atom;
-use liblumen_alloc::erts::process::Process;
+use liblumen_rt::process::Process;
 use liblumen_alloc::erts::term::prelude::Term;
 
 use crate::ok_tuple;

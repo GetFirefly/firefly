@@ -14,8 +14,8 @@ fn without_timeout_returns_milliseconds_remaining_and_does_not_send_timeout_mess
             result(process, timer_reference, options(process)).expect("Timer could not be read");
 
         assert!(first_milliseconds_remaining.is_integer());
-        assert!(process.integer(0) < first_milliseconds_remaining);
-        assert!(first_milliseconds_remaining <= process.integer(milliseconds / 2));
+        assert!(process.integer(0).unwrap() < first_milliseconds_remaining);
+        assert!(first_milliseconds_remaining <= process.integer(milliseconds / 2).unwrap());
 
         // again before timeout
         let second_milliseconds_remaining =

@@ -44,11 +44,11 @@ fn with_registered_name_errors_badarg() {
             result(
                 unregistered_process_arc.clone(),
                 registered_name,
-                unregistered_process_arc.pid_term(),
+                unregistered_process_arc.pid_term().unwrap(),
             ),
             format!(
                 "{} could not be registered as {}.  It may already be registered.",
-                unregistered_process_arc.pid_term(),
+                unregistered_process_arc.pid_term().unwrap(),
                 registered_name
             )
         );

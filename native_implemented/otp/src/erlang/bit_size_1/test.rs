@@ -1,9 +1,5 @@
-use std::convert::TryInto;
-
 use proptest::strategy::Just;
 use proptest::{prop_assert, prop_assert_eq};
-
-use liblumen_alloc::erts::term::prelude::*;
 
 use crate::erlang::bit_size_1::result;
 use crate::test::strategy;

@@ -10,7 +10,7 @@ mod bigint_to_float;
 pub use bigint_to_float::bigint_to_double;
 
 mod integer;
-pub use integer::Integer;
+pub use integer::{Integer, TryIntoIntegerError};
 
 mod float;
 pub use float::{f16, Float, FloatError};
@@ -34,3 +34,4 @@ pub struct InvalidArithmeticError;
 /// This occurs when a shift operand is invalid/too large
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct ShiftError;
+

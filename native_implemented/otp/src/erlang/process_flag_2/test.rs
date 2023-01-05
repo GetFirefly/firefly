@@ -1,10 +1,8 @@
 mod with_atom_flag;
 
-use std::convert::TryInto;
+use proptest::strategy::{BoxedStrategy, Just};
 
-use proptest::strategy::{BoxedStrategy, Just, Strategy};
-
-use liblumen_alloc::erts::term::prelude::*;
+use firefly_rt::term::{atoms, Atom, Term};
 
 use crate::erlang::process_flag_2::result;
 use crate::test::*;

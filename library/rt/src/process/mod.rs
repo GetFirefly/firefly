@@ -2,14 +2,18 @@ mod heap;
 mod stack;
 
 use alloc::alloc::{AllocError, Allocator, Layout};
+
 use core::cell::UnsafeCell;
+use core::fmt::{self, Debug};
 use core::ptr::NonNull;
 
+use firefly_alloc::gc::GcBox;
 use firefly_alloc::heap::Heap;
+use firefly_number::Integer;
 
 use crate::error::ErlangException;
 use crate::function::ModuleFunctionArity;
-use crate::term::ProcessId;
+use crate::term::{OpaqueTerm, Pid, ProcessId, Term, Tuple};
 
 pub use self::heap::ProcessHeap;
 pub use self::stack::ProcessStack;
@@ -60,6 +64,45 @@ impl Process {
 
     pub fn pid(&self) -> ProcessId {
         self.pid
+    }
+
+    pub fn local_pid(&self) -> Pid {
+        Pid::Local { id: self.pid }
+    }
+
+    pub fn pid_term(&self) -> Result<Term, AllocError> {
+        Ok(Term::Pid(GcBox::new_in(self.local_pid(), self)?))
+    }
+
+    pub fn integer<I: Into<Integer>>(&self, integer: I) -> Result<Term, AllocError> {
+        Term::integer_in(integer, self)
+    }
+
+    pub fn list_from_slice(&self, slice: &[Term]) -> Result<Term, AllocError> {
+        Term::list_from_slice_in(slice, self)
+    }
+
+    pub fn improper_list_from_slice(&self, slice: &[Term], last: Term) -> Result<Term, AllocError> {
+        Term::improper_list_from_slice_in(slice, last, self)
+    }
+
+    pub fn improper_list_from_iter<'a, I>(
+        &self,
+        iter: I,
+        last: Term,
+    ) -> Result<Term, AllocError>
+        where
+            I: DoubleEndedIterator + Iterator<Item = &'a Term>,
+    {
+       Term::improper_list_from_iter_in(iter, last, self)
+    }
+
+    pub fn tuple_term_from_term_slice(&self, slice: &[Term]) -> Result<Term, AllocError> {
+        Tuple::from_term_slice(slice, self).map(From::from)
+    }
+
+    pub fn tuple_opaque_term_from_opaque_term_slice(&self, slice: &[OpaqueTerm]) -> Result<OpaqueTerm, AllocError> {
+        Tuple::from_opaque_term_slice(slice, self).map(From::from)
     }
 
     pub fn status(&self) -> ProcessStatus {
@@ -139,6 +182,12 @@ unsafe impl Allocator for Process {
         new_layout: Layout,
     ) -> Result<NonNull<[u8]>, AllocError> {
         self.heap().shrink(ptr, old_layout, new_layout)
+    }
+}
+
+impl Debug for Process {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("Process").field("pid", &self.pid).finish()
     }
 }
 

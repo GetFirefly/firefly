@@ -2,8 +2,8 @@ mod with_local_pid;
 
 use proptest::strategy::{Just, Strategy};
 
-use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::prelude::Encoded;
+use firefly_rt::process::Process;
+use firefly_rt::term::Atom;
 
 use crate::erlang::unlink_1::result;
 use crate::test::strategy;

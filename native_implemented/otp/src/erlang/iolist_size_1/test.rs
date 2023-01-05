@@ -3,8 +3,8 @@ use std::sync::Arc;
 use proptest::strategy::{BoxedStrategy, Just, Strategy};
 use proptest::{prop_assert, prop_oneof};
 
-use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::prelude::*;
+use firefly_rt::process::Process;
+use firefly_rt::term::Term;
 
 use crate::erlang::iolist_size_1::result;
 use crate::test::strategy::term::*;
@@ -44,7 +44,7 @@ fn with_iolist_or_binary_returns_non_negative_integer() {
             let size = result.unwrap();
 
             prop_assert!(size.is_integer());
-            prop_assert!(size >= arc_process.integer(0));
+            prop_assert!(size >= arc_process.integer(0).unwrap());
 
             Ok(())
         }
@@ -57,11 +57,11 @@ fn with_iolist_or_binary_returns_non_negative_integer() {
 fn otp_doctest() {
     with_process(|process| {
         let iolist = process.improper_list_from_slice(
-            &[process.integer(1), process.integer(2)],
+            &[process.integer(1).unwrap(), process.integer(2).unwrap()],
             process.binary_from_bytes(&[3, 4]),
         );
 
-        assert_eq!(result(process, iolist), Ok(process.integer(4)))
+        assert_eq!(result(process, iolist), Ok(process.integer(4).unwrap()))
     });
 }
 
@@ -83,14 +83,14 @@ fn with_iolist_returns_size() {
         let iolist = process.improper_list_from_slice(
             &[
                 bin1,
-                process.integer(1),
-                process.list_from_slice(&[process.integer(2), process.integer(3), bin2]),
-                process.integer(4),
+                process.integer(1).unwrap(),
+                process.list_from_slice(&[process.integer(2).unwrap(), process.integer(3).unwrap(), bin2]).unwrap(),
+                process.integer(4).unwrap(),
             ],
             bin3,
         );
 
-        assert_eq!(result(process, iolist), Ok(process.integer(10)))
+        assert_eq!(result(process, iolist), Ok(process.integer(10).unwrap()))
     });
 }
 
@@ -99,7 +99,7 @@ fn with_binary_returns_size() {
     with_process(|process| {
         let bin = process.binary_from_bytes(&[1, 2, 3]);
 
-        assert_eq!(result(process, bin), Ok(process.integer(3)))
+        assert_eq!(result(process, bin), Ok(process.integer(3).unwrap()))
     });
 }
 
@@ -114,7 +114,7 @@ fn with_subbinary_in_list_returns_size() {
             0,
         )]);
 
-        assert_eq!(result(process, iolist), Ok(process.integer(3)))
+        assert_eq!(result(process, iolist), Ok(process.integer(3).unwrap()))
     });
 }
 
@@ -129,7 +129,7 @@ fn with_subbinary_returns_size() {
             0,
         );
 
-        assert_eq!(result(process, iolist), Ok(process.integer(3)))
+        assert_eq!(result(process, iolist), Ok(process.integer(3).unwrap()))
     });
 }
 
@@ -140,16 +140,16 @@ fn with_procbin_returns_size() {
         let procbin = process.binary_from_bytes(&bytes);
         // We expect this to be a procbin, since it's > 64 bytes. Make sure it is.
         assert!(procbin.is_boxed_procbin());
-        let iolist = process.list_from_slice(&[procbin]);
+        let iolist = process.list_from_slice(&[procbin]).unwrap();
 
-        assert_eq!(result(process, iolist), Ok(process.integer(65)))
+        assert_eq!(result(process, iolist), Ok(process.integer(65).unwrap()))
     });
 }
 
 #[test]
 fn with_improper_list_smallint_tail_errors_badarg() {
     with_process(|process| {
-        let tail = process.integer(42);
+        let tail = process.integer(42).unwrap();
         let iolist =
             process.improper_list_from_slice(&[process.binary_from_bytes(&[1, 2, 3])], tail);
 
@@ -171,7 +171,7 @@ pub fn is_not_list_or_bitstring(arc_process: Arc<Process>) -> BoxedStrategy<Term
         integer::big(arc_process.clone()),
         local_reference(arc_process.clone()),
         is_function(arc_process.clone()),
-        float(arc_process.clone()),
+        float(),
         // TODO `Export`
         // TODO `ReferenceCountedBinary`
         pid::external(arc_process.clone()),

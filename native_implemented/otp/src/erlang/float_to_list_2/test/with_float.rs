@@ -9,7 +9,7 @@ fn without_proper_list_options_errors_badarg() {
         |arc_process| {
             (
                 Just(arc_process.clone()),
-                strategy::term::float(arc_process.clone()),
+                strategy::term::float(),
                 strategy::term::is_not_proper_list(arc_process.clone()),
             )
         },

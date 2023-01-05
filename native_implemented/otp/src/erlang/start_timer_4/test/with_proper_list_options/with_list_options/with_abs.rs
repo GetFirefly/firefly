@@ -15,7 +15,7 @@ fn without_atom_errors_badarg() {
         },
         |(arc_process, time, message, abs_value)| {
             let options = options(abs_value, &arc_process);
-            let destination = arc_process.pid_term();
+            let destination = arc_process.pid_term().unwrap();
 
             prop_assert_is_not_boolean!(
                 result(arc_process.clone(), time, destination, message, options),
@@ -30,7 +30,7 @@ fn without_atom_errors_badarg() {
 
 fn options(abs: Term, process: &Process) -> Term {
     process.cons(
-        process.tuple_from_slice(&[Atom::str_to_term("abs"), abs]),
-        Term::NIL,
+        process.tuple_term_from_term_slice(&[Atom::str_to_term("abs"), abs]),
+        Term::Nil,
     )
 }

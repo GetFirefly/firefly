@@ -1,10 +1,13 @@
 mod with_integer_integer;
 
 use proptest::{prop_assert, prop_assert_eq};
+use proptest::arbitrary::any;
+use proptest::strategy::Just;
 
-use liblumen_alloc::erts::term::prelude::*;
+use firefly_rt::term::Term;
 
 use crate::erlang::integer_to_list_2::result;
+use crate::erlang::list_to_string::list_to_string;
 use crate::test::strategy;
 
 #[test]

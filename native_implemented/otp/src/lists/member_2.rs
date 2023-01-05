@@ -1,16 +1,17 @@
 #[cfg(all(not(target_arch = "wasm32"), test))]
 mod test;
 
+use std::ptr::NonNull;
 use anyhow::*;
 
-use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::term::prelude::*;
+use firefly_rt::error::ErlangException;
+use firefly_rt::term::Term;
 
 #[native_implemented::function(lists:member/2)]
-pub fn result(element: Term, list: Term) -> exception::Result<Term> {
-    match list.decode()? {
-        TypedTerm::Nil => Ok(false.into()),
-        TypedTerm::List(cons) => {
+pub fn result(element: Term, list: Term) -> Result<Term, NonNull<ErlangException>> {
+    match list {
+        Term::Nil => Ok(false.into()),
+        Term::Cons(cons) => {
             for result in cons.into_iter() {
                 match result {
                     Ok(term) => {

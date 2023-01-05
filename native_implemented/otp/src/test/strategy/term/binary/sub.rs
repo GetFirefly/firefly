@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use proptest::strategy::{BoxedStrategy, Just, Strategy};
 
-use liblumen_alloc::erts::term::prelude::Term;
-use liblumen_alloc::erts::Process;
+use firefly_rt::process::Process;
+use firefly_rt::term::Term;
 
 use crate::test::strategy::{self, bits_to_bytes, size_range};
 

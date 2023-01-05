@@ -334,7 +334,8 @@ pub fn eval_expr(
                         .as_proper_list()
                         .map_err(|_| EvalError::InvalidConstExpression { span })?;
 
-                    // For each element in the right-hand list, remove the first occurrance in the left-hand list
+                    // For each element in the right-hand list, remove the first occurrance in the
+                    // left-hand list
                     for element in rs.drain(..) {
                         if let Some(idx) = ls.iter().position(|l| l.eq(&element)) {
                             ls.remove(idx);

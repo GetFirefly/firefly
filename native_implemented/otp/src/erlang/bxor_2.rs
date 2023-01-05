@@ -1,6 +1,6 @@
-use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::prelude::Term;
+use firefly_rt::error::ErlangException;
+use firefly_rt::process::Process;
+use firefly_rt::term::Term;
 
 /// `bxor/2` infix operator.
 #[native_implemented::function(erlang:bxor/2)]
@@ -8,6 +8,6 @@ pub fn result(
     process: &Process,
     left_integer: Term,
     right_integer: Term,
-) -> exception::Result<Term> {
+) -> Result<Term, NonNull<ErlangException>> {
     bitwise_infix_operator!(left_integer, right_integer, process, bitxor)
 }

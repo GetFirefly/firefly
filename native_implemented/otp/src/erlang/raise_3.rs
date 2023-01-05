@@ -2,18 +2,22 @@
 mod test;
 
 use std::convert::TryInto;
+use std::ptr::NonNull;
 use std::sync::Arc;
 
 use anyhow::*;
-
 use num_bigint::BigInt;
 
-use liblumen_alloc::erts::exception::{self, *};
-use liblumen_alloc::erts::term::prelude::*;
-use liblumen_alloc::erts::trace::Trace;
+use firefly_rt::backtrace::Trace;
+use firefly_rt::error::ErlangException;
+use firefly_rt::term::{Term, Tuple};
 
 #[native_implemented::function(erlang:raise/3)]
-pub fn result(class: Term, reason: Term, stacktrace: Term) -> exception::Result<Term> {
+pub fn result(
+    class: Term,
+    reason: Term,
+    stacktrace: Term,
+) -> Result<Term, NonNull<ErlangException>> {
     let class_class: exception::Class = class.try_into()?;
     let trace =
         trace_try_from_term(stacktrace).with_context(|| format!("stacktrace ({})", stacktrace))?;
@@ -28,9 +32,9 @@ pub fn result(class: Term, reason: Term, stacktrace: Term) -> exception::Result<
 }
 
 fn trace_try_from_term(stacktrace: Term) -> anyhow::Result<Arc<Trace>> {
-    match stacktrace.decode().unwrap() {
-        TypedTerm::Nil => Ok(Trace::from_term(stacktrace)),
-        TypedTerm::List(cons) => {
+    match stacktrace {
+        Term::Nil => Ok(Trace::from_term(stacktrace)),
+        Term::Cons(cons) => {
             for (index, result) in cons.iter().enumerate() {
                 match result {
                     Ok(element) => item_try_from_term(element).with_context(|| {
@@ -52,7 +56,7 @@ fn item_try_from_term(term: Term) -> anyhow::Result<()> {
     item_try_from_tuple(tuple)
 }
 
-fn item_try_from_tuple(tuple: Boxed<Tuple>) -> anyhow::Result<()> {
+fn item_try_from_tuple(tuple: NonNull<Tuple>) -> anyhow::Result<()> {
     match tuple.len() {
         2 => item_try_from_2_tuple(tuple).context("2-tuple"),
         3 => item_try_from_3_tuple(tuple).context("3-tuple"),
@@ -63,10 +67,10 @@ fn item_try_from_tuple(tuple: Boxed<Tuple>) -> anyhow::Result<()> {
 
 // {function, args}
 // https://github.com/erlang/otp/blob/b51f61b5f32a28737d0b03a29f19f48f38e4db19/erts/emulator/beam/bif.c#L1107-L1114
-fn item_try_from_2_tuple(tuple: Boxed<Tuple>) -> anyhow::Result<()> {
+fn item_try_from_2_tuple(tuple: NonNull<Tuple>) -> anyhow::Result<()> {
     let fun = tuple[0];
 
-    if fun.is_boxed_function() {
+    if fun.is_closure() {
         Ok(())
     } else {
         Err(anyhow!("`Fun` ({}) is not a function", fun)).context("is not format `{{Fun, Args}}`")
@@ -74,12 +78,12 @@ fn item_try_from_2_tuple(tuple: Boxed<Tuple>) -> anyhow::Result<()> {
 }
 
 // https://github.com/erlang/otp/blob/b51f61b5f32a28737d0b03a29f19f48f38e4db19/erts/emulator/beam/bif.c#L1115-L1128
-fn item_try_from_3_tuple(tuple: Boxed<Tuple>) -> anyhow::Result<()> {
+fn item_try_from_3_tuple(tuple: NonNull<Tuple>) -> anyhow::Result<()> {
     let first_element = tuple[0];
 
-    match first_element.decode().unwrap() {
+    match first_element {
         // {M, F, arity | args}
-        TypedTerm::Atom(_) => {
+        Term::Atom(_) => {
             const FORMAT: &str = "is not format `{Module, Function, Arity | Args}`";
 
             let function = tuple[1];
@@ -90,7 +94,7 @@ fn item_try_from_3_tuple(tuple: Boxed<Tuple>) -> anyhow::Result<()> {
             Ok(())
         },
         // {function, args, location}
-        TypedTerm::Closure(_) => {
+        Term::Closure(_) => {
             location_try_from_term(tuple[2]).context("is not format `{Function, Args, Location}`")
         },
         _ => Err(anyhow!("is not one of the supported formats:\n1. {Module, Function, Arity | Args}\n2. {Function, Args, Location}")),
@@ -98,11 +102,11 @@ fn item_try_from_3_tuple(tuple: Boxed<Tuple>) -> anyhow::Result<()> {
 }
 
 fn arity_or_arguments_try_from_term(term: Term) -> anyhow::Result<()> {
-    match term.decode().unwrap() {
+    match term {
         // args
-        TypedTerm::Nil | TypedTerm::List(_) => Ok(()),
+        Term::Nil | Term::Cons(_) => Ok(()),
         // arity
-        TypedTerm::SmallInteger(small_integer) => {
+        Term::Int(small_integer) => {
             let arity: isize = small_integer.into();
 
             if 0 <= arity {
@@ -112,7 +116,7 @@ fn arity_or_arguments_try_from_term(term: Term) -> anyhow::Result<()> {
             }
         }
         // arity
-        TypedTerm::BigInteger(big_integer) => {
+        Term::BigInt(big_integer) => {
             let big_int = big_integer.as_ref().into();
             let zero_big_int: &BigInt = &0.into();
 
@@ -127,7 +131,7 @@ fn arity_or_arguments_try_from_term(term: Term) -> anyhow::Result<()> {
 }
 
 // https://github.com/erlang/otp/blob/b51f61b5f32a28737d0b03a29f19f48f38e4db19/erts/emulator/beam/bif.c#L1129-L1134
-fn item_try_from_4_tuple(tuple: Boxed<Tuple>) -> anyhow::Result<()> {
+fn item_try_from_4_tuple(tuple: NonNull<Tuple>) -> anyhow::Result<()> {
     const FORMAT: &str = "is not format `{Module, Function, Arity | Args, Location}`";
 
     // {M, F, arity | args, location}
@@ -144,9 +148,9 @@ fn item_try_from_4_tuple(tuple: Boxed<Tuple>) -> anyhow::Result<()> {
 }
 
 fn location_try_from_term(term: Term) -> anyhow::Result<()> {
-    match term.decode().unwrap() {
-        TypedTerm::Nil => Ok(()),
-        TypedTerm::List(cons) => {
+    match term {
+        Term::Nil => Ok(()),
+        Term::Cons(cons) => {
             for (index, result) in cons.iter().enumerate() {
                 match result {
                     Ok(element) => location_keyword_pair_from_term(element).with_context(|| {
@@ -171,7 +175,7 @@ fn location_keyword_pair_from_term(keyword_pair: Term) -> anyhow::Result<()> {
     location_keyword_pair_from_tuple(tuple)
 }
 
-fn location_keyword_pair_from_tuple(keyword_pair: Boxed<Tuple>) -> anyhow::Result<()> {
+fn location_keyword_pair_from_tuple(keyword_pair: NonNull<Tuple>) -> anyhow::Result<()> {
     if keyword_pair.len() == 2 {
         location_keyword_pair_from_2_tuple(keyword_pair)
             .with_context(|| format!("is not a keyword pair"))
@@ -180,12 +184,12 @@ fn location_keyword_pair_from_tuple(keyword_pair: Boxed<Tuple>) -> anyhow::Resul
     }
 }
 
-fn location_keyword_pair_from_2_tuple(keyword_pair: Boxed<Tuple>) -> anyhow::Result<()> {
+fn location_keyword_pair_from_2_tuple(keyword_pair: NonNull<Tuple>) -> anyhow::Result<()> {
     let key = keyword_pair[0];
     let key_atom = term_try_into_atom!(key)?;
     let value = keyword_pair[1];
 
-    match key_atom.name() {
+    match key_atom.as_str() {
         "file" => file_try_from_term(value),
         "line" => line_try_from_term(value),
         _ => Err(anyhow!("key ({}) is neither `file` nor `line`", key)),
@@ -193,8 +197,8 @@ fn location_keyword_pair_from_2_tuple(keyword_pair: Boxed<Tuple>) -> anyhow::Res
 }
 
 fn file_try_from_term(term: Term) -> anyhow::Result<()> {
-    match term.decode().unwrap() {
-        TypedTerm::List(cons) => {
+    match term {
+        Term::Cons(cons) => {
             for (index, result) in cons.iter().enumerate() {
                 match result {
                     Ok(element) => character_try_from_term(element)
@@ -215,15 +219,15 @@ fn character_try_from_term(term: Term) -> anyhow::Result<char> {
 }
 
 fn line_try_from_term(term: Term) -> anyhow::Result<()> {
-    match term.decode().unwrap() {
-        TypedTerm::SmallInteger(small_integer) => {
+    match term {
+        Term::Int(small_integer) => {
             if 0_isize < small_integer.into() {
                 Ok(())
             } else {
                 Err(anyhow!("line ({}) is not 1 or greater", term))
             }
         }
-        TypedTerm::BigInteger(big_integer) => {
+        Term::BigInt(big_integer) => {
             let big_int = big_integer.as_ref().into();
             let zero_big_int: &BigInt = &0.into();
 

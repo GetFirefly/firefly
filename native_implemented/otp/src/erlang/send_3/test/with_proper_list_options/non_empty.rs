@@ -1,7 +1,5 @@
 use super::*;
 
-use proptest::strategy::Strategy;
-
 mod with_noconnect;
 mod with_noconnect_and_nosuspend;
 mod with_nosuspend;
@@ -15,8 +13,8 @@ fn with_invalid_option_errors_badarg() {
                 strategy::term(arc_process.clone()),
                 strategy::term(arc_process.clone()).prop_filter(
                     "Option must be invalid",
-                    |option| match option.decode().unwrap() {
-                        TypedTerm::Atom(atom) => match atom.name() {
+                    |option| match option {
+                        Term::Atom(atom) => match atom.as_str() {
                             "noconnect" | "nosuspend" => false,
                             _ => true,
                         },
@@ -26,8 +24,8 @@ fn with_invalid_option_errors_badarg() {
             )
         },
         |(arc_process, message, option)| {
-            let destination = arc_process.pid_term();
-            let options = arc_process.list_from_slice(&[option]);
+            let destination = arc_process.pid_term().unwrap();
+            let options = arc_process.list_from_slice(&[option]).unwrap();
 
             prop_assert_badarg!(
                 result(&arc_process, destination, message, options),

@@ -21,7 +21,8 @@ use super::{Atom, OpaqueTerm};
 /// in the argument list of the callee, which is a fat pointer to the Closure struct. This enables
 /// the callee to access the closed-over values from its environment.
 ///
-/// Function captures do not have the extra self argument, and always have an implicitly empty environment.
+/// Function captures do not have the extra self argument, and always have an implicitly empty
+/// environment.
 #[repr(C, align(16))]
 pub struct Closure {
     pub module: Atom,
@@ -50,15 +51,18 @@ impl fmt::Display for Closure {
 impl Closure {
     pub const TYPE_ID: TypeId = TypeId::of::<Closure>();
 
-    /// Allocates a new GcBox'd closure with the given name, callee, and environment, using the provided allocator
+    /// Allocates a new GcBox'd closure with the given name, callee, and environment, using the
+    /// provided allocator
     ///
     /// # Safety
     ///
-    /// This is a risky low-level operation, and is only safe if the following guarantees are upheld by the caller:
+    /// This is a risky low-level operation, and is only safe if the following guarantees are upheld
+    /// by the caller:
     ///
     /// * The callee pointer must point to an actual function
     /// * The callee must be guaranteed to outlive the closure itself
-    /// * The callee must expect to receive `arity` arguments in addition to the closure self argument
+    /// * The callee must expect to receive `arity` arguments in addition to the closure self
+    ///   argument
     pub fn new_in<A: Allocator>(
         module: Atom,
         name: Atom,

@@ -1,9 +1,7 @@
-use std::convert::TryInto;
-
 use proptest::strategy::Just;
 use proptest::{prop_assert, prop_assert_eq};
 
-use liblumen_alloc::erts::term::prelude::*;
+use firefly_rt::term::Term;
 
 use crate::erlang::iolist_to_iovec_1::result;
 use crate::test::strategy::term::is_iolist_or_binary;
@@ -71,7 +69,7 @@ fn with_binary_returns_binary_in_list() {
 
         assert_eq!(
             result(process, bin),
-            Ok(process.list_from_slice(&[process.binary_from_bytes(&[1, 2, 3])]))
+            Ok(process.list_from_slice(&[process.binary_from_bytes(&[1, 2, 3])]).unwrap())
         )
     });
 }
@@ -83,11 +81,11 @@ fn with_procbin_in_list_returns_list() {
         let procbin = process.binary_from_bytes(&bytes);
         // We expect this to be a procbin, since it's > 64 bytes. Make sure it is.
         assert!(procbin.is_boxed_procbin());
-        let iolist = process.list_from_slice(&[procbin]);
+        let iolist = process.list_from_slice(&[procbin]).unwrap();
 
         assert_eq!(
             result(process, iolist),
-            Ok(process.list_from_slice(&[process.binary_from_bytes(&bytes)]))
+            Ok(process.list_from_slice(&[process.binary_from_bytes(&bytes)])).unwrap()
         )
     });
 }
@@ -105,7 +103,7 @@ fn with_subbinary_in_list_returns_list() {
 
         assert_eq!(
             result(process, iolist),
-            Ok(process.list_from_slice(&[process.binary_from_bytes(&[2, 3, 4])]))
+            Ok(process.list_from_slice(&[process.binary_from_bytes(&[2, 3, 4])]).unwrap())
         )
     });
 }
@@ -123,7 +121,7 @@ fn with_subbinary_returns_list() {
 
         assert_eq!(
             result(process, iolist),
-            Ok(process.list_from_slice(&[process.binary_from_bytes(&[2, 3, 4])]))
+            Ok(process.list_from_slice(&[process.binary_from_bytes(&[2, 3, 4])]).unwrap())
         )
     });
 }
@@ -131,7 +129,7 @@ fn with_subbinary_returns_list() {
 #[test]
 fn with_improper_list_smallint_tail_errors_badarg() {
     with_process(|process| {
-        let tail = process.integer(42);
+        let tail = process.integer(42).unwrap();
         let iolist_or_binary =
             process.improper_list_from_slice(&[process.binary_from_bytes(&[1, 2, 3])], tail);
 
@@ -150,7 +148,7 @@ fn with_improper_list_smallint_tail_errors_badarg() {
 fn with_atom_in_iolist_errors_badarg() {
     with_process(|process| {
         let element = Atom::str_to_term("foo");
-        let iolist_or_binary = process.list_from_slice(&[element]);
+        let iolist_or_binary = process.list_from_slice(&[element]).unwrap();
 
         assert_badarg!(
             result(process, iolist_or_binary),

@@ -35,13 +35,13 @@ pub(crate) mod grammar {
 }
 
 use firefly_beam::beam::AbstractCode;
-use firefly_diagnostics::{ToDiagnostic, Diagnostic, Label, Reporter, SourceSpan};
+use firefly_diagnostics::{Diagnostic, Label, Reporter, SourceSpan, ToDiagnostic};
 use firefly_parser::{Parse, Parser, Scanner, Source};
 
 use crate::ast::{self, Form};
 
 /// Parses forms from the given AbstractCode object
-pub from_abstract_code(code: &AbstractCode) -> anyhow::Result<Form> {
+pub fn from_abstract_code(code: &AbstractCode) -> anyhow::Result<Form> {
     use firefly_beam::serialization::etf::pattern::VarList;
 
     let (_, form) = code
@@ -61,11 +61,7 @@ impl Parse for ast::Root {
         ParseError::RootFileError { source, path }
     }
 
-    fn parse<S>(
-        _parser: &Parser<Self::Config>,
-        reporter: Reporter,
-        source: S,
-    ) -> Result<Self, ()>
+    fn parse<S>(_parser: &Parser<Self::Config>, reporter: Reporter, source: S) -> Result<Self, ()>
     where
         S: Source,
     {

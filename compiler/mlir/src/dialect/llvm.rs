@@ -12,7 +12,8 @@ use crate::{Type, TypeBase, ValueBase};
 
 /// Primary builder for the LLVM dialect
 ///
-/// Wraps mlir::OpBuilder and provides functionality for constructing dialect operations, types, and attributes
+/// Wraps mlir::OpBuilder and provides functionality for constructing dialect operations, types, and
+/// attributes
 #[derive(Copy, Clone)]
 pub struct LlvmBuilder<'a, B: OpBuilder> {
     builder: &'a B,
@@ -161,7 +162,7 @@ impl StructType {
                 context,
                 fields.len(),
                 fields.as_ptr(),
-                /*packed=*/ false,
+                /* packed= */ false,
             )
         }
     }
@@ -172,7 +173,7 @@ impl StructType {
                 context,
                 fields.len(),
                 fields.as_ptr(),
-                /*packed=*/ true,
+                /* packed= */ true,
             )
         }
     }

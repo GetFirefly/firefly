@@ -1,9 +1,7 @@
-use std::convert::TryInto;
-
 use proptest::prop_assert_eq;
 use proptest::strategy::Just;
 
-use liblumen_alloc::erts::term::prelude::*;
+use firefly_rt::term::Tuple;
 
 use crate::erlang::setelement_3::result;
 use crate::test::strategy;
@@ -38,14 +36,14 @@ fn with_tuple_without_valid_index_errors_badarg() {
             )
         },
         |(arc_process, (tuple, index), element)| {
-            let boxed_tuple: Boxed<Tuple> = tuple.try_into().unwrap();
+            let non_null_tuple: NonNull<Tuple> = tuple.try_into().unwrap();
 
             prop_assert_badarg!(
                 result(&arc_process, index, tuple, element),
                 format!(
                     "index ({}) is not a 1-based integer between 1-{}",
                     index,
-                    boxed_tuple.len()
+                    non_null_tuple.len()
                 )
             );
 
@@ -66,7 +64,7 @@ fn with_tuple_with_valid_index_returns_tuple_with_index_replaced() {
         },
         |(arc_process, (mut element_vec, element_vec_index, tuple, index), element)| {
             element_vec[element_vec_index] = element;
-            let new_tuple = arc_process.tuple_from_slice(&element_vec);
+            let new_tuple = arc_process.tuple_term_from_term_slice(&element_vec);
 
             prop_assert_eq!(result(&arc_process, index, tuple, element), Ok(new_tuple));
 

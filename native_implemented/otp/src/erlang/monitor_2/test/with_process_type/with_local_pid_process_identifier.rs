@@ -15,12 +15,12 @@ fn without_process_returns_reference_but_immediate_sends_noproc_message() {
 
         assert!(monitor_reference.is_reference());
 
-        let tag = Atom::str_to_term("DOWN");
-        let reason = Atom::str_to_term("noproc");
+        let tag = atoms::Down.into();
+        let reason = atoms::Noproc.into();
 
         assert_has_message!(
             &monitoring_arc_process,
-            monitoring_arc_process.tuple_from_slice(&[
+            monitoring_arc_process.tuple_term_from_term_slice(&[
                 tag,
                 monitor_reference,
                 r#type(),

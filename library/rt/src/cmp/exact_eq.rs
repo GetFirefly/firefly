@@ -5,8 +5,9 @@
 ///! This trait extends the notion of equality provided by `Eq` to cover the distinction
 ///! between the non-strict (`==` and `/=`), and strict (`=:=` and `=/=`) equality operators.
 ///!
-///! ExactEq has a default implemention for all `Eq` implementors. However, for types which distinguish
-///! between strict/non-strict equality, this trait should be specialized on those types.
+///! ExactEq has a default implemention for all `Eq` implementors. However, for types which
+/// distinguish ! between strict/non-strict equality, this trait should be specialized on those
+/// types.
 use alloc::alloc::Allocator;
 use alloc::boxed::Box;
 use alloc::vec::Vec;

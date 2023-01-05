@@ -18,12 +18,12 @@ fn with_different_process_sends_message_when_timer_expires() {
                 erlang::register_2::result(
                     arc_process.clone(),
                     destination,
-                    destination_arc_process.pid_term(),
+                    destination_arc_process.pid_term().unwrap(),
                 ),
                 Ok(true.into())
             );
 
-            let time = arc_process.integer(milliseconds);
+            let time = arc_process.integer(milliseconds).unwrap();
 
             let start_monotonic = freeze_timeout();
 
@@ -66,12 +66,12 @@ fn with_same_process_sends_message_when_timer_expires() {
                 erlang::register_2::result(
                     arc_process.clone(),
                     destination,
-                    arc_process.pid_term(),
+                    arc_process.pid_term().unwrap(),
                 ),
                 Ok(true.into())
             );
 
-            let time = arc_process.integer(milliseconds);
+            let time = arc_process.integer(milliseconds).unwrap();
 
             let start_monotonic = freeze_timeout();
 

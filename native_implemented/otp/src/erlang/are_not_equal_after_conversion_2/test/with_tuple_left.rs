@@ -1,7 +1,5 @@
 use super::*;
 
-use proptest::strategy::Strategy;
-
 #[test]
 fn without_tuple_right_returns_true() {
     run!(
@@ -9,7 +7,7 @@ fn without_tuple_right_returns_true() {
             (
                 strategy::term::tuple(arc_process.clone()),
                 strategy::term(arc_process.clone())
-                    .prop_filter("Right must not be tuple", |v| !v.is_boxed_tuple()),
+                    .prop_filter("Right must not be tuple", |v| !v.is_tuple()),
             )
         },
         |(left, right)| {
@@ -42,8 +40,8 @@ fn with_same_value_tuple_right_returns_false() {
                     let mut heap = arc_process.acquire_heap();
 
                     (
-                        heap.tuple_from_slice(&vec).unwrap(),
-                        heap.tuple_from_slice(&vec).unwrap(),
+                        heap.tuple_term_from_term_slice(&vec).unwrap(),
+                        heap.tuple_term_from_term_slice(&vec).unwrap(),
                     )
                 })
         },

@@ -19,7 +19,7 @@ pub mod label_4;
 #[path = "removes_element/label_5.rs"]
 pub mod label_5;
 
-use liblumen_alloc::erts::process::Process;
+use liblumen_rt::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
 use liblumen_web::window;

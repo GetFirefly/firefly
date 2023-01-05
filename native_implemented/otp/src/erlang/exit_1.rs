@@ -1,16 +1,11 @@
-use anyhow::*;
+use std::ptr::NonNull;
+use firefly_rt::backtrace::Trace;
 
-use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::process::trace::Trace;
-use liblumen_alloc::erts::term::prelude::Term;
-use liblumen_alloc::exit;
+use firefly_rt::error::ErlangException;
+use firefly_rt::term::{atoms, Term};
 
 #[native_implemented::function(erlang:exit/1)]
-fn result(reason: Term) -> exception::Result<Term> {
-    Err(exit!(
-        reason,
-        Trace::capture(),
-        anyhow!("explicit exit from Erlang").into()
-    )
-    .into())
+fn result(reason: Term) -> Result<Term, NonNull<ErlangException>> {
+    let err = ErlangException::new(atoms::Exit, reason.into(), Trace::capture());
+    Err(unsafe { NonNull::new_unchecked(Box::into_raw(err)) })
 }

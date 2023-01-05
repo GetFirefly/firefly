@@ -4,8 +4,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use lazy_static::lazy_static;
 
-use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::prelude::*;
+use firefly_rt::process::Process;
+use firefly_rt::term::Term;
 
 use crate::runtime::scheduler;
 
@@ -30,7 +30,7 @@ pub fn unique_integer(process: &Process, options: Options) -> Term {
 
         // See https://github.com/erlang/otp/blob/769ff22c750d939fdc9cb45fae1e44817ec04307/erts/emulator/beam/erl_bif_unique.c#L669-L697
         if options.positive {
-            process.integer(u)
+            process.integer(u).unwrap()
         } else {
             // When not positive allow for negative and positive even though the counter is unsigned
             // by subtracting counter value down into signed range.
@@ -40,7 +40,7 @@ pub fn unique_integer(process: &Process, options: Options) -> Term {
                 (u - NEGATED_I64_MIN_U64) as i64
             };
 
-            process.integer(i)
+            process.integer(i).unwrap()
         }
     } else {
         // Non-monotonic unique integers are per-scheduler (https://github.com/erlang/otp/blob/769ff22c750d939fdc9cb45fae1e44817ec04307/erts/emulator/beam/erl_bif_unique.c#L572-L584)
@@ -54,7 +54,7 @@ pub fn unique_integer(process: &Process, options: Options) -> Term {
         let u: u128 = (scheduler_id_u128 << 64) | scheduler_unique_integer;
 
         if options.positive {
-            process.integer(u)
+            process.integer(u).unwrap()
         } else {
             let i = if u < NEGATED_I128_MIN_U128 {
                 (u as i128) + std::i128::MIN
@@ -62,7 +62,7 @@ pub fn unique_integer(process: &Process, options: Options) -> Term {
                 (u - NEGATED_I128_MIN_U128) as i128
             };
 
-            process.integer(i)
+            process.integer(i).unwrap()
         }
     }
 }

@@ -1,5 +1,5 @@
-use liblumen_alloc::atom;
-use liblumen_alloc::erts::term::prelude::*;
+use firefly_rt::*;
+use firefly_rt::term::{atoms, Term};
 
 use crate::runtime;
 
@@ -7,5 +7,5 @@ use crate::runtime;
 pub fn result(term: Term) -> Term {
     runtime::sys::io::puts(&format!("{}", term));
 
-    atom!("ok")
+    atoms::Ok.into()
 }

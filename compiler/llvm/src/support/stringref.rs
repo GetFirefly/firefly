@@ -109,8 +109,8 @@ impl StringRef {
     /// This is equivalent to `CStr::from_ptr`, but allows you to avoid the extra song and dance
     /// in places where you are frequently working with these types of strings.
     ///
-    /// NOTE: This is entirely unsafe, if you pass a pointer to a string that is not null-terminated,
-    /// it _will_ go wrong, so make sure you know what you're doing.
+    /// NOTE: This is entirely unsafe, if you pass a pointer to a string that is not
+    /// null-terminated, it _will_ go wrong, so make sure you know what you're doing.
     pub unsafe fn from_ptr(s: *const std::os::raw::c_char) -> Self {
         CStr::from_ptr(s).into()
     }

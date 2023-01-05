@@ -1,4 +1,5 @@
 use alloc::alloc::{AllocError, Allocator};
+use alloc::format;
 use alloc::vec::Vec;
 use core::any::TypeId;
 use core::fmt;
@@ -74,7 +75,8 @@ impl Map {
         Self { map }
     }
 
-    /// Create a map with the given allocator, initialized with key/value pairs from the given iterator
+    /// Create a map with the given allocator, initialized with key/value pairs from the given
+    /// iterator
     pub fn new_from_iter_in<A: Allocator, I: Iterator<Item = (Term, Term)>>(
         items: I,
         alloc: A,
@@ -110,7 +112,8 @@ impl Map {
         Ok(map)
     }
 
-    /// Create a map with the given allocator, initialized with key/value pairs from the given list term
+    /// Create a map with the given allocator, initialized with key/value pairs from the given list
+    /// term
     pub fn from_keyword_list_in<A: Allocator>(
         list: &Cons,
         alloc: A,

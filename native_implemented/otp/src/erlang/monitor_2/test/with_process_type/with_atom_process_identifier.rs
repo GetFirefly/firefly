@@ -20,11 +20,11 @@ fn without_registered_name_returns_reference_but_immediate_sends_noproc_message(
 
         assert_has_message!(
             &monitoring_arc_process,
-            monitoring_arc_process.tuple_from_slice(&[
+            monitoring_arc_process.tuple_term_from_term_slice(&[
                 tag,
                 monitor_reference,
                 r#type(),
-                monitoring_arc_process.tuple_from_slice(&[registered_name, node_0::result()]),
+                monitoring_arc_process.tuple_term_from_term_slice(&[registered_name, node_0::result()]),
                 reason
             ])
         );

@@ -2,13 +2,13 @@
 mod test;
 
 use std::convert::TryInto;
+use std::ptr::NonNull;
 
 use anyhow::*;
 
-use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::process::alloc::TermAlloc;
-use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::prelude::*;
+use firefly_rt::error::ErlangException;
+use firefly_rt::process::Process;
+use firefly_rt::term::{OneBasedIndex, Term, Tuple};
 
 use crate::runtime::context::*;
 
@@ -18,7 +18,7 @@ pub fn result(
     arity: Term,
     default_value: Term,
     init_list: Term,
-) -> exception::Result<Term> {
+) -> Result<Term, NonNull<ErlangException>> {
     // arity by definition is only 0-225, so `u8`, but ...
     let arity_u8 = term_try_into_arity(arity)?;
     // ... everything else uses `usize`, so cast it back up
@@ -31,13 +31,13 @@ pub fn result(
         tuple.set_element(index, default_value).unwrap();
     }
 
-    match init_list.decode().unwrap() {
-        TypedTerm::Nil => Ok(tuple.encode()?),
-        TypedTerm::List(boxed_cons) => {
+    match init_list {
+        Term::Nil => Ok(tuple.encode()?),
+        Term::Cons(boxed_cons) => {
             for result in boxed_cons.into_iter() {
                 match result {
                     Ok(init) => {
-                        let init_boxed_tuple: Boxed<Tuple> = init.try_into().with_context(|| format!("init list ({}) element ({}) is not {{position :: pos_integer(), term()}}", init_list, init))?;
+                        let init_boxed_tuple: NonNull<Tuple> = init.try_into().with_context(|| format!("init list ({}) element ({}) is not {{position :: pos_integer(), term()}}", init_list, init))?;
 
                         if init_boxed_tuple.len() == 2 {
                             let position = init_boxed_tuple[0];

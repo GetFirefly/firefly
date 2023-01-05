@@ -13,7 +13,7 @@ fn with_empty_tuple_list_returns_false() {
                     strategy::term::index::is_one_based(arc_process.clone()),
                 ),
                 |(key, one_based_index)| {
-                    let tuple_list = Term::NIL;
+                    let tuple_list = Term::Nil;
 
                     prop_assert_eq!(result(key, one_based_index, tuple_list), Ok(false.into()));
 

@@ -1,11 +1,10 @@
 mod with_small_integer_time;
 
-use proptest::strategy::{Just, Strategy};
+use proptest::strategy::Just;
 use proptest::test_runner::{Config, TestRunner};
 use proptest::{prop_assert, prop_assert_eq};
 
-use liblumen_alloc::erts::term::prelude::*;
-use liblumen_alloc::erts::time::Milliseconds;
+use firefly_rt::term::Term;
 
 use crate::erlang;
 use crate::erlang::send_after_3::result;
@@ -27,7 +26,7 @@ fn without_non_negative_integer_time_errors_badarg() {
             )
         },
         |(arc_process, time, message)| {
-            let destination = arc_process.pid_term();
+            let destination = arc_process.pid_term().unwrap();
 
             prop_assert_badarg!(
                 result(arc_process.clone(), time, destination, message),

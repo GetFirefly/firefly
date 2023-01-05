@@ -1,7 +1,6 @@
 mod with_local_reference;
 
-use liblumen_alloc::erts::term::prelude::*;
-use liblumen_alloc::erts::time::Milliseconds;
+use firefly_rt::term::Term;
 
 use crate::erlang::read_timer_1::result;
 

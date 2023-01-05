@@ -348,8 +348,8 @@ pub extern "C-unwind" fn bs_push(
             ok!(bin)
         }
         BinaryEntrySpecifier::Binary { unit } => {
-            // Size must be a non-negative integer, or None to represent pushing all of the source value
-            // into the destination buffer
+            // Size must be a non-negative integer, or None to represent pushing all of the source
+            // value into the destination buffer
             let size: Option<usize> = match size.into() {
                 Term::None => None,
                 Term::Int(sz) if sz >= 0 => {

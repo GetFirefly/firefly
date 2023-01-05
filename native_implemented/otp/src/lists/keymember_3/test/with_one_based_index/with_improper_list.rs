@@ -4,8 +4,8 @@ use super::*;
 fn without_found_errors_badarg() {
     with_process_arc(|arc_process| {
         let key = Atom::str_to_term("not_found");
-        let one_based_index = arc_process.integer(1);
-        let slice = &[arc_process.tuple_from_slice(&[])];
+        let one_based_index = arc_process.integer(1).unwrap();
+        let slice = &[arc_process.tuple_term_from_term_slice(&[])];
         let tail = Atom::str_to_term("tail");
         let tuple_list = arc_process.improper_list_from_slice(slice, tail);
 
@@ -27,14 +27,14 @@ fn with_non_tuple_in_list_with_found_returns_true() {
                 .prop_map(
                     |(arc_process, before_key_vec, key, after_key_vec, non_tuple)| {
                         let index_zero_based_usize = before_key_vec.len() + 1;
-                        let index_one_based_term = arc_process.integer(index_zero_based_usize);
+                        let index_one_based_term = arc_process.integer(index_zero_based_usize).unwrap();
 
                         let mut tuple_with_key_element_vec = Vec::new();
                         tuple_with_key_element_vec.extend_from_slice(&before_key_vec);
                         tuple_with_key_element_vec.push(key);
                         tuple_with_key_element_vec.extend_from_slice(&after_key_vec);
                         let tuple_with_key =
-                            arc_process.tuple_from_slice(&tuple_with_key_element_vec);
+                            arc_process.tuple_term_from_term_slice(&tuple_with_key_element_vec);
 
                         let tail = Atom::str_to_term("tail");
                         let tuple_list = arc_process
@@ -81,14 +81,14 @@ fn with_shorter_tuple_in_list_with_found_returns_true() {
                 .prop_map(
                     |(arc_process, before_key_vec, key, after_key_vec, short_tuple)| {
                         let index_zero_based_usize = before_key_vec.len() + 1;
-                        let index_one_based_term = arc_process.integer(index_zero_based_usize);
+                        let index_one_based_term = arc_process.integer(index_zero_based_usize).unwrap();
 
                         let mut tuple_with_key_element_vec = Vec::new();
                         tuple_with_key_element_vec.extend_from_slice(&before_key_vec);
                         tuple_with_key_element_vec.push(key);
                         tuple_with_key_element_vec.extend_from_slice(&after_key_vec);
                         let tuple_with_key =
-                            arc_process.tuple_from_slice(&tuple_with_key_element_vec);
+                            arc_process.tuple_term_from_term_slice(&tuple_with_key_element_vec);
 
                         let tail = Atom::str_to_term("tail");
                         let tuple_list = arc_process
@@ -110,8 +110,8 @@ fn with_shorter_tuple_in_list_with_found_returns_true() {
 fn with_found_returns_true() {
     with_process_arc(|arc_process| {
         let key = Atom::str_to_term("found");
-        let one_based_index = arc_process.integer(1);
-        let element = arc_process.tuple_from_slice(&[key]);
+        let one_based_index = arc_process.integer(1).unwrap();
+        let element = arc_process.tuple_term_from_term_slice(&[key]);
         let slice = &[element];
         let tail = Atom::str_to_term("tail");
         let tuple_list = arc_process.improper_list_from_slice(slice, tail);

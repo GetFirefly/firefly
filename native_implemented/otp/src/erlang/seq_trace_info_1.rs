@@ -1,13 +1,15 @@
-use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::prelude::*;
+use std::ptr::NonNull;
+
+use firefly_rt::error::ErlangException;
+use firefly_rt::process::Process;
+use firefly_rt::term::Term;
 
 use super::seq_trace::flag_is_not_a_supported_atom;
 
 // See https://github.com/lumen/otp/blob/30e2bfb9f1fd5c65bd7d9a4159f88cdcf72023fa/erts/emulator/beam/erl_bif_trace.c#L1855-L1917
 #[native_implemented::function(erlang:seq_trace_info/1)]
-pub fn result(process: &Process, flag: Term) -> exception::Result<Term> {
-    let flag_name = term_try_into_atom!(flag)?.name();
+pub fn result(process: &Process, flag: Term) -> Result<Term, NonNull<ErlangException>> {
+    let flag_name = term_try_into_atom!(flag)?.as_str();
 
     // Stub as if seq tracing is ALWAYS NOT enabled
     // See https://github.com/lumen/otp/blob/30e2bfb9f1fd5c65bd7d9a4159f88cdcf72023fa/erts/emulator/beam/erl_bif_trace.c#L1865-L1879
@@ -30,13 +32,13 @@ fn boolean_item(process: &Process, item: Term) -> Term {
 }
 
 fn label(process: &Process, item: Term) -> Term {
-    tagged(process, item, Term::NIL)
+    tagged(process, item, Term::Nil)
 }
 
 fn serial(process: &Process, item: Term) -> Term {
-    tagged(process, item, Term::NIL)
+    tagged(process, item, Term::Nil)
 }
 
 fn tagged(process: &Process, tag: Term, value: Term) -> Term {
-    process.tuple_from_slice(&[tag, value])
+    process.tuple_term_from_term_slice(&[tag, value])
 }

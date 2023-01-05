@@ -4,6 +4,8 @@ use proptest::prop_assert_eq;
 use proptest::strategy::Just;
 use proptest::test_runner::{Config, TestRunner};
 
+use firefly_rt::term::Term;
+
 use crate::erlang::split_binary_2::result;
 use crate::test::strategy;
 use crate::test::{with_process, with_process_arc};

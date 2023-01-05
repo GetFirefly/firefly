@@ -1,18 +1,17 @@
 //! This is used as the `init_fn` for `Scheduler::spawn_closure`, as the spawning code can only
 //! pass at most 1 argument and `erlang:apply/2` takes two arguments
 use anyhow::anyhow;
+use firefly_rt::backtrace::Trace;
 
-use liblumen_alloc::erts::exception::{badarity, Exception};
-use liblumen_alloc::erts::process::ffi::ErlangResult;
-use liblumen_alloc::erts::process::trace::Trace;
-use liblumen_alloc::erts::term::prelude::*;
+use firefly_rt::function::ErlangResult;
+use firefly_rt::term::{atoms, Term};
 
 use crate::erlang;
 use crate::erlang::apply::arguments_term_to_vec;
 
 #[export_name = "lumen:apply_apply_2/1"]
 pub extern "C-unwind" fn apply_apply_2(arguments: Term) -> ErlangResult {
-    let arc_process = crate::runtime::process::current_process();
+    let arc_process = runtime::process::current_process();
     let argument_vec = match arguments_term_to_vec(arguments) {
         Ok(args) => args,
         Err(err) => match err {
@@ -36,7 +35,7 @@ pub extern "C-unwind" fn apply_apply_2(arguments: Term) -> ErlangResult {
     } else {
         let function = arc_process.export_closure(
             erlang::module(),
-            Atom::from_str("apply"),
+            atoms::Apply,
             2,
             erlang::apply_2::CLOSURE_NATIVE,
         );

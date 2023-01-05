@@ -3,14 +3,14 @@ use super::*;
 #[test]
 fn with_invalid_unit_errors_badarg() {
     with_process(|process| {
-        assert_badarg!(result(process, atom!("invalid")), SUPPORTED_UNITS);
+        assert_badarg!(result(process, atoms::Invalid.into()), SUPPORTED_UNITS);
     });
 }
 
 #[test]
 fn with_second_increases_after_2_seconds() {
     with_process(|process| {
-        let unit = Atom::str_to_term("second");
+        let unit = atoms::Second.into();
         let start_monotonic = monotonic::freeze();
 
         let first = result(process, unit).unwrap();
@@ -26,7 +26,7 @@ fn with_second_increases_after_2_seconds() {
 #[test]
 fn with_millisecond_increases_after_2_milliseconds() {
     with_process(|process| {
-        let unit = Atom::str_to_term("millisecond");
+        let unit = atoms::Millisecond.into();
         let start_monotonic = monotonic::freeze();
 
         let first = result(process, unit).unwrap();

@@ -1,7 +1,6 @@
 use super::*;
 
 use proptest::collection::SizeRange;
-use proptest::strategy::Strategy;
 
 use crate::test::strategy::NON_EMPTY_RANGE_INCLUSIVE;
 
@@ -44,8 +43,8 @@ fn with_same_value_list_right_returns_false() {
             proptest::collection::vec(strategy::term(arc_process.clone()), size_range).prop_map(
                 move |vec| match vec.len() {
                     1 => (
-                        arc_process.list_from_slice(&vec),
-                        arc_process.list_from_slice(&vec),
+                        arc_process.list_from_slice(&vec).unwrap(),
+                        arc_process.list_from_slice(&vec).unwrap(),
                     ),
                     len => {
                         let last_index = len - 1;

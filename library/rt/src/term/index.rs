@@ -232,7 +232,7 @@ impl ops::Index<ops::RangeFull> for Tuple {
 
     #[inline]
     fn index(&self, index: ops::RangeFull) -> &Self::Output {
-        ops::Index::index(self.as_slice(), index)
+        ops::Index::index(self.as_opaque_term_slice(), index)
     }
 }
 
@@ -244,13 +244,13 @@ impl ops::Index<usize> for Tuple {
 
     #[inline]
     fn index(&self, index: usize) -> &Self::Output {
-        <usize as slice::SliceIndex<[OpaqueTerm]>>::index(index, self.as_slice())
+        <usize as slice::SliceIndex<[OpaqueTerm]>>::index(index, self.as_opaque_term_slice())
     }
 }
 impl ops::IndexMut<usize> for Tuple {
     #[inline]
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
-        <usize as slice::SliceIndex<[OpaqueTerm]>>::index_mut(index, self.as_mut_slice())
+        <usize as slice::SliceIndex<[OpaqueTerm]>>::index_mut(index, self.as_mut_opaque_term_slice())
     }
 }
 impl ops::Index<ops::RangeTo<usize>> for Tuple {
@@ -258,7 +258,7 @@ impl ops::Index<ops::RangeTo<usize>> for Tuple {
 
     #[inline]
     fn index(&self, index: ops::RangeTo<usize>) -> &Self::Output {
-        <ops::RangeTo<usize> as slice::SliceIndex<[OpaqueTerm]>>::index(index, self.as_slice())
+        <ops::RangeTo<usize> as slice::SliceIndex<[OpaqueTerm]>>::index(index, self.as_opaque_term_slice())
     }
 }
 impl ops::Index<ops::RangeFrom<usize>> for Tuple {
@@ -266,7 +266,7 @@ impl ops::Index<ops::RangeFrom<usize>> for Tuple {
 
     #[inline]
     fn index(&self, index: ops::RangeFrom<usize>) -> &Self::Output {
-        <ops::RangeFrom<usize> as slice::SliceIndex<[OpaqueTerm]>>::index(index, self.as_slice())
+        <ops::RangeFrom<usize> as slice::SliceIndex<[OpaqueTerm]>>::index(index, self.as_opaque_term_slice())
     }
 }
 
@@ -281,7 +281,7 @@ where
     #[inline]
     fn index(&self, index: I) -> &Self::Output {
         let uindex: usize = index.into();
-        ops::Index::index(self.as_slice(), uindex)
+        ops::Index::index(self.as_opaque_term_slice(), uindex)
     }
 }
 
@@ -292,7 +292,7 @@ where
     #[inline]
     fn index_mut(&mut self, index: I) -> &mut Self::Output {
         let uindex: usize = index.into();
-        ops::IndexMut::index_mut(self.as_mut_slice(), uindex)
+        ops::IndexMut::index_mut(self.as_mut_opaque_term_slice(), uindex)
     }
 }
 
@@ -305,7 +305,7 @@ where
     #[inline]
     fn index(&self, index: ops::RangeTo<I>) -> &Self::Output {
         let uindex: usize = index.end.into();
-        ops::Index::index(self.as_slice(), ops::RangeTo { end: uindex })
+        ops::Index::index(self.as_opaque_term_slice(), ops::RangeTo { end: uindex })
     }
 }
 
@@ -318,6 +318,6 @@ where
     #[inline]
     fn index(&self, index: ops::RangeFrom<I>) -> &Self::Output {
         let uindex: usize = index.start.into();
-        ops::Index::index(self.as_slice(), ops::RangeFrom { start: uindex })
+        ops::Index::index(self.as_opaque_term_slice(), ops::RangeFrom { start: uindex })
     }
 }

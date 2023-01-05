@@ -14,7 +14,7 @@ fn without_atom_node_errors_badarg() {
             )
         },
         |(arc_process, name, node, message)| {
-            let destination = arc_process.tuple_from_slice(&[name, node]);
+            let destination = arc_process.tuple_term_from_term_slice(&[name, node]);
 
             prop_assert_badarg!(
                 result(&arc_process, destination, message),

@@ -82,7 +82,8 @@ impl VisitMut<bool> for IsNifVisitor {
         }
     }
 
-    // As an optimization we can skip over patterns, since the calls we're looking for will only occur in a non-pattern context
+    // As an optimization we can skip over patterns, since the calls we're looking for will only
+    // occur in a non-pattern context
     fn visit_mut_pattern(&mut self, _pattern: &mut Expr) -> ControlFlow<bool> {
         ControlFlow::Continue(())
     }
@@ -95,8 +96,9 @@ impl VisitMut<bool> for IsNifVisitor {
         ControlFlow::Continue(())
     }
 
-    // The call to nif_error should exist near the entry of the function, so we can skip certain expression types
-    // which we know the call to nif_error/2 will not be in, or which are not going to be present in a nif stub
+    // The call to nif_error should exist near the entry of the function, so we can skip certain
+    // expression types which we know the call to nif_error/2 will not be in, or which are not
+    // going to be present in a nif stub
     fn visit_mut_expr(&mut self, expr: &mut Expr) -> ControlFlow<bool> {
         match expr {
             Expr::Begin(ref mut begin) => self.visit_mut_begin(begin),

@@ -3,11 +3,10 @@ macro_rules! assert_badarg {
     ($actual:expr, $expected_substring:expr) => {{
         let actual = $actual;
 
-        if let Err(liblumen_alloc::erts::exception::Exception::Runtime(
-            liblumen_alloc::erts::exception::RuntimeException::Error(ref error),
-        )) = actual
+        if let Err(ref non_null_erlang_exception) = actual
         {
-            assert_eq!(error.reason(), liblumen_alloc::atom!("badarg"));
+            let erlang_exceptiion = unsafe { non_null_erlang_exception.as_ref() };
+            assert_eq!(erlang_exceptiion.reason(), firefly_rt::term::atoms::BadArg.into());
 
             let source_message = format!("{:?}", error.source());
             let expected_substring = $expected_substring;
@@ -41,9 +40,6 @@ macro_rules! assert_badarith {
 #[cfg(test)]
 macro_rules! assert_error {
     ($left:expr, $reason:expr) => {{
-        use liblumen_alloc::erts::exception::error;
-        use liblumen_alloc::erts::process::trace::Trace;
-
         assert_eq!(
             $left,
             Err(error(
@@ -56,18 +52,12 @@ macro_rules! assert_error {
         )
     }};
     ($left:expr, $reason:expr,) => {{
-        use liblumen_alloc::error;
-
         assert_eq!($left, Err(error!($reason).into()))
     }};
     ($left:expr, $reason:expr, $arguments:expr) => {{
-        use liblumen_alloc::error;
-
         assert_eq!($left, Err(error!($reason, $arguments).into()))
     }};
     ($left:expr, $reason:expr, $arguments:expr,) => {{
-        use liblumen_alloc::error;
-
         assert_eq!($left, Err(error!($reason, $arguments).into()))
     }};
 }
@@ -123,7 +113,7 @@ macro_rules! prop_assert_badarg {
         prop_assert_error!(
             $actual,
             "badarg",
-            liblumen_alloc::atom!("badarg"),
+            firefly_rt::term::atoms::Badarg,
             $expected_substring
         )
     }};
@@ -222,7 +212,7 @@ macro_rules! prop_assert_badarith {
         prop_assert_error!(
             $actual,
             "badarith",
-            liblumen_alloc::atom!("badarith"),
+            firefly_rt::term::atoms::Badarith.into(),
             $expected_substring
         )
     }};
@@ -234,7 +224,7 @@ macro_rules! prop_assert_badkey {
         prop_assert_error!(
             $actual,
             "badkey",
-            $process.tuple_from_slice(&[liblumen_alloc::atom!("badkey"), $expected_key]),
+            $process.tuple_term_from_term_slice(&[firefly_rt::term::atoms::Badkey.into(), $expected_key]),
             $expected_substring,
         )
     }};
@@ -258,7 +248,7 @@ macro_rules! prop_assert_badmap {
         prop_assert_error!(
             $actual,
             "badmap",
-            $process.tuple_from_slice(&[liblumen_alloc::atom!("badmap"), $expected_map]),
+            $process.tuple_term_from_term_slice(&[firefly_rt::term::atoms::Badmap.into(), $expected_map]),
             $expected_substring,
         )
     }};

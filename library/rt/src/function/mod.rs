@@ -2,7 +2,7 @@ mod apply;
 mod mfa;
 
 pub use self::apply::*;
-pub use self::mfa::ModuleFunctionArity;
+pub use self::mfa::{Arity, ModuleFunctionArity};
 
 use core::convert::Infallible;
 use core::fmt;
@@ -141,7 +141,7 @@ impl<T, E> ErlangResult<T, E> {
         debug_assert!(self.is_err());
         match self {
             // SAFETY: the safety contract must be upheld by the caller.
-            Self::Ok(_) => unsafe { core::hint::unreachable_unchecked() },
+            Self::Ok(_) => core::hint::unreachable_unchecked(),
             Self::Err(e) => e,
         }
     }
@@ -211,7 +211,7 @@ pub struct FunctionSymbol {
     /// Function name atom
     pub function: Atom,
     /// The arity of the function
-    pub arity: u8,
+    pub arity: Arity,
     /// An opaque pointer to the function
     ///
     /// To call the function, it is necessary to transmute this

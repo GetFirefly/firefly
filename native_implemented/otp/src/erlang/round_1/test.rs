@@ -1,5 +1,3 @@
-use std::convert::TryInto;
-
 use proptest::prop_assert;
 
 use crate::erlang::round_1::result;

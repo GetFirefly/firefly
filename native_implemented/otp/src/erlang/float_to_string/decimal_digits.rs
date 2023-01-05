@@ -1,6 +1,8 @@
 use std::convert::{TryFrom, TryInto};
 
-use liblumen_alloc::erts::term::prelude::*;
+use firefly_number::TryIntoIntegerError;
+
+use firefly_rt::term::Term;
 
 // > {decimals, Decimals :: 0..253}
 pub struct DecimalDigits(u8);

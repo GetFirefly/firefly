@@ -3,6 +3,7 @@
 // `with_link_in_options_list` in integration tests
 // `with_monitor_in_options_list` in integration tests
 
+use firefly_rt::term::Atom;
 use super::*;
 
 #[test]
@@ -16,7 +17,7 @@ fn without_proper_list_options_errors_badarg() {
             )
         },
         |(arc_process, function, tail)| {
-            let options = arc_process.improper_list_from_slice(&[atom!("link")], tail);
+            let options = arc_process.improper_list_from_slice(&[Atom::str_to_term(("link").into())], tail);
 
             prop_assert_badarg!(result(&arc_process, function, options), "improper list");
 

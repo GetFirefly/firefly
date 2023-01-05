@@ -1,4 +1,3 @@
-mod creator;
 mod without_native;
 
 use std::convert::TryInto;
@@ -8,15 +7,10 @@ use proptest::arbitrary::any;
 use proptest::prop_oneof;
 use proptest::strategy::{BoxedStrategy, Just, Strategy};
 
-use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::closure::Creator;
-use liblumen_alloc::erts::term::prelude::Term;
+use firefly_rt::process::Process;
+use firefly_rt::term::Term;
 
 use crate::test;
-
-pub fn creator() -> BoxedStrategy<Creator> {
-    prop_oneof![creator::local(), creator::external()].boxed()
-}
 
 pub fn index() -> BoxedStrategy<u32> {
     // A `u32`, but must be encodable as an `i32` for INTEGER_EXT
@@ -62,9 +56,8 @@ pub fn without_native(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
         old_unique(),
         unique(),
         super::arity_u8(),
-        creator(),
     )
-        .prop_map(move |(module, index, old_unique, unique, arity, creator)| {
+        .prop_map(move |(module, index, old_unique, unique, arity)| {
             arc_process.anonymous_closure_with_env_from_slice(
                 module,
                 index,
@@ -72,7 +65,6 @@ pub fn without_native(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
                 unique,
                 arity,
                 None,
-                creator,
                 &[],
             )
         })

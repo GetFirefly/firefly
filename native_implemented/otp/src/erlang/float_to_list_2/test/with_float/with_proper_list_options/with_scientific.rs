@@ -2,10 +2,9 @@ use super::*;
 
 use std::sync::Arc;
 
-use proptest::strategy::{BoxedStrategy, Just, Strategy};
+use proptest::strategy::{BoxedStrategy, Just};
 
-use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::prelude::*;
+use firefly_rt::process::Process;
 
 use crate::erlang::charlist_to_string::charlist_to_string;
 
@@ -18,9 +17,9 @@ fn always_includes_e() {
         |arc_process| {
             (
                 Just(arc_process.clone()),
-                strategy::term::float(arc_process.clone()),
+                strategy::term::float(),
                 digits(arc_process.clone()).prop_map(move |digits| {
-                    arc_process.list_from_slice(&[arc_process.tuple_from_slice(&[tag(), digits])])
+                    arc_process.list_from_slice(&[arc_process.tuple_term_from_term_slice(&[tag(), digits])]).unwrap()
                 }),
             )
         },
@@ -45,9 +44,9 @@ fn always_includes_sign_of_exponent() {
         |arc_process| {
             (
                 Just(arc_process.clone()),
-                strategy::term::float(arc_process.clone()),
+                strategy::term::float(),
                 digits(arc_process.clone()).prop_map(move |digits| {
-                    arc_process.list_from_slice(&[arc_process.tuple_from_slice(&[tag(), digits])])
+                    arc_process.list_from_slice(&[arc_process.tuple_term_from_term_slice(&[tag(), digits])]).unwrap()
                 }),
             )
         },
@@ -77,9 +76,9 @@ fn exponent_is_at_least_2_digits() {
         |arc_process| {
             (
                 Just(arc_process.clone()),
-                strategy::term::float(arc_process.clone()),
+                strategy::term::float(),
                 digits(arc_process.clone()).prop_map(move |digits| {
-                    arc_process.list_from_slice(&[arc_process.tuple_from_slice(&[tag(), digits])])
+                    arc_process.list_from_slice(&[arc_process.tuple_term_from_term_slice(&[tag(), digits])]).unwrap()
                 }),
             )
         },
@@ -103,7 +102,7 @@ fn exponent_is_at_least_2_digits() {
 
 fn digits(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     (Just(arc_process.clone()), 0..=249)
-        .prop_map(|(arc_process, u)| arc_process.integer(u))
+        .prop_map(|(arc_process, u)| arc_process.integer(u).unwrap())
         .boxed()
 }
 

@@ -379,7 +379,10 @@ pub mod eh_frame_registry {
     }
 
     #[no_mangle]
-    pub unsafe extern "C" fn firefly_eh_register_frames(eh_frame_begin: *const u8, object: *mut u8) {
+    pub unsafe extern "C" fn firefly_eh_register_frames(
+        eh_frame_begin: *const u8,
+        object: *mut u8,
+    ) {
         __register_frame_info(eh_frame_begin, object);
     }
 

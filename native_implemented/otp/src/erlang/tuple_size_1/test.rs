@@ -1,5 +1,7 @@
 use proptest::prop_assert_eq;
-use proptest::strategy::{Just, Strategy};
+use proptest::strategy::Just;
+
+use firefly_rt::term::Term;
 
 use crate::erlang::tuple_size_1::result;
 use crate::test::strategy;
@@ -38,7 +40,7 @@ fn with_tuple_returns_arity() {
             })
         },
         |(arc_process, size, term)| {
-            prop_assert_eq!(result(&arc_process, term), Ok(arc_process.integer(size)));
+            prop_assert_eq!(result(&arc_process, term), Ok(arc_process.integer(size).unwrap()));
 
             Ok(())
         },

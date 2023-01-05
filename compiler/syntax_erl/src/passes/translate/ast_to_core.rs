@@ -79,7 +79,8 @@ use anyhow::bail;
 
 const COLLAPSE_MAX_SIZE_SEGMENT: usize = 1024;
 
-/// This pass transforms an AST function into its Core IR form for further analysis and eventual lowering to Kernel IR
+/// This pass transforms an AST function into its Core IR form for further analysis and eventual
+/// lowering to Kernel IR
 ///
 /// This pass performs numerous small transformations to normalize the structure of the AST
 pub struct AstToCore {
@@ -467,7 +468,8 @@ impl TranslateAst {
                 Ok(IExpr::Alias(alias))
             }
             (p1, p2) => {
-                // Aliases between binaries are not allowed, so the only legal patterns that remain are data patterns.
+                // Aliases between binaries are not allowed, so the only legal patterns that remain
+                // are data patterns.
                 if !p1.is_data() {
                     self.reporter.show_error(
                         "invalid alias pattern",
@@ -1684,8 +1686,8 @@ impl TranslateAst {
         ))
     }
 
-    /// This is the implementation of the TQ translation scheme as described in _The Implementation of Functional Programming Languages_,
-    /// Simon Peyton Jones, et al. pp 127-138
+    /// This is the implementation of the TQ translation scheme as described in _The Implementation
+    /// of Functional Programming Languages_, Simon Peyton Jones, et al. pp 127-138
     fn lc_tq(
         &mut self,
         span: SourceSpan,
@@ -2038,8 +2040,8 @@ impl TranslateAst {
         match filter.filter {
             FilterType::Match(pre, arg) => {
                 // The filter is an expression, it is compiled to a case of degree 1 with 3 clauses,
-                // one accumulating, one skipping, and the final one throwing {case_clause, Value} where Value
-                // is the result of the filter and is not a boolean
+                // one accumulating, one skipping, and the final one throwing {case_clause, Value}
+                // where Value is the result of the filter and is not a boolean
                 let fail_pat = IExpr::Var(self.context_mut().next_var(Some(span)));
                 let fail = fail_clause(
                     span,
@@ -2140,17 +2142,15 @@ impl TranslateAst {
     fn generator(&mut self, gen: ast::Generator, guards: Vec<ast::Expr>) -> anyhow::Result<IGen> {
         // Generators are abstracted as sextuplets:
         //  - acc_pat is the accumulator pattern, e.g. [Pat|Tail] for Pat <- Expr.
-        //  - acc_guard is the list of guards immediately following the current
-        //    generator in the qualifier list input.
-        //  - skip_pat is the skip pattern, e.g. <<X,_:X,Tail/bitstring>> for
-        //    <<X,1:X>> <= Expr.
-        //  - tail is the variable used in AccPat and SkipPat bound to the rest of the
-        //    generator input.
-        //  - tail_pat is the tail pattern, respectively [] and <<_/bitstring>> for list
-        //    and bit string generators.
-        //  - arg is a pair {Pre,Arg} where Pre is the list of expressions to be
-        //    inserted before the comprehension function and Arg is the expression
-        //    that it should be passed.
+        //  - acc_guard is the list of guards immediately following the current generator in the
+        //    qualifier list input.
+        //  - skip_pat is the skip pattern, e.g. <<X,_:X,Tail/bitstring>> for <<X,1:X>> <= Expr.
+        //  - tail is the variable used in AccPat and SkipPat bound to the rest of the generator
+        //    input.
+        //  - tail_pat is the tail pattern, respectively [] and <<_/bitstring>> for list and bit
+        //    string generators.
+        //  - arg is a pair {Pre,Arg} where Pre is the list of expressions to be inserted before the
+        //    comprehension function and Arg is the expression that it should be passed.
         //
         match gen.ty {
             ast::GeneratorType::Default => {
@@ -2326,7 +2326,8 @@ impl TranslateAst {
         let mut out = Vec::new();
         for mut segment in segments.drain(..) {
             if segment.value.is_var() {
-                // We must keep the names of existing variables to ensure that patterns such as `<<Size, X:Size>>` will work.
+                // We must keep the names of existing variables to ensure that patterns such as
+                // `<<Size, X:Size>>` will work.
                 out.push(segment);
             } else {
                 // Replace literal or expression with a variable (whose value will be ignored)
@@ -2676,7 +2677,8 @@ impl TranslateAst {
                 // sized. The annotation will be used by the runtime system to
                 // provide extended error information if construction of the
                 // binary fails.
-                // let anno = Annotations::from(vec![(symbols::Segment, lit_tuple!(span, lit_int!(span, line), lit_int!(span, column)))])
+                // let anno = Annotations::from(vec![(symbols::Segment, lit_tuple!(span,
+                // lit_int!(span, line), lit_int!(span, column)))])
                 let bs = IBitstring {
                     span,
                     annotations: Annotations::default(),
@@ -3163,7 +3165,6 @@ fn sanitize(expr: ast::Expr) -> ast::Expr {
 ///  or expression using 'or' or 'xor' cannot be transformed in this
 ///  way (such expressions are the reason for adding the is_boolean/1
 ///  test in the first place).
-///
 fn unforce(expr: &IExpr, mut pre: Vec<IExpr>, bools: Vec<IExpr>) -> Vec<IExpr> {
     if bools.is_empty() {
         bools
@@ -3581,7 +3582,8 @@ fn verify_suitable_fields(elements: &[ast::BinaryElement]) -> Result<(), ()> {
                 if bits_limit >= size {
                     continue;
                 }
-                // More than about half of the field size will be filled out with zeros - not acceptable
+                // More than about half of the field size will be filled out with zeros - not
+                // acceptable
                 return Err(());
             }
             _ => return Err(()),

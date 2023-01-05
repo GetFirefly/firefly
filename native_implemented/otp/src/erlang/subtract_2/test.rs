@@ -4,8 +4,8 @@ mod with_integer_minuend;
 use proptest::prop_assert;
 use proptest::strategy::Just;
 
-use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::prelude::*;
+use firefly_rt::process::Process;
+use firefly_rt::term::{Integer, Term};
 
 use crate::erlang::subtract_2::result;
 use crate::test::strategy;
@@ -90,7 +90,7 @@ fn with_integer_minuend_with_float_subtrahend_returns_float() {
             (
                 Just(arc_process.clone()),
                 strategy::term::is_integer(arc_process.clone()),
-                strategy::term::float(arc_process.clone()),
+                strategy::term::float(),
             )
         },
         |(arc_process, minuend, subtrahend)| {

@@ -137,7 +137,8 @@ impl SymbolTable {
     ///
     /// This does not traverse into nested symbol tables.
     ///
-    /// Will fail atomically if there are any unknown operations that may be potential symbol tables.
+    /// Will fail atomically if there are any unknown operations that may be potential symbol
+    /// tables.
     pub fn replace_all_uses<O: Operation, S: Into<StringRef>>(from: O, old: S, new: S) -> bool {
         let result = unsafe {
             mlir_symbol_table_replace_all_symbol_uses(old.into(), new.into(), from.base())

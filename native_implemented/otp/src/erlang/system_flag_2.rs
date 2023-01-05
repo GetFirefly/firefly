@@ -1,13 +1,15 @@
+use std::ptr::NonNull;
+
 use anyhow::*;
 
-use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::term::prelude::*;
+use firefly_rt::error::ErlangException;
+use firefly_rt::term::Term;
 
 #[native_implemented::function(erlang:system_flag/2)]
-pub fn result(flag: Term, _value: Term) -> exception::Result<Term> {
+pub fn result(flag: Term, _value: Term) -> Result<Term, NonNull<ErlangException>> {
     let flag_atom = term_try_into_atom!(flag)?;
 
-    match flag_atom.name() {
+    match flag_atom.as_str() {
         "backtrace_depth" => unimplemented!(),
         "cpu_topology" => unimplemented!(),
         "dirty_cpu_schedulers_online" => unimplemented!(),

@@ -429,8 +429,8 @@ fn parse_app<S: AsRef<str>>(source: S) -> anyhow::Result<App> {
 ///
 /// A resource file can contain comments, and one or more terms, each terminated with '.'
 ///
-/// An application resource file is a special case though, in that it should only contain a single item,
-/// but we let the caller handle that
+/// An application resource file is a special case though, in that it should only contain a single
+/// item, but we let the caller handle that
 fn parse_root(lexer: &mut Lexer<'_>) -> anyhow::Result<Vec<Spanned<Term>>> {
     let mut contents = Vec::with_capacity(1);
     loop {

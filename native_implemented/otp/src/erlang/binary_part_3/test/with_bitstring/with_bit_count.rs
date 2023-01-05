@@ -39,8 +39,8 @@ fn with_positive_start_and_positive_length_returns_subbinary() {
                     (
                         arc_process.clone(),
                         binary,
-                        arc_process.integer(start),
-                        arc_process.integer(length),
+                        arc_process.integer(start).unwrap(),
+                        arc_process.integer(length).unwrap(),
                     )
                 })
         },
@@ -69,8 +69,8 @@ fn with_byte_count_start_and_negative_byte_count_length_returns_subbinary_withou
                     (
                         arc_process.clone(),
                         binary,
-                        arc_process.integer(byte_count),
-                        arc_process.integer(-(byte_count as isize)),
+                        arc_process.integer(byte_count).unwrap(),
+                        arc_process.integer(-(byte_count as isize).unwrap()),
                     )
                 })
         },

@@ -25,7 +25,7 @@ fn unsupported_flag_atom() -> BoxedStrategy<Term> {
         .prop_filter("Cannot be a supported flag name", |atom| {
             let atom_atom: Atom = (*atom).try_into().unwrap();
 
-            match atom_atom.name() {
+            match atom_atom.as_str() {
                 "trap_exit" => false,
                 _ => true,
             }

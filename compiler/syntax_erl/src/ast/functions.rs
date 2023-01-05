@@ -167,7 +167,8 @@ pub struct RecursiveFun {
     // Name is only set when an anonymous function is assigned a name by a compiler pass
     // Immediately after parsing, it is always None
     pub name: Option<Ident>,
-    // The self_name is the name bound to the function within its body, which allows the function to call itself
+    // The self_name is the name bound to the function within its body, which allows the function
+    // to call itself
     pub self_name: Ident,
     pub arity: u8,
     pub clauses: Vec<(Name, Clause)>,

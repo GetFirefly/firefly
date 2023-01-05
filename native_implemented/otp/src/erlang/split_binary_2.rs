@@ -2,22 +2,26 @@
 mod test;
 
 use std::convert::TryInto;
+use std::ptr::NonNull;
 
 use anyhow::*;
 
-use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::process::alloc::TermAlloc;
-use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::prelude::*;
+use firefly_rt::error::ErlangException;
+use firefly_rt::process::Process;
+use firefly_rt::term::{Term, Tuple};
 
 #[native_implemented::function(erlang:split_binary/2)]
-pub fn result(process: &Process, binary: Term, position: Term) -> exception::Result<Term> {
+pub fn result(
+    process: &Process,
+    binary: Term,
+    position: Term,
+) -> Result<Term, NonNull<ErlangException>> {
     let index: usize = position
         .try_into()
         .with_context(|| format!("position ({}) must be in 0..byte_size(binary)", position))?;
 
-    match binary.decode().unwrap() {
-        binary_box @ TypedTerm::HeapBinary(_) | binary_box @ TypedTerm::ProcBin(_) => {
+    match binary {
+        binary_box @ Term::HeapBinary(_) | binary_box @ Term::RcBinary(_) => {
             if index == 0 {
                 let mut heap = process.acquire_heap();
 
@@ -27,14 +31,14 @@ pub fn result(process: &Process, binary: Term, position: Term) -> exception::Res
 
                 // Don't make a subbinary of the suffix since it is the same as the
                 // `binary`.
-                let boxed_tuple = heap.tuple_from_slice(&[empty_prefix, binary])?;
-                let tuple_term = boxed_tuple.encode()?;
+                let non_null_tuple = Tuple::from_slice(&[empty_prefix.into(), binary.into()], heap)?;
+                let tuple_term = non_null_tuple.into();
 
                 Ok(tuple_term)
             } else {
                 let full_byte_length = match binary_box {
-                    TypedTerm::HeapBinary(heap_binary) => heap_binary.full_byte_len(),
-                    TypedTerm::ProcBin(process_binary) => process_binary.full_byte_len(),
+                    Term::HeapBinary(heap_binary) => heap_binary.full_byte_len(),
+                    Term::RcBinary(process_binary) => process_binary.full_byte_len(),
                     _ => unreachable!(),
                 };
 
@@ -47,7 +51,7 @@ pub fn result(process: &Process, binary: Term, position: Term) -> exception::Res
                         .subbinary_from_original(binary, index, 0, full_byte_length - index, 0)?
                         .encode()?;
 
-                    let boxed_tuple = heap.tuple_from_slice(&[prefix, suffix])?;
+                    let boxed_tuple = heap.tuple_term_from_term_slice(&[prefix, suffix])?;
                     let tuple_term = boxed_tuple.encode()?;
 
                     Ok(tuple_term)
@@ -59,7 +63,7 @@ pub fn result(process: &Process, binary: Term, position: Term) -> exception::Res
 
                     // Don't make a subbinary of the prefix since it is the same as the
                     // `binary`.
-                    let boxed_tuple = heap.tuple_from_slice(&[binary, empty_suffix])?;
+                    let boxed_tuple = heap.tuple_term_from_term_slice(&[binary, empty_suffix])?;
                     let tuple_term = boxed_tuple.encode()?;
 
                     Ok(tuple_term)
@@ -73,7 +77,7 @@ pub fn result(process: &Process, binary: Term, position: Term) -> exception::Res
                 }
             }
         }
-        TypedTerm::SubBinary(subbinary) => {
+        Term::RefBinary(subbinary) => {
             if index == 0 {
                 let mut heap = process.acquire_heap();
                 let empty_prefix = heap
@@ -88,7 +92,7 @@ pub fn result(process: &Process, binary: Term, position: Term) -> exception::Res
 
                 // Don't make a subbinary of the suffix since it is the same as the
                 // `binary`.
-                let boxed_tuple = heap.tuple_from_slice(&[empty_prefix, binary])?;
+                let boxed_tuple = heap.tuple_term_from_term_slice(&[empty_prefix, binary])?;
                 let tuple_term = boxed_tuple.encode()?;
 
                 Ok(tuple_term)
@@ -116,7 +120,7 @@ pub fn result(process: &Process, binary: Term, position: Term) -> exception::Res
                         )?
                         .encode()?;
 
-                    let boxed_tuple = heap.tuple_from_slice(&[prefix, suffix])?;
+                    let boxed_tuple = heap.tuple_term_from_term_slice(&[prefix, suffix])?;
                     let tuple_term = boxed_tuple.encode()?;
 
                     Ok(tuple_term)
@@ -135,7 +139,7 @@ pub fn result(process: &Process, binary: Term, position: Term) -> exception::Res
                             )?
                             .encode()?;
 
-                        let boxed_tuple = heap.tuple_from_slice(&[binary, empty_suffix])?;
+                        let boxed_tuple = heap.tuple_term_from_term_slice(&[binary, empty_suffix])?;
                         let tuple_term = boxed_tuple.encode()?;
 
                         Ok(tuple_term)

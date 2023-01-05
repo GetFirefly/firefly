@@ -7,7 +7,7 @@
 #[path = "without_body/label_1.rs"]
 pub mod label_1;
 
-use liblumen_alloc::erts::process::Process;
+use liblumen_rt::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
 use liblumen_web::document;

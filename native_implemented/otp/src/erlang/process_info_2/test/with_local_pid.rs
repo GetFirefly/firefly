@@ -7,7 +7,7 @@ fn without_supported_item_errors_badarg() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
             .run(&unsupported_item_atom(), |item| {
-                let pid = arc_process.pid_term();
+                let pid = arc_process.pid_term().unwrap();
                 prop_assert_badarg!(
                     result(&arc_process, pid, item),
                     "supported items are backtrace, binary, catchlevel, current_function, \
@@ -28,7 +28,7 @@ fn without_supported_item_errors_badarg() {
 
 fn unsupported_item_atom() -> BoxedStrategy<Term> {
     strategy::atom()
-        .prop_filter("Item cannot be supported", |atom| match atom.name() {
+        .prop_filter("Item cannot be supported", |atom| match atom.as_str() {
             "registered_name" => false,
             _ => true,
         })

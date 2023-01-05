@@ -200,15 +200,17 @@ pub mod whereis_1;
 pub mod xor_2;
 
 use std::convert::TryInto;
+use std::ptr::NonNull;
 use std::sync::Arc;
 
 use anyhow::*;
 
-use liblumen_alloc::atom;
-use liblumen_alloc::erts::exception::{self, InternalResult};
-use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::prelude::*;
-use liblumen_alloc::erts::time::{Milliseconds, Monotonic};
+use firefly_rt::error::ErlangException;
+use firefly_rt::process::Process;
+use firefly_rt::term::{atoms, Reference};
+use firefly_rt::term::atoms::Erlang;
+use firefly_rt::term::{Atom, Term};
+use firefly_rt::time::{Milliseconds, Monotonic};
 
 use crate::runtime::context::*;
 use crate::runtime::time::monotonic;
@@ -219,12 +221,11 @@ use crate::runtime::scheduler::SchedulerDependentAlloc;
 use crate::runtime::timer::{Destination, Format, SourceEvent};
 use crate::timer;
 use crate::timer::start::ReferenceFrame;
-use lumen_rt_core::context::term_is_not_non_negative_integer;
 
 pub const MAX_SHIFT: usize = std::mem::size_of::<isize>() * 8 - 1;
 
 pub fn module() -> Atom {
-    Atom::from_str("erlang")
+    atoms::Erlang
 }
 
 // Private
@@ -251,23 +252,27 @@ fn cancel_timer(
 
         if options.r#async {
             let cancel_timer_message =
-                process.tuple_from_slice(&[atom!("cancel_timer"), timer_reference, canceled_term]);
+                process.tuple_term_from_term_slice(&[atoms::CancelTimer.into(), timer_reference, canceled_term]);
             process.send_from_self(cancel_timer_message);
 
-            atom!("ok")
+            atoms::Ok
         } else {
             canceled_term
         }
     } else {
-        atom!("ok")
+        atoms::Ok
     };
 
     Ok(term)
 }
 
-fn is_record(term: Term, record_tag: Term, size: Option<Term>) -> exception::Result<Term> {
-    match term.decode()? {
-        TypedTerm::Tuple(tuple) => {
+fn is_record(
+    term: Term,
+    record_tag: Term,
+    size: Option<Term>,
+) -> Result<Term, NonNull<ErlangException>> {
+    match term {
+        Term::Tuple(tuple) => {
             let _: Atom = term_try_into_atom("record tag", record_tag)?;
 
             let len = tuple.len();
@@ -300,7 +305,7 @@ fn is_record(term: Term, record_tag: Term, size: Option<Term>) -> exception::Res
     }
 }
 
-fn size_try_to_usize(size: Term) -> exception::Result<usize> {
+fn size_try_to_usize(size: Term) -> Result<usize, NonNull<ErlangException>> {
     size.try_into()
         .with_context(|| format!("size ({}) must be a positive integer", size))
         .map_err(From::from)
@@ -327,10 +332,10 @@ fn read_timer(
 
     let term = if options.r#async {
         let read_timer_message =
-            process.tuple_from_slice(&[atom!("read_timer"), timer_reference, read_term]);
+            process.tuple_term_from_term_slice(&[atoms::ReadTimer.into(), timer_reference, read_term]);
         process.send_from_self(read_timer_message);
 
-        atom!("ok")
+        atoms::Ok
     } else {
         read_term
     };
@@ -360,9 +365,9 @@ fn start_timer(
                 .with_context(|| term_is_not_non_negative_integer("time", time))?,
         };
 
-        match destination.decode()? {
+        match destination {
             // Registered names are looked up at time of send
-            TypedTerm::Atom(destination_atom) => runtime::timer::start(
+            Term::Atom(destination_atom) => runtime::timer::start(
                 monotonic,
                 SourceEvent::Message {
                     destination: Destination::Name(destination_atom),
@@ -374,7 +379,7 @@ fn start_timer(
             .map_err(|error| error.into()),
             // PIDs are looked up at time of create.  If they don't exist, they still return a
             // LocalReference.
-            TypedTerm::Pid(destination_pid) => {
+            Term::Pid(destination_pid) => {
                 match pid_to_self_or_process(destination_pid, &arc_process) {
                     Some(pid_arc_process) => runtime::timer::start(
                         monotonic,
@@ -385,7 +390,7 @@ fn start_timer(
                         },
                         arc_process,
                     ),
-                    None => Ok(arc_process.next_reference()),
+                    None => Ok(arc_process.next_local_reference_term()),
                 }
                 .map_err(From::from)
             }

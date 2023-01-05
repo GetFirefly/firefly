@@ -273,7 +273,8 @@ fn define_bif_internal(spec: BifSpec, is_guard: bool) -> TokenStream {
     TokenStream::from(quoted)
 }
 
-/// Convert some common Erlang type names to their equivalent representation as a firefly_syntax_ssa::Type variant
+/// Convert some common Erlang type names to their equivalent representation as a
+/// firefly_syntax_ssa::Type variant
 fn erlang_types_to_core_type_enum(pair: Pair<Ident, Token![,]>) -> Pair<Expr, Token![,]> {
     let (ident, punct) = pair.into_tuple();
     let expr = erlang_type_to_core_type_enum(ident.clone());
@@ -321,7 +322,8 @@ fn erlang_type_to_core_type_enum(ident: Ident) -> Expr {
     }
 }
 
-/// Convert the given string to a path representing the instantiation of a firefly_syntax_ssa::Type variant
+/// Convert the given string to a path representing the instantiation of a firefly_syntax_ssa::Type
+/// variant
 fn core_enum_variant(name: &str, span: Span) -> Expr {
     use syn::PathArguments;
 

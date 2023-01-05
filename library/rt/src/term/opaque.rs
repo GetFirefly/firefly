@@ -1,77 +1,84 @@
-///! The way we represent Erlang terms is somewhat similar to ERTS, but different in a number of material
-///! aspects:
+///! The way we represent Erlang terms is somewhat similar to ERTS, but different in a number
+/// of material ! aspects:
 ///!
-///! * We choose a smaller number of terms to represent as immediates, and modify which terms are immediates
-///! and what their ranges/representation are:
+///! * We choose a smaller number of terms to represent as immediates, and modify which terms
+/// are immediates ! and what their ranges/representation are:
 ///!    - Floats are immediate
 ///!    - Pid/Port are never immediate
 ///!    - SmallInteger is 51-bits wide
 ///!    - Pointers to Tuple/Cons can be type checked without dereferencing the pointer
-///! * Like ERTS, we special case cons cells for more efficient use of memory, but we use a more flexible scheme
-///! for boxed terms in general, allowing us to store any Rust type on a process heap. This scheme comes at a
-///! slight increase in memory usage for some terms, but lets us have an open set of types, as we don't have to
-///! define an encoding scheme for each type individually.
-///!
-///! In order to properly represent the breadth of Rust types using thin pointers, we use a special smart pointer
-///! type called `GcBox<T>` which makes use of the `ptr_metadata` feature to obtain the pointer metadata for a type
-///! and store it alongside the allocated data itself. This allows us to use thin pointers everywhere, but still use
-///! dynamically-sized types.
+///! * Like ERTS, we special case cons cells for more efficient use of memory, but we use a
+/// more flexible scheme ! for boxed terms in general, allowing us to store any Rust type on a
+/// process heap. This scheme comes at a ! slight increase in memory usage for some terms, but
+/// lets us have an open set of types, as we don't have to ! define an encoding scheme for each
+/// type individually. !
+///! In order to properly represent the breadth of Rust types using thin pointers, we use a
+/// special smart pointer ! type called `GcBox<T>` which makes use of the `ptr_metadata`
+/// feature to obtain the pointer metadata for a type ! and store it alongside the allocated
+/// data itself. This allows us to use thin pointers everywhere, but still use
+/// ! dynamically-sized types.
 ///!
 ///! # Encoding Scheme
 ///!
-///! We've chosen to use a NaN-boxing encoding scheme for immediates. In short, we can hide useful data in the shadow
-///! of floating-point NaNs. As a review, IEEE-764 double-precision floating-point values have the following representation
-///! in memory:
+///! We've chosen to use a NaN-boxing encoding scheme for immediates. In short, we can hide
+/// useful data in the shadow ! of floating-point NaNs. As a review, IEEE-764 double-precision
+/// floating-point values have the following representation ! in memory:
 ///!
 ///! `SEEEEEEEEEEEQMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM`
 ///!
 ///! * `S` is the sign bit
 ///! * `E` are the exponent bits (11 bits)
 ///! * `Q+M` are the mantissa bits (52 bits)
-///! * `Q` is used in conjunction with a NaN bit pattern to indicate whether the NaN is quiet or signaling (i.e. raises an exception)
-///!
+///! * `Q` is used in conjunction with a NaN bit pattern to indicate whether the NaN is quiet
+/// or signaling (i.e. raises an exception) !
 ///! In Rust, the following are some special-case bit patterns which are relevant:
 ///!
-///! * `0111111111111000000000000000000000000000000000000000000000000000` = NaN (canonical, sets the quiet bit)
-///! * `0111111111110000000000000000000000000000000000000000000000000000` = Infinity
-///! * `1111111111110000000000000000000000000000000000000000000000000000` = -Infinity
+///! * `0111111111111000000000000000000000000000000000000000000000000000` = NaN (canonical,
+/// sets the quiet bit) ! * `0111111111110000000000000000000000000000000000000000000000000000`
+/// = Infinity ! * `1111111111110000000000000000000000000000000000000000000000000000` =
+/// -Infinity !
+///! Additionally, for NaN, it is only required that the canonical bits are set, the mantissa
+/// bits are ignored, which means they ! can be used.
 ///!
-///! Additionally, for NaN, it is only required that the canonical bits are set, the mantissa bits are ignored, which means they
-///! can be used.
+///! Furthermore, Erlang does not support NaN or the infinities, so those bit patterns can be
+/// used as well. In short, we have 52 bits to ! work with when a float is NaN, which is large
+/// enough to store a pointer; and since our pointers must be 8-byte aligned, we have
+/// ! an additional 4 bits for a limited tagging scheme. The only requirement is that we don't
+/// permit overlapping bit patterns for two ! different term types.
 ///!
-///! Furthermore, Erlang does not support NaN or the infinities, so those bit patterns can be used as well. In short, we have 52 bits to
-///! work with when a float is NaN, which is large enough to store a pointer; and since our pointers must be 8-byte aligned, we have
-///! an additional 4 bits for a limited tagging scheme. The only requirement is that we don't permit overlapping bit patterns for two
-///! different term types.
-///!
-///! Now that you understand the background, here is the encoding we use for different immediate values:
-///!
-///! * `Float` is any bit pattern which represents a valid, non-NaN floating-point value OR canonical NaN (i.e. has the quiet bit set).
-///! * `None` uses the canonical NaN pattern (i.e. has the quiet bit set)
-///! * `Nil` uses the Infinity bit pattern
-///! * `Integer` is any bit pattern with the highest 12-bits set to 1, including the bit pattern for -Infinity, which corresponds to the integer 0.
-///! Integers are 52-bits wide as a result.
-///!
-///! These remaining tags must use either the Infinity or canonical NaN bit pattern for their high bits, and must be combined with a unique tag
-///! in the lowest 4 bits, but no valid value of any type is allowed to overlap with the canonical NaN pattern, so care must be taken when assigning
-///! bits. Currently, pointer-like values use the Infinity pattern + tag bits, and null pointers are disallowed. Atoms use canonical NaN.
-///!
-///! * `GcBox<T>` is indicated when the lowest 4 bits are zero (8-byte alignment), and that at least one of the other mantissa bits is non-zero.
-///! Tuple/Cons are never represented using `GcBox<T>`.
-///! * `Rc<T>` uses the tag 0x03, and requires that at least one of the other mantissa bits is non-zero. This overlaps with the tag scheme for the
-///! atom `true`, but is differentiated by the fact that `true` requires that all mantissa bits other than the tag are zero.
-///! * `*const T` (i.e. a pointer to a literal/constant) is the same scheme as `GcBox<T>`, but with the lowest 4 bits equal to 0x01. This allows differentiating
-///! between garbage-collected data and literals.
-///! * `Atom` is has one general encoding and two special marker values for booleans
-///!    * `false` is indicated when all mantissa bits equal to 0x02 (i.e. zero when the atom tag is masked out)
-///!    * `true` is indicated when all mantissa bits equal to 0x03 (i.e. one when the atom tag is masked out)
-///!    * Any other atom is indicated when the lowest 4 bits is equal to 0x02 and the remaining mantissa bits are non-zero. The value of the atom is a pointer
-///!    to AtomData, which is never garbage-collected.
-///! * `*mut Cons` is indicated when the lowest 4 bits are equal to 0x04 (or 0x05 for literals). When masked, the remaining value is a pointer to `Cons`
-///! * `*mut Tuple` is indicated when the lowest 4 bits are equal to 0x06 (or 0x07 for literals). When masked, the remainig value is a pointer to `usize`. Unlike
-///! `Cons`, `Tuple` is a dynamically-sized type, so the pointer given actually points to the metadata (a `usize` value) which can be used to construct
-///! the fat pointer `*mut Tuple` via `ptr::from_raw_parts_mut`
-///!
+///! Now that you understand the background, here is the encoding we use for different
+/// immediate values: !
+///! * `Float` is any bit pattern which represents a valid, non-NaN floating-point value OR
+/// canonical NaN (i.e. has the quiet bit set). ! * `None` uses the canonical NaN pattern (i.e.
+/// has the quiet bit set) ! * `Nil` uses the Infinity bit pattern
+///! * `Integer` is any bit pattern with the highest 12-bits set to 1, including the bit
+/// pattern for -Infinity, which corresponds to the integer 0. ! Integers are 52-bits wide as a
+/// result. !
+///! These remaining tags must use either the Infinity or canonical NaN bit pattern for their
+/// high bits, and must be combined with a unique tag ! in the lowest 4 bits, but no valid
+/// value of any type is allowed to overlap with the canonical NaN pattern, so care must be
+/// taken when assigning ! bits. Currently, pointer-like values use the Infinity pattern + tag
+/// bits, and null pointers are disallowed. Atoms use canonical NaN. !
+///! * `GcBox<T>` is indicated when the lowest 4 bits are zero (8-byte alignment), and that at
+/// least one of the other mantissa bits is non-zero. ! Tuple/Cons are never represented using
+/// `GcBox<T>`. ! * `Rc<T>` uses the tag 0x03, and requires that at least one of the other
+/// mantissa bits is non-zero. This overlaps with the tag scheme for the ! atom `true`, but is
+/// differentiated by the fact that `true` requires that all mantissa bits other than the tag
+/// are zero. ! * `*const T` (i.e. a pointer to a literal/constant) is the same scheme as
+/// `GcBox<T>`, but with the lowest 4 bits equal to 0x01. This allows differentiating ! between
+/// garbage-collected data and literals. ! * `Atom` is has one general encoding and two special
+/// marker values for booleans !    * `false` is indicated when all mantissa bits equal to 0x02
+/// (i.e. zero when the atom tag is masked out) !    * `true` is indicated when all mantissa
+/// bits equal to 0x03 (i.e. one when the atom tag is masked out) !    * Any other atom is
+/// indicated when the lowest 4 bits is equal to 0x02 and the remaining mantissa bits are
+/// non-zero. The value of the atom is a pointer !    to AtomData, which is never
+/// garbage-collected. ! * `*mut Cons` is indicated when the lowest 4 bits are equal to 0x04
+/// (or 0x05 for literals). When masked, the remaining value is a pointer to `Cons`
+/// ! * `*mut Tuple` is indicated when the lowest 4 bits are equal to 0x06 (or 0x07 for
+/// literals). When masked, the remainig value is a pointer to `usize`. Unlike
+/// ! `Cons`, `Tuple` is a dynamically-sized type, so the pointer given actually points to the
+/// metadata (a `usize` value) which can be used to construct ! the fat pointer `*mut Tuple`
+/// via `ptr::from_raw_parts_mut` !
 ///! All non-immediate terms are allocated/referenced via `GcBox<T>`.
 ///!
 use core::fmt;
@@ -89,7 +96,8 @@ use crate::function::ErlangResult;
 
 // Canonical NaN
 const NAN: u64 = unsafe { mem::transmute::<f64, u64>(f64::NAN) };
-// This value has only set the bit which is used to indicate quiet vs signaling NaN (or NaN vs Infinity in the case of Rust)
+// This value has only set the bit which is used to indicate quiet vs signaling NaN (or NaN vs
+// Infinity in the case of Rust)
 const QUIET_BIT: u64 = 1 << 51;
 // This value has the bit pattern used for the None term, which reuses the bit pattern for NaN
 const NONE: u64 = NAN;
@@ -98,35 +106,40 @@ const INFINITY: u64 = NAN & !QUIET_BIT;
 const NIL: u64 = INFINITY;
 // This value has only the sign bit set
 const SIGN_BIT: u64 = 1 << 63;
-// This value has all of the bits set which indicate an integer value. To get the actual integer value, you must mask out
-// the other bits and then sign-extend the result based on QUIET_BIT, which is the highest bit an integer value can set
+// This value has all of the bits set which indicate an integer value. To get the actual integer
+// value, you must mask out the other bits and then sign-extend the result based on QUIET_BIT, which
+// is the highest bit an integer value can set
 const INTEGER_TAG: u64 = INFINITY | SIGN_BIT;
 
-// This tag when used with pointers, indicates that the pointee is constant, i.e. not garbage-collected
+// This tag when used with pointers, indicates that the pointee is constant, i.e. not
+// garbage-collected
 const LITERAL_TAG: u64 = 0x01;
-// This tag is only ever set when the value is an atom, but is insufficient on its own to determine which type of atom
+// This tag is only ever set when the value is an atom, but is insufficient on its own to determine
+// which type of atom
 const ATOM_TAG: u64 = 0x02;
 // This constant is used to represent the boolean false value without any pointer to AtomData
 const FALSE: u64 = NAN | ATOM_TAG;
 // This constant is used to represent the boolean true value without any pointer to AtomData
 const TRUE: u64 = FALSE | 0x01;
-// This tag represents a unique combination of the lowest 4 bits indicating the value is a cons pointer
-// This tag can be combined with LITERAL_TAG to indicate the pointer is constant
+// This tag represents a unique combination of the lowest 4 bits indicating the value is a cons
+// pointer This tag can be combined with LITERAL_TAG to indicate the pointer is constant
 const CONS_TAG: u64 = 0x04;
 const CONS_LITERAL_TAG: u64 = CONS_TAG | LITERAL_TAG;
-// This tag represents a unique combination of the lowest 4 bits indicating the value is a tuple pointer
-// This tag can be combined with LITERAL_TAG to indicate the pointer is constant
+// This tag represents a unique combination of the lowest 4 bits indicating the value is a tuple
+// pointer This tag can be combined with LITERAL_TAG to indicate the pointer is constant
 const TUPLE_TAG: u64 = 0x06;
 const TUPLE_LITERAL_TAG: u64 = TUPLE_TAG | LITERAL_TAG;
 // This tag is used to mark a pointer allocated via Rc<T>
 const RC_TAG: u64 = 0x03;
 
-// This mask when applied to a u64 will produce a value that can be compared with the tags above for equality
+// This mask when applied to a u64 will produce a value that can be compared with the tags above for
+// equality
 const TAG_MASK: u64 = 0x07;
 // This mask when applied to a u64 will return only the bits which are part of the integer value
 // NOTE: The value that is produced requires sign-extension based on whether QUIET_BIT is set
 const INT_MASK: u64 = !INTEGER_TAG;
-// This mask when applied to a u64 will return a value which can be cast to pointer type and dereferenced
+// This mask when applied to a u64 will return a value which can be cast to pointer type and
+// dereferenced
 const PTR_MASK: u64 = !(SIGN_BIT | NAN | TAG_MASK);
 
 // This tag indicates a negative integer (i.e. it has our designated sign bit set)
@@ -176,12 +189,14 @@ pub enum TermType {
 /// Terms can be encoded as either immediate (i.e. the entire value is represented in the opaque
 /// term itself), or boxed (i.e. the value of the opaque term is a pointer to a value on the heap).
 ///
-/// Pointer values encoded in a term must always have at least 8-byte alignment on all supported platforms.
-/// This should be ensured by specifying the required minimum alignment on all concrete term types we define,
-/// but we also add some debug checks to protect against accidentally attempting to encode invalid pointers.
+/// Pointer values encoded in a term must always have at least 8-byte alignment on all supported
+/// platforms. This should be ensured by specifying the required minimum alignment on all concrete
+/// term types we define, but we also add some debug checks to protect against accidentally
+/// attempting to encode invalid pointers.
 ///
-/// The set of types given explicit type tags were selected such that the most commonly used types are the
-/// cheapest to type check and decode. In general, we believe the most used to be numbers, atoms, lists, and tuples.
+/// The set of types given explicit type tags were selected such that the most commonly used types
+/// are the cheapest to type check and decode. In general, we believe the most used to be numbers,
+/// atoms, lists, and tuples.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 #[repr(transparent)]
 pub struct OpaqueTerm(u64);
@@ -245,8 +260,9 @@ impl OpaqueTerm {
                         // Currently, the only possible type which can be flagged as literal without
                         // any other identifying information is constant BinaryData.
                         //
-                        // If this ever changes, we will likely need to introduce some kind of header
-                        // to distinguish different types, as we are out of tag bits to use
+                        // If this ever changes, we will likely need to introduce some kind of
+                        // header to distinguish different types, as we are
+                        // out of tag bits to use
                         let ptr = value.as_ptr();
                         let flags_ptr: *const BinaryFlags = ptr.cast();
                         let size = (&*flags_ptr).size();
@@ -368,8 +384,8 @@ impl OpaqueTerm {
     pub fn is_box(self) -> bool {
         // The tag bits uniquely identify all boxed types, but only in conjunction with the hi tag
         match self.0 & TAG_MASK {
-            // The only special case is the tag for GcBox overlaps with Nil, but GcBox pointers cannot
-            // be null, so that's how we distinguish the two
+            // The only special case is the tag for GcBox overlaps with Nil, but GcBox pointers
+            // cannot be null, so that's how we distinguish the two
             0 => self.0 != NIL && self.0 & (NAN | SIGN_BIT) == INFINITY,
             LITERAL_TAG | RC_TAG | CONS_TAG | CONS_LITERAL_TAG | TUPLE_TAG | TUPLE_LITERAL_TAG => {
                 // All pointer types use Infinity for their hi tag
@@ -495,7 +511,8 @@ impl OpaqueTerm {
         }
     }
 
-    /// Like `erlang:size/1`, but returns the dynamic size of the given term, or 0 if it is not an unsized type
+    /// Like `erlang:size/1`, but returns the dynamic size of the given term, or 0 if it is not an
+    /// unsized type
     ///
     /// For tuples, this is the number of elements in the tuple.
     /// For closures, it is the number of elements in the closure environment.
@@ -565,8 +582,8 @@ impl OpaqueTerm {
 
     /// Extracts the integer value contained in this term.
     ///
-    /// This function is always memory safe, but if improperly used will cause weird results, so it is important
-    /// that you guard usages of this function with proper type checks.
+    /// This function is always memory safe, but if improperly used will cause weird results, so it
+    /// is important that you guard usages of this function with proper type checks.
     pub fn as_integer(self) -> i64 {
         const NEG: u64 = INTEGER_TAG | QUIET_BIT;
         // Extract the raw 51-bit signed integer

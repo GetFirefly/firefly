@@ -1,4 +1,5 @@
 use std::ops::RangeInclusive;
+use std::str::FromStr;
 use std::sync::Arc;
 
 use proptest::arbitrary::any;
@@ -6,9 +7,9 @@ use proptest::collection::SizeRange;
 use proptest::prop_oneof;
 use proptest::strategy::{BoxedStrategy, Just, Strategy};
 
-use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::prelude::*;
-use liblumen_alloc::erts::time::Milliseconds;
+use firefly_rt::process::Process;
+use firefly_rt::term::{Atom, Term};
+use firefly_rt::time::Milliseconds;
 
 pub mod base;
 pub mod byte_vec;
@@ -25,7 +26,7 @@ pub fn atom() -> BoxedStrategy<Atom> {
         .prop_filter("Reserved for existing/safe atom tests", |s| {
             !s.starts_with(NON_EXISTENT_ATOM_PREFIX)
         })
-        .prop_map(|s| Atom::try_from_str(&s).unwrap())
+        .prop_map(|s| Atom::from_str(&s).unwrap())
         .boxed()
 }
 
@@ -39,11 +40,11 @@ pub fn byte_vec() -> BoxedStrategy<Vec<u8>> {
 
 pub fn milliseconds() -> BoxedStrategy<Milliseconds> {
     prop_oneof![
-        Just(crate::runtime::timer::at_once_milliseconds()),
-        Just(crate::runtime::timer::soon_milliseconds()) /* TODO make timer::timeout() faster when there are lots of empty slots to skip,
-                                                         Just(crate::runtime::timer::later_milliseconds()),
-                                                         Just(crate::runtime::timer::long_term_milliseconds())
-                                                         */
+        Just(runtime::timer::at_once_milliseconds()),
+        Just(runtime::timer::soon_milliseconds()) /* TODO make timer::timeout() faster when there are lots of empty slots to skip,
+                                                  Just(runtime::timer::later_milliseconds()),
+                                                  Just(runtime::timer::long_term_milliseconds())
+                                                  */
     ]
     .boxed()
 }

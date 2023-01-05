@@ -159,7 +159,8 @@ impl Atom {
 
     /// Gets the string value of this atom
     pub fn as_str(&self) -> &'static str {
-        // SAFETY: Atom contents are validated when creating the raw atom data, so converting back to str is safe
+        // SAFETY: Atom contents are validated when creating the raw atom data, so converting back
+        // to str is safe
         match self {
             &atoms::False => "false",
             &atoms::True => "true",
@@ -330,7 +331,8 @@ impl Hash for Atom {
     }
 }
 
-/// This is a helper which allows compiled code to convert a pointer to a C string value into an atom directly.
+/// This is a helper which allows compiled code to convert a pointer to a C string value into an
+/// atom directly.
 #[export_name = "__firefly_builtin_atom_from_cstr"]
 pub unsafe extern "C-unwind" fn atom_from_cstr(ptr: *const core::ffi::c_char) -> OpaqueTerm {
     let atom = Atom::from_raw_cstr(ptr);

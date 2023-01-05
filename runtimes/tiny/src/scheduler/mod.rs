@@ -1,6 +1,7 @@
 mod exit;
 mod queue;
 
+use std::alloc::{AllocError, Allocator};
 use std::arch::global_asm;
 use std::cell::{OnceCell, UnsafeCell};
 use std::mem;
@@ -11,9 +12,11 @@ use std::sync::{
 };
 use std::thread::{self, ThreadId};
 
+use firefly_alloc::gc::GcBox;
+
 use firefly_rt::function::{DynamicCallee, ModuleFunctionArity};
 use firefly_rt::process::{Process, ProcessStatus};
-use firefly_rt::term::{OpaqueTerm, Pid, ProcessId};
+use firefly_rt::term::{OpaqueTerm, Pid, ProcessId, Reference, ReferenceId, Term};
 
 use self::queue::RunQueue;
 
@@ -29,6 +32,20 @@ where
     F: FnOnce(&Scheduler) -> R,
 {
     fun(CURRENT_SCHEDULER.get().unwrap())
+}
+
+pub fn next_local_reference_term<A: Allocator>(alloc: A) -> Result<Term, AllocError> {
+    CURRENT_SCHEDULER
+        .get()
+        .unwrap()
+        .next_local_reference_term(alloc)
+}
+
+pub fn local_reference_term<A: Allocator>(alloc: A, id: u64) -> Result<Term, AllocError> {
+    CURRENT_SCHEDULER
+        .get()
+        .unwrap()
+        .local_reference_term(alloc, id)
 }
 
 /// Initializes the scheduler for the current thread, if not already initialized,
@@ -130,6 +147,52 @@ impl Scheduler {
         })
     }
 
+    fn scheduler_id(&self) -> u16 {
+        self
+            .id
+            .as_u64()
+            .get()
+            .try_into()
+            .expect("Scheduler ID does not fit in u16")
+    }
+
+    fn next_reference_id(&self) -> ReferenceId {
+        let id = self.next_reference_id.fetch_add(1, Ordering::SeqCst);
+        self.reference_id(id)
+    }
+
+    fn next_local_reference(&self) -> Reference {
+        Reference::Local {
+            id: self.next_reference_id(),
+        }
+    }
+
+    pub fn next_local_reference_term<A: Allocator>(&self, alloc: A) -> Result<Term, AllocError> {
+        Ok(Term::Reference(GcBox::new_in(
+            self.next_local_reference(),
+            alloc,
+        )?))
+    }
+
+    fn reference_id(&self, id: u64) -> ReferenceId {
+        let scheduler_id = self.scheduler_id();
+
+        ReferenceId::new(scheduler_id, id)
+    }
+
+    fn local_reference(&self, id: u64) -> Reference {
+        Reference::Local {
+            id: self.reference_id(id)
+        }
+    }
+
+    pub fn local_reference_term<A: Allocator>(&self, alloc: A, id: u64) -> Result<Term, AllocError> {
+        Ok(Term::Reference(GcBox::new_in(
+            self.local_reference(id),
+            alloc,
+        )?))
+    }
+
     fn parent(&self) -> ProcessId {
         self.current().process.pid()
     }
@@ -205,7 +268,8 @@ impl Scheduler {
         //
         // If this process exits, the scheduler terminates
         let mfa: ModuleFunctionArity = "init:start/0".parse().unwrap();
-        //let init_fn = function::find_symbol(&mfa).expect("unable to locate init:start/0 function!");
+        //let init_fn = function::find_symbol(&mfa).expect("unable to locate init:start/0
+        // function!");
         let init_fn = crate::init::start as DynamicCallee;
         let process = Arc::new(Process::new(Some(self.parent()), ProcessId::next(), mfa));
 

@@ -1,11 +1,13 @@
 use std::convert::TryInto;
+use std::ptr::NonNull;
 
 use anyhow::*;
 
-use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::index::OneBasedIndex;
-use liblumen_alloc::erts::term::prelude::*;
+use firefly_number::TryIntoIntegerError;
+
+use firefly_rt::error::ErlangException;
+use firefly_rt::process::Process;
+use firefly_rt::term::{OneBasedIndex, Term};
 
 use crate::runtime::context::*;
 
@@ -15,7 +17,7 @@ pub fn result(
     index: Term,
     tuple: Term,
     element: Term,
-) -> exception::Result<Term> {
+) -> Result<Term, NonNull<ErlangException>> {
     let initial_inner_tuple = term_try_into_tuple!(tuple)?;
     let length = initial_inner_tuple.len();
     let index_one_based: OneBasedIndex = index
@@ -32,7 +34,7 @@ pub fn result(
             final_element_vec.push(element);
         };
 
-        let final_tuple = process.tuple_from_slice(&final_element_vec);
+        let final_tuple = process.tuple_term_from_term_slice(&final_element_vec);
 
         Ok(final_tuple)
     } else {

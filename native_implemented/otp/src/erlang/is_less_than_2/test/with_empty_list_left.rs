@@ -1,7 +1,6 @@
 use super::*;
 
 use proptest::prop_oneof;
-use proptest::strategy::Strategy;
 
 #[test]
 fn without_non_empty_list_or_bitstring_returns_false() {
@@ -13,7 +12,7 @@ fn without_non_empty_list_or_bitstring_returns_false() {
                 })
         },
         |right| {
-            let left = Term::NIL;
+            let left = Term::Nil;
 
             prop_assert_eq!(result(left, right), false.into());
 
@@ -32,7 +31,7 @@ fn with_non_empty_list_or_bitstring_right_returns_true() {
             ]
         },
         |right| {
-            let left = Term::NIL;
+            let left = Term::Nil;
 
             prop_assert_eq!(result(left, right), true.into());
 

@@ -1,7 +1,5 @@
 use super::*;
 
-use proptest::strategy::Strategy;
-
 #[test]
 fn without_list_or_bitstring_returns_false() {
     run!(
@@ -24,13 +22,13 @@ fn without_list_or_bitstring_returns_false() {
 
 #[test]
 fn with_empty_list_right_returns_false() {
-    is_less_than(|_, _| Term::NIL, false);
+    is_less_than(|_, _| Term::Nil, false);
 }
 
 #[test]
 fn with_lesser_list_right_returns_false() {
     is_less_than(
-        |_, process| process.cons(process.integer(0), process.integer(0)),
+        |_, process| process.cons(process.integer(0).unwrap(), process.integer(0).unwrap()),
         false,
     );
 }
@@ -43,7 +41,7 @@ fn with_same_list_right_returns_false() {
 #[test]
 fn with_same_value_list_right_returns_false() {
     is_less_than(
-        |_, process| process.cons(process.integer(0), process.integer(1)),
+        |_, process| process.cons(process.integer(0).unwrap(), process.integer(1).unwrap()),
         false,
     );
 }
@@ -51,7 +49,7 @@ fn with_same_value_list_right_returns_false() {
 #[test]
 fn with_greater_list_right_returns_true() {
     is_less_than(
-        |_, process| process.cons(process.integer(0), process.integer(2)),
+        |_, process| process.cons(process.integer(0).unwrap(), process.integer(2).unwrap()),
         true,
     );
 }
@@ -78,7 +76,7 @@ where
     R: FnOnce(Term, &Process) -> Term,
 {
     super::is_less_than(
-        |process| process.cons(process.integer(0), process.integer(1)),
+        |process| process.cons(process.integer(0).unwrap(), process.integer(1).unwrap()),
         right,
         expected,
     );

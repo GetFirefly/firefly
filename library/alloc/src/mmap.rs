@@ -1,4 +1,5 @@
-// This module provides the fallback implementation of mmap primitives on platforms which do not provide them
+// This module provides the fallback implementation of mmap primitives on platforms which do not
+// provide them
 #[cfg(any(target_arch = "wasm32", target_arch = "wasm64"))]
 mod fallback {
     use alloc::alloc::{AllocError, Layout};
@@ -24,7 +25,8 @@ mod fallback {
         sys::alloc::allocate(layout).map(|ptr| ptr.cast())
     }
 
-    /// Remaps a mapping given a pointer to the mapping, the layout which created it, and the new size
+    /// Remaps a mapping given a pointer to the mapping, the layout which created it, and the new
+    /// size
     #[inline]
     pub unsafe fn remap(
         ptr: *mut u8,
@@ -73,7 +75,8 @@ mod real {
         sys::mmap::map_stack(pages)
     }
 
-    /// Remaps a mapping given a pointer to the mapping, the layout which created it, and the new size
+    /// Remaps a mapping given a pointer to the mapping, the layout which created it, and the new
+    /// size
     #[inline]
     pub unsafe fn remap(
         ptr: *mut u8,

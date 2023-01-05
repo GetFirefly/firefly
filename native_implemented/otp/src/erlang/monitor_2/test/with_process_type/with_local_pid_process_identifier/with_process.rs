@@ -1,4 +1,5 @@
 use super::*;
+use firefly_rt::term::Atom;
 
 #[test]
 fn returns_reference() {
@@ -11,7 +12,7 @@ fn returns_reference() {
         let monitor_reference_result = result(
             &monitoring_arc_process,
             r#type(),
-            monitored_arc_process.pid_term(),
+            monitored_arc_process.pid_term().unwrap(),
         );
 
         assert!(monitor_reference_result.is_ok());
@@ -45,13 +46,13 @@ fn returns_different_reference_each_time() {
         let first_monitor_reference = result(
             &monitoring_arc_process,
             r#type(),
-            monitored_arc_process.pid_term(),
+            monitored_arc_process.pid_term().unwrap(),
         )
         .unwrap();
         let second_monitor_reference = result(
             &monitoring_arc_process,
             r#type(),
-            monitored_arc_process.pid_term(),
+            monitored_arc_process.pid_term().unwrap(),
         )
         .unwrap();
 
@@ -79,20 +80,20 @@ fn when_monitored_process_exits_it_sends_message_for_each_monitor_reference() {
         let first_monitor_reference = result(
             &monitoring_arc_process,
             r#type(),
-            monitored_arc_process.pid_term(),
+            monitored_arc_process.pid_term().unwrap(),
         )
         .unwrap();
 
         let second_monitor_reference = result(
             &monitoring_arc_process,
             r#type(),
-            monitored_arc_process.pid_term(),
+            monitored_arc_process.pid_term().unwrap(),
         )
         .unwrap();
 
         assert!(!monitored_arc_process.is_exiting());
 
-        let reason = Atom::str_to_term("normal");
+        let reason = atoms::Normal.into();
         exit_when_run(&monitored_arc_process, reason);
 
         assert!(scheduler::run_through(&monitored_arc_process));
@@ -104,21 +105,21 @@ fn when_monitored_process_exits_it_sends_message_for_each_monitor_reference() {
 
         assert_has_message!(
             &monitoring_arc_process,
-            monitoring_arc_process.tuple_from_slice(&[
+            monitoring_arc_process.tuple_term_from_term_slice(&[
                 tag,
                 first_monitor_reference,
                 r#type(),
-                monitored_arc_process.pid_term(),
+                monitored_arc_process.pid_term().unwrap(),
                 reason
             ])
         );
         assert_has_message!(
             &monitoring_arc_process,
-            monitoring_arc_process.tuple_from_slice(&[
+            monitoring_arc_process.tuple_term_from_term_slice(&[
                 tag,
                 second_monitor_reference,
                 r#type(),
-                monitored_arc_process.pid_term(),
+                monitored_arc_process.pid_term().unwrap(),
                 reason
             ])
         );

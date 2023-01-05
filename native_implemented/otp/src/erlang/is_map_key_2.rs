@@ -1,6 +1,4 @@
-use liblumen_alloc::erts::process::Frame;
-use liblumen_alloc::erts::term::prelude::*;
-use liblumen_alloc::{Arity, ModuleFunctionArity};
+use firefly_rt::*;
 
 use crate::maps;
 

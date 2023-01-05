@@ -16,7 +16,7 @@ fn unregistered_sends_nothing_when_timer_expires() {
             }),
             |(milliseconds, arc_process, message, abs_value)| {
                 let destination = registered_name();
-                let time = arc_process.integer(milliseconds);
+                let time = arc_process.integer(milliseconds).unwrap();
                 let options = options(abs_value, &arc_process);
 
                 prop_assert_is_not_boolean!(

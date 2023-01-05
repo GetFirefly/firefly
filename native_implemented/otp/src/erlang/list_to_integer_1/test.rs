@@ -1,9 +1,9 @@
 mod with_list;
 
-use proptest::strategy::{Just, Strategy};
+use proptest::strategy::Just;
 use proptest::{prop_assert, prop_assert_eq};
 
-use liblumen_alloc::erts::term::prelude::*;
+use firefly_rt::term::Term;
 
 use crate::erlang::list_to_integer_1::result;
 use crate::test::strategy;

@@ -1,4 +1,4 @@
-/// A type is emittable when there is a canonical textual/binary representation 
+/// A type is emittable when there is a canonical textual/binary representation
 /// which can be written to a file with a well-known file type.
 ///
 /// Examples of this relevant to Firefly are:
@@ -13,7 +13,6 @@
 /// * Static Libraries, which have a canonical binary format with the `.a` extension
 /// * Dynamic Libraries, which have a canonical binary format with a platform-specific extension
 /// * Executables, which have a canonical binary format with platform-specific extension
-///
 pub trait Emit {
     /// Returns the extension to which this object is associated
     ///

@@ -3,13 +3,14 @@ pub mod to_term;
 use std::backtrace::Backtrace;
 use std::convert::TryInto;
 use std::ops::Range;
+use std::ptr::NonNull;
 
 use anyhow::*;
 use thiserror::Error;
+use firefly_rt::error::ErlangException;
 
-use liblumen_alloc::erts::exception::{self, ArcError, Exception, InternalException};
-use liblumen_alloc::erts::term::prelude::*;
-use liblumen_alloc::Process;
+use firefly_rt::process::Process;
+use firefly_rt::term::{Term, TypeError};
 
 pub struct PartRange {
     pub byte_offset: usize,
@@ -41,14 +42,14 @@ pub fn bin_to_list(
     position: Term,
     length: Term,
     process: &Process,
-) -> exception::Result<Term> {
+) -> Result<Term, NonNull<ErlangException>> {
     let position_usize: usize = position
         .try_into()
         .context("position must be non-negative")?;
     let length_isize: isize = length.try_into().context("length must be an integer")?;
 
-    match binary.decode().unwrap() {
-        TypedTerm::HeapBinary(heap_binary) => {
+    match binary {
+        Term::HeapBinary(heap_binary) => {
             let available_byte_count = heap_binary.full_byte_len();
             let part_range =
                 start_length_to_part_range(position_usize, length_isize, available_byte_count)?;
@@ -61,7 +62,7 @@ pub fn bin_to_list(
 
             Ok(list)
         }
-        TypedTerm::ProcBin(process_binary) => {
+        Term::RcBinary(process_binary) => {
             let available_byte_count = process_binary.full_byte_len();
             let part_range =
                 start_length_to_part_range(position_usize, length_isize, available_byte_count)?;
@@ -74,7 +75,7 @@ pub fn bin_to_list(
 
             Ok(list)
         }
-        TypedTerm::BinaryLiteral(process_binary) => {
+        Term::ConstantBinary(process_binary) => {
             let available_byte_count = process_binary.full_byte_len();
             let part_range =
                 start_length_to_part_range(position_usize, length_isize, available_byte_count)?;
@@ -87,7 +88,7 @@ pub fn bin_to_list(
 
             Ok(list)
         }
-        TypedTerm::SubBinary(subbinary) => {
+        Term::RefBinary(subbinary) => {
             let available_byte_count = subbinary.full_byte_len();
             let part_range =
                 start_length_to_part_range(position_usize, length_isize, available_byte_count)?;
@@ -113,7 +114,7 @@ pub fn bin_to_list(
 
                 let byte_term_vec: Vec<Term> = byte_iter.map(|byte| byte.into()).collect();
 
-                process.list_from_slice(&byte_term_vec)
+                process.list_from_slice(&byte_term_vec).unwrap()
             };
 
             Ok(list)

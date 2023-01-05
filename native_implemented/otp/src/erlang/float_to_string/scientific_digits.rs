@@ -1,6 +1,7 @@
 use std::convert::{TryFrom, TryInto};
 
-use liblumen_alloc::erts::term::prelude::*;
+use firefly_number::TryIntoIntegerError;
+use firefly_rt::term::Term;
 
 pub struct ScientificDigits(u8);
 

@@ -11,7 +11,7 @@ fn with_different_process_with_message_sends_message_when_timer_expires() {
             )
         },
         |(arc_process, milliseconds, message)| {
-            let time = arc_process.integer(milliseconds);
+            let time = arc_process.integer(milliseconds).unwrap();
 
             let destination_arc_process = test::process::child(&arc_process);
             let destination = registered_name();
@@ -20,7 +20,7 @@ fn with_different_process_with_message_sends_message_when_timer_expires() {
                 erlang::register_2::result(
                     arc_process.clone(),
                     destination,
-                    destination_arc_process.pid_term(),
+                    destination_arc_process.pid_term().unwrap(),
                 ),
                 Ok(true.into())
             );
@@ -43,7 +43,7 @@ fn with_different_process_with_message_sends_message_when_timer_expires() {
             // No sleeping is necessary because timeout is in the past and so the timer will
             // timeout at once
 
-            crate::runtime::timer::timeout();
+            runtime::timer::timeout();
 
             prop_assert!(has_message(&destination_arc_process, message));
 
@@ -63,14 +63,14 @@ fn with_same_process_with_message_sends_message_when_timer_expires() {
             )
         },
         |(arc_process, milliseconds, message)| {
-            let time = arc_process.integer(milliseconds);
+            let time = arc_process.integer(milliseconds).unwrap();
             let destination = registered_name();
 
             prop_assert_eq!(
                 erlang::register_2::result(
                     arc_process.clone(),
                     destination,
-                    arc_process.pid_term(),
+                    arc_process.pid_term().unwrap(),
                 ),
                 Ok(true.into())
             );
@@ -93,7 +93,7 @@ fn with_same_process_with_message_sends_message_when_timer_expires() {
             // No sleeping is necessary because timeout is in the past and so the timer will
             // timeout at once
 
-            crate::runtime::timer::timeout();
+            runtime::timer::timeout();
 
             prop_assert!(has_message(&arc_process, message));
 

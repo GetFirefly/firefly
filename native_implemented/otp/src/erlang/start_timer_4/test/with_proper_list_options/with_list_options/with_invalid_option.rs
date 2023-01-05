@@ -16,7 +16,7 @@ fn without_non_negative_integer_time_errors_badarg() {
             )
         },
         |(arc_process, time, message)| {
-            let destination = arc_process.pid_term();
+            let destination = arc_process.pid_term().unwrap();
             let options = options(&arc_process);
 
             prop_assert_badarg!(
@@ -30,5 +30,5 @@ fn without_non_negative_integer_time_errors_badarg() {
 }
 
 fn options(process: &Process) -> Term {
-    process.cons(Atom::str_to_term("invalid"), Term::NIL)
+    process.cons(Atom::str_to_term("invalid"), Term::Nil)
 }

@@ -19,7 +19,7 @@ fn without_timeout_returns_milliseconds_remaining_and_does_not_send_timeout_mess
 
         let first_received_message = receive_message(process).unwrap();
 
-        let first_received_tuple_result: core::result::Result<Boxed<Tuple>, _> =
+        let first_received_tuple_result: core::result::Result<NonNull<Tuple>, _> =
             first_received_message.try_into();
 
         assert!(first_received_tuple_result.is_ok());
@@ -32,8 +32,8 @@ fn without_timeout_returns_milliseconds_remaining_and_does_not_send_timeout_mess
         let first_milliseconds_remaining = first_received_tuple[2];
 
         assert!(first_milliseconds_remaining.is_integer());
-        assert!(process.integer(0) < first_milliseconds_remaining);
-        assert!(first_milliseconds_remaining <= process.integer(milliseconds / 2));
+        assert!(process.integer(0).unwrap() < first_milliseconds_remaining);
+        assert!(first_milliseconds_remaining <= process.integer(milliseconds / 2).unwrap());
 
         // again before timeout
         assert_eq!(
@@ -43,7 +43,7 @@ fn without_timeout_returns_milliseconds_remaining_and_does_not_send_timeout_mess
 
         let second_received_message = receive_message(process).unwrap();
 
-        let second_received_tuple_result: core::result::Result<Boxed<Tuple>, _> =
+        let second_received_tuple_result: core::result::Result<NonNull<Tuple>, _> =
             second_received_message.try_into();
 
         assert!(second_received_tuple_result.is_ok());

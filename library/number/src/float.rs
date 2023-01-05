@@ -35,13 +35,14 @@ impl fmt::Display for FloatError {
     }
 }
 
-/// This is a wrapper around an f64 value that ensures the value is a valid Erlang float, i.e. it cannot be +/- infinity.
+/// This is a wrapper around an f64 value that ensures the value is a valid Erlang float, i.e. it
+/// cannot be +/- infinity.
 #[derive(Copy, Clone)]
 #[repr(transparent)]
 pub struct Float(f64);
 impl Float {
-    const I64_UPPER_BOUNDARY: f64 = (1i64 << f64::MANTISSA_DIGITS) as f64;
-    const I64_LOWER_BOUNDARY: f64 = (-1i64 << f64::MANTISSA_DIGITS) as f64;
+    pub const I64_UPPER_BOUNDARY: f64 = (1i64 << f64::MANTISSA_DIGITS) as f64;
+    pub const I64_LOWER_BOUNDARY: f64 = (-1i64 << f64::MANTISSA_DIGITS) as f64;
 
     pub fn new(float: f64) -> Result<Float, FloatError> {
         FloatError::from_category(float.classify())?;

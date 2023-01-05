@@ -28,7 +28,8 @@ use std::collections::{BTreeMap, BTreeSet, HashSet};
 use firefly_diagnostics::{SourceSpan, Span};
 use firefly_intern::{Ident, Symbol};
 
-/// This structure contains metadata representing an OTP application gathered during parsing and semantic analysis.
+/// This structure contains metadata representing an OTP application gathered during parsing and
+/// semantic analysis.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ApplicationMetadata {
     pub name: Symbol,
@@ -56,9 +57,9 @@ impl ApplicationMetadata {
     }
 }
 
-/// This structure contains metadata about a module gathered during initial parsing and semantic analysis,
-/// which comes in handy during later stages of compilation where we can reason about the set of all
-/// reachable modules
+/// This structure contains metadata about a module gathered during initial parsing and semantic
+/// analysis, which comes in handy during later stages of compilation where we can reason about the
+/// set of all reachable modules
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ModuleMetadata {
     pub name: Ident,
@@ -67,9 +68,9 @@ pub struct ModuleMetadata {
     pub deprecations: BTreeMap<FunctionName, Deprecation>,
 }
 
-/// This structure holds module-specific compiler options and configuration; it is passed through all phases of
-/// compilation alongside its associated module, and is a superset of options in CompilerSettings
-/// where applicable
+/// This structure holds module-specific compiler options and configuration; it is passed through
+/// all phases of compilation alongside its associated module, and is a superset of options in
+/// CompilerSettings where applicable
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CompileOptions {
     // Used to override the filename used in errors/warnings

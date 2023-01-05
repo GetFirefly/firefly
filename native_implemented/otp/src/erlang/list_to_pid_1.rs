@@ -2,19 +2,21 @@
 mod test;
 
 use std::convert::TryInto;
+use std::ptr::NonNull;
 
 use anyhow::*;
 
-use liblumen_alloc::erts::exception::{self, *};
-use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::prelude::*;
+use firefly_number::TryIntoIntegerError;
 
-use crate::runtime::distribution::nodes::node;
+use firefly_rt::process::Process;
+use firefly_rt::error::ErlangException;
+use firefly_rt::term::Term;
 
 use crate::runtime::distribution::nodes;
+use crate::runtime::distribution::nodes::node;
 
 #[native_implemented::function(erlang:list_to_pid/1)]
-pub fn result(process: &Process, string: Term) -> exception::Result<Term> {
+pub fn result(process: &Process, string: Term) -> Result<Term, NonNull<ErlangException>> {
     let cons = term_try_into_non_empty_list!(string)?;
 
     let prefix_tail = skip_char(cons, '<').context("first character must be '<'")?;

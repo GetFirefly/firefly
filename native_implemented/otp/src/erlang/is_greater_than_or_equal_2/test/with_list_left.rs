@@ -1,7 +1,5 @@
 use super::*;
 
-use proptest::strategy::Strategy;
-
 #[test]
 fn without_list_or_bitstring_returns_true() {
     run!(
@@ -24,13 +22,13 @@ fn without_list_or_bitstring_returns_true() {
 
 #[test]
 fn with_empty_list_right_returns_true() {
-    is_greater_than_or_equal(|_, _| Term::NIL, true);
+    is_greater_than_or_equal(|_, _| Term::Nil, true);
 }
 
 #[test]
 fn with_greater_list_right_returns_true() {
     is_greater_than_or_equal(
-        |_, process| process.cons(process.integer(0), process.integer(0)),
+        |_, process| process.cons(process.integer(0).unwrap(), process.integer(0).unwrap()),
         true,
     );
 }
@@ -38,7 +36,7 @@ fn with_greater_list_right_returns_true() {
 #[test]
 fn with_same_value_list_right_returns_true() {
     is_greater_than_or_equal(
-        |_, process| process.cons(process.integer(0), process.integer(1)),
+        |_, process| process.cons(process.integer(0).unwrap(), process.integer(1).unwrap()),
         true,
     );
 }
@@ -46,7 +44,7 @@ fn with_same_value_list_right_returns_true() {
 #[test]
 fn with_greater_list_right_returns_false() {
     is_greater_than_or_equal(
-        |_, process| process.cons(process.integer(0), process.integer(2)),
+        |_, process| process.cons(process.integer(0).unwrap(), process.integer(2).unwrap()),
         false,
     );
 }
@@ -73,7 +71,7 @@ where
     R: FnOnce(Term, &Process) -> Term,
 {
     super::is_greater_than_or_equal(
-        |process| process.cons(process.integer(0), process.integer(1)),
+        |process| process.cons(process.integer(0).unwrap(), process.integer(1).unwrap()),
         right,
         expected,
     );

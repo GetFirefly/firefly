@@ -7,7 +7,7 @@ use std::time::Duration;
 fn with_invalid_unit_errors_badarg() {
     with_process(|process| {
         assert_badarg!(
-            result(process, atom!("invalid")),
+            result(process, atoms::Invalid.into()),
             "atom (invalid) is not supported"
         );
     });

@@ -4,8 +4,8 @@ mod with_true_left;
 use proptest::prop_assert_eq;
 use proptest::test_runner::{Config, TestRunner};
 
-use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::prelude::*;
+use firefly_rt::process::Process;
+use firefly_rt::term::{Atom, Term};
 
 use crate::erlang::orelse_2::result;
 use crate::runtime::scheduler::SchedulerDependentAlloc;

@@ -609,7 +609,8 @@ impl TryFrom<ValueBase> for CatchPadInst {
     }
 }
 
-/// Represents the SEH exception handling intrinsic for setting up a basic block as a cleanup handler
+/// Represents the SEH exception handling intrinsic for setting up a basic block as a cleanup
+/// handler
 #[repr(transparent)]
 #[derive(Copy)]
 pub struct CleanupPadInst(ValueBase);

@@ -9,7 +9,7 @@ use crate::erlang::list_to_float_1;
 fn is_dual_of_list_to_float_1() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
-            .run(&strategy::term::float(arc_process.clone()), |float| {
+            .run(&strategy::term::float(), |float| {
                 let result_list = result(&arc_process, float);
 
                 prop_assert!(result_list.is_ok());

@@ -5,7 +5,6 @@
 //! * Construct a pass pipeline that chains passes, taking as input the first passes input type,
 //! and outputing the last passes' output type. With this, you can represent lowering through
 //! various intermediate representations using a single pass pipeline.
-//!
 // This feature is only used for tests, and can be removed with minimal refactoring,
 // but I'm in a rush and we're using nightly right now anyway
 #![feature(box_patterns)]
@@ -13,11 +12,14 @@
 
 /// This trait represents anything that can be run as a pass.
 ///
-/// Passes operate on an input value, and return either the same type, or a new type, depending on the nature of the pass.
+/// Passes operate on an input value, and return either the same type, or a new type, depending on
+/// the nature of the pass.
 ///
-/// Implementations may represent a single pass, or an arbitrary number of passes that will be run as a single unit.
+/// Implementations may represent a single pass, or an arbitrary number of passes that will be run
+/// as a single unit.
 ///
-/// Functions are valid implementations of `Pass` as long as their signature is `fn<I, O>(I) -> Result<O, ()>`.
+/// Functions are valid implementations of `Pass` as long as their signature is `fn<I, O>(I) ->
+/// Result<O, ()>`.
 pub trait Pass {
     type Input<'a>;
     type Output<'a>;

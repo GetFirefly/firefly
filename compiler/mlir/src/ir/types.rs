@@ -492,11 +492,12 @@ impl AddressSpace {
 /// Represents the built-in MLIR MemRef and UnrankedMemRef types
 ///
 /// A MemRef is a type representing a region of memory of a specific size and shape.
-/// The layout can be dynamic or static, of unknown, single or multi-dimensional rank, contiguous or sparse.
+/// The layout can be dynamic or static, of unknown, single or multi-dimensional rank, contiguous or
+/// sparse.
 ///
 /// MemRefs have a specific fixed element type, i.e. they aren't meant to represent things like
-/// heterogenous tuples, but rather vectors/tensors/arrays of a specific type. In MLIR they are generally
-/// used with numeric types to solve for common ML tasks.
+/// heterogenous tuples, but rather vectors/tensors/arrays of a specific type. In MLIR they are
+/// generally used with numeric types to solve for common ML tasks.
 #[repr(transparent)]
 #[derive(Copy, Clone)]
 pub struct MemRefType(TypeBase);
@@ -552,7 +553,8 @@ impl MemRefType {
         unsafe { mlir_type_isa_unranked_memref(self.0) }
     }
 
-    /// Returns an attribute that implements MemRefLayoutAttrInterface, typically an AffineMapAttr, but not always
+    /// Returns an attribute that implements MemRefLayoutAttrInterface, typically an AffineMapAttr,
+    /// but not always
     pub fn layout(self) -> AttributeBase {
         unsafe { mlir_memref_type_get_layout(self) }
     }

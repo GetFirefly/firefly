@@ -51,8 +51,9 @@ impl Cons {
             .map(|ptr| ptr.cast())
     }
 
-    /// Constructs a list from the given slice, the output of which will be in the same order as the slice.
-    pub fn from_slice<H: Heap>(
+    /// Constructs a list from the given slice, the output of which will be in the same order as the
+    /// slice.
+    pub fn from_slice_in<H: Heap>(
         slice: &[Term],
         heap: H,
     ) -> Result<Option<NonNull<Cons>>, AllocError> {
@@ -62,6 +63,28 @@ impl Cons {
         }
         Ok(builder.finish())
     }
+
+    /// Constructs an improper list from the given slice, the output of which will be in the same order as the
+    /// slice.
+    pub fn improper_from_slice_in<H: Heap>(
+        slice: &[Term],
+        last: Term,
+        heap: H,
+    ) -> Result<Option<NonNull<Cons>>, AllocError> {
+        Self::improper_from_iter_in(slice.iter(), last, heap)
+    }
+
+    /// Constructs an improper list from the given iter, the output of which will be in the same order as the
+    /// iter.
+    pub fn improper_from_iter_in<'a, I, H>(iter: I, last: Term, heap: H) -> Result<Option<NonNull<Cons>>, AllocError> where I: DoubleEndedIterator + Iterator<Item = &'a Term>, H: Heap {
+        let mut builder = ListBuilder::new(&heap);
+        builder.push(last)?;
+        for value in iter.rev() {
+            builder.push(*value)?;
+        }
+        Ok(builder.finish())
+    }
+
     /// During garbage collection, when a list cell is moved to the new heap, a
     /// move marker is left in the original location. For a cons cell, the move
     /// marker sets the first word to None, and the second word to a pointer to
@@ -148,7 +171,8 @@ impl Cons {
 
     /// Traverses the list, constructing a String from each codepoint in the list
     ///
-    /// If the list is improper, or any element is not a valid latin1/utf8 codepoint, this function returns None
+    /// If the list is improper, or any element is not a valid latin1/utf8 codepoint, this function
+    /// returns None
     pub fn to_string(&self) -> Option<String> {
         let mut buffer = String::with_capacity(10);
         for result in self.iter() {
@@ -190,8 +214,8 @@ impl Cons {
     pub fn charlist_to_binary<H: Heap>(&self, heap: H) -> Result<Term, CharlistToBinaryError> {
         // We need to know whether or not the resulting binary should be allocated in `alloc`,
         // or on the global heap as a reference-counted binary. We also want to determine the target
-        // encoding. So we'll scan the list twice, once to gather the size in bytes + encoding, the second
-        // to write each byte to the allocated region.
+        // encoding. So we'll scan the list twice, once to gather the size in bytes + encoding, the
+        // second to write each byte to the allocated region.
         let (len, encoding) = self
             .get_charlist_size_and_encoding()
             .ok_or_else(|| CharlistToBinaryError::InvalidList)?;
@@ -252,9 +276,9 @@ impl Cons {
 
     /// Writes this charlist codepoint-by-codepoint to a buffer via the provided writer
     ///
-    /// By the time this has called, we should already have validated that the list is valid unicode codepoints,
-    /// and that the binary we've allocated has enough raw bytes to hold the contents of this charlist. This
-    /// should not be called directly otherwise.
+    /// By the time this has called, we should already have validated that the list is valid unicode
+    /// codepoints, and that the binary we've allocated has enough raw bytes to hold the
+    /// contents of this charlist. This should not be called directly otherwise.
     fn write_unicode_charlist_to_buffer<W: fmt::Write>(
         &self,
         writer: &mut W,
@@ -268,8 +292,8 @@ impl Cons {
         Ok(())
     }
 
-    /// Same as `write_unicode_charlist_to_buffer`, but for ASCII charlists, which is slightly more efficient
-    /// since we can skip the unicode conversion overhead.
+    /// Same as `write_unicode_charlist_to_buffer`, but for ASCII charlists, which is slightly more
+    /// efficient since we can skip the unicode conversion overhead.
     fn write_raw_charlist_to_buffer<A: Allocator>(
         &self,
         buf: &mut BitVec<A>,
@@ -281,8 +305,8 @@ impl Cons {
         Ok(())
     }
 
-    /// This function walks the entire list, calculating the total bytes required to hold all of the characters,
-    /// as well as what encoding is suitable for the charlist.
+    /// This function walks the entire list, calculating the total bytes required to hold all of the
+    /// characters, as well as what encoding is suitable for the charlist.
     ///
     /// If this list is not a charlist, or is an improper list, None is returned.
     fn get_charlist_size_and_encoding(&self) -> Option<(usize, Encoding)> {
@@ -299,11 +323,13 @@ impl Cons {
                                     len += len_utf8(codepoint);
                                 }
                                 None if codepoint > 255 => {
-                                    // Invalid UTF-8 codepoint and not a valid byte value, this isn't a charlist
+                                    // Invalid UTF-8 codepoint and not a valid byte value, this
+                                    // isn't a charlist
                                     return None;
                                 }
                                 None => {
-                                    // This is either a valid latin1 codepoint, or a plain byte, determine which,
+                                    // This is either a valid latin1 codepoint, or a plain byte,
+                                    // determine which,
                                     // as in both cases we need to update the encoding
                                     len += 1;
                                     if Encoding::is_latin1_byte(codepoint.try_into().unwrap()) {

@@ -2,7 +2,7 @@ use core::convert::{TryFrom, TryInto};
 
 use anyhow::*;
 
-use liblumen_alloc::erts::term::prelude::*;
+use firefly_rt::term::{Atom, Term, Tuple};
 
 use crate::runtime::proplist::TryPropListFromTermError;
 
@@ -15,14 +15,14 @@ const SUPPORTED_OPTIONS_CONTEXT: &str = "supported options are {:async, bool} or
 
 impl Options {
     fn put_option_term(&mut self, option: Term) -> Result<&Options, anyhow::Error> {
-        let tuple: Boxed<Tuple> = option.try_into().context(SUPPORTED_OPTIONS_CONTEXT)?;
+        let tuple: NonNull<Tuple> = option.try_into().context(SUPPORTED_OPTIONS_CONTEXT)?;
 
         if tuple.len() == 2 {
             let atom: Atom = tuple[0]
                 .try_into()
                 .map_err(|_| TryPropListFromTermError::KeywordKeyType)?;
 
-            match atom.name() {
+            match atom.as_str() {
                 "async" => {
                     self.r#async = tuple[1].try_into().context("async value must be a bool")?;
 
@@ -59,13 +59,14 @@ impl TryFrom<Term> for Options {
         let mut options_term = term;
 
         loop {
-            match options_term.decode().unwrap() {
-                TypedTerm::Nil => return Ok(options),
-                TypedTerm::List(cons) => {
+            match options_term {
+                Term::Nil => return Ok(options),
+                Term::Cons(non_null_cons) => {
+                    let cons = unsafe { non_null_cons.as_ref() };
                     options
-                        .put_option_term(cons.head)
+                        .put_option_term(cons.head())
                         .with_context(|| SUPPORTED_OPTIONS_CONTEXT)?;
-                    options_term = cons.tail;
+                    options_term = cons.tail();
 
                     continue;
                 }

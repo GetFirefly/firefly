@@ -6,7 +6,7 @@ fn without_number_multiplicand_errors_badarith() {
         |arc_process| {
             (
                 Just(arc_process.clone()),
-                strategy::term::float(arc_process.clone()),
+                strategy::term::float(),
                 strategy::term::is_not_number(arc_process.clone()),
             )
         },
@@ -30,7 +30,7 @@ fn with_number_multiplicand_returns_float() {
         |arc_process| {
             (
                 Just(arc_process.clone()),
-                strategy::term::float(arc_process.clone()),
+                strategy::term::float(),
                 strategy::term::is_number(arc_process.clone()),
             )
         },
@@ -41,7 +41,7 @@ fn with_number_multiplicand_returns_float() {
 
             let product = result.unwrap();
 
-            prop_assert!(product.is_boxed_float());
+            prop_assert!(product.is_float());
 
             Ok(())
         },
@@ -51,11 +51,11 @@ fn with_number_multiplicand_returns_float() {
 #[test]
 fn with_float_multiplicand_without_underflow_or_overflow_returns_float() {
     with(|multiplier, process| {
-        let multiplicand = process.float(3.0);
+        let multiplicand = 3.0.into();
 
         assert_eq!(
             result(process, multiplier, multiplicand),
-            Ok(process.float(6.0))
+            Ok(6.0.into())
         );
     })
 }
@@ -63,11 +63,11 @@ fn with_float_multiplicand_without_underflow_or_overflow_returns_float() {
 #[test]
 fn with_float_multiplicand_with_underflow_returns_min_float() {
     with(|multiplier, process| {
-        let multiplicand = process.float(std::f64::MIN);
+        let multiplicand = f64::MIN.into();
 
         assert_eq!(
             result(process, multiplier, multiplicand),
-            Ok(process.float(std::f64::MIN))
+            Ok(f64::MIN.into())
         );
     })
 }
@@ -75,11 +75,11 @@ fn with_float_multiplicand_with_underflow_returns_min_float() {
 #[test]
 fn with_float_multiplicand_with_overflow_returns_max_float() {
     with(|multiplier, process| {
-        let multiplicand = process.float(std::f64::MAX);
+        let multiplicand = f64::MAX.into();
 
         assert_eq!(
             result(process, multiplier, multiplicand),
-            Ok(process.float(std::f64::MAX))
+            Ok(f64::MAX.into())
         );
     })
 }
@@ -89,7 +89,7 @@ where
     F: FnOnce(Term, &Process) -> (),
 {
     with_process(|process| {
-        let multiplier = process.float(2.0);
+        let multiplier = 2.0.into();
 
         f(multiplier, &process)
     })

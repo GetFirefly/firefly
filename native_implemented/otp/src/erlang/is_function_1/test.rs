@@ -8,7 +8,7 @@ use crate::test::with_process_arc;
 #[test]
 fn without_function_returns_false() {
     run!(
-        |arc_process| strategy::term::is_not_function(arc_process.clone()),
+        |arc_process| strategy::term::is_not_closure(arc_process.clone()),
         |term| {
             prop_assert_eq!(result(term), false.into());
 

@@ -2,8 +2,8 @@ mod with_safe;
 
 use proptest::strategy::Just;
 
-use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::prelude::{Atom, Term};
+use firefly_rt::process::Process;
+use firefly_rt::term::Term;
 
 use crate::erlang::binary_to_term_2::result;
 use crate::test::strategy;

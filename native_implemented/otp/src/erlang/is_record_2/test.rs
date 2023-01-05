@@ -1,5 +1,5 @@
 use proptest::prop_assert_eq;
-use proptest::strategy::{Just, Strategy};
+use proptest::strategy::Just;
 use proptest::test_runner::{Config, TestRunner};
 
 use crate::erlang::is_record_2::result;
@@ -45,7 +45,7 @@ fn with_empty_tuple_with_atom_returns_false() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
             .run(&strategy::term::atom(), |record_tag| {
-                let tuple = arc_process.tuple_from_slice(&[]);
+                let tuple = arc_process.tuple_term_from_term_slice(&[]);
 
                 prop_assert_eq!(result(tuple, record_tag), Ok(false.into()));
 
@@ -71,7 +71,7 @@ fn with_non_empty_tuple_without_atom_with_first_element_errors_badarg() {
                     tail_element_vec.insert(0, first_element);
 
                     (
-                        arc_process.tuple_from_slice(&tail_element_vec),
+                        arc_process.tuple_term_from_term_slice(&tail_element_vec),
                         first_element,
                     )
                 })
@@ -101,7 +101,7 @@ fn with_non_empty_tuple_with_atom_without_record_tag_returns_false() {
                     |(arc_process, first_element, mut tail_element_vec, atom)| {
                         tail_element_vec.insert(0, first_element);
 
-                        (arc_process.tuple_from_slice(&tail_element_vec), atom)
+                        (arc_process.tuple_term_from_term_slice(&tail_element_vec), atom)
                     },
                 )
         },
@@ -128,7 +128,7 @@ fn with_non_empty_tuple_with_atom_with_record_tag_returns_ok() {
                 .prop_map(|(arc_process, record_tag, mut tail_element_vec)| {
                     tail_element_vec.insert(0, record_tag);
 
-                    (arc_process.tuple_from_slice(&tail_element_vec), record_tag)
+                    (arc_process.tuple_term_from_term_slice(&tail_element_vec), record_tag)
                 })
         },
         |(tuple, record_tag)| {

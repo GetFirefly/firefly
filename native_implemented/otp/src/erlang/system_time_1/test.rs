@@ -1,10 +1,9 @@
 mod with_atom;
 mod with_small_integer;
 
-use proptest::strategy::{Just, Strategy};
+use proptest::strategy::Just;
 
-use liblumen_alloc::atom;
-use liblumen_alloc::erts::term::prelude::*;
+use firefly_rt::term::Term;
 
 use crate::erlang::system_time_1::result;
 use crate::test::{strategy, with_process};

@@ -136,10 +136,11 @@ pub fn ensure_aligned<T: ?Sized>(ptr: *mut T, align: usize) -> (*mut T, usize) {
     (aligned, offset)
 }
 
-/// Returns the effective alignment of `ptr`, i.e. the largest power of two that is a divisor of `ptr`
+/// Returns the effective alignment of `ptr`, i.e. the largest power of two that is a divisor of
+/// `ptr`
 ///
-/// NOTE: This may return unusually high alignments if the address happens to be sitting at the boundary
-/// of a large address with mostly zeros.
+/// NOTE: This may return unusually high alignments if the address happens to be sitting at the
+/// boundary of a large address with mostly zeros.
 #[inline(always)]
 pub fn effective_alignment<T: ?Sized>(ptr: *const T) -> usize {
     1usize << (ptr as *const () as usize).trailing_zeros()

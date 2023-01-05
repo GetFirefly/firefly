@@ -33,8 +33,8 @@ impl BitSlice {
     ///
     /// The caller must ensure that `data` is a slice of bytes owned by `owner`. As such, we can
     /// guarantee that changing the lifetime to 'static is safe, since the data will not be dropped
-    /// until the owning term has no more references. The garbage collector will take care of rewriting
-    /// the pointer should the data be moved by a GC cycle.
+    /// until the owning term has no more references. The garbage collector will take care of
+    /// rewriting the pointer should the data be moved by a GC cycle.
     #[inline]
     pub unsafe fn new(owner: OpaqueTerm, data: &[u8], bit_offset: u8, num_bits: usize) -> Self {
         let data = core::mem::transmute::<_, &'static [u8]>(data);

@@ -105,7 +105,8 @@ impl Pass for DefinePseudoLocals {
             ast_lit_cons!(ast_lit_tuple_with_span!(nif.span(), fname, arity), tail)
         });
 
-        // Define module_info/0 which contains a proplist with keys: module, attributes, compile, exports, md5 and native
+        // Define module_info/0 which contains a proplist with keys: module, attributes, compile,
+        // exports, md5 and native
         let mod_info_0_list = ast_lit_list!(
             ast_lit_tuple!(
                 ast_lit_atom!(symbols::Module),
@@ -137,7 +138,8 @@ impl Pass for DefinePseudoLocals {
         };
         define_function(module, mod_info_0);
 
-        // Define module_info/1 which contains accepts the following keys: module, attributes, compile, exports, functions, nifs, md5 and native
+        // Define module_info/1 which contains accepts the following keys: module, attributes,
+        // compile, exports, functions, nifs, md5 and native
         let mod_info_1 = Function {
             span: SourceSpan::UNKNOWN,
             name: ident!(module_info),

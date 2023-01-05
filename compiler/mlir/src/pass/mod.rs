@@ -18,7 +18,8 @@ pub trait Pass {
     /// Returns an opaque borrowed reference to the pass for use in FFI
     fn base(&self) -> PassBase;
 
-    /// Consumes this pass and returns an opaque handle representing the pass for use by a pass manager
+    /// Consumes this pass and returns an opaque handle representing the pass for use by a pass
+    /// manager
     fn to_owned(self) -> OwnedPass;
 }
 
@@ -78,7 +79,8 @@ impl Drop for OwnedPass {
 
 /// Register all MLIR built-in passes
 ///
-/// NOTE: You should prefer to register passes individually, but this can be useful for dev/debugging
+/// NOTE: You should prefer to register passes individually, but this can be useful for
+/// dev/debugging
 pub fn register_all_passes() {
     extern "C" {
         #[link_name = "mlirRegisterAllPasses"]

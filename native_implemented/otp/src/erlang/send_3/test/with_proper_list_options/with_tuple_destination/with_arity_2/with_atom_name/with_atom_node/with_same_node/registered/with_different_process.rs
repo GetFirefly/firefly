@@ -18,12 +18,12 @@ fn without_locked_adds_process_message_to_mailbox_and_returns_ok() {
                 erlang::register_2::result(
                     arc_process.clone(),
                     name,
-                    different_arc_process.pid_term(),
+                    different_arc_process.pid_term().unwrap(),
                 ),
                 Ok(true.into())
             );
 
-            let destination = arc_process.tuple_from_slice(&[name, erlang::node_0::result()]);
+            let destination = arc_process.tuple_term_from_term_slice(&[name, erlang::node_0::result()]);
 
             prop_assert_eq!(
                 result(&arc_process, destination, message, options),
@@ -55,14 +55,14 @@ fn with_locked_adds_heap_message_to_mailbox_and_returns_ok() {
                 erlang::register_2::result(
                     arc_process.clone(),
                     name,
-                    different_arc_process.pid_term(),
+                    different_arc_process.pid_term().unwrap(),
                 ),
                 Ok(true.into())
             );
 
             let _different_process_heap_lock = different_arc_process.acquire_heap();
 
-            let destination = arc_process.tuple_from_slice(&[name, erlang::node_0::result()]);
+            let destination = arc_process.tuple_term_from_term_slice(&[name, erlang::node_0::result()]);
 
             prop_assert_eq!(
                 result(&arc_process, destination, message, options),

@@ -242,7 +242,7 @@ impl<'ctx> ModuleBuilder<'ctx> {
     pub fn get_struct_type(&self, name: Option<&str>, field_types: &[TypeBase]) -> StructType {
         if let Some(name) = name {
             self.context
-                .get_named_struct_type(name, field_types, /*packed=*/ false)
+                .get_named_struct_type(name, field_types, /* packed= */ false)
         } else {
             self.context.get_struct_type(field_types)
         }
@@ -253,7 +253,8 @@ impl<'ctx> ModuleBuilder<'ctx> {
         PointerType::new(ty, 0)
     }
 
-    /// Returns a type corresponding to a function with the given return value and argument types, optionally variadic
+    /// Returns a type corresponding to a function with the given return value and argument types,
+    /// optionally variadic
     pub fn get_function_type<T: Type>(
         &self,
         ret: T,
@@ -263,7 +264,8 @@ impl<'ctx> ModuleBuilder<'ctx> {
         FunctionType::new(ret, params, variadic)
     }
 
-    /// A helper function which returns a function type consisting of all terms, with the given number of arguments
+    /// A helper function which returns a function type consisting of all terms, with the given
+    /// number of arguments
     pub fn get_erlang_function_type(&self, arity: u8) -> FunctionType {
         let term_type = self.get_term_type().base();
         let arity = arity as usize;
@@ -303,7 +305,8 @@ impl<'ctx> ModuleBuilder<'ctx> {
         unsafe { LLVMSetCurrentDebugLocation2(*self.builder, loc) }
     }
 
-    /// Sets the debug location for the given instruction using the builder's current debug location metadata
+    /// Sets the debug location for the given instruction using the builder's current debug location
+    /// metadata
     pub fn set_debug_location<I: Instruction>(&self, inst: I) {
         extern "C" {
             fn LLVMSetInstDebugLocation(builder: Builder, inst: ValueBase);
@@ -448,11 +451,11 @@ impl<'ctx> ModuleBuilder<'ctx> {
     }
 
     pub fn build_constant_int(&self, ty: IntegerType, value: i64) -> ConstantInt {
-        ConstantInt::get(ty, value as u64, /*sext=*/ true)
+        ConstantInt::get(ty, value as u64, /* sext= */ true)
     }
 
     pub fn build_constant_uint(&self, ty: IntegerType, value: u64) -> ConstantInt {
-        ConstantInt::get(ty, value, /*sext=*/ false)
+        ConstantInt::get(ty, value, /* sext= */ false)
     }
 
     pub fn build_constant_array<T: Type>(&self, ty: T, values: &[ConstantValue]) -> ConstantArray {
@@ -505,7 +508,7 @@ impl<'ctx> ModuleBuilder<'ctx> {
         index: u64,
     ) -> ConstantExpr {
         let index_ty = self.context.get_i32_type();
-        let index = ConstantInt::get(index_ty, index, /*sext=*/ false);
+        let index = ConstantInt::get(index_ty, index, /* sext= */ false);
         ConstantExpr::extract_value(agg, &[index.into()])
     }
 
@@ -652,7 +655,7 @@ impl<'ctx> ModuleBuilder<'ctx> {
         }
 
         unsafe {
-            LLVMBuildSwitch(*self.builder, value, default, /*hint=*/ 10)
+            LLVMBuildSwitch(*self.builder, value, default, /* hint= */ 10)
         }
     }
 
@@ -687,7 +690,8 @@ impl<'ctx> ModuleBuilder<'ctx> {
 
     /// Builds a call instruction with a callee value that may or may not be a function reference
     ///
-    /// The primary difference with `build_invoke` is that this requires providing the type of the callee
+    /// The primary difference with `build_invoke` is that this requires providing the type of the
+    /// callee
     pub fn build_call_indirect(
         &self,
         callee: ValueBase,
@@ -741,7 +745,8 @@ impl<'ctx> ModuleBuilder<'ctx> {
 
     /// Builds an invoke instruction with a callee value that may or may not be a function reference
     ///
-    /// The primary difference with `build_invoke` is that this requires providing the type of the callee
+    /// The primary difference with `build_invoke` is that this requires providing the type of the
+    /// callee
     pub fn build_invoke_indirect(
         &self,
         callee: ValueBase,
@@ -814,9 +819,9 @@ impl<'ctx> ModuleBuilder<'ctx> {
     }
 
     /// When inserted at the beginning of a block, it marks the block as a catch or cleanup handler
-    /// for a matching `invoke` instruction. When the callee of an invoke unwinds, the landingpad, if
-    /// matching, will be visited. Unwinding can be resumed via `resume` from within a landingpad or its
-    /// successor blocks.
+    /// for a matching `invoke` instruction. When the callee of an invoke unwinds, the landingpad,
+    /// if matching, will be visited. Unwinding can be resumed via `resume` from within a
+    /// landingpad or its successor blocks.
     ///
     /// NOTE: This instruction _must_ be the first instruction in its containing block
     ///
@@ -837,21 +842,21 @@ impl<'ctx> ModuleBuilder<'ctx> {
                 *self.builder,
                 ty.base(),
                 ValueBase::null(),
-                /*hint=*/ 2,
+                /* hint= */ 2,
                 UNNAMED,
             )
         }
     }
 
-    /// When inserted at the beginning of a block, it marks the block as a landing pad for the unwinder
-    /// It acts as the dispatcher across one or more catch handlers, and like invoke, can indicate what
-    /// to do if the handler unwinds.
+    /// When inserted at the beginning of a block, it marks the block as a landing pad for the
+    /// unwinder It acts as the dispatcher across one or more catch handlers, and like invoke,
+    /// can indicate what to do if the handler unwinds.
     ///
     /// NOTE: This instruction _must_ be the first instruction in its containing block
     ///
     /// This is part of the set of new exception handling instructions, and are generic across MSVC
-    /// structured exception handling and Itanium C++ exceptions. It is a strict superset of the older
-    /// instruction set.
+    /// structured exception handling and Itanium C++ exceptions. It is a strict superset of the
+    /// older instruction set.
     pub fn build_catchswitch(
         &self,
         parent: Option<&Funclet>,
@@ -870,15 +875,16 @@ impl<'ctx> ModuleBuilder<'ctx> {
         let unwind = unwind.unwrap_or_else(Block::null);
         let parent = parent.map(|f| f.pad()).unwrap_or_else(ValueBase::null);
         unsafe {
-            LLVMBuildCatchSwitch(*self.builder, parent, unwind, /*hint=*/ 5, UNNAMED)
+            LLVMBuildCatchSwitch(*self.builder, parent, unwind, /* hint= */ 5, UNNAMED)
         }
     }
 
-    /// Like `landingpad`, this instruction indicates that its containing block is a catch handler for
-    /// a corresponding `catchswitch` instruction. A catchpad will not be visited unless the in-flight
-    /// exception matches the given arguments. The arguments correspond to whatever information the
-    /// personality routine requires to know if this is an appropriate handler for the exception. In
-    /// practice this tends to be a pointer to a global containing a tag string, e.g. `i8** @_ZTIi`.
+    /// Like `landingpad`, this instruction indicates that its containing block is a catch handler
+    /// for a corresponding `catchswitch` instruction. A catchpad will not be visited unless the
+    /// in-flight exception matches the given arguments. The arguments correspond to whatever
+    /// information the personality routine requires to know if this is an appropriate handler
+    /// for the exception. In practice this tends to be a pointer to a global containing a tag
+    /// string, e.g. `i8** @_ZTIi`.
     ///
     /// Control must exit a catchpad via a `catchret`, it must not resume normal execution, unwind,
     /// or return using `ret`, or the behavior is undefined.
@@ -902,15 +908,16 @@ impl<'ctx> ModuleBuilder<'ctx> {
         unsafe { LLVMBuildCatchPad(*self.builder, catchswitch.base(), argv, argc, UNNAMED) }
     }
 
-    /// Similar to `catchpad`, except it is used for the cleanup phase of the unwinder, i.e. it doesn't
-    /// resume normal execution, but instead performs some cleanup action and then resumes the unwinder.
+    /// Similar to `catchpad`, except it is used for the cleanup phase of the unwinder, i.e. it
+    /// doesn't resume normal execution, but instead performs some cleanup action and then
+    /// resumes the unwinder.
     ///
-    /// Unlike `catchpad` however, `cleanuppad` doesn't require a `catchswitch` as its parent, as it can
-    /// occur in the unwind destination for an invoke directly in cases where the exception isn't handled
-    /// but cleanup is required.
+    /// Unlike `catchpad` however, `cleanuppad` doesn't require a `catchswitch` as its parent, as it
+    /// can occur in the unwind destination for an invoke directly in cases where the exception
+    /// isn't handled but cleanup is required.
     ///
-    /// Control must exit a cleanuppad via a `cleanupret`, it must not unwind or return using `ret`, or
-    /// the behavior is undefined.
+    /// Control must exit a cleanuppad via a `cleanupret`, it must not unwind or return using `ret`,
+    /// or the behavior is undefined.
     ///
     /// NOTE: This instruction _must_ be the first instruction in its containing block
     ///
@@ -1018,7 +1025,8 @@ impl<'ctx> ModuleBuilder<'ctx> {
         }
     }
 
-    // TODO: It would be nice if we could make this more type safe and limit the value to one implementing Pointer
+    // TODO: It would be nice if we could make this more type safe and limit the value to one
+    // implementing Pointer
     pub fn build_load<V: Value, T: Type>(&self, ty: T, ptr: V) -> LoadInst {
         extern "C" {
             fn LLVMBuildLoad2(
@@ -1032,7 +1040,8 @@ impl<'ctx> ModuleBuilder<'ctx> {
         unsafe { LLVMBuildLoad2(*self.builder, ty.base(), ptr.base(), UNNAMED) }
     }
 
-    // TODO: It would be nice if we could make this more type safe and limit the pointer value to one implementing Pointer
+    // TODO: It would be nice if we could make this more type safe and limit the pointer value to
+    // one implementing Pointer
     pub fn build_store<P: Value, V: Value>(&self, ptr: P, value: V) -> StoreInst {
         extern "C" {
             fn LLVMBuildStore(builder: Builder, value: ValueBase, ptr: ValueBase) -> StoreInst;
@@ -1040,7 +1049,8 @@ impl<'ctx> ModuleBuilder<'ctx> {
         unsafe { LLVMBuildStore(*self.builder, value.base(), ptr.base()) }
     }
 
-    /// Given a pointer to a struct of the given type, produces a value which is a pointer to the `n`th field of the struct
+    /// Given a pointer to a struct of the given type, produces a value which is a pointer to the
+    /// `n`th field of the struct
     pub fn build_struct_gep<P: Value>(&self, ty: StructType, ptr: P, n: usize) -> ValueBase {
         extern "C" {
             fn LLVMBuildStructGEP2(
@@ -1054,21 +1064,24 @@ impl<'ctx> ModuleBuilder<'ctx> {
         }
 
         let index_ty = self.get_i32_type();
-        let indices = &[ConstantInt::get(index_ty, n as u64, /*sext=*/ false).base()];
+        let indices = &[ConstantInt::get(index_ty, n as u64, /* sext= */ false).base()];
         unsafe { LLVMBuildStructGEP2(*self.builder, ty, ptr.base(), indices.as_ptr(), 1, UNNAMED) }
     }
 
-    /// Builds a `getelementptr` instruction that will produce a poison value if any of the following
-    /// constraints are violated:
+    /// Builds a `getelementptr` instruction that will produce a poison value if any of the
+    /// following constraints are violated:
     ///
     /// * The base pointer is an address within the memory bounds of an allocated object
-    /// * If the index value must be truncated due to being a larger type, the signed value must be preserved
+    /// * If the index value must be truncated due to being a larger type, the signed value must be
+    ///   preserved
     /// * Multiplication of the index by the type size does not wrap (in the signed sense, e.g. nsw)
     /// * The successive addition of offsets (without adding the base address) does not wrap
-    /// * The successive addition of the current address (interpreted as an unsigned number) and an offset,
-    /// interpreted as a signed number, does not wrap the unsigned address space, and remains in bounds of the
-    /// allocated object
-    /// * In cases where the base is a vector of pointers, these rules apply to each of the computations element-wise
+    /// * The successive addition of the current address (interpreted as an unsigned number) and an
+    ///   offset,
+    /// interpreted as a signed number, does not wrap the unsigned address space, and remains in
+    /// bounds of the allocated object
+    /// * In cases where the base is a vector of pointers, these rules apply to each of the
+    ///   computations element-wise
     pub fn build_inbounds_gep<V: Value, T: Type>(
         &self,
         ty: T,
@@ -1163,7 +1176,8 @@ impl<'ctx> ModuleBuilder<'ctx> {
         }
     }
 
-    /// Gets a reference to a global variable with the given name, _if_ it has a definition, otherwise returns None
+    /// Gets a reference to a global variable with the given name, _if_ it has a definition,
+    /// otherwise returns None
     pub fn get_defined_value<S: Into<StringRef>>(&self, name: S) -> Option<GlobalVariable> {
         self.module
             .get_global(name)

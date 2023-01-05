@@ -13,7 +13,7 @@ fn with_different_node_returns_nosuspend() {
             );
 
             let destination =
-                arc_process.tuple_from_slice(&[name, Atom::str_to_term("node@example.com")]);
+                arc_process.tuple_term_from_term_slice(&[name, Atom::str_to_term("node@example.com")]);
             let options = options(&arc_process);
 
             prop_assert_eq!(

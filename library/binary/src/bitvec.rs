@@ -304,7 +304,8 @@ impl<A: Allocator> BitVec<A> {
     /// Used to push a bit when the current position is NOT byte-aligned
     unsafe fn push_bit_slow(&mut self, bit: bool) {
         // First, we need to rewrite the current partial byte with bits from `byte`
-        // Then, we need to shift the remaining bits of `byte` left and write that as a new partial byte
+        // Then, we need to shift the remaining bits of `byte` left and write that as a new partial
+        // byte
         let ptr = self.data.as_mut_ptr();
         let partial_byte = ptr.add(self.pos);
 
@@ -355,7 +356,8 @@ impl<A: Allocator> BitVec<A> {
     #[cold]
     unsafe fn push_byte_slow(&mut self, byte: u8) {
         // First, we need to rewrite the current partial byte with bits from `byte`
-        // Then, we need to shift the remaining bits of `byte` left and write that as a new partial byte
+        // Then, we need to shift the remaining bits of `byte` left and write that as a new partial
+        // byte
         let ptr = self.data.as_mut_ptr();
         let partial_byte = ptr.add(self.pos);
 
@@ -372,7 +374,8 @@ impl<A: Allocator> BitVec<A> {
         // We shift our position forward one byte, the bit offset remains unchanged
         self.pos += 1;
 
-        // Mask out the remaining bits and shift them left by the bit offset to form the new partial byte
+        // Mask out the remaining bits and shift them left by the bit offset to form the new partial
+        // byte
         *ptr.add(self.pos) = byte << (8 - offset);
     }
 
@@ -484,8 +487,9 @@ impl<A: Allocator> BitVec<A> {
             self.push_bytes(bytes);
             // Calculate the number of remaining bits to write
             let remaining_bits = size - available;
-            // If after pushing the bits that were available, we are aligned on a byte boundary, it vastly
-            // simplifies writing the padding bytes and handling the trailing bits
+            // If after pushing the bits that were available, we are aligned on a byte boundary, it
+            // vastly simplifies writing the padding bytes and handling the trailing
+            // bits
             if self.bit_offset == 0 {
                 // Recalculate the number of trailing bits
                 let trailing_bits = (remaining_bits % 8) as u8;
@@ -539,12 +543,14 @@ impl<A: Allocator> BitVec<A> {
         let byte_size = size / 8;
         let trailing_bits = (size % 8) as u8;
 
-        // If the number of bits requested fits in a single byte, we can proceed directly to handling the final byte
+        // If the number of bits requested fits in a single byte, we can proceed directly to
+        // handling the final byte
         if byte_size == 0 {
             return unsafe { self.push_partial_byte(bytes[0], trailing_bits) };
         }
 
-        // If the number of bits requested is an evenly divisble number of bytes, we can delegate to push_bytes
+        // If the number of bits requested is an evenly divisble number of bytes, we can delegate to
+        // push_bytes
         if trailing_bits == 0 {
             return self.push_bytes(&bytes[0..byte_size]);
         }
@@ -591,8 +597,9 @@ impl<A: Allocator> BitVec<A> {
             self.bit_offset = size;
             return;
         }
-        // Otherwise, mask out the bits for the partial byte and shift them into position, then write the filled partial byte
-        // The inverse of this mask will extract the trailing bits
+        // Otherwise, mask out the bits for the partial byte and shift them into position, then
+        // write the filled partial byte The inverse of this mask will extract the trailing
+        // bits
         let mask = u8::MAX << offset_shift;
         let partial_byte = partial_byte & mask;
         *ptr = partial_byte | (byte >> offset);
@@ -653,7 +660,8 @@ impl<A: Allocator> Ord for BitVec<A> {
 impl<A: Allocator, T: ?Sized + Bitstring> PartialOrd<T> for BitVec<A> {
     // We order bitstrings lexicographically
     fn partial_cmp(&self, other: &T) -> Option<core::cmp::Ordering> {
-        // Aligned binaries can be compared using the optimal built-in slice comparisons in the standard lib
+        // Aligned binaries can be compared using the optimal built-in slice comparisons in the
+        // standard lib
         if self.is_binary() && other.is_aligned() && other.is_binary() {
             unsafe {
                 let x = self.as_bytes_unchecked();
@@ -1233,7 +1241,8 @@ mod test {
     fn bitvec_integration_test() {
         // We're aiming to test that we can create the following bitstring:
         //
-        //     <<0xdeadbeef::big-integer-size(4)-unit(8), 2::integer-size(1)-unit(8), 5::integer-size(4)-unit(8), "hello"::binary>>
+        //     <<0xdeadbeef::big-integer-size(4)-unit(8), 2::integer-size(1)-unit(8),
+        // 5::integer-size(4)-unit(8), "hello"::binary>>
         //
         // Which should be equivalent to the following 14 hex-encoded bytes:
         //

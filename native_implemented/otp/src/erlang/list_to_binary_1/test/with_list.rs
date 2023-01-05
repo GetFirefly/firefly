@@ -1,6 +1,6 @@
 use super::*;
 
-use proptest::strategy::{Just, Strategy};
+use proptest::strategy::Just;
 
 mod with_binary_subbinary;
 mod with_byte;
@@ -17,7 +17,7 @@ fn without_byte_binary_or_list_element_errors_badarg() {
                 .prop_map(|(arc_process, element)| {
                     (
                         arc_process.clone(),
-                        arc_process.cons(element, Term::NIL),
+                        arc_process.cons(element, Term::Nil),
                         element,
                     )
                 })
@@ -39,7 +39,7 @@ fn without_byte_binary_or_list_element_errors_badarg() {
 #[test]
 fn with_empty_list_element_returns_empty_binary() {
     with_process(|process| {
-        let iolist = process.cons(Term::NIL, Term::NIL);
+        let iolist = process.cons(Term::Nil, Term::Nil);
 
         assert_eq!(result(process, iolist), Ok(process.binary_from_bytes(&[])));
     })
@@ -55,7 +55,7 @@ fn with_subbinary_with_bit_count_errors_badarg() {
             )
         },
         |(arc_process, element)| {
-            let iolist = arc_process.list_from_slice(&[element]);
+            let iolist = arc_process.list_from_slice(&[element]).unwrap();
 
             prop_assert_badarg!(
                 result(&arc_process, iolist),
@@ -73,8 +73,8 @@ fn with_subbinary_with_bit_count_errors_badarg() {
 fn is_integer_is_not_byte(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     prop_oneof![
         strategy::term::integer::negative(arc_process.clone()),
-        (Just(arc_process.clone()), (256..=SmallInteger::MAX_VALUE))
-            .prop_map(|(arc_process, i)| arc_process.integer(i)),
+        (Just(arc_process.clone()), (256..=Integer::MAX_SMALL))
+            .prop_map(|(arc_process, i)| arc_process.integer(i).unwrap()),
         strategy::term::integer::big::positive(arc_process)
     ]
     .boxed()
@@ -85,8 +85,8 @@ fn is_not_byte_binary_nor_list(arc_process: Arc<Process>) -> BoxedStrategy<Term>
         .prop_filter("Element must not be a binary or byte", move |element| {
             !(element.is_binary()
                 || (element.is_integer()
-                    && &arc_process.integer(0) <= element
-                    && element <= &arc_process.integer(256_isize))
+                    && &arc_process.integer(0).unwrap() <= element
+                    && element <= &arc_process.integer(256_isize).unwrap())
                 || element.is_list())
         })
         .boxed()

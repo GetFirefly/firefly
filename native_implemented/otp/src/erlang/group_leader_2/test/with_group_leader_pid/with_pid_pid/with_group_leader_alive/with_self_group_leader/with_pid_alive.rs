@@ -3,8 +3,8 @@ use super::*;
 #[test]
 fn with_self_pid_sets_group_leader() {
     with_process(|process| {
-        let group_leader = process.pid_term();
-        let pid = process.pid_term();
+        let group_leader = process.pid_term().unwrap();
+        let pid = process.pid_term().unwrap();
 
         assert_eq!(result(process, group_leader, pid), Ok(true.into()));
         assert_eq!(group_leader_0::result(process), group_leader);

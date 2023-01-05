@@ -7,7 +7,7 @@
 //! {:error, :hierarchy_request} = Lumen.Web.replace_child(parent, old_child, parent)
 //! ```
 
-use liblumen_alloc::erts::process::Process;
+use liblumen_rt::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
 #[native_implemented::label]

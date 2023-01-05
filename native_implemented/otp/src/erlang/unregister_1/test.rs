@@ -1,10 +1,6 @@
 mod with_atom_name;
 
-use std::convert::TryInto;
-
 use proptest::test_runner::{Config, TestRunner};
-
-use liblumen_alloc::erts::term::prelude::*;
 
 use crate::runtime::registry;
 

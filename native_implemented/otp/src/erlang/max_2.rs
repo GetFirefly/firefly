@@ -1,7 +1,7 @@
 #[cfg(all(not(target_arch = "wasm32"), test))]
 mod test;
 
-use liblumen_alloc::erts::term::prelude::Term;
+use firefly_rt::term::Term;
 
 /// `max/2`
 ///

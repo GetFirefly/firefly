@@ -1,7 +1,5 @@
 use super::*;
 
-use proptest::strategy::Strategy;
-
 #[test]
 fn without_small_integer_returns_false() {
     run!(
@@ -36,8 +34,8 @@ fn with_same_small_integer_right_returns_true() {
 fn with_same_value_small_integer_right_returns_true() {
     run!(
         |arc_process| {
-            (SmallInteger::MIN_VALUE..SmallInteger::MAX_VALUE)
-                .prop_map(move |i| (arc_process.integer(i), arc_process.integer(i)))
+            (Integer::MIN_SMALL..Integer::MAX_SMALL)
+                .prop_map(move |i| (arc_process.integer(i).unwrap(), arc_process.integer(i).unwrap()))
         },
         |(left, right)| {
             prop_assert_eq!(result(left, right), true.into());
@@ -51,8 +49,8 @@ fn with_same_value_small_integer_right_returns_true() {
 fn with_different_small_integer_right_returns_false() {
     run!(
         |arc_process| {
-            (SmallInteger::MIN_VALUE..SmallInteger::MAX_VALUE)
-                .prop_map(move |i| (arc_process.integer(i), arc_process.integer(i + 1)))
+            (Integer::MIN_SMALL..Integer::MAX_SMALL)
+                .prop_map(move |i| (arc_process.integer(i).unwrap(), arc_process.integer(i + 1).unwrap()))
         },
         |(left, right)| {
             prop_assert_eq!(result(left, right), false.into());

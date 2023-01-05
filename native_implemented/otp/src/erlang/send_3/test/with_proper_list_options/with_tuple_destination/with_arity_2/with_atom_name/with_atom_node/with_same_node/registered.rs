@@ -20,7 +20,7 @@ fn with_same_process_adds_process_message_to_mailbox_and_returns_ok() {
                 Ok(true.into())
             );
 
-            let destination = arc_process.tuple_from_slice(&[name, erlang::node_0::result()]);
+            let destination = arc_process.tuple_term_from_term_slice(&[name, erlang::node_0::result()]);
 
             prop_assert_eq!(
                 result(&arc_process, destination, message, options),

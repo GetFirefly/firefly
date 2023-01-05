@@ -10,13 +10,13 @@
 #[cfg(test)]
 mod test;
 
-use liblumen_alloc::erts::process::{Process, Status};
-use liblumen_alloc::erts::term::prelude::Term;
+use firefly_rt::process::{Process, ProcessStatus};
+use firefly_rt::term::Term;
 
 #[native_implemented::function(erlang:get_stacktrace/0)]
 pub fn result(process: &Process) -> Term {
-    match *process.status.read() {
-        Status::RuntimeException(ref exc) => exc.stacktrace().as_term().unwrap(),
-        _ => Term::NIL,
+    match process.status() {
+        ProcessStatus::Errored(ref erlang_exception) => erlang_exception.trace().as_term().unwrap(),
+        _ => Term::Nil,
     }
 }

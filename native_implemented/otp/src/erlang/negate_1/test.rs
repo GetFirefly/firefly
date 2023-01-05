@@ -1,6 +1,8 @@
 use proptest::strategy::{Just, Strategy};
 use proptest::{prop_assert_eq, prop_oneof};
 
+use firefly_rt::term::Term;
+
 use crate::erlang::negate_1::result;
 use crate::test::strategy;
 
@@ -32,10 +34,10 @@ fn with_integer_returns_integer_of_opposite_sign() {
                 Just(arc_process.clone()),
                 prop_oneof![std::isize::MIN..=-1, 1..=std::isize::MAX],
             )
-                .prop_map(|(arc_process, i)| (arc_process.clone(), arc_process.integer(i), i))
+                .prop_map(|(arc_process, i)| (arc_process.clone(), arc_process.integer(i).unwrap(), i))
         },
         |(arc_process, number, i)| {
-            let negated = arc_process.integer(-i);
+            let negated = arc_process.integer(-i).unwrap();
 
             prop_assert_eq!(result(&arc_process, number), Ok(negated));
 
@@ -52,10 +54,10 @@ fn with_float_returns_float_of_opposite_sign() {
                 Just(arc_process.clone()),
                 prop_oneof![std::f64::MIN..=-1.0, 1.0..=std::f64::MAX],
             )
-                .prop_map(|(arc_process, f)| (arc_process.clone(), arc_process.float(f), f))
+                .prop_map(|(arc_process, f)| (arc_process.clone(), f.into(), f))
         },
         |(arc_process, number, f)| {
-            let negated = arc_process.float(-f);
+            let negated = (-f).into();
 
             prop_assert_eq!(result(&arc_process, number), Ok(negated));
 

@@ -2,7 +2,8 @@ use std::convert::{TryFrom, TryInto};
 
 use anyhow::*;
 
-use liblumen_alloc::erts::term::prelude::*;
+use firefly_rt::*;
+use firefly_rt::term::Term;
 
 use crate::runtime::proplist::*;
 
@@ -26,7 +27,7 @@ impl Options {
     fn put_option_term(&mut self, option: Term) -> Result<&Self, anyhow::Error> {
         let atom: Atom = option.try_into().context(SUPPORTED_OPTION_CONTEXT)?;
 
-        match atom.name() {
+        match atom.as_str() {
             "monotonic" => {
                 self.monotonic = true;
 
@@ -50,11 +51,12 @@ impl TryFrom<Term> for Options {
         let mut options_term = term;
 
         loop {
-            match options_term.decode().unwrap() {
-                TypedTerm::Nil => return Ok(options),
-                TypedTerm::List(cons) => {
-                    options.put_option_term(cons.head)?;
-                    options_term = cons.tail;
+            match options_term {
+                Term::Nil => return Ok(options),
+                Term::Cons(non_null_cons) => {
+                    let cons = unsafe { non_null_cons.as_ref() };
+                    options.put_option_term(cons.head())?;
+                    options_term = cons.tail();
 
                     continue;
                 }

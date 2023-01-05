@@ -2,12 +2,10 @@ mod with_local_pid;
 
 use anyhow::*;
 
-use proptest::strategy::{Just, Strategy};
+use proptest::strategy::Just;
 
-use liblumen_alloc::erts::exception::error;
-use liblumen_alloc::erts::process::trace::Trace;
-use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::prelude::*;
+use firefly_rt::process::Process;
+use firefly_rt::*;
 
 use crate::erlang::link_1::result;
 use crate::test::{strategy, with_process};

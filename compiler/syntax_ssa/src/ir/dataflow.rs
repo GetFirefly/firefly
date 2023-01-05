@@ -48,7 +48,8 @@ impl DataFlowGraph {
         Ref::map(self.signatures.borrow(), |sigs| sigs.get(callee).unwrap())
     }
 
-    /// Looks up the concrete function for the given MFA (module of None indicates that it is a local or imported function)
+    /// Looks up the concrete function for the given MFA (module of None indicates that it is a
+    /// local or imported function)
     pub fn get_callee(&self, mfa: FunctionName) -> Option<FuncRef> {
         self.callees.borrow().get(&mfa).copied()
     }
@@ -141,7 +142,8 @@ impl DataFlowGraph {
         self.results[inst].clear(&mut self.value_lists);
         let opcode = self.insts[inst].opcode();
         if let Some(fdata) = self.call_signature(inst) {
-            // Tail calls are equivalent to return, they don't have results that are materialized as values
+            // Tail calls are equivalent to return, they don't have results that are materialized as
+            // values
             if opcode == Opcode::Enter || opcode == Opcode::EnterIndirect {
                 return 0;
             }
@@ -165,21 +167,24 @@ impl DataFlowGraph {
                     self.append_result(inst, ty);
                     2
                 }
-                // Initializing a binary match is a fallible operation that produces a match context when successful
+                // Initializing a binary match is a fallible operation that produces a match context
+                // when successful
                 Opcode::BitsMatchStart => {
                     self.append_result(inst, Type::Primitive(PrimitiveType::I1));
                     self.append_result(inst, Type::Term(TermType::Any));
                     2
                 }
-                // Binary matches produce three results, an error flag, the matched value, and the rest of the binary
+                // Binary matches produce three results, an error flag, the matched value, and the
+                // rest of the binary
                 Opcode::BitsMatch => {
                     self.append_result(inst, Type::Primitive(PrimitiveType::I1));
                     self.append_result(inst, ty);
                     self.append_result(inst, Type::Term(TermType::Any));
                     3
                 }
-                // This is an optimized form of BitsMatch that skips extraction of the term to be matched and just
-                // advances the position in the underlying match context
+                // This is an optimized form of BitsMatch that skips extraction of the term to be
+                // matched and just advances the position in the underlying match
+                // context
                 Opcode::BitsMatchSkip => {
                     self.append_result(inst, Type::Primitive(PrimitiveType::I1));
                     self.append_result(inst, Type::Term(TermType::Any));
@@ -188,7 +193,8 @@ impl DataFlowGraph {
                 // Binary construction produces two results, an error flag and the new binary value
                 Opcode::BitsPush => {
                     self.append_result(inst, Type::Primitive(PrimitiveType::I1));
-                    // This value is either the none term or an exception, depending on the is_err flag
+                    // This value is either the none term or an exception, depending on the is_err
+                    // flag
                     self.append_result(inst, Type::Term(TermType::Any));
                     2
                 }

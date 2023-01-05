@@ -11,7 +11,7 @@ fn without_registered_returns_empty_list() {
                 unregistred_arc_process.pid_term(),
                 item()
             ),
-            Ok(Term::NIL)
+            Ok(Term::Nil)
         );
     });
 }
@@ -34,7 +34,7 @@ fn with_registered_returns_empty_list() {
                 registered_process_arc.pid_term(),
                 item()
             ),
-            Ok(parent_process_arc.tuple_from_slice(&[item(), registered_name]))
+            Ok(parent_process_arc.tuple_term_from_term_slice(&[item(), registered_name]))
         );
     });
 }

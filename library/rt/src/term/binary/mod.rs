@@ -189,7 +189,8 @@ impl PartialOrd for BinaryData {
 impl<T: Bitstring> PartialOrd<T> for BinaryData {
     // We order bitstrings lexicographically
     fn partial_cmp(&self, other: &T) -> Option<core::cmp::Ordering> {
-        // Aligned binaries can be compared using the optimal built-in slice comparisons in the standard lib
+        // Aligned binaries can be compared using the optimal built-in slice comparisons in the
+        // standard lib
         if other.is_aligned() && other.is_binary() {
             return Some(self.data.cmp(unsafe { other.as_bytes_unchecked() }));
         }

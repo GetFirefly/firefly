@@ -15,9 +15,9 @@ fn without_proper_list_init_list_errors_badarg() {
             )
         },
         |(arc_process, arity_usize, default_value, element, tail)| {
-            let arity = arc_process.integer(arity_usize);
+            let arity = arc_process.integer(arity_usize).unwrap();
             let init_list = arc_process.cons(
-                arc_process.tuple_from_slice(&[arc_process.integer(1), element]),
+                arc_process.tuple_term_from_term_slice(&[arc_process.integer(1).unwrap(), element]),
                 tail,
             );
 
@@ -42,8 +42,8 @@ fn with_empty_list_init_list_returns_tuple_with_arity_copies_of_default_value() 
             )
         },
         |(arc_process, arity_usize, default_value)| {
-            let arity = arc_process.integer(arity_usize);
-            let init_list = Term::NIL;
+            let arity = arc_process.integer(arity_usize).unwrap();
+            let init_list = Term::Nil;
 
             let result = result(&arc_process, arity, default_value, init_list);
 
@@ -53,13 +53,13 @@ fn with_empty_list_init_list_returns_tuple_with_arity_copies_of_default_value() 
 
             prop_assert!(tuple_term.is_boxed());
 
-            let boxed_tuple: Result<Boxed<Tuple>, _> = tuple_term.try_into();
-            prop_assert!(boxed_tuple.is_ok());
+            let result_non_null_tuple: Result<NonNull<Tuple>, _> = tuple_term.try_into();
+            prop_assert!(result_non_null_tuple.is_ok());
 
-            let tuple = boxed_tuple.unwrap();
-            prop_assert_eq!(tuple.len(), arity_usize);
+            let non_null_tuple = result_non_null_tuple.unwrap();
+            prop_assert_eq!(non_null_tuple.len(), arity_usize);
 
-            for element in tuple.iter() {
+            for element in non_null_tuple.iter() {
                 prop_assert_eq!(element, &default_value);
             }
 

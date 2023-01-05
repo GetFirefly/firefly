@@ -2,8 +2,8 @@ use std::sync::{Arc, Once};
 
 use panic_control::chain_hook_ignoring;
 
-use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::prelude::*;
+use firefly_rt::process::Process;
+use firefly_rt::term::Term;
 
 use crate::runtime::process::set_log_exit;
 use crate::runtime::process::spawn::Options;

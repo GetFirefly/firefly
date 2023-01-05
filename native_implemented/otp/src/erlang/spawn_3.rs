@@ -1,9 +1,10 @@
 #[cfg(all(not(target_arch = "wasm32"), test))]
 mod test;
 
-use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::prelude::Term;
+use std::ptr::NonNull;
+use firefly_rt::error::ErlangException;
+use firefly_rt::process::Process;
+use firefly_rt::term::Term;
 
 use crate::erlang::spawn_apply_3;
 
@@ -13,6 +14,6 @@ pub fn result(
     module: Term,
     function: Term,
     arguments: Term,
-) -> exception::Result<Term> {
+) -> Result<Term, NonNull<ErlangException>> {
     spawn_apply_3::result(process, Default::default(), module, function, arguments)
 }

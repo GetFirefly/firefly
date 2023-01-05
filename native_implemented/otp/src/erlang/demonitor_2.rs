@@ -1,10 +1,11 @@
 mod options;
 
 use std::convert::TryInto;
+use std::ptr::NonNull;
 
-use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::prelude::*;
+use firefly_rt::error::ErlangException;
+use firefly_rt::process::Process;
+use firefly_rt::term::{Reference, Term};
 
 use crate::runtime::process::monitor::is_down;
 use crate::runtime::registry::pid_to_process;
@@ -12,7 +13,11 @@ use crate::runtime::registry::pid_to_process;
 use crate::erlang::demonitor_2::options::Options;
 
 #[native_implemented::function(erlang:demonitor/2)]
-pub fn result(process: &Process, reference: Term, options: Term) -> exception::Result<Term> {
+pub fn result(
+    process: &Process,
+    reference: Term,
+    options: Term,
+) -> Result<Term, NonNull<ErlangException>> {
     let reference_reference = term_try_into_local_reference!(reference)?;
     let options_options: Options = options.try_into()?;
 
@@ -25,7 +30,7 @@ pub(in crate::erlang) fn demonitor(
     monitoring_process: &Process,
     reference: &Reference,
     Options { flush, info }: Options,
-) -> exception::Result<Term> {
+) -> Result<Term, NonNull<ErlangException>> {
     match monitoring_process.demonitor(reference) {
         Some(monitored_pid) => {
             match pid_to_process(&monitored_pid) {

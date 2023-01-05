@@ -93,7 +93,8 @@ pub fn host_cpu_features() -> OwnedStringRef {
 ///
 /// See firefly_target for the default features defined for each supported target
 ///
-/// In addition to those defaults, manually-specified target features can be enabled via compiler flags
+/// In addition to those defaults, manually-specified target features can be enabled via compiler
+/// flags
 pub fn llvm_target_features(options: &Options) -> impl Iterator<Item = &str> {
     const FIREFLY_SPECIFIC_FEATURES: &[&str] = &["crt-static"];
 

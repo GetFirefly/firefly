@@ -1,8 +1,9 @@
-use core::convert::{TryFrom, TryInto};
+use core::convert::TryFrom;
 
 use anyhow::*;
 
-use liblumen_alloc::erts::term::prelude::*;
+use firefly_rt::term::{Atom, Term, Tuple};
+use crate::proplist::TryPropListFromTermError;
 
 use crate::runtime::context::*;
 use crate::runtime::proplist::*;
@@ -15,7 +16,7 @@ const SUPPORTED_OPTIONS_CONTEXT: &str = "supported option is {:abs, bool}";
 
 impl Options {
     fn put_option_term(&mut self, option: Term) -> Result<&Options, anyhow::Error> {
-        let tuple: Boxed<Tuple> = option.try_into().context(SUPPORTED_OPTIONS_CONTEXT)?;
+        let tuple: NonNull<Tuple> = option.try_into().context(SUPPORTED_OPTIONS_CONTEXT)?;
 
         if tuple.len() == 2 {
             let atom: Atom = tuple[0]
@@ -23,7 +24,7 @@ impl Options {
                 .map_err(|_| TryPropListFromTermError::KeywordKeyType)
                 .context(SUPPORTED_OPTIONS_CONTEXT)?;
 
-            match atom.name() {
+            match atom.as_str() {
                 "abs" => {
                     let value = tuple[1];
                     let absolute: bool = term_try_into_bool("abs value", value)?;
@@ -61,11 +62,12 @@ impl TryFrom<Term> for Options {
         let mut options_term = term;
 
         loop {
-            match options_term.decode().unwrap() {
-                TypedTerm::Nil => return Ok(options),
-                TypedTerm::List(cons) => {
-                    options.put_option_term(cons.head)?;
-                    options_term = cons.tail;
+            match options_term {
+                Term::Nil => return Ok(options),
+                Term::Cons(non_null_cons) => {
+                    let cons = unsafe { non_null_cons.as_ref() };
+                    options.put_option_term(cons.head())?;
+                    options_term = cons.tail();
 
                     continue;
                 }

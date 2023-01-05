@@ -12,7 +12,7 @@ fn errors_badarg() {
                 )
             }),
             |(milliseconds, arc_process, message)| {
-                let time = arc_process.integer(milliseconds);
+                let time = arc_process.integer(milliseconds).unwrap();
                 let destination = registered_name();
                 let options = options(&arc_process);
 

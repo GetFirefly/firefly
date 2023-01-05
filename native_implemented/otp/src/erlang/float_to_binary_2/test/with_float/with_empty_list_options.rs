@@ -7,7 +7,7 @@ use super::*;
 fn is_dual_of_binary_to_float_1() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
-            .run(&strategy::term::float(arc_process.clone()), |float| {
+            .run(&strategy::term::float(), |float| {
                 let result_binary = result(&arc_process, float, options(&arc_process));
 
                 prop_assert!(result_binary.is_ok());
@@ -23,5 +23,5 @@ fn is_dual_of_binary_to_float_1() {
 }
 
 fn options(_: &Process) -> Term {
-    Term::NIL
+    Term::Nil
 }

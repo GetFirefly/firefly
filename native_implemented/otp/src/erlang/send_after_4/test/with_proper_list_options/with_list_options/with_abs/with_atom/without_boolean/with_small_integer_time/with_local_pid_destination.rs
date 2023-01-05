@@ -12,10 +12,10 @@ fn with_different_process_errors_badarg() {
             )
         },
         |(arc_process, milliseconds, message, abs_value)| {
-            let time = arc_process.integer(milliseconds);
+            let time = arc_process.integer(milliseconds).unwrap();
 
             let destination_arc_process = test::process::child(&arc_process);
-            let destination = destination_arc_process.pid_term();
+            let destination = destination_arc_process.pid_term().unwrap();
             let options = options(abs_value, &arc_process);
 
             prop_assert_is_not_boolean!(
@@ -41,8 +41,8 @@ fn with_same_process_errors_badarg() {
             )
         },
         |(arc_process, milliseconds, message, abs_value)| {
-            let time = arc_process.integer(milliseconds);
-            let destination = arc_process.pid_term();
+            let time = arc_process.integer(milliseconds).unwrap();
+            let destination = arc_process.pid_term().unwrap();
             let options = options(abs_value, &arc_process);
 
             prop_assert_is_not_boolean!(
@@ -68,7 +68,7 @@ fn without_process_errors_badarg() {
             )
         },
         |(arc_process, milliseconds, message, abs_value)| {
-            let time = arc_process.integer(milliseconds);
+            let time = arc_process.integer(milliseconds).unwrap();
             let destination = Pid::next_term();
             let options = options(abs_value, &arc_process);
 

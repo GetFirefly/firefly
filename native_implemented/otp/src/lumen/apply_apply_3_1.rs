@@ -2,17 +2,17 @@
 //! code can only pass at most 1 argument and `erlang:apply/3` takes three arguments
 use anyhow::anyhow;
 
-use liblumen_alloc::erts::exception::{badarity, Exception};
-use liblumen_alloc::erts::process::ffi::ErlangResult;
-use liblumen_alloc::erts::process::trace::Trace;
-use liblumen_alloc::erts::term::prelude::*;
+use firefly_rt::*;
+use firefly_rt::backtrace::Trace;
+use firefly_rt::function::ErlangResult;
+use firefly_rt::term::{atoms, Term};
 
 use crate::erlang;
 use crate::erlang::apply::arguments_term_to_vec;
 
 #[export_name = "lumen:apply_apply_3/1"]
 pub extern "C-unwind" fn apply_apply_3(arguments: Term) -> ErlangResult {
-    let arc_process = crate::runtime::process::current_process();
+    let arc_process = runtime::process::current_process();
     let argument_vec = match arguments_term_to_vec(arguments) {
         Ok(args) => args,
         Err(err) => match err {
@@ -37,7 +37,7 @@ pub extern "C-unwind" fn apply_apply_3(arguments: Term) -> ErlangResult {
     } else {
         let function = arc_process.export_closure(
             erlang::module(),
-            Atom::from_str("apply"),
+            atoms::Apply,
             3,
             erlang::apply_3::CLOSURE_NATIVE,
         );

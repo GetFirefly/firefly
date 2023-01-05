@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use liblumen_alloc::erts::process::Process;
+use liblumen_rt::process::Process;
 
 pub mod queues;
 

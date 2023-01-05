@@ -1,7 +1,7 @@
 // because registry is global and tests are concurrent, there is no way to test for completely
 // empty registry
 
-use liblumen_alloc::erts::term::prelude::*;
+use firefly_rt::term::{Atom, Term};
 
 use crate::erlang;
 use crate::erlang::registered_0::result;
@@ -10,13 +10,13 @@ use crate::test::with_process_arc;
 #[test]
 fn includes_registered_process_name() {
     with_process_arc(|process_arc| {
-        let name = Atom::str_to_term("registered_process_name");
+        let name: Term = Atom::str_to_term("registered_process_name").into();
 
         let before = result(&process_arc).unwrap();
 
-        match before.decode().unwrap() {
-            TypedTerm::Nil => (),
-            TypedTerm::List(before_cons) => {
+        match before {
+            Term::Nil => (),
+            Term::Cons(before_cons) => {
                 assert!(!before_cons.contains(name));
             }
             typed_term => panic!("Wrong TypedTerm ({:?})", typed_term),
@@ -29,8 +29,8 @@ fn includes_registered_process_name() {
 
         let after = result(&process_arc).unwrap();
 
-        match after.decode().unwrap() {
-            TypedTerm::List(after_cons) => assert!(after_cons.contains(name)),
+        match after {
+            Term::Cons(after_cons) => assert!(after_cons.contains(name)),
             typed_term => panic!("Wrong TypedTerm ({:?})", typed_term),
         }
     });

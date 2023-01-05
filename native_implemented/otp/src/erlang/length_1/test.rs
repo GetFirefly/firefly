@@ -1,9 +1,9 @@
 use proptest::collection::SizeRange;
 use proptest::prop_assert_eq;
-use proptest::strategy::{Just, Strategy};
+use proptest::strategy::Just;
 use proptest::test_runner::{Config, TestRunner};
 
-use liblumen_alloc::erts::term::prelude::Term;
+use firefly_rt::term::Term;
 
 use crate::erlang::length_1::result;
 use crate::test::strategy;
@@ -28,8 +28,8 @@ fn without_list_errors_badarg() {
 #[test]
 fn with_empty_list_is_zero() {
     with_process(|process| {
-        let list = Term::NIL;
-        let zero_term = process.integer(0);
+        let list = Term::Nil;
+        let zero_term = process.integer(0).unwrap();
 
         assert_eq!(result(process, list), Ok(zero_term));
     });
@@ -68,7 +68,7 @@ fn with_non_empty_proper_list_is_number_of_elements() {
                 .prop_map(|(arc_process, element_vec)| {
                     (
                         arc_process.clone(),
-                        arc_process.list_from_slice(&element_vec),
+                        arc_process.list_from_slice(&element_vec).unwrap(),
                         element_vec.len(),
                     )
                 })
@@ -76,7 +76,7 @@ fn with_non_empty_proper_list_is_number_of_elements() {
         |(arc_process, list, element_count)| {
             prop_assert_eq!(
                 result(&arc_process, list),
-                Ok(arc_process.integer(element_count))
+                Ok(arc_process.integer(element_count).unwrap())
             );
 
             Ok(())

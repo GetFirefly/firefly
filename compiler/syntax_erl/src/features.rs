@@ -26,7 +26,8 @@ lazy_static! {
     };
 }
 
-/// Describes a selectable feature, corresponding to the BEAM compiler's functionality of the same name
+/// Describes a selectable feature, corresponding to the BEAM compiler's functionality of the same
+/// name
 #[derive(Debug, Copy, Clone)]
 pub struct Feature {
     pub name: Symbol,

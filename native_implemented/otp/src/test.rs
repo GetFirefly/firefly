@@ -18,22 +18,22 @@ pub mod strategy;
 #[cfg(all(not(target_arch = "wasm32"), test))]
 pub use self::proptest::*;
 
+use std::ptr::NonNull;
+use std::str::FromStr;
 use std::sync::Arc;
 
-use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::prelude::*;
-use liblumen_alloc::erts::time::{Milliseconds, Monotonic};
+use firefly_rt::error::ErlangException;
+use firefly_rt::process::Process;
+use firefly_rt::term::{Atom, Pid, Term};
+use firefly_rt::time::{Milliseconds, Monotonic};
 
 use crate::erlang::{self, exit_1};
-use crate::runtime::scheduler::{Scheduled, SchedulerDependentAlloc};
+use crate::runtime::scheduler::{next_local_reference_term, Scheduled, SchedulerDependentAlloc};
 use crate::runtime::time::monotonic;
 use crate::runtime::timer;
 
 pub fn exit_when_run(process: &Process, reason: Term) {
-    process.queue_frame_with_arguments(exit_1::frame().with_arguments(false, &[reason]));
-    process.stack_queued_frames_with_arguments();
-    process.scheduler().unwrap().stop_waiting(process);
+    todo!();
 }
 
 pub fn freeze_timeout() -> Monotonic {
@@ -48,15 +48,15 @@ pub fn freeze_at_timeout(frozen: Monotonic) {
     timer::timeout();
 }
 
-pub fn module() -> Atom {
+pub fn module() -> Result<Atom, AtomError> {
     Atom::from_str("test")
 }
 
 pub fn with_big_int(f: fn(&Process, Term) -> ()) {
     with_process(|process| {
-        let big_int: Term = process.integer(SmallInteger::MAX_VALUE + 1);
+        let big_int: Term = process.integer(Integer::MAX_SMALL + 1).unwrap();
 
-        assert!(big_int.is_boxed_bigint());
+        assert!(big_int.is_big_int());
 
         f(&process, big_int)
     })
@@ -83,7 +83,7 @@ pub fn with_options_with_timer_in_same_thread_with_timeout_returns_false_after_t
     result: N,
     options: O,
 ) where
-    N: Fn(&Process, Term, Term) -> exception::Result<Term>,
+    N: Fn(&Process, Term, Term) -> Result<Term, NonNull<ErlangException>>,
     O: Fn(&Process) -> Term,
 {
     with_timer_in_same_thread(|milliseconds, message, timer_reference, process| {
@@ -107,11 +107,11 @@ pub fn with_options_with_timer_in_same_thread_with_timeout_returns_false_after_t
 }
 
 pub fn with_timer_in_same_thread_with_timeout_returns_false_after_timeout_message_was_sent(
-    result: fn(&Process, Term) -> exception::Result<Term>,
+    result: fn(&Process, Term) -> Result<Term, NonNull<ErlangException>>,
 ) {
     with_options_with_timer_in_same_thread_with_timeout_returns_false_after_timeout_message_was_sent(
         |process, timer_reference, _| result(process, timer_reference),
-        |_| Term::NIL,
+        |_| Term::Nil,
     )
 }
 
@@ -122,14 +122,13 @@ where
     let same_thread_process_arc = process::default();
     let milliseconds = Milliseconds(100);
 
-    let message = Atom::str_to_term("message");
-    let timer_reference = erlang::start_timer_3::result(
-        same_thread_process_arc.clone(),
-        same_thread_process_arc.integer(milliseconds),
-        same_thread_process_arc.pid().into(),
-        message,
-    )
-    .unwrap();
+    let message: Term = Atom::str_to_term("message").into();
+    let time: Term = next_local_reference_term.integer(milliseconds);
+    let destination: Term = same_thread_process_arc.pid_term().unwrap();
+
+    let timer_reference =
+        erlang::start_timer_3::result(same_thread_process_arc.clone(), time, destination, message)
+            .unwrap();
 
     f(
         milliseconds,
@@ -139,9 +138,11 @@ where
     );
 }
 
-pub fn without_timer_returns_false(result: fn(&Process, Term) -> exception::Result<Term>) {
+pub fn without_timer_returns_false(
+    result: fn(&Process, Term) -> Result<Term, NonNull<ErlangException>>,
+) {
     with_process(|process| {
-        let timer_reference = process.next_reference();
+        let timer_reference = next_local_reference_term(process).unwrap();
 
         assert_eq!(result(process, timer_reference), Ok(false.into()));
     });

@@ -800,7 +800,8 @@ pub enum IQualifier {
     Filter(IFilter),
 }
 
-/// This struct is used to represent the internal state of a generator expression while it is being transformed
+/// This struct is used to represent the internal state of a generator expression while it is being
+/// transformed
 #[derive(Debug, Clone, Spanned)]
 pub struct IGen {
     #[span]
@@ -826,7 +827,8 @@ pub struct IGen {
 }
 annotated!(IGen);
 
-/// A filter is one of two types of expressions that act as qualifiers in a commprehension, the other is a generator
+/// A filter is one of two types of expressions that act as qualifiers in a commprehension, the
+/// other is a generator
 #[derive(Debug, Clone, Spanned)]
 pub struct IFilter {
     #[span]

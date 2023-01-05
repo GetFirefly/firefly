@@ -13,7 +13,7 @@ fn unregistered_sends_nothing_when_timer_expires() {
             )
         },
         |(arc_process, milliseconds, message)| {
-            let time = arc_process.integer(milliseconds);
+            let time = arc_process.integer(milliseconds).unwrap();
             let destination = registered_name();
             let options = options(&arc_process);
 
@@ -29,7 +29,7 @@ fn unregistered_sends_nothing_when_timer_expires() {
 
             prop_assert!(timer_reference.is_boxed_local_reference());
 
-            let timeout_message = arc_process.tuple_from_slice(&[
+            let timeout_message = arc_process.tuple_term_from_term_slice(&[
                 Atom::str_to_term("timeout"),
                 timer_reference,
                 message,
@@ -40,7 +40,7 @@ fn unregistered_sends_nothing_when_timer_expires() {
             // No sleeping is necessary because timeout is in the past and so the timer will
             // timeout at once
 
-            crate::runtime::timer::timeout();
+            runtime::timer::timeout();
 
             prop_assert!(!has_message(&arc_process, timeout_message));
 

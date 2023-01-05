@@ -11,7 +11,7 @@ fn errors_badarg() {
             )
         },
         |(arc_process, milliseconds, message)| {
-            let time = arc_process.integer(milliseconds);
+            let time = arc_process.integer(milliseconds).unwrap();
 
             let destination_arc_process = test::process::child(&arc_process);
             let destination = registered_name();
@@ -20,7 +20,7 @@ fn errors_badarg() {
                 erlang::register_2::result(
                     arc_process.clone(),
                     destination,
-                    destination_arc_process.pid_term(),
+                    destination_arc_process.pid_term().unwrap(),
                 ),
                 Ok(true.into())
             );

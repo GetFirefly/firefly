@@ -5,8 +5,8 @@ use std::sync::Arc;
 use proptest::prop_oneof;
 use proptest::strategy::{BoxedStrategy, Just, Strategy};
 
-use liblumen_alloc::erts::term::prelude::{Atom, Term};
-use liblumen_alloc::erts::Process;
+use firefly_rt::process::Process;
+use firefly_rt::term::{Atom, Term};
 
 use crate::erlang;
 use crate::test::strategy;

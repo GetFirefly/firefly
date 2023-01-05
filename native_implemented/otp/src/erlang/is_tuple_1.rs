@@ -1,12 +1,9 @@
 #[cfg(all(not(target_arch = "wasm32"), test))]
 mod test;
 
-use liblumen_alloc::erts::term::prelude::*;
+use firefly_rt::term::Term;
 
 #[native_implemented::function(erlang:is_tuple/1)]
 pub fn result(term: Term) -> Term {
-    match term.decode() {
-        Ok(TypedTerm::Tuple(_)) => true.into(),
-        _ => false.into(),
-    }
+    term.is_tuple().into()
 }

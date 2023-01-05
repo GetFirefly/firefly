@@ -1,14 +1,12 @@
 mod with_reference;
 
-use std::convert::TryInto;
 use std::sync::Arc;
 
 use proptest::prop_oneof;
 use proptest::strategy::{BoxedStrategy, Just, Strategy};
 
-use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::prelude::*;
-use liblumen_alloc::erts::time::Milliseconds;
+use firefly_rt::process::Process;
+use firefly_rt::term::Term;
 
 use crate::erlang::read_timer_2::result;
 use crate::runtime::scheduler::SchedulerDependentAlloc;
@@ -66,16 +64,16 @@ fn with_reference_without_list_options_errors_badarg() {
 fn async_option(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     strategy::term::is_boolean()
         .prop_map(move |async_value| {
-            arc_process.tuple_from_slice(&[Atom::str_to_term("async"), async_value])
+            arc_process.tuple_term_from_term_slice(&[Atom::str_to_term("async"), async_value])
         })
         .boxed()
 }
 
 fn options(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     prop_oneof![
-        Just(Term::NIL),
+        Just(Term::Nil),
         async_option(arc_process.clone())
-            .prop_map(move |async_option| { arc_process.list_from_slice(&[async_option]) })
+            .prop_map(move |async_option| { arc_process.list_from_slice(&[async_option]) }).unwrap()
     ]
     .boxed()
 }

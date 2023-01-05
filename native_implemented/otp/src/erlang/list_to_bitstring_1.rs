@@ -2,25 +2,26 @@
 mod test;
 
 use std::convert::TryInto;
+use std::ptr::NonNull;
 
 use anyhow::*;
 
-use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::prelude::*;
+use firefly_rt::error::ErlangException;
+use firefly_rt::process::Process;
+use firefly_rt::term::Term;
 
 #[native_implemented::function(erlang:list_to_bitstring/1)]
-pub fn result(process: &Process, bitstring_list: Term) -> exception::Result<Term> {
-    match bitstring_list.decode()? {
-        TypedTerm::Nil | TypedTerm::List(_) => {
+pub fn result(process: &Process, bitstring_list: Term) -> Result<Term, NonNull<ErlangException>> {
+    match bitstring_list {
+        Term::Nil | Term::Cons(_) => {
             let mut byte_vec: Vec<u8> = Vec::new();
             let mut partial_byte_bit_count = 0;
             let mut partial_byte = 0;
             let mut stack: Vec<Term> = vec![bitstring_list];
 
             while let Some(top) = stack.pop() {
-                match top.decode()? {
-                    TypedTerm::SmallInteger(small_integer) => {
+                match top {
+                    Term::Int(small_integer) => {
                         let top_byte = small_integer
                             .try_into()
                             .context(element_context(bitstring_list, top))?;
@@ -34,14 +35,15 @@ pub fn result(process: &Process, bitstring_list: Term) -> exception::Result<Term
                             partial_byte = top_byte << (8 - partial_byte_bit_count);
                         }
                     }
-                    TypedTerm::Nil => (),
-                    TypedTerm::List(boxed_cons) => {
+                    Term::Nil => (),
+                    Term::Cons(non_null_cons) => {
+                        let cons = unsafe { non_null_cons.as_ref() };
                         // @type bitstring_list ::
                         //   maybe_improper_list(byte() | bitstring() | bitstring_list(),
                         //                       bitstring() | [])
                         // means that `byte()` isn't allowed for `tail`s unlike `head`.
 
-                        let tail = boxed_cons.tail;
+                        let tail = cons.tail();
                         let result_u8: Result<u8, _> = tail.try_into();
 
                         match result_u8 {
@@ -56,9 +58,9 @@ pub fn result(process: &Process, bitstring_list: Term) -> exception::Result<Term
                             Err(_) => stack.push(tail),
                         };
 
-                        stack.push(boxed_cons.head);
+                        stack.push(cons.head());
                     }
-                    TypedTerm::HeapBinary(heap_binary) => {
+                    Term::HeapBinary(heap_binary) => {
                         if partial_byte_bit_count == 0 {
                             byte_vec.extend_from_slice(heap_binary.as_bytes());
                         } else {
@@ -70,7 +72,7 @@ pub fn result(process: &Process, bitstring_list: Term) -> exception::Result<Term
                             }
                         }
                     }
-                    TypedTerm::SubBinary(subbinary) => {
+                    Term::RefBinary(subbinary) => {
                         if partial_byte_bit_count == 0 {
                             if subbinary.is_aligned() {
                                 byte_vec.extend(unsafe { subbinary.as_bytes_unchecked() });

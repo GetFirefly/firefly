@@ -2,12 +2,15 @@
 mod test;
 
 use std::convert::TryInto;
+use std::ptr::NonNull;
 
 use anyhow::*;
 
-use liblumen_alloc::erts::exception::{self, InternalResult};
-use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::prelude::{Term, TryIntoIntegerError};
+use firefly_number::TryIntoIntegerError;
+
+use firefly_rt::error::ErlangException;
+use firefly_rt::process::Process;
+use firefly_rt::term::Term;
 
 use crate::binary;
 
@@ -15,7 +18,12 @@ use crate::binary;
 /// [crate::binary::bin_to_list] instead. All functions in module [crate::binary]
 /// consistently use zero-based indexing.
 #[native_implemented::function(erlang:binary_to_list/3)]
-pub fn result(process: &Process, binary: Term, start: Term, stop: Term) -> exception::Result<Term> {
+pub fn result(
+    process: &Process,
+    binary: Term,
+    start: Term,
+    stop: Term,
+) -> Result<Term, NonNull<ErlangException>> {
     let one_based_start_usize: usize = try_into_one_based("start", start)?;
     let one_based_stop_usize: usize = try_into_one_based("stop", stop)?;
 
@@ -28,7 +36,7 @@ pub fn result(process: &Process, binary: Term, start: Term, stop: Term) -> excep
         binary::bin_to_list(
             binary,
             process.integer(zero_based_start_usize),
-            process.integer(length_usize),
+            process.integer(length_usize).unwrap(),
             process,
         )
     } else {

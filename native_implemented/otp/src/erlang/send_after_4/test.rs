@@ -2,14 +2,12 @@ mod with_proper_list_options;
 
 use std::sync::Arc;
 
-use proptest::strategy::{BoxedStrategy, Just, Strategy};
+use proptest::strategy::{BoxedStrategy, Just};
 use proptest::test_runner::{Config, TestRunner};
 use proptest::{prop_assert, prop_assert_eq};
 
-use liblumen_alloc::atom;
-use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::prelude::*;
-use liblumen_alloc::erts::time::Milliseconds;
+use firefly_rt::process::Process;
+use firefly_rt::term::{atoms, Term};
 
 use crate::erlang;
 use crate::erlang::send_after_4::result;
@@ -31,14 +29,14 @@ fn without_proper_list_options_errors_badarg() {
                 )
                     .prop_map(|(arc_process, tail)| {
                         arc_process.cons(
-                            arc_process.tuple_from_slice(&[atom!("abs"), false.into()]),
+                            arc_process.tuple_term_from_term_slice(&[atoms::Abs.into(), false.into()]),
                             tail,
                         )
                     }),
             )
         },
         |(arc_process, time, message, options)| {
-            let destination = arc_process.pid_term();
+            let destination = arc_process.pid_term().unwrap();
 
             prop_assert_badarg!(
                 result(arc_process.clone(), time, destination, message, options,),

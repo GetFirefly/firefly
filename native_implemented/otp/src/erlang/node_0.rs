@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod test;
 
-use liblumen_alloc::erts::term::prelude::*;
+use firefly_rt::term::Term;
 
 use crate::runtime::distribution::nodes::node;
 

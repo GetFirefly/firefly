@@ -4,16 +4,15 @@ mod scientific_digits;
 use std::convert::{TryFrom, TryInto};
 
 use anyhow::Context;
+use decimal_digits::DecimalDigits;
+use firefly_rt::error::ErlangException;
+use scientific_digits::ScientificDigits;
 
-use liblumen_alloc::erts::exception::{self, InternalResult};
-use liblumen_alloc::erts::term::prelude::*;
+use firefly_rt::term::{Atom, Term, TypeError};
 
 use crate::runtime::proplist::TryPropListFromTermError;
 
-use decimal_digits::DecimalDigits;
-use scientific_digits::ScientificDigits;
-
-pub fn float_to_string(float: Term, options: Options) -> exception::Result<String> {
+pub fn float_to_string(float: Term, options: Options) -> Result<String, NonNull<ErlangException>> {
     // `TryInto<f64> for Term` will convert integer terms to f64 too, which we don't want
     let float_f64: f64 = float_term_to_f64(float)?;
 
@@ -79,8 +78,8 @@ impl TryFrom<Term> for Options {
 // Private
 
 fn float_term_to_f64(float_term: Term) -> InternalResult<f64> {
-    match float_term.decode()? {
-        TypedTerm::Float(float) => Ok(float.into()),
+    match float_term {
+        Term::Float(float) => Ok(float.into()),
         _ => Err(TypeError)
             .context(format!("float ({}) is not a float", float_term))
             .map_err(From::from),
@@ -143,8 +142,8 @@ struct OptionsBuilder {
 
 impl OptionsBuilder {
     fn put_option_term(&mut self, option: Term) -> Result<&OptionsBuilder, anyhow::Error> {
-        match option.decode().unwrap() {
-            TypedTerm::Atom(atom) => match atom.name() {
+        match option {
+            Term::Atom(atom) => match atom.as_str() {
                 "compact" => {
                     self.compact = true;
 
@@ -152,13 +151,13 @@ impl OptionsBuilder {
                 }
                 name => Err(TryAtomFromTermError(name)).context("supported atom option is compact"),
             },
-            TypedTerm::Tuple(tuple) => {
+            Term::Tuple(tuple) => {
                 if tuple.len() == 2 {
                     let atom: Atom = tuple[0]
                         .try_into()
                         .map_err(|_| TryPropListFromTermError::KeywordKeyType)?;
 
-                    match atom.name() {
+                    match atom.as_str() {
                         "decimals" => {
                             let decimal_digits = tuple[1]
                                 .try_into()
@@ -206,13 +205,14 @@ impl TryFrom<Term> for OptionsBuilder {
         let mut options_term = term;
 
         loop {
-            match options_term.decode().unwrap() {
-                TypedTerm::Nil => break,
-                TypedTerm::List(cons) => {
+            match options_term {
+                Term::Nil => break,
+                Term::Cons(non_null_cons) => {
+                    let cons = unsafe { non_null_cons.as_ref() };
                     options_builder
-                        .put_option_term(cons.head)
+                        .put_option_term(cons.head())
                         .context(SUPPORTED_OPTIONS_CONTEXT)?;
-                    options_term = cons.tail;
+                    options_term = cons.tail();
 
                     continue;
                 }

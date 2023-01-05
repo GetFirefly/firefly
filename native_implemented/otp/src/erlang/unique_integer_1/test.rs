@@ -1,7 +1,6 @@
-use proptest::strategy::{Just, Strategy};
+use proptest::strategy::Just;
 
-use liblumen_alloc::atom;
-use liblumen_alloc::erts::term::prelude::*;
+use firefly_rt::term::{atoms, Atom, Term};
 
 use crate::erlang::unique_integer_1::result;
 use crate::test::strategy;
@@ -15,15 +14,15 @@ fn without_proper_list_of_options_errors_badargs() {
                 Just(arc_process.clone()),
                 strategy::term(arc_process.clone()).prop_filter(
                     "Cannot be a proper list of valid options",
-                    |term| match term.decode().unwrap() {
-                        TypedTerm::Nil => false,
-                        TypedTerm::List(cons) => {
+                    |term| match term {
+                        Term::Nil => false,
+                        Term::Cons(cons) => {
                             let mut filter = true;
 
                             for result in cons.into_iter() {
                                 match result {
-                                    Ok(element) => match element.decode().unwrap() {
-                                        TypedTerm::Atom(atom) => match atom.name() {
+                                    Ok(element) => match element {
+                                        Term::Atom(atom) => match atom.as_str() {
                                             "monotonic" | "positive" => {
                                                 filter = false;
 
@@ -54,7 +53,7 @@ fn without_proper_list_of_options_errors_badargs() {
 
 #[test]
 fn without_options_returns_non_monotonic_negative_and_positive_integer() {
-    const OPTIONS: Term = Term::NIL;
+    const OPTIONS: Term = Term::Nil;
 
     with_process(|process| {
         let result_first_unique_integer = result(process, OPTIONS);
@@ -62,7 +61,7 @@ fn without_options_returns_non_monotonic_negative_and_positive_integer() {
         assert!(result_first_unique_integer.is_ok());
 
         let first_unique_integer = result_first_unique_integer.unwrap();
-        let zero = process.integer(0);
+        let zero = process.integer(0).unwrap();
 
         assert!(first_unique_integer.is_integer());
         assert!(first_unique_integer <= zero);
@@ -83,14 +82,14 @@ fn without_options_returns_non_monotonic_negative_and_positive_integer() {
 #[test]
 fn with_monotonic_returns_monotonic_negative_and_positiver_integer() {
     with_process(|process| {
-        let options = process.list_from_slice(&[atom!("monotonic")]);
+        let options = process.list_from_slice(&[atoms::Monotonic.into()]).unwrap();
 
         let result_first_unique_integer = result(process, options);
 
         assert!(result_first_unique_integer.is_ok());
 
         let first_unique_integer = result_first_unique_integer.unwrap();
-        let zero = process.integer(0);
+        let zero = process.integer(0).unwrap();
 
         assert!(first_unique_integer.is_integer());
         assert!(first_unique_integer <= zero);
@@ -111,14 +110,14 @@ fn with_monotonic_returns_monotonic_negative_and_positiver_integer() {
 #[test]
 fn with_monotonic_and_positive_returns_monotonic_positiver_integer() {
     with_process(|process| {
-        let options = process.list_from_slice(&[atom!("monotonic"), atom!("positive")]);
+        let options = process.list_from_slice(&[atoms::Monotonic.into(), atoms::Positive.into()]).unwrap();
 
         let result_first_unique_integer = result(process, options);
 
         assert!(result_first_unique_integer.is_ok());
 
         let first_unique_integer = result_first_unique_integer.unwrap();
-        let zero = process.integer(0);
+        let zero = process.integer(0).unwrap();
 
         assert!(first_unique_integer.is_integer());
         assert!(zero <= first_unique_integer);
@@ -139,14 +138,14 @@ fn with_monotonic_and_positive_returns_monotonic_positiver_integer() {
 #[test]
 fn with_positive_returns_non_monotonic_and_positive_integer() {
     with_process(|process| {
-        let options = process.list_from_slice(&[atom!("positive")]);
+        let options = process.list_from_slice(&[Atom::str_to_term("positive").into()]).unwrap();
 
         let result_first_unique_integer = result(process, options);
 
         assert!(result_first_unique_integer.is_ok());
 
         let first_unique_integer = result_first_unique_integer.unwrap();
-        let zero = process.integer(0);
+        let zero = process.integer(0).unwrap();
 
         assert!(first_unique_integer.is_integer());
         assert!(zero <= first_unique_integer);

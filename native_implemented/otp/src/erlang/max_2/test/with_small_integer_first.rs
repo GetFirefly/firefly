@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn with_lesser_small_integer_second_returns_first() {
-    max(|_, process| process.integer(-1), First);
+    max(|_, process| process.integer(-1).unwrap(), First);
 }
 
 #[test]
@@ -12,18 +12,18 @@ fn with_same_small_integer_second_returns_first() {
 
 #[test]
 fn with_same_value_small_integer_second_returns_first() {
-    max(|_, process| process.integer(0), First);
+    max(|_, process| process.integer(0).unwrap(), First);
 }
 
 #[test]
 fn with_greater_small_integer_second_returns_second() {
-    max(|_, process| process.integer(1), Second);
+    max(|_, process| process.integer(1).unwrap(), Second);
 }
 
 #[test]
 fn with_lesser_big_integer_second_returns_first() {
     max(
-        |_, process| process.integer(SmallInteger::MIN_VALUE - 1),
+        |_, process| process.integer(Integer::MIN_SMALL - 1).unwrap(),
         First,
     )
 }
@@ -31,24 +31,24 @@ fn with_lesser_big_integer_second_returns_first() {
 #[test]
 fn with_greater_big_integer_second_returns_second() {
     max(
-        |_, process| process.integer(SmallInteger::MAX_VALUE + 1),
+        |_, process| process.integer(Integer::MAX_SMALL + 1).unwrap(),
         Second,
     )
 }
 
 #[test]
 fn with_lesser_float_second_returns_first() {
-    max(|_, process| process.float(-1.0), First)
+    max(|_, process| -1.0.into(), First)
 }
 
 #[test]
 fn with_same_value_float_second_returns_first() {
-    max(|_, process| process.float(0.0), First)
+    max(|_, process| 0.0.into(), First)
 }
 
 #[test]
 fn with_greater_float_second_returns_second() {
-    max(|_, process| process.float(1.0), Second)
+    max(|_, process| 1.0.into(), Second)
 }
 
 #[test]
@@ -72,5 +72,5 @@ fn max<R>(second: R, which: FirstSecond)
 where
     R: FnOnce(Term, &Process) -> Term,
 {
-    super::max(|process| process.integer(0), second, which);
+    super::max(|process| process.integer(0).unwrap(), second, which);
 }

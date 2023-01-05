@@ -1,11 +1,13 @@
+use std::ptr::NonNull;
+
 use anyhow::*;
 
-use liblumen_alloc::erts::exception::{self, error};
-use liblumen_alloc::erts::process::trace::Trace;
-use liblumen_alloc::erts::term::prelude::Term;
+use firefly_rt::backtrace::Trace;
+use firefly_rt::error::ErlangException;
+use firefly_rt::term::Term;
 
 #[native_implemented::function(erlang:error/1)]
-pub fn result(reason: Term) -> exception::Result<Term> {
+pub fn result(reason: Term) -> Result<Term, NonNull<ErlangException>> {
     Err(error(
         reason,
         None,

@@ -1,12 +1,10 @@
 use super::*;
 
-use std::convert::TryInto;
-
 use proptest::prop_oneof;
 use proptest::strategy::{BoxedStrategy, Just, Strategy};
-
-use liblumen_alloc::erts::exception::{Class, Exception};
 use proptest::test_runner::TestCaseError;
+use firefly_rt::term::Atom;
+
 
 #[test]
 fn without_class_errors_badarg() {
@@ -63,7 +61,7 @@ fn with_class_with_empty_list_stacktrace_raises() {
             )
         },
         |((class_variant, class), reason)| {
-            let stacktrace = Term::NIL;
+            let stacktrace = Term::Nil;
 
             prop_assert_raises(class_variant, class, reason, stacktrace)
         },
@@ -85,7 +83,7 @@ fn with_class_with_stacktrace_without_atom_module_errors_badarg() {
                             // {M, F, arity | args}
                             module.is_atom() ||
                                     // {function, args, location}
-                                    module.is_boxed_function()
+                                    module.is_closure()
                         )
                     },
                 ),
@@ -94,7 +92,7 @@ fn with_class_with_stacktrace_without_atom_module_errors_badarg() {
             )
         },
         |(arc_process, class, reason, module, function, arity_or_arguments)| {
-            let stacktrace = arc_process.list_from_slice(&[arc_process.tuple_from_slice(&[
+            let stacktrace = arc_process.list_from_slice(&[arc_process.tuple_term_from_term_slice(&[
                 module,
                 function,
                 arity_or_arguments,
@@ -124,7 +122,7 @@ fn with_class_with_stacktrace_with_atom_module_without_atom_function_errors_bada
             )
         },
         |(arc_process, class, reason, module, function, arity_or_arguments)| {
-            let stacktrace = arc_process.list_from_slice(&[arc_process.tuple_from_slice(&[
+            let stacktrace = arc_process.list_from_slice(&[arc_process.tuple_term_from_term_slice(&[
                 module,
                 function,
                 arity_or_arguments,
@@ -155,7 +153,7 @@ fn with_class_with_stacktrace_with_atom_module_with_atom_function_without_arity_
             )
         },
         |(arc_process, class, reason, module, function, arity_or_arguments)| {
-            let stacktrace = arc_process.list_from_slice(&[arc_process.tuple_from_slice(&[
+            let stacktrace = arc_process.list_from_slice(&[arc_process.tuple_term_from_term_slice(&[
                 module,
                 function,
                 arity_or_arguments,
@@ -186,10 +184,10 @@ fn with_class_with_stacktrace_with_mfa_with_file_without_charlist_errors_badarg(
             )
         },
         |(arc_process, class, reason, module, function, arity_or_arguments, file_value)| {
-            let file_key = atom!("file");
+            let file_key = atoms::File.into();
             let location = arc_process
-                .list_from_slice(&[arc_process.tuple_from_slice(&[file_key, file_value])]);
-            let stacktrace = arc_process.list_from_slice(&[arc_process.tuple_from_slice(&[
+                .list_from_slice(&[arc_process.tuple_term_from_term_slice(&[file_key, file_value])]);
+            let stacktrace = arc_process.list_from_slice(&[arc_process.tuple_term_from_term_slice(&[
                 module,
                 function,
                 arity_or_arguments,
@@ -221,10 +219,10 @@ fn with_class_with_stacktrace_with_mfa_with_non_positive_line_with_errors_badarg
             )
         },
         |(arc_process, class, reason, module, function, arity_or_arguments, line_value)| {
-            let line_key = atom!("line");
+            let line_key = atoms::Line.into();
             let location = arc_process
-                .list_from_slice(&[arc_process.tuple_from_slice(&[line_key, line_value])]);
-            let stacktrace = arc_process.list_from_slice(&[arc_process.tuple_from_slice(&[
+                .list_from_slice(&[arc_process.tuple_term_from_term_slice(&[line_key, line_value])]);
+            let stacktrace = arc_process.list_from_slice(&[arc_process.tuple_term_from_term_slice(&[
                 module,
                 function,
                 arity_or_arguments,
@@ -255,7 +253,7 @@ fn with_class_with_stacktrace_with_mfa_with_invalid_location_errors_badarg() {
                 strategy::term::atom().prop_filter("Key cannot be file or line", |key| {
                     let key_atom: Atom = (*key).try_into().unwrap();
 
-                    match key_atom.name() {
+                    match key_atom.as_str() {
                         "file" | "line" => false,
                         _ => true,
                     }
@@ -265,8 +263,8 @@ fn with_class_with_stacktrace_with_mfa_with_invalid_location_errors_badarg() {
         },
         |(arc_process, class, reason, module, function, arity_or_arguments, key, value)| {
             let location =
-                arc_process.list_from_slice(&[arc_process.tuple_from_slice(&[key, value])]);
-            let stacktrace = arc_process.list_from_slice(&[arc_process.tuple_from_slice(&[
+                arc_process.list_from_slice(&[arc_process.tuple_term_from_term_slice(&[key, value])]).unwrap();
+            let stacktrace = arc_process.list_from_slice(&[arc_process.tuple_term_from_term_slice(&[
                 module,
                 function,
                 arity_or_arguments,
@@ -298,7 +296,7 @@ fn with_atom_module_with_atom_function_with_arity_raises() {
         },
         |(arc_process, (class_variant, class), reason, module, function, arity)| {
             let stacktrace = arc_process
-                .list_from_slice(&[arc_process.tuple_from_slice(&[module, function, arity])]);
+                .list_from_slice(&[arc_process.tuple_term_from_term_slice(&[module, function, arity])]);
 
             prop_assert_raises(class_variant, class, reason, stacktrace)
         },
@@ -320,7 +318,7 @@ fn with_atom_module_with_atom_function_with_arguments_raises() {
         },
         |(arc_process, (class_variant, class), reason, module, function, arguments)| {
             let stacktrace = arc_process
-                .list_from_slice(&[arc_process.tuple_from_slice(&[module, function, arguments])]);
+                .list_from_slice(&[arc_process.tuple_term_from_term_slice(&[module, function, arguments])]);
 
             prop_assert_raises(class_variant, class, reason, stacktrace)
         },
@@ -341,8 +339,8 @@ fn with_mfa_with_empty_location_raises() {
             )
         },
         |(arc_process, (class_variant, class), reason, module, function, arity_or_arguments)| {
-            let location = Term::NIL;
-            let stacktrace = arc_process.list_from_slice(&[arc_process.tuple_from_slice(&[
+            let location = Term::Nil;
+            let stacktrace = arc_process.list_from_slice(&[arc_process.tuple_term_from_term_slice(&[
                 module,
                 function,
                 arity_or_arguments,
@@ -370,11 +368,11 @@ fn with_mfa_with_file_raises() {
             )
         },
         |(arc_process, (class_variant, class), reason, module, function, arity, file_value)| {
-            let file_key = atom!("file");
+            let file_key = atoms::File.into();
             let location = arc_process
-                .list_from_slice(&[arc_process.tuple_from_slice(&[file_key, file_value])]);
+                .list_from_slice(&[arc_process.tuple_term_from_term_slice(&[file_key, file_value])]);
             let stacktrace = arc_process.list_from_slice(&[
-                arc_process.tuple_from_slice(&[module, function, arity, location])
+                arc_process.tuple_term_from_term_slice(&[module, function, arity, location])
             ]);
 
             prop_assert_raises(class_variant, class, reason, stacktrace)
@@ -405,10 +403,10 @@ fn with_mfa_with_positive_line_raises() {
             arity_or_arguments,
             line_value,
         )| {
-            let line_key = atom!("line");
+            let line_key = atoms::Line.into();
             let location = arc_process
-                .list_from_slice(&[arc_process.tuple_from_slice(&[line_key, line_value])]);
-            let stacktrace = arc_process.list_from_slice(&[arc_process.tuple_from_slice(&[
+                .list_from_slice(&[arc_process.tuple_term_from_term_slice(&[line_key, line_value])]);
+            let stacktrace = arc_process.list_from_slice(&[arc_process.tuple_term_from_term_slice(&[
                 module,
                 function,
                 arity_or_arguments,
@@ -446,13 +444,13 @@ fn with_mfa_with_file_and_line_raises() {
             file_value,
             line_value,
         )| {
-            let file_key = atom!("file");
-            let line_key = atom!("line");
+            let file_key = atoms::File.into();
+            let line_key = atoms::Line.into();
             let location = arc_process.list_from_slice(&[
-                arc_process.tuple_from_slice(&[file_key, file_value]),
-                arc_process.tuple_from_slice(&[line_key, line_value]),
+                arc_process.tuple_term_from_term_slice(&[file_key, file_value]),
+                arc_process.tuple_term_from_term_slice(&[line_key, line_value]),
             ]);
-            let stacktrace = arc_process.list_from_slice(&[arc_process.tuple_from_slice(&[
+            let stacktrace = arc_process.list_from_slice(&[arc_process.tuple_term_from_term_slice(&[
                 module,
                 function,
                 arity_or_arguments,
@@ -466,7 +464,7 @@ fn with_mfa_with_file_and_line_raises() {
 
 fn class() -> BoxedStrategy<Term> {
     prop_oneof![Just("error"), Just("exit"), Just("throw")]
-        .prop_map(|string| atom!(&string))
+        .prop_map(|string| Atom::str_to_term(&string).into())
         .boxed()
 }
 
@@ -476,7 +474,7 @@ fn class_variant_and_term() -> BoxedStrategy<(Class, Term)> {
         Just((Class::Exit, "exit")),
         Just((Class::Throw, "throw"))
     ]
-    .prop_map(|(class_variant, string)| (class_variant, atom!(&string)))
+    .prop_map(|(class_variant, string)| (class_variant, Atom::str_to_term(&string).into()))
     .boxed()
 }
 

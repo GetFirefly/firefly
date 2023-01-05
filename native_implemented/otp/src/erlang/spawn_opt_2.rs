@@ -2,16 +2,21 @@
 mod test;
 
 use std::convert::TryInto;
+use std::ptr::NonNull;
 
-use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::prelude::Term;
+use firefly_rt::error::ErlangException;
+use firefly_rt::process::Process;
+use firefly_rt::term::Term;
 
 use crate::erlang::spawn_apply_1;
 use crate::runtime::process::spawn::options::Options;
 
 #[native_implemented::function(erlang:spawn_opt/2)]
-pub fn result(process: &Process, function: Term, options: Term) -> exception::Result<Term> {
+pub fn result(
+    process: &Process,
+    function: Term,
+    options: Term,
+) -> Result<Term, NonNull<ErlangException>> {
     let options: Options = options.try_into()?;
 
     spawn_apply_1::result(process, function, options)

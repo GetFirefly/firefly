@@ -3,8 +3,8 @@ use std::sync::Arc;
 use proptest::prop_oneof;
 use proptest::strategy::{BoxedStrategy, Just, Strategy};
 
-use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::prelude::*;
+use firefly_rt::process::Process;
+use firefly_rt::term::Term;
 
 use crate::test::strategy::term::{is_binary, is_byte};
 use crate::test::strategy::{DEPTH, MAX_LEN};
@@ -53,5 +53,5 @@ pub fn root(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
 }
 
 pub fn tail(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
-    prop_oneof![is_binary(arc_process.clone()), Just(Term::NIL)].boxed()
+    prop_oneof![is_binary(arc_process.clone()), Just(Term::Nil)].boxed()
 }

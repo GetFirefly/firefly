@@ -1,6 +1,6 @@
-use proptest::strategy::{Just, Strategy};
+use proptest::strategy::Just;
 
-use liblumen_alloc::erts::process::alloc::TermAlloc;
+use firefly_rt::term::Term;
 
 use crate::erlang::binary_to_list_3::result;
 use crate::test::strategy;
@@ -15,8 +15,8 @@ fn without_binary_errors_badarg() {
             )
         },
         |(arc_process, binary)| {
-            let start = arc_process.integer(1);
-            let stop = arc_process.integer(1);
+            let start = arc_process.integer(1).unwrap();
+            let stop = arc_process.integer(1).unwrap();
 
             prop_assert_badarg!(
                 result(&arc_process, binary, start, stop),
@@ -39,7 +39,7 @@ fn with_binary_without_integer_start_errors_badarg() {
             )
         },
         |(arc_process, binary, start)| {
-            let stop = arc_process.integer(1);
+            let stop = arc_process.integer(1).unwrap();
 
             prop_assert_badarg!(
                         result(&arc_process, binary, start, stop),

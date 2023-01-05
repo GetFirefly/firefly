@@ -27,7 +27,7 @@ fn without_byte_bitstring_or_list_element_errors_badarg() {
 #[test]
 fn with_empty_list_returns_binary() {
     with(|head, process| {
-        let tail = Term::NIL;
+        let tail = Term::Nil;
         let iolist = process.cons(head, tail);
 
         assert_eq!(
@@ -39,15 +39,15 @@ fn with_empty_list_returns_binary() {
 
 #[test]
 fn with_byte_tail_errors_badarg() {
-    with_tail_errors_badarg(|process| process.integer(2));
+    with_tail_errors_badarg(|process| process.integer(2).unwrap());
 }
 
 #[test]
 fn with_proper_list_returns_binary() {
     with(|head, process| {
         let tail_head_byte = 2;
-        let tail_head = process.integer(tail_head_byte);
-        let tail_tail = Term::NIL;
+        let tail_head = process.integer(tail_head_byte).unwrap();
+        let tail_tail = Term::Nil;
         let tail = process.cons(tail_head, tail_tail);
 
         let iolist = process.cons(head, tail);

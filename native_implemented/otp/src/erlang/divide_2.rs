@@ -5,15 +5,17 @@ use std::convert::TryInto;
 
 use anyhow::*;
 
-use liblumen_alloc::erts::exception::{self, *};
-use liblumen_alloc::erts::process::trace::Trace;
-use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::prelude::Term;
+use firefly_rt::process::Process;
+use firefly_rt::term::Term;
 
 /// `//2` infix operator.  Unlike `+/2`, `-/2` and `*/2` always promotes to `float` returns the
 /// `float`.
 #[native_implemented::function(erlang:/ /2)]
-pub fn result(process: &Process, dividend: Term, divisor: Term) -> exception::Result<Term> {
+pub fn result(
+    process: &Process,
+    dividend: Term,
+    divisor: Term,
+) -> Result<Term, NonNull<ErlangException>> {
     let dividend_f64: f64 = dividend.try_into().map_err(|_| {
         badarith(
             Trace::capture(),
@@ -35,7 +37,7 @@ pub fn result(process: &Process, dividend: Term, divisor: Term) -> exception::Re
         .into())
     } else {
         let quotient_f64 = dividend_f64 / divisor_f64;
-        let quotient_term = process.float(quotient_f64);
+        let quotient_term = quotient_f64.into();
 
         Ok(quotient_term)
     }

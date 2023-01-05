@@ -3,7 +3,7 @@
 //! random_integer = Lumen.Web.Math.random_integer(exclusive_max)
 //! ```
 
-use liblumen_alloc::erts::process::Process;
+use liblumen_rt::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
 use liblumen_web::math::random_integer_1;

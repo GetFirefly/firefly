@@ -10,7 +10,7 @@
 
 use std::convert::TryInto;
 
-use liblumen_alloc::erts::process::Process;
+use liblumen_rt::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
 use super::label_4;

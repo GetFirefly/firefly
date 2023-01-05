@@ -7,7 +7,7 @@ use std::time::Duration;
 fn with_negative_errors_badarg() {
     with_process(|process| {
         assert_badarg!(
-            result(process, process.integer(-1)),
+            result(process, process.integer(-1).unwrap()),
             "hertz must be positive"
         );
     });
@@ -17,7 +17,7 @@ fn with_negative_errors_badarg() {
 fn with_zero_errors_badarg() {
     with_process(|process| {
         assert_badarg!(
-            result(process, process.integer(0)),
+            result(process, process.integer(0).unwrap()),
             "hertz must be positive"
         );
     });
@@ -26,7 +26,7 @@ fn with_zero_errors_badarg() {
 #[test]
 fn with_positive_increases_after_2_time_units() {
     with_process(|process| {
-        let unit = process.integer(2);
+        let unit = process.integer(2).unwrap();
 
         let first = result(process, unit).unwrap();
 

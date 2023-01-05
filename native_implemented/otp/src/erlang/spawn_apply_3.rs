@@ -1,6 +1,8 @@
-use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::prelude::*;
+use std::ptr::NonNull;
+
+use firefly_rt::error::ErlangException;
+use firefly_rt::process::Process;
+use firefly_rt::term::Term;
 
 use crate::erlang::apply::arguments_term_to_vec;
 use crate::runtime::process::spawn::options::Options;
@@ -12,7 +14,7 @@ pub(in crate::erlang) fn result(
     module: Term,
     function: Term,
     arguments: Term,
-) -> exception::Result<Term> {
+) -> Result<Term, NonNull<ErlangException>> {
     let module_atom = term_try_into_atom!(module)?;
     let function_atom = term_try_into_atom!(function)?;
     let argument_vec = arguments_term_to_vec(arguments)?;

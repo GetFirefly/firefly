@@ -2,18 +2,25 @@
 mod test;
 
 use std::convert::TryInto;
+use std::ptr::NonNull;
 
 use anyhow::*;
 
-use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::index::OneBasedIndex;
-use liblumen_alloc::erts::term::prelude::*;
+use firefly_number::TryIntoIntegerError;
+
+use firefly_rt::error::ErlangException;
+use firefly_rt::process::Process;
+use firefly_rt::term::Term;
 
 use crate::runtime::context::*;
 
 #[native_implemented::function(erlang:setelement/3)]
-pub fn result(process: &Process, index: Term, tuple: Term, value: Term) -> exception::Result<Term> {
+pub fn result(
+    process: &Process,
+    index: Term,
+    tuple: Term,
+    value: Term,
+) -> Result<Term, NonNull<ErlangException>> {
     let initial_inner_tuple = term_try_into_tuple!(tuple)?;
     let length = initial_inner_tuple.len();
     let index_one_based: OneBasedIndex = index
@@ -24,7 +31,7 @@ pub fn result(process: &Process, index: Term, tuple: Term, value: Term) -> excep
     if index_zero_based < length {
         let mut final_element_vec = initial_inner_tuple[..].to_vec();
         final_element_vec[index_zero_based] = value;
-        let final_tuple = process.tuple_from_slice(&final_element_vec);
+        let final_tuple = process.tuple_term_from_term_slice(&final_element_vec);
 
         Ok(final_tuple)
     } else {

@@ -25,14 +25,16 @@ pub const FIREFLY_COMMIT_DATE: &'static str = env!("FIREFLY_COMMIT_DATE");
 
 /// Runs the compiler using the provided working directory, args iterator, and default emitter
 ///
-/// Returns the exit code for the compiler if successful (in some cases it is non-zero), otherwise an error
+/// Returns the exit code for the compiler if successful (in some cases it is non-zero), otherwise
+/// an error
 pub fn run_compiler(cwd: PathBuf, args: impl Iterator<Item = OsString>) -> anyhow::Result<i32> {
     run_compiler_with_emitter(cwd, args, None)
 }
 
 /// Runs the compiler using the provided working directory, args iterator, and emittter
 ///
-/// Returns the exit code for the compiler if successful (in some cases it is non-zero), otherwise an error
+/// Returns the exit code for the compiler if successful (in some cases it is non-zero), otherwise
+/// an error
 pub fn run_compiler_with_emitter(
     cwd: PathBuf,
     args: impl Iterator<Item = OsString>,

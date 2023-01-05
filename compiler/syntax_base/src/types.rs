@@ -226,7 +226,8 @@ impl TermType {
         }
     }
 
-    /// If we have a binary arithemtic operation, what is the type of the result based on the type of the operands?
+    /// If we have a binary arithemtic operation, what is the type of the result based on the type
+    /// of the operands?
     pub fn coerce_to_numeric_with(&self, other: Self) -> Self {
         let this = self.coerce_to_numeric();
         let other = other.coerce_to_numeric();
@@ -345,19 +346,21 @@ impl PartialOrd for TermType {
 /// internal runtime types which are used with primop instructions.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Type {
-    // This type is used to indicate that the type of an instruction is dynamic or unable to be typed
+    // This type is used to indicate that the type of an instruction is dynamic or unable to be
+    // typed
     Unknown,
     // This type is used to indicate an instruction that produces no results, and thus has no type
     Invalid,
-    // Primitive types are used for some instructions which are low-level and do not directly produce
-    // values which are used as terms, or are castable to term (e.g. integers)
+    // Primitive types are used for some instructions which are low-level and do not directly
+    // produce values which are used as terms, or are castable to term (e.g. integers)
     Primitive(PrimitiveType),
-    // Term types are associated with values which correspond to syntax-level operations and are expected
-    // to be used with runtime BIFs (built-in functions)
+    // Term types are associated with values which correspond to syntax-level operations and are
+    // expected to be used with runtime BIFs (built-in functions)
     Term(TermType),
     // Represents a function type that is calling-convention agnostic
     Function(FunctionType),
-    // This type is equivalent to Rust's Never/! type, i.e. it indicates that a function never returns
+    // This type is equivalent to Rust's Never/! type, i.e. it indicates that a function never
+    // returns
     NoReturn,
     // This type maps to ErlangException in firefly_rt
     Exception,

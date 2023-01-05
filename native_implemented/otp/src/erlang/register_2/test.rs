@@ -1,11 +1,8 @@
 mod with_atom_name;
 
-use std::convert::TryInto;
 use std::sync::Arc;
 
 use proptest::strategy::Just;
-
-use liblumen_alloc::erts::term::prelude::{Atom, Encoded, Pid};
 
 use crate::runtime::registry;
 

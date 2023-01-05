@@ -1,7 +1,6 @@
 pub mod float_to_string;
 
-use std::convert::TryInto;
-
+use std::ptr::NonNull;
 use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
 
@@ -13,10 +12,9 @@ use proptest::strategy::{Just, Strategy};
 use proptest::test_runner::{Config, TestCaseResult, TestRunner};
 use proptest::{prop_assert, prop_assert_eq};
 
-use liblumen_alloc::erts::message::{self, Message};
-use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::prelude::*;
-use liblumen_alloc::erts::{exception, Node};
+use firefly_rt::error::ErlangException;
+use firefly_rt::process::Process;
+use firefly_rt::term::{Atom, Term};
 
 use crate::test::strategy::term::binary;
 use crate::test::strategy::term::binary::sub::{bit_offset, byte_count, byte_offset};
@@ -61,8 +59,8 @@ pub fn arc_process_to_arc_process_subbinary_zero_start_byte_count_length(
             (
                 arc_process.clone(),
                 binary,
-                arc_process.integer(0),
-                arc_process.integer(subbinary.full_byte_len()),
+                arc_process.integer(0.into()).unwrap(),
+                arc_process.integer(subbinary.full_byte_len()).unwrap(),
             )
         })
 }
@@ -123,7 +121,7 @@ pub fn monitored_count(process: &Process) -> usize {
 
 pub fn number_to_integer_with_float(
     source_file: &'static str,
-    result: fn(&Process, Term) -> exception::Result<Term>,
+    result: fn(&Process, Term) -> Result<Term, NonNull<ErlangException>>,
     non_zero_assertion: fn(Term, f64, Term) -> TestCaseResult,
 ) {
     run(
@@ -131,7 +129,7 @@ pub fn number_to_integer_with_float(
         |arc_process| {
             (
                 Just(arc_process.clone()),
-                strategy::term::float(arc_process.clone()),
+                strategy::term::float(),
             )
         },
         |(arc_process, number)| {
@@ -198,12 +196,12 @@ pub fn timeout_message(timer_reference: Term, message: Term, process: &Process) 
 }
 
 pub fn timer_message(tag: &str, timer_reference: Term, message: Term, process: &Process) -> Term {
-    process.tuple_from_slice(&[Atom::str_to_term(tag), timer_reference, message])
+    process.tuple_term_from_term_slice(&[Atom::str_to_term(tag), timer_reference, message])
 }
 
 pub fn with_binary_without_atom_encoding_errors_badarg(
     source_file: &'static str,
-    result: fn(Term, Term) -> exception::Result<Term>,
+    result: fn(Term, Term) -> Result<Term, NonNull<ErlangException>>,
 ) {
     run(
         source_file,
@@ -226,7 +224,7 @@ pub fn with_binary_without_atom_encoding_errors_badarg(
 
 pub fn with_binary_with_atom_without_name_encoding_errors_badarg(
     source_file: &'static str,
-    result: fn(Term, Term) -> exception::Result<Term>,
+    result: fn(Term, Term) -> Result<Term, NonNull<ErlangException>>,
 ) {
     run(
         source_file,
@@ -241,7 +239,7 @@ pub fn with_binary_with_atom_without_name_encoding_errors_badarg(
 
             prop_assert_badarg!(
                         result(binary, encoding),
-                        format!("invalid atom encoding name: '{0}' is not one of the supported values (latin1, unicode, or utf8)", encoding_atom.name())
+                        format!("invalid atom encoding name: '{0}' is not one of the supported values (latin1, unicode, or utf8)", encoding_atom.as_str())
                     );
 
             Ok(())
@@ -251,7 +249,7 @@ pub fn with_binary_with_atom_without_name_encoding_errors_badarg(
 
 pub fn with_integer_returns_integer(
     source_file: &'static str,
-    result: fn(&Process, Term) -> exception::Result<Term>,
+    result: fn(&Process, Term) -> Result<Term, NonNull<ErlangException>>,
 ) {
     run(
         source_file,
@@ -271,7 +269,7 @@ pub fn with_integer_returns_integer(
 
 pub fn without_boolean_left_errors_badarg(
     source_file: &'static str,
-    result: fn(Term, Term) -> exception::Result<Term>,
+    result: fn(Term, Term) -> Result<Term, NonNull<ErlangException>>,
 ) {
     run(
         source_file,
@@ -291,7 +289,7 @@ pub fn without_boolean_left_errors_badarg(
 
 pub fn without_binary_errors_badarg(
     source_file: &'static str,
-    result: fn(&Process, Term) -> exception::Result<Term>,
+    result: fn(&Process, Term) -> Result<Term, NonNull<ErlangException>>,
 ) {
     run(
         source_file,
@@ -314,7 +312,7 @@ pub fn without_binary_errors_badarg(
 
 pub fn without_binary_with_encoding_is_not_binary(
     source_file: &'static str,
-    result: fn(Term, Term) -> exception::Result<Term>,
+    result: fn(Term, Term) -> Result<Term, NonNull<ErlangException>>,
 ) {
     run(
         source_file,
@@ -334,7 +332,7 @@ pub fn without_binary_with_encoding_is_not_binary(
 
 pub fn without_bitstring_errors_badarg(
     source_file: &'static str,
-    result: fn(&Process, Term) -> exception::Result<Term>,
+    result: fn(&Process, Term) -> Result<Term, NonNull<ErlangException>>,
 ) {
     run(
         source_file,
@@ -357,7 +355,7 @@ pub fn without_bitstring_errors_badarg(
 
 pub fn without_float_errors_badarg(
     source_file: &'static str,
-    result: fn(&Process, Term) -> exception::Result<Term>,
+    result: fn(&Process, Term) -> Result<Term, NonNull<ErlangException>>,
 ) {
     run(
         source_file,
@@ -380,7 +378,7 @@ pub fn without_float_errors_badarg(
 
 pub fn without_float_with_empty_options_errors_badarg(
     source_file: &'static str,
-    result: fn(&Process, Term, Term) -> exception::Result<Term>,
+    result: fn(&Process, Term, Term) -> Result<Term, NonNull<ErlangException>>,
 ) {
     run(
         source_file,
@@ -391,7 +389,7 @@ pub fn without_float_with_empty_options_errors_badarg(
             )
         },
         |(arc_process, float)| {
-            let options = Term::NIL;
+            let options = Term::Nil;
 
             prop_assert_badarg!(
                 result(&arc_process, float, options),
@@ -405,14 +403,14 @@ pub fn without_float_with_empty_options_errors_badarg(
 
 pub fn without_function_errors_badarg(
     source_file: &'static str,
-    result: fn(&Process, Term) -> exception::Result<Term>,
+    result: fn(&Process, Term) -> Result<Term, NonNull<ErlangException>>,
 ) {
     run(
         source_file,
         |arc_process| {
             (
                 Just(arc_process.clone()),
-                strategy::term::is_not_function(arc_process.clone()),
+                strategy::term::is_not_closure(arc_process.clone()),
             )
         },
         |(arc_process, function)| {
@@ -428,7 +426,7 @@ pub fn without_function_errors_badarg(
 
 pub fn without_integer_errors_badarg(
     source_file: &'static str,
-    result: fn(&Process, Term) -> exception::Result<Term>,
+    result: fn(&Process, Term) -> Result<Term, NonNull<ErlangException>>,
 ) {
     run(
         source_file,
@@ -451,7 +449,7 @@ pub fn without_integer_errors_badarg(
 
 pub fn without_integer_integer_with_base_errors_badarg(
     source_file: &'static str,
-    result: fn(&Process, Term, Term) -> exception::Result<Term>,
+    result: fn(&Process, Term, Term) -> Result<Term, NonNull<ErlangException>>,
 ) {
     run(
         source_file,
@@ -475,7 +473,7 @@ pub fn without_integer_integer_with_base_errors_badarg(
 
 pub fn with_integer_integer_without_base_base_errors_badarg(
     source_file: &'static str,
-    result: fn(&Process, Term, Term) -> exception::Result<Term>,
+    result: fn(&Process, Term, Term) -> Result<Term, NonNull<ErlangException>>,
 ) {
     run(
         source_file,
@@ -499,7 +497,7 @@ pub fn with_integer_integer_without_base_base_errors_badarg(
 
 pub fn without_integer_dividend_errors_badarith(
     source_file: &'static str,
-    result: fn(&Process, Term, Term) -> exception::Result<Term>,
+    result: fn(&Process, Term, Term) -> Result<Term, NonNull<ErlangException>>,
 ) {
     run(
         source_file,
@@ -526,7 +524,7 @@ pub fn without_integer_dividend_errors_badarith(
 
 pub fn with_integer_dividend_without_integer_divisor_errors_badarith(
     source_file: &'static str,
-    result: fn(&Process, Term, Term) -> exception::Result<Term>,
+    result: fn(&Process, Term, Term) -> Result<Term, NonNull<ErlangException>>,
 ) {
     run(
         source_file,
@@ -553,7 +551,7 @@ pub fn with_integer_dividend_without_integer_divisor_errors_badarith(
 
 pub fn with_integer_dividend_with_zero_divisor_errors_badarith(
     source_file: &'static str,
-    result: fn(&Process, Term, Term) -> exception::Result<Term>,
+    result: fn(&Process, Term, Term) -> Result<Term, NonNull<ErlangException>>,
 ) {
     run(
         source_file,
@@ -561,7 +559,7 @@ pub fn with_integer_dividend_with_zero_divisor_errors_badarith(
             (
                 Just(arc_process.clone()),
                 strategy::term::is_integer(arc_process.clone()),
-                Just(arc_process.integer(0)),
+                Just(arc_process.integer(0).unwrap()),
             )
         },
         |(arc_process, dividend, divisor)| {
@@ -577,7 +575,7 @@ pub fn with_integer_dividend_with_zero_divisor_errors_badarith(
 
 pub fn without_number_errors_badarg(
     source_file: &'static str,
-    result: fn(&Process, Term) -> exception::Result<Term>,
+    result: fn(&Process, Term) -> Result<Term, NonNull<ErlangException>>,
 ) {
     run(
         source_file,
@@ -597,7 +595,7 @@ pub fn without_number_errors_badarg(
 
 pub fn without_timer_reference_errors_badarg(
     source_file: &'static str,
-    result: fn(&Process, Term) -> exception::Result<Term>,
+    result: fn(&Process, Term) -> Result<Term, NonNull<ErlangException>>,
 ) {
     run(
         source_file,

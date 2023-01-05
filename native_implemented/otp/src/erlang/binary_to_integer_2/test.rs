@@ -1,4 +1,6 @@
-use proptest::strategy::{Just, Strategy};
+use proptest::strategy::Just;
+
+use firefly_rt::term::Term;
 
 use crate::erlang::binary_to_integer_2::result;
 use crate::test::strategy;
@@ -62,7 +64,7 @@ fn with_binary_without_integer_in_base_errors_badarg() {
                     (
                         Just(arc_process.clone()),
                         strategy::term::binary::containing_bytes(byte_vec, arc_process.clone()),
-                        Just(arc_process.integer(base)),
+                        Just(arc_process.integer(base).unwrap()),
                     )
                 },
             )

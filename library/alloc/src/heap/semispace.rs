@@ -31,18 +31,19 @@ use super::{GenerationalHeap, Heap};
 ///
 /// 2. The first minor GC cycle occurs. During this cycle, a new immature heap is allocated,
 /// and live values reachable from the root set will be moved to the new heap. A high water mark
-/// will be set, indicating where the heap was at when the cycle ended. The old immature heap is freed.
+/// will be set, indicating where the heap was at when the cycle ended. The old immature heap is
+/// freed.
 ///
 /// 3. The second minor GC cycle occurs. During this cycle, a new immature heap is allocated, but
-/// additionally, a mature heap is allocated with enough space to hold the old immature heap, replacing
-/// the initial empty mature heap. Objects in the mature region of the immature heap (i.e. allocations
-/// below the high-water mark) are moved to the mature heap. Objects above the high water mark are moved
-/// to the new immature heap.
+/// additionally, a mature heap is allocated with enough space to hold the old immature heap,
+/// replacing the initial empty mature heap. Objects in the mature region of the immature heap (i.e.
+/// allocations below the high-water mark) are moved to the mature heap. Objects above the high
+/// water mark are moved to the new immature heap.
 ///
-/// 4. During this phase, some number of minor GC cycles will occur, until the mature heap fills up and
-/// needs to grow. When this happens, a major GC cycle occurs. During a major GC cycle, a new mature heap
-/// is allocated and live matured objects from both heaps are swept into the new mature heap. The old mature
-/// heap becomes the new immature heap, and the old immature heap is freed.
+/// 4. During this phase, some number of minor GC cycles will occur, until the mature heap fills up
+/// and needs to grow. When this happens, a major GC cycle occurs. During a major GC cycle, a new
+/// mature heap is allocated and live matured objects from both heaps are swept into the new mature
+/// heap. The old mature heap becomes the new immature heap, and the old immature heap is freed.
 #[derive(Debug)]
 pub struct SemispaceHeap<A, B>
 where

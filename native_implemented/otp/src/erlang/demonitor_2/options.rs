@@ -2,7 +2,8 @@ use std::convert::{TryFrom, TryInto};
 
 use anyhow::*;
 
-use liblumen_alloc::erts::term::prelude::*;
+use firefly_rt::*;
+use firefly_rt::term::Term;
 
 use crate::runtime::proplist::TryPropListFromTermError;
 
@@ -19,7 +20,7 @@ impl Options {
             .try_into()
             .map_err(|_| TryPropListFromTermError::PropertyType)?;
 
-        match option_atom.name() {
+        match option_atom.as_str() {
             "flush" => {
                 self.flush = true;
 
@@ -52,13 +53,14 @@ impl TryFrom<Term> for Options {
         let mut options_term = term;
 
         loop {
-            match options_term.decode().unwrap() {
-                TypedTerm::Nil => return Ok(options),
-                TypedTerm::List(cons) => {
+            match options_term {
+                Term::Nil => return Ok(options),
+                Term::Cons(non_null_cons) => {
+                    let cons = unsafe { non_null_cons.as_ref() };
                     options
-                        .put_option_term(cons.head)
+                        .put_option_term(cons.head())
                         .context(SUPPORTED_OPTIONS_CONTEXT)?;
-                    options_term = cons.tail;
+                    options_term = cons.tail();
 
                     continue;
                 }

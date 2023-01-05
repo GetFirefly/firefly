@@ -308,7 +308,8 @@ impl<'a> GccLinker<'a> {
             arg.push(plugin_path);
             self.linker_arg(&arg);
         }
-        // NOTE: We previously short-circuit returned if no plugin path was set due to an error from the linker
+        // NOTE: We previously short-circuit returned if no plugin path was set due to an error from
+        // the linker
 
         let opt_level = match self.options.opt_level {
             OptLevel::No => "O0",

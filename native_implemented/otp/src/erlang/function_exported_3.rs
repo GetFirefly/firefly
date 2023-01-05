@@ -6,16 +6,16 @@
 //! ```
 
 use std::convert::TryInto;
+use std::ptr::NonNull;
 
 use anyhow::*;
 
-use liblumen_alloc::erts::apply::find_symbol;
-use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::term::prelude::{Atom, Term};
-use liblumen_alloc::{Arity, ModuleFunctionArity};
+use firefly_rt::error::ErlangException;
+use firefly_rt::function::{Arity, find_symbol, ModuleFunctionArity};
+use firefly_rt::term::{Atom, Term};
 
 #[native_implemented::function(erlang:function_exported/3)]
-pub fn result(module: Term, function: Term, arity: Term) -> exception::Result<Term> {
+pub fn result(module: Term, function: Term, arity: Term) -> Result<Term, NonNull<ErlangException>> {
     let module_atom: Atom = module.try_into().context("module must be an atom")?;
     let function_atom: Atom = function.try_into().context("function must be an atom")?;
     let arity_arity: Arity = arity.try_into().context("arity must be in 0-255")?;

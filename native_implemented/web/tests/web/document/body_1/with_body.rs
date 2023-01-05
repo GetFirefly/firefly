@@ -9,7 +9,7 @@ pub mod label_1;
 #[path = "with_body/label_2.rs"]
 pub mod label_2;
 
-use liblumen_alloc::erts::process::Process;
+use liblumen_rt::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
 use liblumen_web::window;

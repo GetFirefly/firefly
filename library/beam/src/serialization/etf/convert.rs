@@ -1,4 +1,4 @@
-use firefly_number::{Float, Integer, ToPrimitive};
+use firefly_number::{Float, Int, ToPrimitive};
 
 use super::*;
 
@@ -14,10 +14,14 @@ impl<T> TryAsRef<T> for T {
 
 macro_rules! impl_term_try_as_ref {
     ($to:ident) => {
+        impl_term_try_as_ref!($to, $to);
+    };
+
+    ($to:ident, $from:ident) => {
         impl TryAsRef<$to> for Term {
             fn try_as_ref(&self) -> Option<&$to> {
                 match *self {
-                    Term::$to(ref x) => Some(x),
+                    Term::$from(ref x) => Some(x),
                     _ => None,
                 }
             }
@@ -25,7 +29,7 @@ macro_rules! impl_term_try_as_ref {
     };
 }
 impl_term_try_as_ref!(Atom);
-impl_term_try_as_ref!(Integer);
+impl_term_try_as_ref!(Int, Integer);
 impl_term_try_as_ref!(Float);
 impl_term_try_as_ref!(Pid);
 impl_term_try_as_ref!(Port);
@@ -41,12 +45,16 @@ impl_term_try_as_ref!(Map);
 
 macro_rules! impl_term_try_into {
     ($to:ident) => {
+        impl_term_try_into!($to, $to);
+    };
+
+    ($to:ident, $from:ident) => {
         impl TryInto<$to> for Term {
             type Error = Self;
 
             fn try_into(self) -> Result<$to, Self> {
                 match self {
-                    Term::$to(x) => Ok(x),
+                    Term::$from(x) => Ok(x),
                     _ => Err(self),
                 }
             }
@@ -54,7 +62,7 @@ macro_rules! impl_term_try_into {
     };
 }
 impl_term_try_into!(Atom);
-impl_term_try_into!(Integer);
+impl_term_try_into!(Int, Integer);
 impl_term_try_into!(Float);
 impl_term_try_into!(Pid);
 impl_term_try_into!(Port);

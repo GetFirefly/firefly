@@ -3,7 +3,7 @@ use std::hash::{Hash, Hasher};
 use std::mem;
 
 use firefly_intern::{symbols, Symbol};
-use firefly_number::{Float, Integer};
+use firefly_number::{Float, Int};
 
 use super::LexicalError;
 
@@ -26,7 +26,7 @@ pub enum Token {
 
     // Literals
     CharLiteral(char),
-    IntegerLiteral(Integer),
+    IntegerLiteral(Int),
     FloatLiteral(Float),
     AtomLiteral(Symbol),
     StringLiteral(Symbol),

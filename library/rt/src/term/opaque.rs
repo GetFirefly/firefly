@@ -5,7 +5,7 @@
 ///! and what their ranges/representation are:
 ///!    - Floats are immediate
 ///!    - Pid/Port are never immediate
-///!    - SmallInteger is 51-bits wide
+///!    - SmallInteger is 52-bits wide
 ///!    - Pointers to Tuple/Cons can be type checked without dereferencing the pointer
 ///! * Like ERTS, we special case cons cells for more efficient use of memory, but we use a more flexible scheme
 ///! for boxed terms in general, allowing us to store any Rust type on a process heap. This scheme comes at a
@@ -13,7 +13,7 @@
 ///! define an encoding scheme for each type individually.
 ///!
 ///! In order to properly represent the breadth of Rust types using thin pointers, we use a special smart pointer
-///! type called `GcBox<T>` which makes use of the `ptr_metadata` feature to obtain the pointer metadata for a type
+///! type called `Gc<T>` which makes use of the `ptr_metadata` feature to obtain the pointer metadata for a type
 ///! and store it alongside the allocated data itself. This allows us to use thin pointers everywhere, but still use
 ///! dynamically-sized types.
 ///!
@@ -39,53 +39,61 @@
 ///! Additionally, for NaN, it is only required that the canonical bits are set, the mantissa bits are ignored, which means they
 ///! can be used.
 ///!
-///! Furthermore, Erlang does not support NaN or the infinities, so those bit patterns can be used as well. In short, we have 52 bits to
-///! work with when a float is NaN, which is large enough to store a pointer; and since our pointers must be 8-byte aligned, we have
-///! an additional 4 bits for a limited tagging scheme. The only requirement is that we don't permit overlapping bit patterns for two
-///! different term types.
+///! Furthermore, Erlang does not support NaN or the infinities, so those bit patterns can be used as well. This gives us:
 ///!
-///! Now that you understand the background, here is the encoding we use for different immediate values:
+///! * Infinity + 51 contiguous bits for value + unique tag
+///! * -Infinity + 52 contiguous bits for a primitive i52 integer type
+///! * Canonical NaN + 51 contiguous bits for value + unique tag
 ///!
-///! * `Float` is any bit pattern which represents a valid, non-NaN floating-point value OR canonical NaN (i.e. has the quiet bit set).
-///! * `None` uses the canonical NaN pattern (i.e. has the quiet bit set)
-///! * `Nil` uses the Infinity bit pattern
-///! * `Integer` is any bit pattern with the highest 12-bits set to 1, including the bit pattern for -Infinity, which corresponds to the integer 0.
-///! Integers are 52-bits wide as a result.
+///! Additionally, we require that:
 ///!
-///! These remaining tags must use either the Infinity or canonical NaN bit pattern for their high bits, and must be combined with a unique tag
-///! in the lowest 4 bits, but no valid value of any type is allowed to overlap with the canonical NaN pattern, so care must be taken when assigning
-///! bits. Currently, pointer-like values use the Infinity pattern + tag bits, and null pointers are disallowed. Atoms use canonical NaN.
+///! * Pointer addresses are 8-byte aligned, leaving the lowest 3 bits unused for tagging
+///! * Reservation of the special NaN, Infinity and -Infinity marker values for internal use
 ///!
-///! * `GcBox<T>` is indicated when the lowest 4 bits are zero (8-byte alignment), and that at least one of the other mantissa bits is non-zero.
-///! Tuple/Cons are never represented using `GcBox<T>`.
-///! * `Rc<T>` uses the tag 0x03, and requires that at least one of the other mantissa bits is non-zero. This overlaps with the tag scheme for the
-///! atom `true`, but is differentiated by the fact that `true` requires that all mantissa bits other than the tag are zero.
-///! * `*const T` (i.e. a pointer to a literal/constant) is the same scheme as `GcBox<T>`, but with the lowest 4 bits equal to 0x01. This allows differentiating
-///! between garbage-collected data and literals.
-///! * `Atom` is has one general encoding and two special marker values for booleans
-///!    * `false` is indicated when all mantissa bits equal to 0x02 (i.e. zero when the atom tag is masked out)
-///!    * `true` is indicated when all mantissa bits equal to 0x03 (i.e. one when the atom tag is masked out)
-///!    * Any other atom is indicated when the lowest 4 bits is equal to 0x02 and the remaining mantissa bits are non-zero. The value of the atom is a pointer
-///!    to AtomData, which is never garbage-collected.
-///! * `*mut Cons` is indicated when the lowest 4 bits are equal to 0x04 (or 0x05 for literals). When masked, the remaining value is a pointer to `Cons`
-///! * `*mut Tuple` is indicated when the lowest 4 bits are equal to 0x06 (or 0x07 for literals). When masked, the remainig value is a pointer to `usize`. Unlike
-///! `Cons`, `Tuple` is a dynamically-sized type, so the pointer given actually points to the metadata (a `usize` value) which can be used to construct
-///! the fat pointer `*mut Tuple` via `ptr::from_raw_parts_mut`
+///! # Term Types
 ///!
-///! All non-immediate terms are allocated/referenced via `GcBox<T>`.
+///! * None, a singleton invalid value, used for various purposes but not constructible from user code
+///! * Nil, a singleton value representing the empty list
+///! * Boolean, composed of two singleton values for false and true, also valid atoms
+///! * Atom, a pointer to an AtomData struct, unique for each atom; the pointer value is used for cheap equality comparison
+///! * Integer, an i52 equivalent immediate integer value
+///! * Float, a f64 value, but without support for NaN, or the infinities
+///! * Gc/Arc/*const, a pointer to a heap allocated or constant value, depending on pointer type
+///! * Catch, a pointer or offset to the instruction to which control will be transferred for a raised exception
+///! * Code, a pointer or offset to the instruction to which control will be transferred when returning from a function
 ///!
+///! # Term Encodings
+///!
+///! * All bit patterns which are non-NaN, non-infinite float values      = Float
+///! * `111111111111xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx` = Integer (-Infinity + i52 value)
+///! * `0111111111111000000000000000000000000000000000000000000000000000` = NONE (canonical NaN)
+///! * `0111111111111xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx1000` = HOLE (canonical NaN + 0x08, used to indicate a region of unused memory immediately following the word)
+///! * `0111111111111xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx001` = Catch (canonical NaN + 0x01 + non-null pointer value required)
+///! * `0111111111111xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx010` = Code (canonical NaN + 0x02 + non-null pointer value required)
+///! * `0111111111111xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxTTTT11` = Header (canonical NaN + 0x03 + 4-bit tag + 45-bit arity val)
+///! * `0111111111110000000000000000000000000000000000000000000000000000` = NIL (Infinity)
+///! * `0111111111110000000000000000000000000000000000000000000000000010` = FALSE (Infinity + 0x02)
+///! * `0111111111110000000000000000000000000000000000000000000000000011` = TRUE (Infinity + 0x03)
+///! * `0111111111110xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx000` = Gc<T> (Infinity + 0x00 + non-null pointer value required)
+///! * `0111111111110xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx001` = *const T (Infinity + 0x01 + non-null pointer value required)
+///! * `0111111111110xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx010` = Atom (Infinity + 0x02 + non-null *const AtomData value)
+///! * `0111111111110xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx011` = Arc<T> (Infinity + 0x03 + non-null pointer value required)
+///! * `0111111111110xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx100` = Gc<Cons> (Infinity + 0x04 + non-null pointer value required)
+///! * `0111111111110xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx101` =   (add 0x01 tag if literal)
+///! * `0111111111110xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx110` = Gc<Tuple> (Infinity + 0x06 + non-null pointer value required)
+///! * `0111111111110xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx111` =   (add 0x01 tag if literal)
+///!
+use alloc::sync::Arc;
 use core::fmt;
-use core::mem::{self, ManuallyDrop, MaybeUninit};
-use core::num::NonZeroU32;
-use core::ptr::{self, NonNull, Pointee};
+use core::mem::{self, MaybeUninit};
+use core::ptr::NonNull;
 
-use super::{atoms, Atom, BinaryData, Closure, Cons, Float, Integer, Term, Tuple};
-
-use firefly_alloc::gc::{self, GcBox};
-use firefly_alloc::rc::{self, Rc, Weak};
-use firefly_binary::BinaryFlags;
+use super::{atoms, Atom, Closure, Cons, Float, Term, Tuple};
+use super::{BigInt, BinaryData, BitSlice, Map, MatchContext, Pid, Port, Reference};
+use super::{Boxable, Header, Tag};
 
 use crate::function::ErlangResult;
+use crate::gc::Gc;
 
 // Canonical NaN
 const NAN: u64 = unsafe { mem::transmute::<f64, u64>(f64::NAN) };
@@ -94,20 +102,23 @@ const QUIET_BIT: u64 = 1 << 51;
 // This value has the bit pattern used for the None term, which reuses the bit pattern for NaN
 const NONE: u64 = NAN;
 // This value has the bit pattern used for the Nil term, which reuses the bit pattern for Infinity
-const INFINITY: u64 = NAN & !QUIET_BIT;
+const INFINITY: u64 = unsafe { mem::transmute::<f64, u64>(f64::INFINITY) };
+const NEG_INFINITY: u64 = unsafe { mem::transmute::<f64, u64>(f64::NEG_INFINITY) };
 const NIL: u64 = INFINITY;
-// This value has only the sign bit set
-const SIGN_BIT: u64 = 1 << 63;
+// This is an alias for the quiet bit, which is used as the sign bit for integer values
+const SIGN_BIT: u64 = QUIET_BIT;
 // This value has all of the bits set which indicate an integer value. To get the actual integer value, you must mask out
 // the other bits and then sign-extend the result based on QUIET_BIT, which is the highest bit an integer value can set
-const INTEGER_TAG: u64 = INFINITY | SIGN_BIT;
+const INTEGER_TAG: u64 = NEG_INFINITY;
 
 // This tag when used with pointers, indicates that the pointee is constant, i.e. not garbage-collected
 const LITERAL_TAG: u64 = 0x01;
+const CATCH_TAG: u64 = 0x01;
 // This tag is only ever set when the value is an atom, but is insufficient on its own to determine which type of atom
 const ATOM_TAG: u64 = 0x02;
+const CODE_TAG: u64 = 0x02;
 // This constant is used to represent the boolean false value without any pointer to AtomData
-const FALSE: u64 = NAN | ATOM_TAG;
+const FALSE: u64 = INFINITY | ATOM_TAG;
 // This constant is used to represent the boolean true value without any pointer to AtomData
 const TRUE: u64 = FALSE | 0x01;
 // This tag represents a unique combination of the lowest 4 bits indicating the value is a cons pointer
@@ -118,26 +129,41 @@ const CONS_LITERAL_TAG: u64 = CONS_TAG | LITERAL_TAG;
 // This tag can be combined with LITERAL_TAG to indicate the pointer is constant
 const TUPLE_TAG: u64 = 0x06;
 const TUPLE_LITERAL_TAG: u64 = TUPLE_TAG | LITERAL_TAG;
-// This tag is used to mark a pointer allocated via Rc<T>
+// This tag is used to mark a pointer allocated via Arc<T>
 const RC_TAG: u64 = 0x03;
+// This tag is used in conjunction with NAN to tag header words for boxed term types on a heap
+const HEADER_TAG: u64 = 0x03;
+const HOLE_TAG: u64 = 0x08;
 
+// This mask when applied to a u64 distinguishes between NAN/Infinity and -Infinity
+const GROUP_MASK: u64 = NEG_INFINITY;
+// This mask when applied to a u64 distinguishes between NAN, Infinity and -Infinity
+const SUBGROUP_MASK: u64 = NEG_INFINITY | QUIET_BIT;
 // This mask when applied to a u64 will produce a value that can be compared with the tags above for equality
 const TAG_MASK: u64 = 0x07;
 // This mask when applied to a u64 will return only the bits which are part of the integer value
-// NOTE: The value that is produced requires sign-extension based on whether QUIET_BIT is set
+// NOTE: The value that is produced requires sign-extension based on whether SIGN_BIT is set
 const INT_MASK: u64 = !INTEGER_TAG;
 // This mask when applied to a u64 will return a value which can be cast to pointer type and dereferenced
-const PTR_MASK: u64 = !(SIGN_BIT | NAN | TAG_MASK);
+const PTR_MASK: u64 = !(NEG_INFINITY | SIGN_BIT | TAG_MASK);
+// This extends SUBGROUP_MASK to allow pairing it with special tag bits
+const SPECIAL_TAG_MASK: u64 = SUBGROUP_MASK | HEADER_TAG;
+// This is the base tag for specials
+const SPECIAL_TAG: u64 = NAN;
 
 // This tag indicates a negative integer (i.e. it has our designated sign bit set)
+const NEG_INTEGER_TAG: u64 = INTEGER_TAG | SIGN_BIT;
+// This constant represents the total number of bits that a small integer can fill
+const INT_BITSIZE: usize = INTEGER_TAG.trailing_zeros() as usize;
+// This constant has all of the usable unsigned bits of an integer value set
 #[cfg(test)]
-const NEG_INTEGER_TAG: u64 = INTEGER_TAG | QUIET_BIT;
+const UNSIGNED_BITS: u64 = !(NEG_INTEGER_TAG);
 // This is the largest negative value allowed in an immediate integer
 #[cfg(test)]
-const MIN_SMALL: i64 = NEG_INTEGER_TAG as i64;
+const MIN_SMALL: i64 = !INTEGER_TAG as i64;
 // This is the largest positive value allowed in an immediate integer
 #[cfg(test)]
-const MAX_SMALL: i64 = (!NEG_INTEGER_TAG) as i64;
+const MAX_SMALL: i64 = UNSIGNED_BITS as i64;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ImmediateOutOfRangeError;
@@ -165,6 +191,88 @@ pub enum TermType {
     Port,
     Reference,
     Binary,
+    Match,
+    Code,
+    Catch,
+    Header,
+    Hole,
+}
+impl TermType {
+    #[inline]
+    pub fn is_number(&self) -> bool {
+        match self {
+            Self::Int | Self::Float => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_special(&self) -> bool {
+        match self {
+            Self::Code | Self::Catch | Self::Header | Self::Hole | Self::Match => true,
+            _ => false,
+        }
+    }
+}
+impl PartialOrd for TermType {
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+impl Ord for TermType {
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+        use core::cmp::Ordering;
+        // number < atom < reference < fun < port < pid < tuple < map < nil < list < bit string
+
+        if core::mem::discriminant(self) == core::mem::discriminant(other) {
+            return Ordering::Equal;
+        }
+
+        let lhs_is_number = self.is_number();
+        let rhs_is_number = other.is_number();
+        if lhs_is_number && rhs_is_number {
+            return Ordering::Equal;
+        }
+        if lhs_is_number {
+            return Ordering::Less;
+        }
+        if rhs_is_number {
+            return Ordering::Greater;
+        }
+
+        match (self, other) {
+            (TermType::Atom, _) => Ordering::Less,
+            (_, TermType::Atom) => Ordering::Greater,
+            (TermType::Reference, _) => Ordering::Less,
+            (_, TermType::Reference) => Ordering::Greater,
+            (TermType::Closure, _) => Ordering::Less,
+            (_, TermType::Closure) => Ordering::Greater,
+            (TermType::Port, _) => Ordering::Less,
+            (_, TermType::Port) => Ordering::Greater,
+            (TermType::Pid, _) => Ordering::Less,
+            (_, TermType::Pid) => Ordering::Greater,
+            (TermType::Tuple, _) => Ordering::Less,
+            (_, TermType::Tuple) => Ordering::Greater,
+            (TermType::Map, _) => Ordering::Less,
+            (_, TermType::Map) => Ordering::Greater,
+            (TermType::Nil, _) => Ordering::Less,
+            (_, TermType::Nil) => Ordering::Greater,
+            (TermType::Cons, _) => Ordering::Less,
+            (_, TermType::Cons) => Ordering::Greater,
+            (TermType::Binary, _) => Ordering::Less,
+            (_, TermType::Binary) => Ordering::Greater,
+            (TermType::Match, _) => Ordering::Less,
+            (_, TermType::Match) => Ordering::Greater,
+            (TermType::Code, _) => Ordering::Less,
+            (_, TermType::Code) => Ordering::Greater,
+            (TermType::Catch, _) => Ordering::Less,
+            (_, TermType::Catch) => Ordering::Greater,
+            (TermType::Header, _) => Ordering::Less,
+            (_, TermType::Header) => Ordering::Greater,
+            (TermType::Hole, _) => Ordering::Less,
+            (_, TermType::Hole) => Ordering::Greater,
+            _ => unreachable!(),
+        }
+    }
 }
 
 /// An opaque term is a 64-bit integer value that represents an encoded term value of any type.
@@ -182,28 +290,61 @@ pub enum TermType {
 ///
 /// The set of types given explicit type tags were selected such that the most commonly used types are the
 /// cheapest to type check and decode. In general, we believe the most used to be numbers, atoms, lists, and tuples.
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 #[repr(transparent)]
 pub struct OpaqueTerm(u64);
+impl fmt::Debug for OpaqueTerm {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:064b}", &self.0)
+    }
+}
+impl fmt::Display for OpaqueTerm {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self.r#typeof() {
+            TermType::Invalid => f.write_str("INVALID"),
+            TermType::None => f.write_str("NONE"),
+            TermType::Hole => f.write_str("HOLE"),
+            TermType::Code => write!(f, "Code({:p})", unsafe { self.as_ptr() }),
+            TermType::Catch => write!(f, "Catch({:p})", unsafe { self.as_ptr() }),
+            TermType::Header => write!(f, "{:?}", unsafe { self.as_header() }),
+            TermType::Match => write!(f, "{:?}", unsafe {
+                &*(self.as_ptr() as *const MatchContext)
+            }),
+            term => {
+                let t: Term = (*self).into();
+                write!(f, "{}", &t)
+            }
+        }
+    }
+}
 impl crate::cmp::ExactEq for OpaqueTerm {
     fn exact_eq(&self, other: &Self) -> bool {
+        // Trivial equality
+        if self.eq(other) {
+            return true;
+        }
         let lhs: Term = (*self).into();
         let rhs: Term = (*other).into();
         lhs.exact_eq(&rhs)
     }
 }
-
 impl OpaqueTerm {
     /// Represents the constant value used to signal an invalid term/exception
     pub const NONE: Self = Self(NONE);
     /// Represents the constant value associated with the value of an empty list
     pub const NIL: Self = Self(NIL);
     /// Represents the constant value 0 encoded as an integer
-    pub const ZERO: Self = Self(INTEGER_TAG);
+    pub const ZERO: Self = Self(NEG_INFINITY);
+    /// Represents the constant value 'false'
+    pub const FALSE: Self = Self(FALSE);
+    /// Represents the constant value 'true'
+    pub const TRUE: Self = Self(TRUE);
+    /// The total number of bits that a small integer can use in an OpaqueTerm
+    pub const INT_BITSIZE: usize = INT_BITSIZE;
 
     /// Returns this opaque term as a raw u64
     #[inline(always)]
-    pub fn raw(self) -> u64 {
+    pub const fn raw(self) -> u64 {
         self.0
     }
 
@@ -219,75 +360,145 @@ impl OpaqueTerm {
             NIL => term.write(Term::Nil),
             FALSE => term.write(Term::Bool(false)),
             TRUE => term.write(Term::Bool(true)),
-            i if i & INTEGER_TAG == INTEGER_TAG => term.write(Term::Int(value.as_integer())),
-            other if value.is_nan() => {
-                match other & TAG_MASK {
-                    ATOM_TAG => term.write(Term::Atom(value.as_atom())),
-                    CONS_TAG | CONS_LITERAL_TAG => {
-                        term.write(Term::Cons(NonNull::new_unchecked(
-                            value.as_ptr() as *mut Cons
-                        )));
-                    }
-                    TUPLE_TAG | TUPLE_LITERAL_TAG => {
-                        term.write(Term::Tuple(value.as_tuple_ptr()));
-                    }
-                    RC_TAG => {
-                        let ptr = value.as_ptr();
-                        match Weak::<()>::type_id(ptr) {
-                            super::BinaryData::TYPE_ID => {
-                                let weak: Weak<_> = Weak::from_raw_unchecked(ptr.cast());
-                                term.write(Term::RcBinary(weak));
+            other => match other & GROUP_MASK {
+                INTEGER_TAG => term.write(Term::Int(value.as_integer())),
+                _ => match other & SUBGROUP_MASK {
+                    SPECIAL_TAG => match other & HEADER_TAG {
+                        CATCH_TAG => term.write(Term::Catch(value.as_ptr() as usize >> 3)),
+                        CODE_TAG => term.write(Term::Code(value.as_ptr() as usize >> 3)),
+                        // Header and Hole values are not valid Terms
+                        _tag => return false,
+                    },
+                    INFINITY => match other & TAG_MASK {
+                        ATOM_TAG => term.write(Term::Atom(value.as_atom())),
+                        CONS_TAG | CONS_LITERAL_TAG => {
+                            let mut cell = Gc::<Cons>::from_raw_parts(value.as_ptr(), ());
+                            loop {
+                                if cell.is_move_marker() {
+                                    cell = cell.forwarded_to();
+                                } else {
+                                    term.write(Term::Cons(cell));
+                                    break;
+                                }
                             }
-                            _ => return false,
                         }
-                    }
-                    LITERAL_TAG => {
-                        // Currently, the only possible type which can be flagged as literal without
-                        // any other identifying information is constant BinaryData.
-                        //
-                        // If this ever changes, we will likely need to introduce some kind of header
-                        // to distinguish different types, as we are out of tag bits to use
-                        let ptr = value.as_ptr();
-                        let flags_ptr: *const BinaryFlags = ptr.cast();
-                        let size = (&*flags_ptr).size();
-                        let ptr = ptr::from_raw_parts::<super::BinaryData>(ptr.cast(), size);
-                        term.write(Term::ConstantBinary(&*ptr));
-                    }
-                    0 => {
-                        // This is a GcBox
-                        let ptr = value.as_ptr();
-                        match GcBox::<()>::type_id(ptr) {
-                            Integer::BIGINT_TYPE_ID => {
-                                term.write(Term::BigInt(GcBox::from_raw_unchecked(ptr)));
+                        TUPLE_TAG | TUPLE_LITERAL_TAG => {
+                            let value = value;
+                            let mut header_ptr = value.as_ptr().cast::<OpaqueTerm>();
+                            loop {
+                                let header = *header_ptr;
+                                if header.is_header() {
+                                    let ptr = Gc::<Tuple>::from_raw_parts(
+                                        header_ptr.cast(),
+                                        header.arity(),
+                                    );
+                                    term.write(Term::Tuple(ptr));
+                                    break;
+                                } else {
+                                    header_ptr = header.as_ptr().cast();
+                                }
                             }
-                            super::Map::TYPE_ID => {
-                                term.write(Term::Map(GcBox::from_raw_unchecked(ptr)));
-                            }
-                            super::Closure::TYPE_ID => {
-                                term.write(Term::Closure(GcBox::from_raw_unchecked(ptr)));
-                            }
-                            super::Pid::TYPE_ID => {
-                                term.write(Term::Pid(GcBox::from_raw_unchecked(ptr)));
-                            }
-                            super::Port::TYPE_ID => {
-                                term.write(Term::Port(GcBox::from_raw_unchecked(ptr)));
-                            }
-                            super::Reference::TYPE_ID => {
-                                term.write(Term::Reference(GcBox::from_raw_unchecked(ptr)));
-                            }
-                            super::BinaryData::TYPE_ID => {
-                                term.write(Term::HeapBinary(GcBox::from_raw_unchecked(ptr)));
-                            }
-                            super::BitSlice::TYPE_ID => {
-                                term.write(Term::RefBinary(GcBox::from_raw_unchecked(ptr)));
-                            }
-                            _ => return false,
                         }
+                        RC_TAG => {
+                            let ptr = value.as_ptr();
+                            // When we decode a reference-counted term, we clone a new strong reference.
+                            // This means that reference-counted terms won't be deallocated while an OpaqueTerm
+                            // containing the reference is held on the process heap or stack, until a GC occurs
+                            let header = *ptr.cast::<Header>();
+                            match header.tag() {
+                                Tag::Port => {
+                                    let rc = Arc::<Port>::from_raw(ptr.cast());
+                                    term.write(Term::Port(Arc::clone(&rc)));
+                                    mem::forget(rc);
+                                }
+                                Tag::Binary => {
+                                    let bin = <BinaryData as Boxable>::from_raw_parts(ptr, header);
+                                    let rc = Arc::<BinaryData>::from_raw(bin);
+                                    term.write(Term::RcBinary(Arc::clone(&rc)));
+                                    mem::forget(rc);
+                                }
+                                _ => return false,
+                            }
+                        }
+                        LITERAL_TAG => {
+                            // Currently, the only possible type which can be flagged as literal without
+                            // any other identifying information is constant BinaryData.
+                            let ptr = value.as_ptr();
+                            let ptr = unsafe {
+                                <BinaryData as Boxable>::from_raw_parts(ptr, *ptr.cast::<Header>())
+                            };
+                            // Constant binaries are allocated with a leading usize containing the pointer metadata
+                            term.write(Term::ConstantBinary(&*ptr));
+                        }
+                        0 => {
+                            // This is a Gc
+                            let mut ptr = value.as_ptr();
+                            loop {
+                                let header = *ptr.cast::<OpaqueTerm>();
+                                if header.is_header() {
+                                    let header = Header::from(header);
+                                    match header.tag() {
+                                        Tag::BigInt => {
+                                            let ptr =
+                                                <BigInt as Boxable>::from_raw_parts(ptr, header);
+                                            term.write(Term::BigInt(Gc::from_raw(ptr)));
+                                        }
+                                        Tag::Tuple => {
+                                            let ptr =
+                                                <Tuple as Boxable>::from_raw_parts(ptr, header);
+                                            term.write(Term::Tuple(Gc::from_raw(ptr)));
+                                        }
+                                        Tag::Map => {
+                                            let ptr = <Map as Boxable>::from_raw_parts(ptr, header);
+                                            term.write(Term::Map(Gc::from_raw(ptr)));
+                                        }
+                                        Tag::Closure => {
+                                            let ptr =
+                                                <Closure as Boxable>::from_raw_parts(ptr, header);
+                                            term.write(Term::Closure(Gc::from_raw(ptr)));
+                                        }
+                                        Tag::Pid => {
+                                            let ptr = <Pid as Boxable>::from_raw_parts(ptr, header);
+                                            term.write(Term::Pid(Gc::from_raw(ptr)));
+                                        }
+                                        Tag::Port => {
+                                            // TODO:
+                                            // term.write(Term::Port(Gc::from_raw_parts(ptr, header.arity())));
+                                            todo!()
+                                        }
+                                        Tag::Reference => {
+                                            let ptr =
+                                                <Reference as Boxable>::from_raw_parts(ptr, header);
+                                            term.write(Term::Reference(Gc::from_raw(ptr)));
+                                        }
+                                        Tag::Binary => {
+                                            let ptr = <BinaryData as Boxable>::from_raw_parts(
+                                                ptr, header,
+                                            );
+                                            term.write(Term::HeapBinary(Gc::from_raw(ptr)));
+                                        }
+                                        Tag::Slice => {
+                                            let ptr =
+                                                <BitSlice as Boxable>::from_raw_parts(ptr, header);
+                                            term.write(Term::RefBinary(Gc::from_raw(ptr)));
+                                        }
+                                        Tag::Match => return false,
+                                    }
+                                    break;
+                                } else {
+                                    // This is a forwarded pointer
+                                    assert!(header.is_gcbox());
+                                    ptr = header.as_ptr();
+                                }
+                            }
+                        }
+                        _tag => return false,
+                    },
+                    _ => {
+                        term.write(Term::Float(value.as_float().into()));
                     }
-                    _tag => return false,
-                }
-            }
-            _ => term.write(Term::Float(value.as_float().into())),
+                },
+            },
         }
 
         true
@@ -300,49 +511,202 @@ impl OpaqueTerm {
             NONE => TermType::None,
             NIL => TermType::Nil,
             FALSE | TRUE => TermType::Bool,
-            i if i & INTEGER_TAG == INTEGER_TAG => TermType::Int,
-            _other if !self.is_nan() => TermType::Float,
-            other => {
-                match other & TAG_MASK {
-                    ATOM_TAG => TermType::Atom,
-                    CONS_TAG | CONS_LITERAL_TAG => TermType::Cons,
-                    TUPLE_TAG | TUPLE_LITERAL_TAG => TermType::Tuple,
-                    RC_TAG => {
-                        let ptr = unsafe { self.as_ptr() };
-                        match unsafe { Weak::<()>::type_id(ptr) } {
-                            super::BinaryData::TYPE_ID => TermType::Binary,
-                            _ => TermType::Invalid,
-                        }
-                    }
-                    LITERAL_TAG => {
-                        // Currently, the only possible type which can be flagged as literal without
-                        // any other identifying information is constant BinaryData.
-                        TermType::Binary
-                    }
-                    0 => {
-                        let ptr = unsafe { self.as_ptr() };
-                        match unsafe { GcBox::<()>::type_id(ptr) } {
-                            Integer::BIGINT_TYPE_ID => TermType::Int,
-                            super::Map::TYPE_ID => TermType::Map,
-                            super::Closure::TYPE_ID => TermType::Closure,
-                            super::Pid::TYPE_ID => TermType::Pid,
-                            super::Port::TYPE_ID => TermType::Port,
-                            super::Reference::TYPE_ID => TermType::Reference,
-                            super::BinaryData::TYPE_ID | super::BitSlice::TYPE_ID => {
+            other => match other & GROUP_MASK {
+                INTEGER_TAG => TermType::Int,
+                _ => match other & SUBGROUP_MASK {
+                    // The catch/code types are considered invalid for this function
+                    SPECIAL_TAG => match other & HEADER_TAG {
+                        0 if other & HOLE_TAG == HOLE_TAG => TermType::Hole,
+                        CATCH_TAG => TermType::Catch,
+                        CODE_TAG => TermType::Code,
+                        HEADER_TAG => TermType::Header,
+                        _tag => TermType::Invalid,
+                    },
+                    INFINITY => {
+                        match other & TAG_MASK {
+                            ATOM_TAG => TermType::Atom,
+                            CONS_TAG | CONS_LITERAL_TAG => TermType::Cons,
+                            TUPLE_TAG | TUPLE_LITERAL_TAG => TermType::Tuple,
+                            RC_TAG => {
+                                let ptr = unsafe { self.as_ptr() };
+                                let header = unsafe { *ptr.cast::<Header>() };
+                                match header.tag() {
+                                    Tag::Port => TermType::Port,
+                                    Tag::Binary => TermType::Binary,
+                                    _ => TermType::Invalid,
+                                }
+                            }
+                            LITERAL_TAG => {
+                                // Currently, the only possible type which can be flagged as literal without
+                                // any other identifying information is constant BinaryData.
                                 TermType::Binary
                             }
-                            _ => TermType::Invalid,
+                            0 => {
+                                let mut ptr = unsafe { self.as_ptr() };
+                                loop {
+                                    let header = unsafe { *ptr.cast::<OpaqueTerm>() };
+                                    if header.is_header() {
+                                        return match unsafe { header.tag() } {
+                                            Tag::BigInt => TermType::Int,
+                                            Tag::Tuple => TermType::Tuple,
+                                            Tag::Map => TermType::Map,
+                                            Tag::Closure => TermType::Closure,
+                                            Tag::Pid => TermType::Pid,
+                                            Tag::Port => TermType::Port,
+                                            Tag::Reference => TermType::Reference,
+                                            Tag::Binary | Tag::Slice => TermType::Binary,
+                                            Tag::Match => TermType::Match,
+                                            _ => TermType::Invalid,
+                                        };
+                                    } else {
+                                        // This term is forwarded
+                                        ptr = unsafe { header.as_ptr() };
+                                    }
+                                }
+                            }
+                            _invalid => TermType::Invalid,
                         }
                     }
-                    _invalid => TermType::Invalid,
-                }
-            }
+                    _ => TermType::Float,
+                },
+            },
         }
     }
 
+    #[inline]
+    pub const fn code(ip: usize) -> Self {
+        let ip = (ip as u64) << 3;
+        if ip & SUBGROUP_MASK != 0 {
+            panic!("invalid code pointer, value too large");
+        }
+        Self(ip | CODE_TAG | SPECIAL_TAG)
+    }
+
+    #[inline]
+    pub const fn catch(ip: usize) -> Self {
+        let ip = (ip as u64) << 3;
+        if ip & SUBGROUP_MASK != 0 {
+            panic!("invalid catch pointer, value too large");
+        }
+        Self(ip | CATCH_TAG | SPECIAL_TAG)
+    }
+
+    #[inline]
+    pub const fn header(tag: Tag, arity: usize) -> Self {
+        let arity = (arity as u64) << 6;
+        if arity & SUBGROUP_MASK != 0 {
+            panic!("invalid arity value for header, out of range");
+        }
+        Self(((tag as u64) << 2) | arity | SPECIAL_TAG | HEADER_TAG)
+    }
+
+    /// Returns true if this value is not a valid floating point number (i.e. NaN or infinity)
     #[inline(always)]
-    fn is_nan(self) -> bool {
+    const fn is_nan(self) -> bool {
         self.0 & INFINITY == INFINITY
+    }
+
+    /// Returns true if this value is a boxed term header value
+    #[inline(always)]
+    pub const fn is_header(self) -> bool {
+        const SPECIAL_TAG_HDR: u64 = SPECIAL_TAG | HEADER_TAG;
+        self.0 & SPECIAL_TAG_MASK == SPECIAL_TAG_HDR
+    }
+
+    /// Returns true if this value is a heap hole marker
+    pub const fn is_hole(self) -> bool {
+        const SPECIAL_TAG_HOLE: u64 = SPECIAL_TAG | 0x08;
+        const EXTENDED_SPECIAL_TAG_MASK: u64 = SPECIAL_TAG | TAG_MASK | 0x08;
+        self.0 & EXTENDED_SPECIAL_TAG_MASK == SPECIAL_TAG_HOLE
+    }
+
+    /// Creates a new hole marker value with the given size
+    pub fn hole(size: usize) -> Self {
+        let size = (size as u64)
+            .checked_shl(4)
+            .expect("invalid hole size, value out of range");
+        assert_eq!(size & SUBGROUP_MASK, 0);
+        Self(size | SPECIAL_TAG | 0x08)
+    }
+
+    /// This function checks if the current term is a pointer to a moved term, and
+    /// returns the forwarded pointer, or `None` if the term is not a move marker.
+    ///
+    /// There are three different types of move markers, corresponding to three
+    /// of the four unique types of boxed values:
+    ///
+    /// * Cons cells, which are rewritten such that the cell head is NONE and the
+    /// cell tail is a cons pointer to the new storage location.
+    /// * Tuples, which have their header term rewritten as a tuple pointer to the
+    /// new storage location
+    /// * Gc<T>, which have their type id rewritten to that of the ForwardingMarker
+    /// type, and contain the forwarding address in the box metadata.
+    ///
+    /// The final type of boxed term, using Arc<T>, are reference-counted rather than
+    /// cloned/moved, so they have no need for move markers.
+    pub fn move_marker(self) -> Option<NonNull<()>> {
+        if self.is_nonempty_list() {
+            let ptr = unsafe { self.as_ptr() };
+            // Move marker for cons cells rewrites the cell head as NONE and cell tail as a cons pointer
+            let cons = unsafe { &*ptr.cast::<Cons>() };
+            if cons.is_move_marker() {
+                Some(unsafe { cons.forwarded_to().as_non_null_ptr().cast() })
+            } else {
+                None
+            }
+        } else if self.is_tuple() {
+            let ptr = unsafe { self.as_ptr() };
+            // Move marker for tuples rewrites the header term as a tuple pointer
+            let header = unsafe { *ptr.cast::<OpaqueTerm>() };
+            if header.is_header() {
+                None
+            } else {
+                assert!(header.is_tuple());
+                Some(NonNull::new(unsafe { header.as_ptr() }).unwrap())
+            }
+        } else if self.is_gcbox() {
+            let ptr = unsafe { self.as_ptr() };
+            let header = unsafe { *ptr.cast::<OpaqueTerm>() };
+            if header.is_header() {
+                None
+            } else {
+                Some(unsafe { NonNull::new_unchecked(header.as_ptr()) })
+            }
+        } else {
+            None
+        }
+    }
+
+    /// Returns the tag associated with this header term
+    ///
+    /// # SAFETY
+    ///
+    /// In debug mode this function will panic if the term is not a header,
+    /// but in releases this must be guaranteed by the caller.
+    #[inline]
+    pub unsafe fn tag(self) -> Tag {
+        debug_assert!(self.is_header());
+        let tag = (self.0 & 0b111100) as u8;
+        unsafe { core::mem::transmute::<u8, Tag>(tag >> 2) }
+    }
+
+    /// Returns the arity value associated with this header term
+    ///
+    /// # SAFETY
+    ///
+    /// In debug mode this function will panic if the term is not a header,
+    /// but in releases this must be guaranteed by the caller.
+    #[inline]
+    pub const unsafe fn arity(self) -> usize {
+        debug_assert!(self.is_header());
+        ((self.0 & PTR_MASK) >> 6) as usize
+    }
+
+    /// Returns the size of the hole indicated by a hole marker
+    pub unsafe fn hole_size(self) -> usize {
+        debug_assert!(self.is_hole());
+        const HOLE_SIZE_MASK: u64 = PTR_MASK & !0x08;
+        ((self.0 & HOLE_SIZE_MASK) >> 4) as usize
     }
 
     /// Returns true if this term is a non-boxed value
@@ -352,7 +716,37 @@ impl OpaqueTerm {
     /// NOTE: This returns false for None, as None is not a valid term value
     #[inline(always)]
     pub fn is_immediate(self) -> bool {
-        !self.is_none() && !self.is_box()
+        !self.is_special() && !self.is_box()
+    }
+
+    /// Returns true if this term is a special marker value and not a valid term
+    #[inline]
+    pub fn is_special(self) -> bool {
+        // This is guaranteed to be unique to special marker values
+        self.0 & SUBGROUP_MASK == SPECIAL_TAG
+    }
+
+    /// Returns true if this term is a code pointer
+    #[inline]
+    pub fn is_code(self) -> bool {
+        const SPECIAL_TAG_CODE: u64 = SPECIAL_TAG | CODE_TAG;
+        self.0 & SPECIAL_TAG_MASK == SPECIAL_TAG_CODE
+    }
+
+    /// Returns true if this term is a catch pointer
+    #[inline]
+    pub fn is_catch(self) -> bool {
+        const SPECIAL_TAG_CATCH: u64 = SPECIAL_TAG | CATCH_TAG;
+        self.0 & SPECIAL_TAG_MASK == SPECIAL_TAG_CATCH
+    }
+
+    /// Returns true if this term is a pointer to a match context
+    pub fn is_match_context(self) -> bool {
+        if !self.is_gcbox() {
+            return false;
+        }
+        let header = unsafe { &*self.as_ptr().cast::<Header>() };
+        header.tag() == Tag::Match
     }
 
     /// Returns true if this term is a non-null pointer to a boxed term
@@ -365,36 +759,51 @@ impl OpaqueTerm {
     /// * rc-allocated term
     /// * gcbox-allocated term
     #[inline]
-    pub fn is_box(self) -> bool {
-        // The tag bits uniquely identify all boxed types, but only in conjunction with the hi tag
-        match self.0 & TAG_MASK {
-            // The only special case is the tag for GcBox overlaps with Nil, but GcBox pointers cannot
-            // be null, so that's how we distinguish the two
-            0 => self.0 != NIL && self.0 & (NAN | SIGN_BIT) == INFINITY,
-            LITERAL_TAG | RC_TAG | CONS_TAG | CONS_LITERAL_TAG | TUPLE_TAG | TUPLE_LITERAL_TAG => {
-                // All pointer types use Infinity for their hi tag
-                self.0 & (NAN | SIGN_BIT) == INFINITY
-            }
-            _ => false,
+    pub const fn is_box(self) -> bool {
+        match self.0 {
+            // This is a singleton immediate
+            NIL | TRUE | FALSE => false,
+            other => match other & GROUP_MASK {
+                INTEGER_TAG => false,
+                _ => match other & SUBGROUP_MASK {
+                    // This is a special marker value
+                    SPECIAL_TAG => false,
+                    // Need to check the tag bits to identify immediate vs boxed
+                    INFINITY => match other & TAG_MASK {
+                        // Gc<T>, Literal, Arc<T>, Cons, Tuple
+                        0 | LITERAL_TAG | RC_TAG | CONS_TAG | CONS_LITERAL_TAG | TUPLE_TAG
+                        | TUPLE_LITERAL_TAG => true,
+                        _ => false,
+                    },
+                    // This is a float or integer immediate
+                    _ => false,
+                },
+            },
         }
     }
 
-    /// Returns true if this term is a non-null pointer to a GcBox<T> term
+    /// Returns true if this term is a non-null pointer to a Gc<T> term
     #[inline]
     pub fn is_gcbox(self) -> bool {
-        self.0 & (NAN | SIGN_BIT | TAG_MASK) == INFINITY && self.0 != NIL
+        self.0 & (SUBGROUP_MASK | TAG_MASK) == INFINITY && self.0 != NIL
     }
 
-    /// Returns true if this term is a non-null pointer to a Rc<T> term
+    /// Returns true if this term is a non-null pointer to a Arc<T> term
     #[inline]
     pub fn is_rc(self) -> bool {
-        self.0 & (NAN | SIGN_BIT | TAG_MASK) == (INFINITY | RC_TAG)
+        self.0 & (SUBGROUP_MASK | TAG_MASK) == (INFINITY | RC_TAG) && self.0 != TRUE
     }
 
     /// Returns true if this term is a non-null pointer to a literal term
     #[inline]
     pub fn is_literal(self) -> bool {
-        self.0 & (NAN | SIGN_BIT | TAG_MASK) == (INFINITY | LITERAL_TAG)
+        self.0 & (SUBGROUP_MASK | TAG_MASK) == (INFINITY | LITERAL_TAG)
+    }
+
+    /// Returns true if the underlying bit pattern for this term is all zeroes
+    #[inline(always)]
+    pub fn is_null(self) -> bool {
+        self.0 == 0
     }
 
     /// Returns true if this term is the None value
@@ -412,10 +821,9 @@ impl OpaqueTerm {
     /// Returns true only if this term is an atom
     #[inline]
     pub fn is_atom(self) -> bool {
-        const IS_ATOM: u64 = NAN | ATOM_TAG;
-        const IS_TRUE: u64 = TRUE;
-        match self.0 & (NAN | SIGN_BIT | TAG_MASK) {
-            IS_ATOM | IS_TRUE => true,
+        match self.0 {
+            TRUE | FALSE => true,
+            other if other & (SUBGROUP_MASK | TAG_MASK) == (INFINITY | ATOM_TAG) => true,
             _ => false,
         }
     }
@@ -425,7 +833,7 @@ impl OpaqueTerm {
     /// NOTE: This does not return true for big integers
     #[inline(always)]
     pub fn is_integer(self) -> bool {
-        self.0 & INTEGER_TAG == INTEGER_TAG
+        self.0 & GROUP_MASK == INTEGER_TAG
     }
 
     /// Returns true only if this term is a valid, non-NaN floating-point value
@@ -449,7 +857,7 @@ impl OpaqueTerm {
         const IS_CONS: u64 = INFINITY | CONS_TAG;
         const IS_CONS_LITERAL: u64 = INFINITY | CONS_LITERAL_TAG;
 
-        match self.0 & (NAN | SIGN_BIT | TAG_MASK) {
+        match self.0 & (SUBGROUP_MASK | TAG_MASK) {
             IS_CONS | IS_CONS_LITERAL => true,
             _ => false,
         }
@@ -458,24 +866,53 @@ impl OpaqueTerm {
     /// Returns true if this term is nil or a cons cell pointer
     #[inline]
     pub fn is_list(self) -> bool {
+        self.0 == NIL || self.is_nonempty_list()
+    }
+
+    /// This is a specialized type check for the case where we want to distinguish
+    /// if a term is a pointer to one of the two special pointees which are not allocated
+    /// via Gc, cons cells and tuples.
+    #[inline]
+    pub fn is_cons_or_tuple(self) -> bool {
         const IS_CONS: u64 = INFINITY | CONS_TAG;
         const IS_CONS_LITERAL: u64 = INFINITY | CONS_LITERAL_TAG;
 
-        match self.0 & (NAN | SIGN_BIT | TAG_MASK) {
-            IS_CONS | IS_CONS_LITERAL => true,
-            _ => self.0 == NIL,
+        const IS_TUPLE: u64 = INFINITY | TUPLE_TAG;
+        const IS_TUPLE_LITERAL: u64 = INFINITY | TUPLE_LITERAL_TAG;
+
+        match self.0 & (SUBGROUP_MASK | TAG_MASK) {
+            IS_CONS | IS_CONS_LITERAL | IS_TUPLE | IS_TUPLE_LITERAL => true,
+            _ => false,
         }
     }
 
     /// Returns true if this term is a tuple pointer
     #[inline]
-    pub fn is_tuple(self, arity: Option<NonZeroU32>) -> bool {
+    pub fn is_tuple(self) -> bool {
+        const IS_TUPLE: u64 = INFINITY | TUPLE_TAG;
+        const IS_TUPLE_LITERAL: u64 = INFINITY | TUPLE_LITERAL_TAG;
+
+        match self.0 & (SUBGROUP_MASK | TAG_MASK) {
+            IS_TUPLE | IS_TUPLE_LITERAL => true,
+            _ => false,
+        }
+    }
+
+    /// Returns true if this term is a tuple with the given arity
+    #[inline]
+    pub fn is_tuple_with_arity(self, arity: u32) -> bool {
         match self.tuple_size() {
-            ErlangResult::Ok(n) => match arity {
-                None => true,
-                Some(arity) => arity.get() == n,
-            },
+            ErlangResult::Ok(n) => arity == n,
             ErlangResult::Err(_) => false,
+            _ => unreachable!(),
+        }
+    }
+
+    /// Returns true if this term is a container type for other terms (list/tuple/map/closure)
+    pub fn is_container(self) -> bool {
+        match self.r#typeof() {
+            TermType::Cons | TermType::Tuple | TermType::Map | TermType::Closure => true,
+            _ => false,
         }
     }
 
@@ -485,12 +922,11 @@ impl OpaqueTerm {
         const IS_TUPLE: u64 = INFINITY | TUPLE_TAG;
         const IS_TUPLE_LITERAL: u64 = INFINITY | TUPLE_LITERAL_TAG;
 
-        match self.0 & (NAN | SIGN_BIT | TAG_MASK) {
-            IS_TUPLE | IS_TUPLE_LITERAL => unsafe {
-                let ptr = self.as_ptr();
-                let meta_ptr: *const usize = ptr.cast();
-                ErlangResult::Ok((*meta_ptr) as u32)
-            },
+        match self.0 & (SUBGROUP_MASK | TAG_MASK) {
+            IS_TUPLE | IS_TUPLE_LITERAL => {
+                let header = unsafe { *self.as_ptr().cast::<Header>() };
+                ErlangResult::Ok(header.arity() as u32)
+            }
             _ => ErlangResult::Err(()),
         }
     }
@@ -503,12 +939,13 @@ impl OpaqueTerm {
     pub fn size(self) -> usize {
         use firefly_binary::Bitstring;
         match self.into() {
-            Term::Tuple(tup) => unsafe { tup.as_ref().len() },
+            Term::Tuple(tup) => tup.len(),
+            Term::Map(map) => map.size(),
             Term::Closure(fun) => fun.env_size(),
-            Term::HeapBinary(bin) => bin.len(),
-            Term::RcBinary(bin) => bin.len(),
+            Term::HeapBinary(bin) => bin.byte_size(),
+            Term::RcBinary(bin) => bin.byte_size(),
             Term::RefBinary(slice) => slice.byte_size(),
-            Term::ConstantBinary(bin) => bin.len(),
+            Term::ConstantBinary(bin) => bin.byte_size(),
             _ => 0,
         }
     }
@@ -521,28 +958,31 @@ impl OpaqueTerm {
     /// is a pointer value. A debug assertion is present to catch improper usages in debug builds,
     /// but it is essential that this is only used in conjunction with proper guards in place.
     #[inline]
-    pub unsafe fn as_ptr(self) -> *mut () {
+    pub const unsafe fn as_ptr(self) -> *mut () {
         debug_assert!(self.is_box());
 
         (self.0 & PTR_MASK) as *mut ()
     }
 
-    /// Extracts a NonNull<Tuple> from this term
-    ///
-    /// # Safety
-    ///
-    /// Callers must ensure this opaque term is actually a tuple pointer before calling this.
-    unsafe fn as_tuple_ptr(self) -> NonNull<Tuple> {
-        // A tuple pointer is a pointer to the first element, but it is preceded by
-        // a usize value containing the metadata (i.e. size) for the tuple. To get a
-        // fat pointer, we must first access the metadata, then construct the pointer using
-        // that metadata
-        let ptr = self.as_ptr();
-        let metadata = *(ptr as *const usize);
-        NonNull::from_raw_parts(
-            NonNull::new(ptr).expect("unexpected null pointer"),
-            metadata,
-        )
+    /// Returns a `Header` decoded from this opaque term
+    #[inline]
+    pub unsafe fn as_header(self) -> Header {
+        debug_assert!(self.is_header());
+        Header::from(self)
+    }
+
+    /// Extracts the raw catch pointer from this term
+    #[inline]
+    pub unsafe fn as_catch(self) -> usize {
+        debug_assert!(self.is_catch());
+        ((self.0 & PTR_MASK) >> 3).try_into().unwrap()
+    }
+
+    /// Extracts the raw code pointer from this term
+    #[inline]
+    pub fn as_code(self) -> usize {
+        debug_assert!(self.is_code());
+        ((self.0 & PTR_MASK) >> 3).try_into().unwrap()
     }
 
     /// Extracts the atom value contained in this term.
@@ -555,8 +995,7 @@ impl OpaqueTerm {
             TRUE => atoms::True,
             _ => {
                 let ptr = (self.0 & PTR_MASK) as *mut AtomData;
-                debug_assert_ne!(ptr, 0usize as *mut AtomData);
-                debug_assert_ne!(ptr, 1usize as *mut AtomData);
+                assert!(!ptr.is_null());
                 let ptr = unsafe { NonNull::new_unchecked(ptr) };
                 ptr.into()
             }
@@ -567,12 +1006,12 @@ impl OpaqueTerm {
     ///
     /// This function is always memory safe, but if improperly used will cause weird results, so it is important
     /// that you guard usages of this function with proper type checks.
-    pub fn as_integer(self) -> i64 {
-        const NEG: u64 = INTEGER_TAG | QUIET_BIT;
+    pub unsafe fn as_integer(self) -> i64 {
+        debug_assert!(self.is_integer());
         // Extract the raw 51-bit signed integer
         let raw = self.0 & INT_MASK;
         // Sign-extend to 64-bits by multiplying the extra bits by 1 if signed, 0 if unsigned
-        let sign = ((raw & QUIET_BIT == QUIET_BIT) as u64) * NEG;
+        let sign = ((raw & SIGN_BIT == SIGN_BIT) as u64) * NEG_INTEGER_TAG;
         (raw | sign) as i64
     }
 
@@ -593,45 +1032,43 @@ impl OpaqueTerm {
     }
 
     /// This function can be called when cloning a term that might be reference-counted
-    pub fn maybe_increment_refcount(&self) {
+    pub fn maybe_increment_refcount(&self) -> bool {
         if self.is_rc() {
             // We don't need to cast to a concrete type, as it does not matter for this operation
-            let boxed = ManuallyDrop::new(unsafe { Rc::<()>::from_raw_unchecked(self.as_ptr()) });
-            Rc::increment_strong_count(&*boxed);
+            unsafe {
+                Arc::<()>::increment_strong_count(self.as_ptr());
+            }
+            true
+        } else {
+            false
         }
     }
 
     /// This function can be called when dropping a term that might be reference-counted
-    pub fn maybe_decrement_refcount(&self) {
-        if !self.is_rc() {
-            return;
-        }
-
-        let ptr = unsafe { self.as_ptr() };
-        match unsafe { Rc::<()>::type_id(ptr) } {
-            super::BinaryData::TYPE_ID => {
-                let _: Rc<super::BinaryData> = unsafe { Rc::from_raw_unchecked(ptr) };
+    pub fn maybe_decrement_refcount(&self) -> bool {
+        if self.is_rc() {
+            unsafe {
+                Arc::<()>::decrement_strong_count(self.as_ptr());
             }
-            _ => {
-                todo!("should implement a smarter rc container so we can call destructors opaquely")
-            }
+            true
+        } else {
+            false
         }
     }
 
     /// This function is here to allow the Fn/FnMut/etc. impls to properly re-encode the
     /// callee term when applied from Rust. We currently only allow Closure to be allocated
-    /// via GcBox, so this is safe as long as that holds true, but we explicitly don't implement
+    /// via Gc, so this is safe as long as that holds true, but we explicitly don't implement
     /// From for this conversion, as it is inherently unsafe.
     ///
-    /// NOTE: The encoding here matches that of GcBox<Closure>, which should be exactly equivalent
-    /// as long as the closure being given here was originally allocated via GcBox and not via other
+    /// NOTE: The encoding here matches that of Gc<Closure>, which should be exactly equivalent
+    /// as long as the closure being given here was originally allocated via Gc and not via other
     /// means.
-    pub unsafe fn from_gcbox_closure(closure: &Closure) -> Self {
-        let closure = closure as *const Closure;
+    pub unsafe fn from_gcbox_closure(closure: *const Closure) -> Self {
         let (raw, _) = closure.to_raw_parts();
         let raw = raw as u64;
         debug_assert!(
-            raw & INFINITY == 0,
+            raw & SUBGROUP_MASK == 0,
             "expected nan bits to be unused in pointers"
         );
         debug_assert!(
@@ -639,6 +1076,41 @@ impl OpaqueTerm {
             "expected pointer to have at least 8-byte alignment"
         );
         Self(raw | INFINITY)
+    }
+}
+impl PartialOrd for OpaqueTerm {
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+impl Ord for OpaqueTerm {
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+        use core::cmp::Ordering;
+
+        if self.eq(other) {
+            return Ordering::Equal;
+        }
+
+        // None and the various special types must always be sorted last
+        if self.is_none() || self.is_special() {
+            return Ordering::Greater;
+        }
+        if other.is_none() || other.is_special() {
+            return Ordering::Less;
+        }
+
+        // Before decoding as Term, try to compare based just on the term type
+        let a = self.r#typeof();
+        let b = other.r#typeof();
+        let result = a.cmp(&b);
+        if result != Ordering::Equal {
+            return result;
+        }
+
+        // The term types are equal, so delegate to Term for the more expensive comparison check
+        let a: Term = (*self).into();
+        let b: Term = (*other).into();
+        a.cmp(&b)
     }
 }
 impl fmt::Binary for OpaqueTerm {
@@ -662,13 +1134,12 @@ impl TryFrom<i64> for OpaqueTerm {
     type Error = ImmediateOutOfRangeError;
 
     fn try_from(i: i64) -> Result<Self, Self::Error> {
-        const NEG: u64 = INTEGER_TAG | QUIET_BIT;
         let u = i as u64;
-        match u & NEG {
+        match u & NEG_INTEGER_TAG {
             // Positive integer
             0 => Ok(Self(u | INTEGER_TAG)),
             // Negative integer
-            NEG => Ok(Self(u)),
+            NEG_INTEGER_TAG => Ok(Self(u)),
             // Out of range
             _ => Err(ImmediateOutOfRangeError),
         }
@@ -690,17 +1161,21 @@ impl From<Float> for OpaqueTerm {
 impl From<Atom> for OpaqueTerm {
     #[inline]
     fn from(a: Atom) -> Self {
-        Self(unsafe { a.as_ptr() as u64 | FALSE })
+        if a == atoms::True {
+            Self::TRUE
+        } else if a == atoms::False {
+            Self::FALSE
+        } else {
+            Self(unsafe { a.as_ptr() as u64 | FALSE })
+        }
     }
 }
-impl<T: ?Sized> From<GcBox<T>> for OpaqueTerm
-where
-    gc::PtrMetadata: From<<T as Pointee>::Metadata> + TryInto<<T as Pointee>::Metadata>,
-{
-    fn from(boxed: GcBox<T>) -> Self {
-        let raw = GcBox::into_raw(boxed) as *const () as u64;
+impl<T: ?Sized> From<Gc<T>> for OpaqueTerm {
+    default fn from(boxed: Gc<T>) -> Self {
+        let (raw, _) = boxed.to_raw_parts();
+        let raw = raw as u64;
         debug_assert!(
-            raw & INFINITY == 0,
+            raw & SUBGROUP_MASK == 0,
             "expected nan bits to be unused in pointers"
         );
         debug_assert!(
@@ -710,31 +1185,11 @@ where
         Self(raw | INFINITY)
     }
 }
-impl<T: ?Sized> From<Rc<T>> for OpaqueTerm
-where
-    rc::PtrMetadata: From<<T as Pointee>::Metadata> + TryInto<<T as Pointee>::Metadata>,
-{
-    fn from(boxed: Rc<T>) -> Self {
-        let raw = Rc::into_raw(boxed) as *const () as u64;
+impl<T: ?Sized> From<Arc<T>> for OpaqueTerm {
+    fn from(boxed: Arc<T>) -> Self {
+        let raw = Arc::into_raw(boxed).cast::<()>() as u64;
         debug_assert!(
-            raw & INFINITY == 0,
-            "expected nan bits to be unused in pointers"
-        );
-        debug_assert!(
-            raw & TAG_MASK == 0,
-            "expected pointer to have at least 8-byte alignment"
-        );
-        Self(raw | INFINITY | RC_TAG)
-    }
-}
-impl<T: ?Sized> From<Weak<T>> for OpaqueTerm
-where
-    rc::PtrMetadata: From<<T as Pointee>::Metadata> + TryInto<<T as Pointee>::Metadata>,
-{
-    fn from(weak: Weak<T>) -> Self {
-        let raw = Weak::into_raw(weak) as *const () as u64;
-        debug_assert!(
-            raw & INFINITY == 0,
+            raw & SUBGROUP_MASK == 0,
             "expected nan bits to be unused in pointers"
         );
         debug_assert!(
@@ -746,9 +1201,25 @@ where
 }
 impl From<NonNull<Cons>> for OpaqueTerm {
     fn from(ptr: NonNull<Cons>) -> Self {
-        let raw = ptr.as_ptr() as u64;
+        let (raw, _) = ptr.to_raw_parts();
+        let raw = raw.as_ptr() as u64;
         debug_assert!(
-            raw & INFINITY == 0,
+            raw & SUBGROUP_MASK == 0,
+            "expected nan bits to be unused in pointers"
+        );
+        debug_assert!(
+            raw & TAG_MASK == 0,
+            "expected pointer to have at least 8-byte alignment"
+        );
+        Self(raw | INFINITY | CONS_TAG)
+    }
+}
+impl From<Gc<Cons>> for OpaqueTerm {
+    fn from(ptr: Gc<Cons>) -> Self {
+        let (raw, _) = ptr.to_raw_parts();
+        let raw = raw as u64;
+        debug_assert!(
+            raw & SUBGROUP_MASK == 0,
             "expected nan bits to be unused in pointers"
         );
         debug_assert!(
@@ -763,7 +1234,22 @@ impl From<NonNull<Tuple>> for OpaqueTerm {
         let (raw, _meta) = ptr.to_raw_parts();
         let raw = raw.as_ptr() as u64;
         debug_assert!(
-            raw & INFINITY == 0,
+            raw & SUBGROUP_MASK == 0,
+            "expected nan bits to be unused in pointers"
+        );
+        debug_assert!(
+            raw & TAG_MASK == 0,
+            "expected pointer to have at least 8-byte alignment"
+        );
+        Self(raw | INFINITY | TUPLE_TAG)
+    }
+}
+impl From<Gc<Tuple>> for OpaqueTerm {
+    fn from(ptr: Gc<Tuple>) -> Self {
+        let (raw, _meta) = ptr.to_raw_parts();
+        let raw = raw as u64;
+        debug_assert!(
+            raw & SUBGROUP_MASK == 0,
             "expected nan bits to be unused in pointers"
         );
         debug_assert!(
@@ -777,7 +1263,7 @@ impl From<&'static BinaryData> for OpaqueTerm {
     fn from(data: &'static BinaryData) -> Self {
         let raw = data as *const _ as *const () as u64;
         debug_assert!(
-            raw & INFINITY == 0,
+            raw & SUBGROUP_MASK == 0,
             "expected nan bits to be unused in pointers"
         );
         debug_assert!(
@@ -792,6 +1278,8 @@ impl From<Term> for OpaqueTerm {
         match term {
             Term::None => Self::NONE,
             Term::Nil => Self::NIL,
+            Term::Catch(c) => Self::catch(c),
+            Term::Code(c) => Self::code(c),
             Term::Bool(b) => b.into(),
             Term::Atom(a) => a.into(),
             Term::Int(i) => i.try_into().unwrap(),
@@ -805,7 +1293,7 @@ impl From<Term> for OpaqueTerm {
             Term::Port(boxed) => boxed.into(),
             Term::Reference(boxed) => boxed.into(),
             Term::HeapBinary(boxed) => boxed.into(),
-            Term::RcBinary(weak) => weak.into(),
+            Term::RcBinary(rc) => rc.into(),
             Term::RefBinary(boxed) => boxed.into(),
             Term::ConstantBinary(bytes) => bytes.into(),
         }
@@ -822,22 +1310,59 @@ impl Into<Term> for OpaqueTerm {
         }
     }
 }
+impl TryInto<char> for OpaqueTerm {
+    type Error = ();
+
+    fn try_into(self) -> Result<char, Self::Error> {
+        match self.into() {
+            Term::Int(i) => match i.try_into() {
+                Ok(cp) => char::from_u32(cp).ok_or(()),
+                Err(_) => Err(()),
+            },
+            _ => Err(()),
+        }
+    }
+}
+impl PartialEq<Atom> for OpaqueTerm {
+    fn eq(&self, other: &Atom) -> bool {
+        let atom: Self = (*other).into();
+        atom.eq(self)
+    }
+}
+impl firefly_system::sync::Atom for OpaqueTerm {
+    type Repr = u64;
+
+    #[inline]
+    fn pack(self) -> Self::Repr {
+        self.0
+    }
+
+    #[inline]
+    fn unpack(raw: Self::Repr) -> Self {
+        Self(raw)
+    }
+}
 
 #[cfg(test)]
 mod tests {
     use std::assert_matches::assert_matches;
 
-    use alloc::alloc::Global;
     use alloc::alloc::Layout;
     use alloc::boxed::Box;
+    use alloc::sync::Arc;
     use alloc::vec::Vec;
+    use core::ffi::c_void;
     use core::mem::MaybeUninit;
-    use core::num::NonZeroU32;
-    use core::ptr::NonNull;
+    use core::ptr;
 
+    use firefly_alloc::heap::FixedSizeHeap;
     use firefly_arena::DroplessArena;
     use firefly_binary::{BinaryFlags, Bitstring, Encoding, Selection};
 
+    use crate::drivers::{self, Driver, DriverError, DriverFlags, LoadableDriver};
+    use crate::gc::Gc;
+    use crate::process::ProcessId;
+    use crate::scheduler::SchedulerId;
     use crate::term::*;
 
     use super::*;
@@ -857,21 +1382,19 @@ mod tests {
         unsafe fn alloc(&mut self, bytes: &[u8]) -> &'static BinaryData {
             // Allocate memory for binary metadata and value
             let size = bytes.len();
-            let (layout, value_offset) = Layout::new::<BinaryFlags>()
-                .extend(Layout::from_size_align_unchecked(
-                    size,
-                    mem::align_of::<u8>(),
-                ))
+            let (layout, value_offset) = Layout::new::<Header>()
+                .extend(Layout::array::<u8>(size).unwrap())
                 .unwrap();
             let layout = layout.pad_to_align();
             let ptr = self.arena.alloc_raw(layout);
 
             // Write flags
-            let flags_ptr: *mut BinaryFlags = ptr.cast();
-            flags_ptr.write(BinaryFlags::new_literal(size, Encoding::detect(bytes)));
+            let header_ptr = ptr.cast::<Header>();
+            let flags = BinaryFlags::new(size, Encoding::detect(bytes));
+            header_ptr.write(Header::new(Tag::Binary, flags.into_raw()));
 
             // Write data
-            let bytes_ptr: *mut u8 = (flags_ptr as *mut u8).add(value_offset);
+            let bytes_ptr: *mut u8 = (header_ptr as *mut u8).add(value_offset);
             ptr::copy_nonoverlapping(bytes.as_ptr(), bytes_ptr, size);
 
             // Reify as static reference
@@ -880,8 +1403,93 @@ mod tests {
         }
     }
 
+    #[derive(Copy, Clone)]
+    struct TestDriver;
+
+    struct TestDriverState {
+        #[allow(unused)]
+        port: Arc<Port>,
+    }
+
+    impl LoadableDriver for TestDriver {
+        fn init(&self) -> Result<(), DriverError> {
+            Ok(())
+        }
+        fn name(&self) -> &str {
+            "test_driver"
+        }
+        fn version(&self) -> (u32, u32) {
+            (1, 0)
+        }
+        fn flags(&self) -> DriverFlags {
+            DriverFlags::default()
+        }
+        fn start(
+            &self,
+            port: Arc<MaybeUninit<Port>>,
+            _command: &str,
+        ) -> Result<Box<dyn Driver>, DriverError> {
+            Ok(Box::new(TestDriverState {
+                port: unsafe { port.assume_init() },
+            }))
+        }
+    }
+
+    impl Driver for TestDriverState {
+        fn stop(&self) {
+            unreachable!()
+        }
+        fn output(&self, _buffer: &[u8]) {
+            unreachable!()
+        }
+        fn ready_input(&self, _event: *mut ()) {
+            unreachable!()
+        }
+        fn ready_output(&self, _event: *mut ()) {
+            unreachable!()
+        }
+        fn control(&self, _command: u32, _buf: &[u8], _rbuf: *mut *mut u8, _rlen: usize) -> usize {
+            unreachable!()
+        }
+        fn timeout(&self) {
+            unreachable!()
+        }
+        #[cfg(feature = "std")]
+        fn outputv<'a>(&self, _data: std::io::IoSlice<'a>) {
+            unreachable!()
+        }
+        #[cfg(not(feature = "std"))]
+        fn outputv<'a>(&self, _data: &[&'a [u8]]) {
+            unreachable!()
+        }
+        fn ready_async(&self, _async_data: *mut c_void) {
+            unreachable!()
+        }
+        fn flush(&self) {
+            unreachable!()
+        }
+        fn call(
+            &self,
+            _command: u32,
+            _buf: &[u8],
+            _rbuf: *mut *mut u8,
+            _rlen: usize,
+            _flags: *mut u32,
+        ) -> Result<usize, DriverError> {
+            unreachable!()
+        }
+        fn process_exit(&self, _monitor: drivers::DriverMonitor) {
+            unreachable!()
+        }
+        fn stop_select(&self, _event: drivers::DriverEvent, _reserved: *mut ()) {
+            unreachable!()
+        }
+    }
+
     #[test]
     fn opaque_term_decode() {
+        let heap = FixedSizeHeap::<1024>::default();
+
         let mut term = MaybeUninit::zeroed();
         assert!(unsafe { OpaqueTerm::decode(OpaqueTerm::NONE, term.as_mut_ptr()) });
         assert_eq!(unsafe { term.assume_init() }, Term::None);
@@ -943,82 +1551,89 @@ mod tests {
 
         // Cons
         let mut term = MaybeUninit::zeroed();
-        let cons = Box::into_raw(Cons::new(Term::Nil, Term::Nil));
-        let ptr = unsafe { NonNull::new_unchecked(cons) };
-        assert!(unsafe { OpaqueTerm::decode(ptr.into(), term.as_mut_ptr()) });
-        assert_eq!(unsafe { term.assume_init() }, Term::Cons(ptr));
+        let cons = Cons::new_in(
+            Cons {
+                head: OpaqueTerm::NIL,
+                tail: OpaqueTerm::NIL,
+            },
+            &heap,
+        )
+        .unwrap();
+        assert!(unsafe { OpaqueTerm::decode(cons.into(), term.as_mut_ptr()) });
+        assert_eq!(unsafe { term.assume_init() }, Term::Cons(cons));
 
         // Tuple
         let mut term = MaybeUninit::zeroed();
-        let ptr = Tuple::from_slice(&[atoms::Ok.into(), OpaqueTerm::NIL], Global).unwrap();
-        assert!(unsafe { OpaqueTerm::decode(ptr.into(), term.as_mut_ptr()) });
-        assert_eq!(unsafe { term.assume_init() }, Term::Tuple(ptr));
+        let tuple = Tuple::from_slice(&[atoms::Ok.into(), OpaqueTerm::NIL], &heap).unwrap();
+        assert!(unsafe { OpaqueTerm::decode(tuple.into(), term.as_mut_ptr()) });
+        assert_eq!(unsafe { term.assume_init() }, Term::Tuple(tuple));
 
         // Map
         let mut term = MaybeUninit::zeroed();
-        let mut map = Map::new_in(Global).unwrap();
-        map.insert_mut(Term::Int(1), Term::Atom(atoms::True));
+        let mut map = Map::with_capacity_in(1, &heap).unwrap();
+        map.put_mut(Term::Int(1), Term::Bool(true));
         assert!(unsafe { OpaqueTerm::decode(map.into(), term.as_mut_ptr()) });
         let map = unsafe { term.assume_init() };
         assert_matches!(map, Term::Map(_));
         let Term::Map(map) = map else { unreachable!(); };
-        assert_eq!(map.get(Term::Int(1)), Some(Term::Atom(atoms::True)));
+        let value = map.get(Term::Int(1)).map(|t| t.into());
+        assert_eq!(value, Some(Term::Bool(true)));
 
         // Closure
         let mut term = MaybeUninit::zeroed();
         let fun = erlang_error_1 as *const ();
-        let closure = Closure::new_in(atoms::Erlang, atoms::Error, 1, fun, &[], Global).unwrap();
+        let closure = Closure::new_in(atoms::Erlang, atoms::Error, 1, fun, &[], &heap).unwrap();
         assert!(unsafe { OpaqueTerm::decode(closure.into(), term.as_mut_ptr()) });
         let closure = unsafe { term.assume_init() };
         assert_matches!(closure, Term::Closure(_));
         let Term::Closure(closure) = closure else { unreachable!() };
-        assert_eq!(closure.callee(), fun);
+        assert_eq!(closure.callee, fun);
 
         // Pid
         let mut term = MaybeUninit::zeroed();
-        let pid = Pid::new_local(1, 1).unwrap();
-        let pid2 = GcBox::new(pid.clone());
+        let proc_id = ProcessId::new(1, 1).unwrap();
+        let pid = Pid::new_local(proc_id);
+        let pid2 = Gc::new_in(pid.clone(), &heap).unwrap();
         assert!(unsafe { OpaqueTerm::decode(pid2.into(), term.as_mut_ptr()) });
         let pid2 = unsafe { term.assume_init() };
         assert_matches!(pid2, Term::Pid(_));
-        assert_eq!(pid2, Term::Pid(GcBox::new(pid)));
+        assert_eq!(pid2, Term::Pid(Gc::new(pid.clone())));
 
         // Port
         let mut term = MaybeUninit::zeroed();
-        let port = Port::Local {
-            id: unsafe { PortId::from_raw(1) },
-        };
-        let port2 = GcBox::new(port.clone());
+        let driver = TestDriver;
+        driver.init().unwrap();
+        let id = PortId::from_raw(1);
+        let port = Port::new_with_id(id, pid, "test_driver", &driver).unwrap();
+        let port2 = port.clone();
         assert!(unsafe { OpaqueTerm::decode(port2.into(), term.as_mut_ptr()) });
         let port2 = unsafe { term.assume_init() };
         assert_matches!(port2, Term::Port(_));
-        assert_eq!(port2, Term::Port(GcBox::new(port)));
+        assert_eq!(port2, Term::Port(port));
 
         // Reference
         let mut term = MaybeUninit::zeroed();
-        let reference = Reference::Local {
-            id: ReferenceId::new(1, 1),
-        };
-        let reference2 = GcBox::new(reference.clone());
+        let scheduler_id = unsafe { SchedulerId::from_raw(1) };
+        let reference = Reference::new(unsafe { ReferenceId::new(scheduler_id, 1) });
+        let reference2 = Gc::new_in(reference.clone(), &heap).unwrap();
         assert!(unsafe { OpaqueTerm::decode(reference2.into(), term.as_mut_ptr()) });
         let reference2 = unsafe { term.assume_init() };
         assert_matches!(reference2, Term::Reference(_));
-        assert_eq!(reference2, Term::Reference(GcBox::new(reference)));
+        assert_eq!(reference2, Term::Reference(Gc::new(reference)));
 
         // Binary
         let rc = BinaryData::from_str("testing 1 2 3");
-        let weak = Rc::into_weak(rc.clone());
         let mut term = MaybeUninit::zeroed();
-        assert!(unsafe { OpaqueTerm::decode(weak.into(), term.as_mut_ptr()) });
-        let weak = unsafe { term.assume_init() };
-        assert_matches!(weak, Term::RcBinary(_));
+        assert!(unsafe { OpaqueTerm::decode(rc.clone().into(), term.as_mut_ptr()) });
+        let rc_term = unsafe { term.assume_init() };
+        assert_matches!(rc_term, Term::RcBinary(_));
         let mut term = MaybeUninit::zeroed();
         assert!(unsafe { OpaqueTerm::decode(rc.into(), term.as_mut_ptr()) });
         let rc = unsafe { term.assume_init() };
         assert_matches!(rc, Term::RcBinary(_));
 
         let s = "testing 1 2 3";
-        let mut bin = BinaryData::with_capacity_small(s.as_bytes().len(), Global).unwrap();
+        let mut bin = BinaryData::with_capacity_small(s.as_bytes().len(), &heap).unwrap();
         bin.copy_from_slice(s.as_bytes());
         let mut term = MaybeUninit::zeroed();
         assert!(unsafe { OpaqueTerm::decode(bin.into(), term.as_mut_ptr()) });
@@ -1042,7 +1657,8 @@ mod tests {
         let bits =
             unsafe { core::mem::transmute::<_, &'static dyn Bitstring>(&bin as &dyn Bitstring) };
         let selection = Selection::from_bitstring(bits);
-        let bin = GcBox::new_in(BitSlice::from_selection(bin.into(), selection), Global).unwrap();
+        assert_eq!(selection.as_str(), Some("testing 1 2 3"));
+        let bin = Gc::new_in(BitSlice::from_selection(bin.into(), selection), &heap).unwrap();
         let mut term = MaybeUninit::zeroed();
         assert!(unsafe { OpaqueTerm::decode(bin.into(), term.as_mut_ptr()) });
         let bin = unsafe { term.assume_init() };
@@ -1054,6 +1670,8 @@ mod tests {
     #[test]
     fn opaque_term_typeof() {
         use crate::term::{Closure, Pid, Port, Reference};
+
+        let heap = FixedSizeHeap::<1024>::default();
 
         assert_eq!(OpaqueTerm::NONE.r#typeof(), TermType::None);
         assert_eq!(OpaqueTerm::NIL.r#typeof(), TermType::Nil);
@@ -1084,18 +1702,24 @@ mod tests {
         assert_eq!(term.r#typeof(), TermType::Atom);
 
         // Cons
-        let cons = Box::into_raw(Cons::new(Term::Nil, Term::Nil));
-        let ptr = unsafe { NonNull::new_unchecked(cons) };
-        let term: OpaqueTerm = ptr.into();
+        let cons = Cons::new_in(
+            Cons {
+                head: OpaqueTerm::NIL,
+                tail: OpaqueTerm::NIL,
+            },
+            &heap,
+        )
+        .unwrap();
+        let term: OpaqueTerm = cons.into();
         assert_eq!(term.r#typeof(), TermType::Cons);
 
         // Tuple
-        let ptr = Tuple::from_slice(&[atoms::Ok.into(), OpaqueTerm::NIL], Global).unwrap();
-        let term: OpaqueTerm = ptr.into();
+        let tuple = Tuple::from_slice(&[atoms::Ok.into(), OpaqueTerm::NIL], &heap).unwrap();
+        let term: OpaqueTerm = tuple.into();
         assert_eq!(term.r#typeof(), TermType::Tuple);
 
         // Map
-        let map = Map::new_in(Global).unwrap();
+        let map = Map::new_in(&heap).unwrap();
         let term: OpaqueTerm = map.into();
         assert_eq!(term.r#typeof(), TermType::Map);
 
@@ -1106,41 +1730,43 @@ mod tests {
             1,
             erlang_error_1 as *const (),
             &[],
-            Global,
+            &heap,
         )
         .unwrap();
         let term: OpaqueTerm = closure.into();
         assert_eq!(term.r#typeof(), TermType::Closure);
 
         // Pid
-        let pid = GcBox::new(Pid::new_local(1, 1).unwrap());
-        let term: OpaqueTerm = pid.into();
+        let proc_id = ProcessId::new(1, 1).unwrap();
+        let pid = Gc::new_in(Pid::new_local(proc_id), &heap).unwrap();
+        let term: OpaqueTerm = pid.clone().into();
         assert_eq!(term.r#typeof(), TermType::Pid);
 
         // Port
-        let port = GcBox::new(Port::Local {
-            id: unsafe { PortId::from_raw(1) },
-        });
+        let driver = TestDriver;
+        driver.init().unwrap();
+        let id = PortId::from_raw(1);
+        let port = Port::new_with_id(id, (*pid).clone(), "test_driver", &driver).unwrap();
         let term: OpaqueTerm = port.into();
         assert_eq!(term.r#typeof(), TermType::Port);
 
         // Reference
-        let reference = GcBox::new(Reference::Local {
-            id: ReferenceId::new(1, 1),
-        });
+        let scheduler_id = unsafe { SchedulerId::from_raw(1) };
+        let reference = Gc::new_in(
+            Reference::new(unsafe { ReferenceId::new(scheduler_id, 1) }),
+            &heap,
+        )
+        .unwrap();
         let term: OpaqueTerm = reference.into();
         assert_eq!(term.r#typeof(), TermType::Reference);
 
         // Binary
         let rc = BinaryData::from_str("testing 1 2 3");
-        let weak = Rc::into_weak(rc.clone());
         let rc_term: OpaqueTerm = rc.into();
-        let weak_term: OpaqueTerm = weak.into();
         assert_eq!(rc_term.r#typeof(), TermType::Binary);
-        assert_eq!(weak_term.r#typeof(), TermType::Binary);
 
         let s = "testing 1 2 3";
-        let gcbox = BinaryData::with_capacity_small(s.as_bytes().len(), Global).unwrap();
+        let gcbox = BinaryData::with_capacity_small(s.as_bytes().len(), &heap).unwrap();
         let box_term: OpaqueTerm = gcbox.into();
         assert_eq!(box_term.r#typeof(), TermType::Binary);
 
@@ -1155,7 +1781,7 @@ mod tests {
         let bits =
             unsafe { core::mem::transmute::<_, &'static dyn Bitstring>(&bin as &dyn Bitstring) };
         let selection = Selection::from_bitstring(bits);
-        let bin = GcBox::new_in(BitSlice::from_selection(term, selection), Global).unwrap();
+        let bin = Gc::new_in(BitSlice::from_selection(term, selection), &heap).unwrap();
         let term: OpaqueTerm = bin.into();
         assert_eq!(term.r#typeof(), TermType::Binary);
     }
@@ -1176,7 +1802,7 @@ mod tests {
         assert!(!OpaqueTerm::NONE.is_number());
         assert!(!OpaqueTerm::NONE.is_nonempty_list());
         assert!(!OpaqueTerm::NONE.is_list());
-        assert!(!OpaqueTerm::NONE.is_tuple(None));
+        assert!(!OpaqueTerm::NONE.is_tuple());
         assert_eq!(OpaqueTerm::NONE.tuple_size(), ErlangResult::Err(()));
     }
 
@@ -1205,7 +1831,7 @@ mod tests {
             assert!(float.is_number());
             assert!(!float.is_nonempty_list());
             assert!(!float.is_list());
-            assert!(!float.is_tuple(None));
+            assert!(!float.is_tuple());
             assert_eq!(float.tuple_size(), ErlangResult::Err(()));
         }
     }
@@ -1236,7 +1862,7 @@ mod tests {
             assert!(int.is_number());
             assert!(!int.is_nonempty_list());
             assert!(!int.is_list());
-            assert!(!int.is_tuple(None));
+            assert!(!int.is_tuple());
             assert_eq!(int.tuple_size(), ErlangResult::Err(()));
         }
     }
@@ -1276,7 +1902,7 @@ mod tests {
             assert!(!atom.is_number());
             assert!(!atom.is_nonempty_list());
             assert!(!atom.is_list());
-            assert!(!atom.is_tuple(None));
+            assert!(!atom.is_tuple());
             assert_eq!(atom.tuple_size(), ErlangResult::Err(()));
         }
     }
@@ -1301,7 +1927,7 @@ mod tests {
         assert!(!term.is_number());
         assert!(!term.is_nonempty_list());
         assert!(!term.is_list());
-        assert!(!term.is_tuple(None));
+        assert!(!term.is_tuple());
         assert_eq!(term.tuple_size(), ErlangResult::Err(()));
     }
 
@@ -1321,19 +1947,23 @@ mod tests {
         assert!(!OpaqueTerm::NIL.is_number());
         assert!(!OpaqueTerm::NIL.is_nonempty_list());
         assert!(OpaqueTerm::NIL.is_list());
-        assert!(!OpaqueTerm::NIL.is_tuple(None));
+        assert!(!OpaqueTerm::NIL.is_tuple());
         assert_eq!(OpaqueTerm::NIL.tuple_size(), ErlangResult::Err(()));
     }
 
     #[test]
     fn opaque_term_cons() {
+        let heap = FixedSizeHeap::<128>::default();
         // A list containing a single empty list, e.g. `[[]]`
-        let list = Cons::new(OpaqueTerm::NIL, OpaqueTerm::NIL);
-        let list = unsafe { NonNull::new_unchecked(Box::into_raw(list)) };
+        let list = Cons::new_in(
+            Cons {
+                head: OpaqueTerm::NIL,
+                tail: OpaqueTerm::NIL,
+            },
+            &heap,
+        )
+        .unwrap();
         let cons: OpaqueTerm = list.into();
-
-        // Ensure we drop the allocation if the test fails
-        let drop = unsafe { Box::from_raw(list.as_ptr()) };
 
         assert!(cons.is_nan());
         assert!(!cons.is_nil());
@@ -1348,54 +1978,55 @@ mod tests {
         assert!(!cons.is_number());
         assert!(cons.is_nonempty_list());
         assert!(cons.is_list());
-        assert!(!cons.is_tuple(None));
+        assert!(!cons.is_tuple());
         assert_eq!(cons.tuple_size(), ErlangResult::Err(()));
-
-        let _ = drop;
     }
 
     #[test]
     fn opaque_term_tuple() {
+        let heap = FixedSizeHeap::<128>::default();
+
         // A list containing a single empty list, e.g. `[[]]`
-        let ptr = Tuple::from_slice(
+        let tuple = Tuple::from_slice(
             &[atoms::True.into(), atoms::False.into(), OpaqueTerm::NIL],
-            Global,
+            &heap,
         )
         .unwrap();
-        let tuple = unsafe { &*ptr.as_ptr() };
         assert_eq!(tuple.len(), 3);
-        let tuple: OpaqueTerm = ptr.into();
+        let opaque: OpaqueTerm = tuple.into();
 
-        assert_eq!(ptr.as_ptr().to_raw_parts(), unsafe {
-            tuple.as_tuple_ptr().as_ptr().to_raw_parts()
-        });
-        assert!(tuple.is_nan());
-        assert!(!tuple.is_nil());
-        assert!(!tuple.is_immediate());
-        assert!(tuple.is_box());
-        assert!(!tuple.is_gcbox());
-        assert!(!tuple.is_rc());
-        assert!(!tuple.is_literal());
-        assert!(!tuple.is_atom());
-        assert!(!tuple.is_integer());
-        assert!(!tuple.is_float());
-        assert!(!tuple.is_number());
-        assert!(!tuple.is_nonempty_list());
-        assert!(!tuple.is_list());
-        assert_eq!(tuple.tuple_size(), ErlangResult::Ok(3));
-        assert!(tuple.is_tuple(None));
-        assert!(tuple.is_tuple(NonZeroU32::new(3)));
-        assert!(!tuple.is_tuple(NonZeroU32::new(2)));
-        assert!(!tuple.is_tuple(NonZeroU32::new(4)));
+        let term: Term = opaque.into();
+        assert_eq!(Term::Tuple(tuple), term);
+        assert!(opaque.is_nan());
+        assert!(!opaque.is_nil());
+        assert!(!opaque.is_immediate());
+        assert!(opaque.is_box());
+        assert!(!opaque.is_gcbox());
+        assert!(!opaque.is_rc());
+        assert!(!opaque.is_literal());
+        assert!(!opaque.is_atom());
+        assert!(!opaque.is_integer());
+        assert!(!opaque.is_float());
+        assert!(!opaque.is_number());
+        assert!(!opaque.is_nonempty_list());
+        assert!(!opaque.is_list());
+        assert_eq!(opaque.tuple_size(), ErlangResult::Ok(3));
+        assert!(opaque.is_tuple());
+        assert!(opaque.is_tuple_with_arity(3));
+        assert!(!opaque.is_tuple_with_arity(2));
+        assert!(!opaque.is_tuple_with_arity(4));
     }
 
     #[test]
     fn opaque_term_gcbox() {
-        let mut boxed = Map::new_in(Global).unwrap();
-        boxed.insert_mut(Term::Int(1), Term::Atom(atoms::True));
+        let heap = FixedSizeHeap::<128>::default();
+
+        let mut boxed = Map::with_capacity_in(1, &heap).unwrap();
+        assert_eq!(boxed.size(), 1);
+        boxed.put_mut(Term::Int(1), Term::Atom(atoms::True));
         // Save the raw pointer
-        let ptr = GcBox::into_raw(boxed);
-        let boxed = unsafe { GcBox::from_raw(ptr) };
+        let (ptr, metadata) = boxed.to_raw_parts();
+        let boxed = unsafe { Gc::<Map>::from_raw_parts(ptr, metadata) };
         let map: OpaqueTerm = boxed.into();
 
         assert_eq!(ptr as *mut (), unsafe { map.as_ptr() });
@@ -1412,31 +2043,22 @@ mod tests {
         assert!(!map.is_number());
         assert!(!map.is_nonempty_list());
         assert!(!map.is_list());
-        assert!(!map.is_tuple(None));
+        assert!(!map.is_tuple());
         assert_eq!(map.tuple_size(), ErlangResult::Err(()));
-
-        let boxed = unsafe { GcBox::from_raw(ptr) };
-        unsafe { GcBox::drop_in(boxed, Global) }
     }
 
     #[test]
     fn opaque_term_rcbox() {
         let boxed = BinaryData::from_str("testing 1 2 3");
-        let weak = Rc::into_weak(boxed.clone());
         // Save the raw pointers
-        let rc_ptr = Rc::into_raw(boxed);
-        let weak_ptr = Weak::into_raw(weak);
-        let rc = unsafe { Rc::from_raw(rc_ptr) };
-        let weak = unsafe { Weak::from_raw(weak_ptr) };
+        let rc_ptr = Arc::into_raw(boxed);
+        let rc = unsafe { Arc::from_raw(rc_ptr) };
         let rc_bin: OpaqueTerm = rc.into();
-        let weak_bin: OpaqueTerm = weak.into();
 
         // The pointers should all be to the same object
         assert_eq!(rc_ptr as *mut (), unsafe { rc_bin.as_ptr() });
-        assert_eq!(weak_ptr as *mut (), unsafe { weak_bin.as_ptr() });
-        assert_eq!(unsafe { rc_bin.as_ptr() }, unsafe { weak_bin.as_ptr() });
 
-        for bin in &[rc_bin, weak_bin] {
+        for bin in &[rc_bin] {
             assert!(bin.is_nan());
             assert!(!bin.is_nil());
             assert!(!bin.is_immediate());
@@ -1450,11 +2072,11 @@ mod tests {
             assert!(!bin.is_number());
             assert!(!bin.is_nonempty_list());
             assert!(!bin.is_list());
-            assert!(!bin.is_tuple(None));
+            assert!(!bin.is_tuple());
             assert_eq!(bin.tuple_size(), ErlangResult::Err(()));
         }
 
-        let _ = unsafe { Rc::from_raw(rc_ptr) };
+        let _ = unsafe { Arc::from_raw(rc_ptr) };
     }
 
     // Used for closure construction

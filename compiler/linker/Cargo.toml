@@ -1,0 +1,29 @@
+[package]
+name = "firefly_linker"
+version.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+categories.workspace = true
+keywords.workspace = true
+license.workspace = true
+readme.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+anyhow = { workspace = true, features = ["std"] }
+cc.workspace = true
+firefly_diagnostics = { path = "../diagnostics" }
+firefly_intern = { path = "../intern" }
+firefly_llvm = { path = "../llvm" }
+firefly_session = { path = "../session" }
+firefly_target = { path = "../target" }
+firefly_util = { path = "../util" }
+libc = { workspace = true, features = ["std"] }
+log.workspace = true
+tempfile = "3.3"
+thiserror.workspace = true
+
+[build-dependencies]
+firefly_llvm = { path = "../llvm" }

@@ -1,53 +1,22 @@
-#ifndef FIREFLY_TARGET_H
-#define FIREFLY_TARGET_H
+#pragma once
 
-#include "mlir-c/Support.h"
-#include "mlir/CAPI/Support.h"
-#include "llvm-c/TargetMachine.h"
-#include "llvm/ADT/Optional.h"
-#include "llvm/ADT/Triple.h"
-#include "llvm/Support/CBindingWrapping.h"
-#include "llvm/Target/TargetMachine.h"
+#include "firefly/llvm/CAPI.h"
 
-#include <stdlib.h>
+#include "llvm-c/Core.h"
+#include "llvm/IR/DataLayout.h"
+#include "llvm/Support/CodeGen.h"
 
-namespace firefly {
+#if defined(_WIN32)
+#include "windows.h"
+#endif
 
-using CodeGenOptLevel = ::llvm::CodeGenOpt::Level;
+namespace llvm {
+class TargetMachine;
+class DataLayout;
+} // namespace llvm
 
-enum class CodeModel {
-  Other,
-  Small,
-  Kernel,
-  Medium,
-  Large,
-  None,
-};
-
-enum class OptLevel {
-  Other,
-  None,
-  Less,
-  Default,
-  Aggressive,
-};
-
-enum class SizeLevel {
-  Other,
-  None,
-  Less,
-  Aggressive,
-};
-
-enum class RelocModel {
-  Static,
-  Pic,
-  Pie,
-  DynamicNoPic,
-  Ropi,
-  Rwpi,
-  RopiRwpi,
-};
+extern "C" {
+DEFINE_C_API_STRUCT(LLVMTargetMachineRef, void);
 
 struct TargetMachineConfig {
   MlirStringRef triple;
@@ -62,19 +31,61 @@ struct TargetMachineConfig {
   bool emitStackSizeSection;
   bool preserveAsmComments;
   bool enableThreading;
-  CodeModel codeModel;
-  RelocModel relocModel;
-  OptLevel optLevel;
-  SizeLevel sizeLevel;
+  llvm::CodeModel::Model *codeModel;
+  llvm::Reloc::Model *relocModel;
+  llvm::CodeGenOpt::Level optLevel;
 };
+}
 
-llvm::Optional<llvm::CodeModel::Model> toLLVM(CodeModel cm);
+DEFINE_C_API_PTR_METHODS(LLVMTargetMachineRef, llvm::TargetMachine);
 
-llvm::CodeGenOpt::Level toLLVM(OptLevel level);
+extern "C" {
+MLIR_CAPI_EXPORTED bool LLVMFireflyHasFeature(LLVMTargetMachineRef tm,
+                                              const char *feature);
+MLIR_CAPI_EXPORTED void PrintTargetCPUs(LLVMTargetMachineRef tm);
+MLIR_CAPI_EXPORTED void PrintTargetFeatures(LLVMTargetMachineRef tm);
+MLIR_CAPI_EXPORTED LLVMTargetMachineRef
+LLVMFireflyCreateTargetMachine(TargetMachineConfig *conf, char **error);
 
-unsigned toLLVM(SizeLevel level);
-
-llvm::Reloc::Model toLLVM(RelocModel model);
-} // namespace firefly
-
+#if defined(_WIN32)
+MLIR_CAPI_EXPORTED bool LLVMTargetMachineEmitToFileDescriptor(
+    LLVMTargetMachineRef t, LLVMModuleRef m, HANDLE handle,
+    llvm::CodeGenFileType codegen, char **errorMessage);
+#else
+MLIR_CAPI_EXPORTED bool
+LLVMTargetMachineEmitToFileDescriptor(LLVMTargetMachineRef t, LLVMModuleRef m,
+                                      int fd, llvm::CodeGenFileType codegen,
+                                      char **errorMessage);
 #endif
+
+MLIR_CAPI_EXPORTED void LLVM_InitializeAllTargetInfos(void);
+
+MLIR_CAPI_EXPORTED void LLVM_InitializeAllTargets(void);
+
+MLIR_CAPI_EXPORTED void LLVM_InitializeAllTargetMCs(void);
+
+MLIR_CAPI_EXPORTED void LLVM_InitializeAllAsmPrinters(void);
+
+MLIR_CAPI_EXPORTED void LLVM_InitializeAllAsmParsers(void);
+
+MLIR_CAPI_EXPORTED void LLVM_InitializeAllDisassemblers(void);
+
+/* These functions return true on failure. */
+
+MLIR_CAPI_EXPORTED LLVMBool LLVM_InitializeNativeTarget(void);
+
+MLIR_CAPI_EXPORTED LLVMBool LLVM_InitializeNativeAsmParser(void);
+
+MLIR_CAPI_EXPORTED LLVMBool LLVM_InitializeNativeAsmPrinter(void);
+
+MLIR_CAPI_EXPORTED LLVMBool LLVM_InitializeNativeDisassembler(void);
+
+MLIR_CAPI_EXPORTED LLVMTargetDataRef
+LLVMCreateTargetDataLayout(LLVMTargetMachineRef tm);
+
+MLIR_CAPI_EXPORTED void LLVMDisposeTargetMachine(LLVMTargetMachineRef tm);
+
+MLIR_CAPI_EXPORTED char *LLVMGetHostCPUName(void);
+
+MLIR_CAPI_EXPORTED char *LLVMGetTargetMachineTriple(LLVMTargetMachineRef tm);
+}

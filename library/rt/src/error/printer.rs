@@ -2,7 +2,7 @@ use std::io::{self, Write};
 
 use termcolor::{BufferWriter, Color, ColorChoice, ColorSpec, WriteColor};
 
-use crate::backtrace::Symbol;
+use crate::backtrace::{Symbol, Trace};
 use crate::error::ErlangException;
 use crate::process::Process;
 use crate::term::*;
@@ -67,7 +67,7 @@ pub fn print(process: &Process, exception: &ErlangException) -> io::Result<()> {
 
     writer.set_color(&bold)?;
 
-    write!(writer, "\nProcess ({}) ", Pid::Local { id: process.pid() })?;
+    write!(writer, "\nProcess ({}) ", process.pid())?;
 
     let kind = exception.kind();
     let kind_suffix = if kind == atoms::Error {
@@ -83,6 +83,76 @@ pub fn print(process: &Process, exception: &ErlangException) -> io::Result<()> {
     writeln!(writer, "{}", kind_suffix)?;
     writer.set_color(&yellow)?;
     writeln!(writer, "  {}\n", exception.reason())?;
+
+    writer.reset()?;
+
+    stderr.print(&writer)
+}
+
+pub fn print_exit(process: &Process, reason: Term, trace: Option<&Trace>) -> io::Result<()> {
+    let stderr = BufferWriter::stderr(ColorChoice::Auto);
+    let mut writer = stderr.buffer();
+
+    let mut bold = ColorSpec::new();
+    bold.set_bold(true);
+    let mut underlined = ColorSpec::new();
+    underlined.set_dimmed(true);
+
+    let mut yellow = ColorSpec::new();
+    yellow.set_fg(Some(Color::Yellow));
+    let mut green = ColorSpec::new();
+    green.set_fg(Some(Color::Green));
+
+    if let Some(trace) = trace {
+        writer.set_color(&bold)?;
+        writeln!(writer, "Backtrace (most recent call last):")?;
+
+        for symbol in trace.iter_symbols().rev() {
+            let mfa = match symbol.symbol() {
+                Some(Symbol::Erlang(mfa)) => alloc::format!("{}", mfa),
+                Some(Symbol::Native(name)) => name.clone(),
+                None => continue,
+            };
+            let filename = symbol.filename();
+
+            writer.reset()?;
+            write!(writer, "  File ")?;
+
+            match filename {
+                Some(f) => {
+                    writer.set_color(&underlined)?;
+                    write_filename(&mut writer, f)?;
+                    writer.reset()?;
+                    if let Some(line) = symbol.line() {
+                        write!(writer, ":")?;
+                        writer.set_color(&yellow)?;
+                        write!(writer, "{}", line)?;
+                    }
+                    if let Some(col) = symbol.column() {
+                        write!(writer, ":")?;
+                        writer.set_color(&yellow)?;
+                        write!(writer, "{}", col)?;
+                    }
+                }
+                None => {
+                    writer.set_color(&underlined)?;
+                    write!(writer, "<unknown>")?;
+                }
+            }
+
+            writer.reset()?;
+            write!(writer, ", in ")?;
+            writer.set_color(&green)?;
+            writeln!(writer, "{}", &mfa)?;
+        }
+    }
+
+    writer.set_color(&bold)?;
+
+    write!(writer, "\nProcess ({}) exited abnormally.", process.pid())?;
+
+    writer.set_color(&yellow)?;
+    writeln!(writer, "  {}\n", reason)?;
 
     writer.reset()?;
 

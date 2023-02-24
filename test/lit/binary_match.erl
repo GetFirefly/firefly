@@ -1,4 +1,4 @@
-%% RUN: @firefly compile -C no_default_init --bin -o @tempfile @file && @tempfile
+%% RUN: @firefly compile --bin -o @tempfile @file && @tempfile
 
 %% CHECK: <<"Flag: root Value:
 %% CHECK: <<"Flag: progname Value: 

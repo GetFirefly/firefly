@@ -8,7 +8,7 @@ use byteorder::WriteBytesExt;
 
 use libflate::zlib;
 
-use firefly_number::{BigInt, Integer, ToPrimitive};
+use firefly_number::{BigInt, Int, ToPrimitive};
 
 use self::convert::TryAsRef;
 
@@ -165,7 +165,7 @@ impl<R: std::io::Read> Decoder<R> {
         let size = self.reader.read_u16::<BigEndian>()? as usize;
         let mut elements = Vec::with_capacity(size);
         for _ in 0..size {
-            elements.push(Term::from(Integer::from(self.reader.read_u8()? as i64)));
+            elements.push(Term::from(Int::from(self.reader.read_u8()? as i64)));
         }
         Ok(Term::from(List::from(elements)))
     }
@@ -358,12 +358,12 @@ impl<R: std::io::Read> Decoder<R> {
 
     fn decode_small_integer_ext(&mut self) -> DecodeResult {
         let value = self.reader.read_u8()?;
-        Ok(Term::from(Integer::from(value as i64)))
+        Ok(Term::from(Int::from(value as i64)))
     }
 
     fn decode_integer_ext(&mut self) -> DecodeResult {
         let value = self.reader.read_i32::<BigEndian>()?;
-        Ok(Term::from(Integer::from(value)))
+        Ok(Term::from(Int::from(value)))
     }
 
     fn decode_small_big_ext(&mut self) -> DecodeResult {
@@ -372,7 +372,7 @@ impl<R: std::io::Read> Decoder<R> {
         self.buf.resize(count, 0);
         self.reader.read_exact(&mut self.buf)?;
         let value = BigInt::from_bytes_le(auxiliary::byte_to_sign(sign)?, &self.buf);
-        Ok(Term::from(Integer::from(value)))
+        Ok(Term::from(Int::from(value)))
     }
 
     fn decode_large_big_ext(&mut self) -> DecodeResult {
@@ -381,7 +381,7 @@ impl<R: std::io::Read> Decoder<R> {
         self.buf.resize(count, 0);
         self.reader.read_exact(&mut self.buf)?;
         let value = BigInt::from_bytes_le(auxiliary::byte_to_sign(sign)?, &self.buf);
-        Ok(Term::from(Integer::from(value)))
+        Ok(Term::from(Int::from(value)))
     }
 
     fn decode_atom_ext(&mut self) -> DecodeResult {
@@ -451,7 +451,7 @@ impl<W: std::io::Write> Encoder<W> {
                 self.encode_list(&list)
             }
             Term::Integer(ref i) => match i {
-                Integer::Small(i) => {
+                Int::Small(i) => {
                     let i = *i;
                     let j: Option<i32> = i.try_into().ok();
                     match j {
@@ -462,7 +462,7 @@ impl<W: std::io::Write> Encoder<W> {
                         }
                     }
                 }
-                Integer::Big(ref i) => self.encode_big_integer(i),
+                Int::Big(ref i) => self.encode_big_integer(i),
             },
             Term::Float(ref x) => self.encode_float(x),
             Term::Pid(ref x) => self.encode_pid(x),
@@ -486,7 +486,7 @@ impl<W: std::io::Write> Encoder<W> {
 
     fn encode_list(&mut self, x: &List) -> EncodeResult {
         let to_byte = |e: &Term| {
-            let i: Option<&Integer> = e.try_as_ref();
+            let i: Option<&Int> = e.try_as_ref();
             i.and_then(|i| i.to_u8())
         };
         if !x.elements.is_empty()

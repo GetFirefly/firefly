@@ -3,9 +3,9 @@ use std::convert::TryFrom;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use firefly_diagnostics::*;
 use firefly_intern::{symbols, Symbol};
 use firefly_parser::Source;
+use firefly_util::diagnostics::*;
 
 use crate::ast::Literal;
 use crate::evaluator;
@@ -18,12 +18,11 @@ use super::token_reader::{TokenBufferReader, TokenReader, TokenStreamReader};
 use super::{Directive, MacroCall, MacroContainer, MacroDef, MacroIdent};
 use super::{Preprocessed, PreprocessorError, Result as PResult};
 
-pub struct Preprocessor<Reader: TokenReader> {
-    reporter: Reporter,
+pub struct Preprocessor<'a, Reader: TokenReader> {
+    diagnostics: &'a DiagnosticsHandler,
     codemap: Arc<CodeMap>,
     reader: Reader,
     can_directive_start: bool,
-    directives: BTreeMap<SourceIndex, Directive>,
     code_paths: VecDeque<PathBuf>,
     include_paths: VecDeque<PathBuf>,
     branches: Vec<Branch>,
@@ -33,11 +32,11 @@ pub struct Preprocessor<Reader: TokenReader> {
     warnings_as_errors: bool,
     no_warn: bool,
 }
-impl<S> Preprocessor<TokenStreamReader<S>>
+impl<'a, S> Preprocessor<'a, TokenStreamReader<S>>
 where
     S: Source,
 {
-    pub fn new(parser: &Parser, tokens: Lexer<S>, reporter: Reporter) -> Self {
+    pub fn new(parser: &Parser, tokens: Lexer<S>, diagnostics: &'a DiagnosticsHandler) -> Self {
         let reader = TokenStreamReader::new(parser.codemap.clone(), tokens);
         let code_paths = parser.config.code_paths.clone();
         let include_paths = parser.config.include_paths.clone();
@@ -63,12 +62,11 @@ where
             MacroDef::Dynamic(vec![]),
         );
 
-        Preprocessor {
-            reporter,
+        Self {
+            diagnostics,
             codemap: parser.codemap.clone(),
             reader,
             can_directive_start: true,
-            directives: BTreeMap::new(),
             code_paths,
             include_paths,
             branches: Vec::new(),
@@ -80,19 +78,18 @@ where
         }
     }
 }
-impl<R, S> Preprocessor<R>
+impl<'a, R, S> Preprocessor<'a, R>
 where
     R: TokenReader<Source = S>,
 {
-    fn clone_with(&self, tokens: VecDeque<Lexed>) -> Preprocessor<TokenBufferReader> {
+    fn clone_with(&self, tokens: VecDeque<Lexed>) -> Preprocessor<'a, TokenBufferReader> {
         let codemap = self.codemap.clone();
         let reader = TokenBufferReader::new(codemap.clone(), tokens);
         Preprocessor {
-            reporter: self.reporter.clone(),
+            diagnostics: self.diagnostics,
             codemap,
             reader,
             can_directive_start: false,
-            directives: BTreeMap::new(),
             code_paths: self.code_paths.clone(),
             include_paths: self.include_paths.clone(),
             branches: Vec::new(),
@@ -114,17 +111,10 @@ where
                 return Ok(Some(token));
             }
             if self.can_directive_start {
-                match self.try_read_directive().map_err(ParserError::from)? {
-                    Some(Directive::Module(d)) => {
-                        // We need to expand this directive back to a token stream for the parser
-                        self.expanded_tokens = d.expand();
-                        // Otherwise treat it like other directives
-                        self.directives
-                            .insert(d.span().start(), Directive::Module(d));
-                        continue;
-                    }
-                    Some(d) => {
-                        self.directives.insert(d.span().start(), d);
+                match self.reader.try_read().map_err(ParserError::from)? {
+                    Some(directive) => {
+                        self.try_handle_directive(directive)
+                            .map_err(ParserError::from)?;
                         continue;
                     }
                     None => (),
@@ -224,13 +214,19 @@ where
                                 }
                             }
                             _ => {
-                                self.reporter.show_warning("invalid call to ?FEATURE_AVAILABLE", &[(span, "expected feature name to be an atom, this feature will be considered unavailable")]);
+                                self.diagnostics.diagnostic(Severity::Warning)
+                                    .with_message("invalid call to ?FEATURE_AVAILABLE")
+                                    .with_primary_label(span, "expected feature name to be an atom, this feature will be considered unavailable")
+                                    .emit();
                                 LexicalToken(span.start(), Token::Atom(symbols::False), span.end())
                             }
                         }
                     }
                     None | Some(_) => {
-                        self.reporter.show_warning("invalid call to ?FEATURE_AVAILABLE", &[(span, "this macro requires a single feature name as its argument, this feature will be considered unavailable")]);
+                        self.diagnostics.diagnostic(Severity::Warning)
+                            .with_message("invalid call to ?FEATURE_AVAILABLE")
+                            .with_primary_label(span, "this macro requires a single feature name as its argument, this feature will be considered unavailable")
+                            .emit();
                         LexicalToken(span.start(), Token::Atom(symbols::False), span.end())
                     }
                 }
@@ -256,7 +252,10 @@ where
                                     ),
                                     _ => {
                                         let msg = format!("unrecognized feature {}", &feature);
-                                        self.reporter.show_warning(msg.as_str(), &[(span, "this is not a recognized feature, it may be unimplemented, or may be a typo, defaulting to disabled")]);
+                                        self.diagnostics.diagnostic(Severity::Warning)
+                                            .with_message(msg)
+                                            .with_primary_label(span, "this is not a recognized feature, it may be unimplemented, or may be a typo, defaulting to disabled")
+                                            .emit();
                                         LexicalToken(
                                             span.start(),
                                             Token::Atom(symbols::False),
@@ -266,13 +265,19 @@ where
                                 }
                             }
                             _ => {
-                                self.reporter.show_warning("invalid call to ?FEATURE_ENABLED", &[(span, "expected feature name to be an atom, this feature will be considered disabled")]);
+                                self.diagnostics.diagnostic(Severity::Warning)
+                                    .with_message("invalid call to ?FEATURE_ENABLED")
+                                    .with_primary_label(span, "expected feature name to be an atom, this feature will be considered disabled")
+                                    .emit();
                                 LexicalToken(span.start(), Token::Atom(symbols::False), span.end())
                             }
                         }
                     }
                     None | Some(_) => {
-                        self.reporter.show_warning("invalid call to ?FEATURE_ENABLED", &[(span, "this macro requires a single feature name as its argument, this feature will be considered disabled")]);
+                        self.diagnostics.diagnostic(Severity::Warning)
+                            .with_message("invalid call to ?FEATURE_ENABLED")
+                            .with_primary_label(span, "this macro requires a single feature name as its argument, this feature will be considered disabled")
+                            .emit();
                         LexicalToken(span.start(), Token::Atom(symbols::False), span.end())
                     }
                 }
@@ -405,13 +410,7 @@ where
         Ok(expanded)
     }
 
-    fn try_read_directive(&mut self) -> Result<Option<Directive>, PreprocessorError> {
-        let directive: Directive = if let Some(directive) = self.reader.try_read()? {
-            directive
-        } else {
-            return Ok(None);
-        };
-
+    fn try_handle_directive(&mut self, directive: Directive) -> Result<(), PreprocessorError> {
         let ignore = self.ignore();
         match directive {
             Directive::Module(ref d) => {
@@ -423,6 +422,8 @@ where
                     MacroIdent::Const(symbols::MODULE_STRING),
                     MacroDef::String(d.name.symbol()),
                 );
+                // We need to expand this directive back to a token stream for the parser
+                self.expanded_tokens = d.expand();
             }
             Directive::Include(ref d) if !ignore => {
                 let path = d.include(&self.include_paths)?;
@@ -491,7 +492,7 @@ where
             }
             Directive::Warning(ref d) if !ignore => {
                 if self.no_warn {
-                    return Ok(Some(directive));
+                    return Ok(());
                 }
 
                 if self.warnings_as_errors {
@@ -501,27 +502,28 @@ where
                         as_error: true,
                     });
                 } else {
-                    self.reporter.warning(PreprocessorError::WarningDirective {
-                        span: d.span(),
-                        message: d.message.symbol(),
-                        as_error: false,
-                    });
+                    self.diagnostics
+                        .diagnostic(Severity::Warning)
+                        .with_message(d.message.symbol())
+                        .with_primary_span(d.span())
+                        .emit();
                 }
             }
             Directive::File(ref f) if !ignore => {
                 // TODO
                 let span = f.span();
-                self.reporter.diagnostic(
-                    Diagnostic::warning()
-                        .with_message("-file directive ignored")
-                        .with_labels(vec![Label::primary(span.source_id(), span).with_message(
-                            "support for the -file directive has not been implemented yet",
-                        )]),
-                );
+                self.diagnostics
+                    .diagnostic(Severity::Warning)
+                    .with_message("-file directive ignored")
+                    .with_primary_label(
+                        span,
+                        "support for the -file directive has not been implemented yet",
+                    )
+                    .emit();
             }
             _ => {}
         }
-        Ok(Some(directive))
+        Ok(())
     }
 
     fn eval_conditional(
@@ -534,7 +536,7 @@ where
 
         let result = {
             let pp = self.clone_with(condition);
-            Expr::parse_tokens(self.reporter.clone(), self.codemap.clone(), pp).map_err(|e| {
+            Expr::parse_tokens(self.diagnostics, self.codemap.clone(), pp).map_err(|e| {
                 PreprocessorError::ParseError {
                     span,
                     inner: Box::new(e),
@@ -550,7 +552,7 @@ where
     }
 }
 
-impl<R, S> Iterator for Preprocessor<R>
+impl<'a, R, S> Iterator for Preprocessor<'a, R>
 where
     R: TokenReader<Source = S>,
 {

@@ -1,8 +1,8 @@
 use std::collections::BTreeMap;
 use std::collections::{HashMap, HashSet};
 
-use firefly_diagnostics::*;
 use firefly_syntax_base::*;
+use firefly_util::diagnostics::*;
 use firefly_util::emit::Emit;
 
 use crate::ast::{self, *};
@@ -144,7 +144,7 @@ impl Module {
     /// As a result, this function performs initial semantic analysis of the module.
     ///
     pub fn new_with_forms(
-        reporter: &Reporter,
+        diagnostics: &DiagnosticsHandler,
         span: SourceSpan,
         name: Ident,
         mut forms: Vec<TopLevel>,
@@ -177,10 +177,12 @@ impl Module {
 
         for form in forms.drain(0..) {
             match form {
-                TopLevel::Attribute(attr) => sema::analyze_attribute(reporter, &mut module, attr),
-                TopLevel::Record(record) => sema::analyze_record(reporter, &mut module, record),
+                TopLevel::Attribute(attr) => {
+                    sema::analyze_attribute(diagnostics, &mut module, attr)
+                }
+                TopLevel::Record(record) => sema::analyze_record(diagnostics, &mut module, record),
                 TopLevel::Function(function) => {
-                    sema::analyze_function(reporter, &mut module, function)
+                    sema::analyze_function(diagnostics, &mut module, function)
                 }
                 _ => panic!("unexpected top-level form: {:?}", &form),
             }

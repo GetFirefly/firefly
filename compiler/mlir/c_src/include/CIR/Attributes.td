@@ -41,7 +41,6 @@ def AtomAttr : CIR_Attr<"Atom"> {
 
   }];
   let skipDefaultBuilders = 1;
-  let typeBuilder = "CIRAtomType::get($_type.getContext())";
 }
 
 def BigIntRefParameter :
@@ -101,7 +100,6 @@ def BigIntAttr : CIR_Attr<"BigInt"> {
     }
   }];
   let skipDefaultBuilders = 1;
-  let typeBuilder = "CIRBoxType::get(CIRBigIntType::get($_type.getContext()))";
 }
 
 def BinaryEntrySpecifierParameter :
@@ -197,7 +195,6 @@ def BinarySpecAttr : CIR_Attr<"BinarySpec"> {
     using ValueType = ::mlir::cir::BinaryEntrySpecifier;
   }];
   let skipDefaultBuilders = 1;
-  let typeBuilder = "NoneType::get($_type.getContext())";
 }
 
 def EndiannessParameter :

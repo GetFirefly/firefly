@@ -1,11 +1,18 @@
 [package]
-authors = ["Firefly Developers"]
 name = "firefly_target"
-version = "0.1.0"
-edition = "2021"
-publish = false
+description = "Provides target metadata for use by the Firefly compiler"
+version.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+categories.workspace = true
+keywords.workspace = true
+license.workspace = true
+readme.workspace = true
+edition.workspace = true
+publish.workspace = true
 
 build = "build.rs"
 
 [dependencies]
-thiserror = "1.0"
+thiserror.workspace = true

@@ -40,6 +40,7 @@ impl Pass for RewriteExports {
     fn run<'a>(&mut self, ifun: Self::Input<'a>) -> anyhow::Result<Self::Output<'a>> {
         match self.cexpr(IExpr::Fun(ifun), rbt_set![]) {
             Ok((box Expr::Fun(fun), _, _)) if self.context().is_nif => {
+                /* TODO: the Erlang compiler injects a nif_start primop, need to explore how that's used
                 let span = fun.span;
                 let body = fun.body;
                 let body_span = body.span();
@@ -60,6 +61,8 @@ impl Pass for RewriteExports {
                     vars: fun.vars,
                     body,
                 })
+                */
+                Ok(fun)
             }
             Ok((box Expr::Fun(fun), _, _)) => Ok(fun),
             Ok(_) => panic!("unexpected expr result, expected fun"),

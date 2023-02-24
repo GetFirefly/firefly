@@ -109,7 +109,7 @@ pub enum PreprocessorError {
     #[error("unexpected eof")]
     UnexpectedEOF,
 
-    #[error("warning directive: {message}")]
+    #[error("warning: {message}")]
     WarningDirective {
         span: SourceSpan,
         message: Symbol,
@@ -117,9 +117,7 @@ pub enum PreprocessorError {
     },
 }
 impl ToDiagnostic for PreprocessorError {
-    fn to_diagnostic(&self) -> Diagnostic {
-        //let span = self.span();
-        //let msg = self.to_string();
+    fn to_diagnostic(self) -> Diagnostic {
         match self {
             PreprocessorError::Lexical { source } => source.to_diagnostic(),
             PreprocessorError::Source { source } => source.to_diagnostic(),
@@ -127,23 +125,22 @@ impl ToDiagnostic for PreprocessorError {
                 Diagnostic::error()
                     .with_message(self.to_string())
                     .with_labels(vec![
-                        Label::primary(span.source_id(), *span)
+                        Label::primary(span.source_id(), span)
                         .with_message("while processing include directive"),
                     ])
             },
             PreprocessorError::ParseError { span, inner } => {
                 let err = inner.to_diagnostic();
                 err.with_labels(vec![
-                    Label::secondary(span.source_id(), *span)
+                    Label::secondary(span.source_id(), span)
                         .with_message("parsing of this expression failed when attempting to evaluate it as a constant")
                 ])
             }
             PreprocessorError::CompilerError { span: Some(span), reason } =>
                 Diagnostic::error()
-                    .with_message("found error directive")
+                    .with_message(reason)
                     .with_labels(vec![
-                        Label::primary(span.source_id(), *span)
-                            .with_message(reason)
+                        Label::primary(span.source_id(), span)
                     ]),
             PreprocessorError::CompilerError { span: None, reason } =>
                 Diagnostic::error().with_message(reason),
@@ -151,7 +148,7 @@ impl ToDiagnostic for PreprocessorError {
                 Diagnostic::error()
                     .with_message(self.to_string())
                     .with_labels(vec![
-                        Label::primary(span.source_id(), *span)
+                        Label::primary(span.source_id(), span)
                             .with_message("expected valid constant expression (example: `?OTP_VERSION >= 21`)")
                     ]),
             PreprocessorError::EvalError { source } => source.to_diagnostic(),
@@ -160,17 +157,17 @@ impl ToDiagnostic for PreprocessorError {
                 Diagnostic::error()
                     .with_message(self.to_string())
                     .with_labels(vec![
-                        Label::primary(span.source_id(), *span)
+                        Label::primary(span.source_id(), span)
                             .with_message("expected 'true', 'false', or an expression which can be evaluated to 'true' or 'false'")
                     ]),
-            PreprocessorError::BuiltinFailed { span, source } =>
+            PreprocessorError::BuiltinFailed { span, ref source } =>
                 Diagnostic::error()
                     .with_message(self.to_string())
                     .with_labels(vec![
-                        Label::primary(span.source_id(), *span)
+                        Label::primary(span.source_id(), span)
                             .with_message(source.to_string())
                     ]),
-            PreprocessorError::OrphanedEnd { directive } => {
+            PreprocessorError::OrphanedEnd { ref directive } => {
                 let span = directive.span();
                 Diagnostic::error()
                     .with_message(self.to_string())
@@ -178,7 +175,7 @@ impl ToDiagnostic for PreprocessorError {
                         Label::primary(span.source_id(), span)
                     ])
             }
-            PreprocessorError::OrphanedElse { directive } => {
+            PreprocessorError::OrphanedElse { ref directive } => {
                 let span = directive.span();
                 Diagnostic::error()
                     .with_message(self.to_string())
@@ -186,7 +183,7 @@ impl ToDiagnostic for PreprocessorError {
                         Label::primary(span.source_id(), span)
                     ])
             }
-            PreprocessorError::UndefinedStringifyMacro { call } => {
+            PreprocessorError::UndefinedStringifyMacro { ref call } => {
                 let span = call.span();
                 Diagnostic::error()
                     .with_message(self.to_string())
@@ -194,7 +191,7 @@ impl ToDiagnostic for PreprocessorError {
                         Label::primary(span.source_id(), span)
                     ])
             }
-            PreprocessorError::UndefinedMacro { call } => {
+            PreprocessorError::UndefinedMacro { ref call } => {
                 let span = call.span();
                 Diagnostic::error()
                     .with_message(self.to_string())
@@ -202,7 +199,7 @@ impl ToDiagnostic for PreprocessorError {
                         Label::primary(span.source_id(), span)
                     ])
             }
-            PreprocessorError::BadMacroCall { call, def: MacroDef::String(_), reason, .. } => {
+            PreprocessorError::BadMacroCall { ref call, def: MacroDef::String(_), ref reason, .. } => {
                 let span = call.span();
                 Diagnostic::error()
                     .with_message(self.to_string())
@@ -211,7 +208,7 @@ impl ToDiagnostic for PreprocessorError {
                             .with_message(reason.to_owned())
                     ])
             }
-            PreprocessorError::BadMacroCall { call, def, reason, .. } => {
+            PreprocessorError::BadMacroCall { ref call, ref def, ref reason, .. } => {
                 let secondary_span = match def {
                     MacroDef::Static(ref define) => define.span(),
                     MacroDef::Dynamic(ref tokens) => {
@@ -234,7 +231,7 @@ impl ToDiagnostic for PreprocessorError {
                     ])
             }
             PreprocessorError::ShowDiagnostic { diagnostic } => diagnostic.clone(),
-            PreprocessorError::InvalidTokenType { token, expected } => {
+            PreprocessorError::InvalidTokenType { ref token, ref expected } => {
                 let token_span = token.span();
                 Diagnostic::error()
                     .with_message(self.to_string())
@@ -243,7 +240,7 @@ impl ToDiagnostic for PreprocessorError {
                             .with_message(format!("expected \"{}\"", expected))
                     ])
             }
-            PreprocessorError::UnexpectedToken { token, expected } => {
+            PreprocessorError::UnexpectedToken { ref token, ref expected } => {
                 let token_span = token.span();
                 if expected.len() > 0 {
                     let expected = expected.iter()
@@ -267,10 +264,10 @@ impl ToDiagnostic for PreprocessorError {
                 Diagnostic::error().with_message(self.to_string()),
             PreprocessorError::WarningDirective { span, message, as_error } => {
                 let message_str = message.as_str().get();
-                if *as_error { Diagnostic::error() } else { Diagnostic::warning() }
-                    .with_message("found warning directive")
+                if as_error { Diagnostic::error() } else { Diagnostic::warning() }
+                    .with_message(message_str)
                     .with_labels(vec![
-                        Label::primary(span.source_id(), *span).with_message(message_str),
+                        Label::primary(span.source_id(), span),
                     ])
             }
         }

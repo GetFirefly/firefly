@@ -28,7 +28,7 @@ public:
         std::get<0>(key), allocator.copyInto(std::get<1>(key)));
   }
 
-  static unsigned hashKey(const KeyTy &key) {
+  static llvm::hash_code hashKey(const KeyTy &key) {
     // LLVM doesn't like hashing bools in tuples.
     return llvm::hash_combine(std::get<0>(key), std::get<1>(key));
   }
@@ -39,6 +39,10 @@ public:
       return false;
     }
     return calleeType == std::get<0>(key) && getEnvTypes() == otherEnv;
+  }
+
+  KeyTy getAsKey() const {
+    return KeyTy(calleeType, ArrayRef<Type>(envTypes, (size_t)envArity));
   }
 
   FunctionType getCalleeType() const { return calleeType; }

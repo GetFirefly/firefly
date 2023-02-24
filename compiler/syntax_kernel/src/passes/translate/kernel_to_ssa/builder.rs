@@ -58,6 +58,7 @@ impl<'a> IrBuilder<'a> {
         self.func.dfg.remove_block(block);
     }
 
+    #[allow(unused)]
     pub fn prune_unreachable_blocks(&mut self) {
         // Find the set of unreachable blocks
         let mut unreachable = Vec::new();
@@ -99,6 +100,12 @@ impl<'a> IrBuilder<'a> {
         self.func.dfg.get_callee(callee)
     }
 
+    #[allow(unused)]
+    #[inline]
+    pub fn get_callee_signature(&self, callee: FuncRef) -> std::cell::Ref<'_, Signature> {
+        self.func.dfg.callee_signature(callee)
+    }
+
     #[inline]
     pub fn get_or_register_callee(&self, mfa: FunctionName) -> FuncRef {
         self.func.dfg.register_callee(mfa)
@@ -125,6 +132,7 @@ impl<'a> IrBuilder<'a> {
     }
 
     /// Sets the known type of the given value
+    #[allow(unused)]
     pub fn set_value_type(&mut self, value: Value, ty: Type) {
         self.func.dfg.set_value_type(value, ty)
     }
@@ -141,6 +149,7 @@ impl<'a> IrBuilder<'a> {
     }
 
     /// Returns the type associated with the given value
+    #[allow(unused)]
     pub fn value_type(&self, var: Value) -> Type {
         match self.var_types.get(&var) {
             None => self.func.dfg.value_type(var),

@@ -170,16 +170,14 @@ pub trait Diagnostic {
             return;
         }
 
-        let mut ifd = emitter.diagnostic(severity);
-        if self.format(&mut ifd, context, options) {
-            ifd.emit()
-        }
+        let ifd = emitter.diagnostic(severity);
+        self.format(ifd, context, options);
     }
 
     /// Formats this diagnostic into the given InFlightDiagnostic
     ///
     /// Returns true if this diagnostic should be emitted, otherwise it should be dropped
-    fn format(&self, ifd: &mut InFlightDiagnostic, context: Context, options: &Options) -> bool;
+    fn format(&self, ifd: InFlightDiagnostic, context: Context, options: &Options);
 
     fn base(&self) -> DiagnosticBase;
 }
@@ -194,9 +192,8 @@ impl Diagnostic for DiagnosticBase {
         *self
     }
 
-    fn format(&self, ifd: &mut InFlightDiagnostic, _context: Context, _options: &Options) -> bool {
-        ifd.with_message(self.description());
-        true
+    fn format(&self, ifd: InFlightDiagnostic, _context: Context, _options: &Options) {
+        ifd.with_message(self.description()).emit();
     }
 }
 impl fmt::Display for DiagnosticBase {
@@ -297,44 +294,46 @@ impl Diagnostic for OptimizationDiagnostic {
         self.0
     }
 
-    fn format(&self, ifd: &mut InFlightDiagnostic, _context: Context, options: &Options) -> bool {
+    fn format(&self, ifd: InFlightDiagnostic, _context: Context, options: &Options) {
         // Don't print noisy remarks
         if self.is_verbose() {
-            return false;
+            return;
         }
 
         // Don't print optimization diagnostics other than failures, unless explicitly requested
         let kind = self.kind();
         if !options.debugging_opts.print_llvm_optimization_remarks {
             if kind != DiagnosticKind::OptimizationFailure {
-                return false;
+                return;
             }
         }
-
-        ifd.with_message(kind.describe());
 
         let pass_name = self.pass_name();
         let remark_name = self.remark_name();
         let message = self.message().to_string();
-        if let Some(loc) = self.source_location() {
-            ifd.set_source_file(loc.filename);
-            ifd.with_primary_label(loc.line, loc.column, Some(message));
-            ifd.with_note(format!("{} in pass {}", &remark_name, &pass_name));
+        let ifd = if let Some(loc) = self.source_location() {
+            ifd.set_source_file(loc.filename)
+                .with_message(kind.describe())
+                .with_primary_label_line_and_col(loc.line, loc.column, Some(message))
+                .with_note(format!("{} in pass {}", &remark_name, &pass_name))
         } else {
-            ifd.with_note(message);
             let function = self.function();
-            ifd.with_note(format!("for function {}", function.name()));
-            ifd.with_note(format!("{} in pass {}", &remark_name, &pass_name));
-        }
+            ifd.with_note(message)
+                .with_note(format!("for function {}", function.name()))
+                .with_note(format!("{} in pass {}", &remark_name, &pass_name))
+        };
 
         if ifd.verbose() {
             if let Some(code_region) = self.code_region() {
                 let code = code_region.to_string();
-                ifd.with_note(format!("in reference to the following llvm ir: {}", &code));
+                ifd.with_note(format!("in reference to the following llvm ir: {}", &code))
+                    .emit();
+            } else {
+                ifd.emit();
             }
+        } else {
+            ifd.emit();
         }
-
-        true
     }
 }
 
@@ -348,14 +347,14 @@ impl Diagnostic for LinkerDiagnostic {
         self.0
     }
 
-    fn format(&self, ifd: &mut InFlightDiagnostic, _context: Context, _options: &Options) -> bool {
+    fn format(&self, ifd: InFlightDiagnostic, _context: Context, _options: &Options) {
         if ifd.severity() == Severity::Error {
-            ifd.with_message("cannot link module");
-            ifd.with_note(self.description());
+            ifd.with_message("cannot link module")
+                .with_note(self.description())
+                .emit();
         } else {
-            ifd.with_message(self.description());
+            ifd.with_message(self.description()).emit();
         }
-        true
     }
 }
 
@@ -377,18 +376,17 @@ impl Diagnostic for ISelFallbackDiagnostic {
         self.0
     }
 
-    fn format(&self, ifd: &mut InFlightDiagnostic, _context: Context, options: &Options) -> bool {
+    fn format(&self, ifd: InFlightDiagnostic, _context: Context, options: &Options) {
         if !options.debugging_opts.print_llvm_optimization_remarks {
-            return false;
+            return;
         }
 
         let function = self.function();
         ifd.with_message(format!(
             "instruction selection used fallback path in {}",
             function.name()
-        ));
-
-        true
+        ))
+        .emit();
     }
 }
 

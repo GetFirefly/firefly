@@ -16,27 +16,27 @@ lazy_static! {
     static ref NIF_SIGNATURES: Vec<Signature> = {
         vec![
             // pub __firefly_make_tuple(isize) -> tuple
-            Signature::new(Visibility::PUBLIC | Visibility::EXTERNAL, CallConv::C, symbols::Empty, symbols::NifMakeTuple, FunctionType::new(vec![Type::Primitive(PrimitiveType::Isize)], vec![Type::Term(TermType::Tuple(None))])),
+            Signature::new(Visibility::PUBLIC | Visibility::EXTERNAL, CallConv::C, symbols::Empty, symbols::NifMakeTuple, FunctionType::new(vec![Type::Process, Type::Primitive(PrimitiveType::Isize)], vec![Type::Term(TermType::Tuple(None))])),
             // pub __firefly_tuple_size(term) -> i1, u32
             Signature::new(Visibility::PUBLIC | Visibility::EXTERNAL, CallConv::C, symbols::Empty, symbols::NifTupleSize, FunctionType::new(vec![Type::Term(TermType::Any)], vec![Type::Primitive(PrimitiveType::I1), Type::Primitive(PrimitiveType::I32)])),
             // pub __firefly_map_empty() -> map
-            Signature::new(Visibility::PUBLIC | Visibility::EXTERNAL, CallConv::C, symbols::Empty, symbols::NifMapEmpty, FunctionType::new(vec![], vec![Type::Term(TermType::Map)])),
+            Signature::new(Visibility::PUBLIC | Visibility::EXTERNAL, CallConv::C, symbols::Empty, symbols::NifMapEmpty, FunctionType::new(vec![Type::Process], vec![Type::Term(TermType::Map)])),
             // pub __firefly_map_put(map, term, term) -> map
-            Signature::new(Visibility::PUBLIC | Visibility::EXTERNAL, CallConv::C, symbols::Empty, symbols::NifMapPut, FunctionType::new(vec![Type::Term(TermType::Map), Type::Term(TermType::Any), Type::Term(TermType::Any)], vec![Type::Term(TermType::Map)])),
+            Signature::new(Visibility::PUBLIC | Visibility::EXTERNAL, CallConv::C, symbols::Empty, symbols::NifMapPut, FunctionType::new(vec![Type::Process, Type::Term(TermType::Map), Type::Term(TermType::Any), Type::Term(TermType::Any)], vec![Type::Term(TermType::Map)])),
             // pub __firefly_map_put_mut(map, term, term) -> map
             Signature::new(Visibility::PUBLIC | Visibility::EXTERNAL, CallConv::C, symbols::Empty, symbols::NifMapPutMut, FunctionType::new(vec![Type::Term(TermType::Map), Type::Term(TermType::Any), Type::Term(TermType::Any)], vec![Type::Term(TermType::Map)])),
             // pub __firefly_map_update(map, term, term) -> i1, map
-            Signature::new(Visibility::PUBLIC | Visibility::EXTERNAL, CallConv::Erlang, symbols::Empty, symbols::NifMapUpdate, FunctionType::new(vec![Type::Term(TermType::Map), Type::Term(TermType::Any), Type::Term(TermType::Any)], vec![Type::Primitive(PrimitiveType::I1), Type::Term(TermType::Map)])),
+            Signature::new(Visibility::PUBLIC | Visibility::EXTERNAL, CallConv::Erlang, symbols::Empty, symbols::NifMapUpdate, FunctionType::new(vec![Type::Process, Type::Term(TermType::Map), Type::Term(TermType::Any), Type::Term(TermType::Any)], vec![Type::Primitive(PrimitiveType::I1), Type::Term(TermType::Map)])),
             // pub __firefly_map_update_mut(map, term, term) -> i1, map
             Signature::new(Visibility::PUBLIC | Visibility::EXTERNAL, CallConv::Erlang, symbols::Empty, symbols::NifMapUpdateMut, FunctionType::new(vec![Type::Term(TermType::Map), Type::Term(TermType::Any), Type::Term(TermType::Any)], vec![Type::Primitive(PrimitiveType::I1), Type::Term(TermType::Map)])),
             // pub __firefly_map_fetch(map, term) -> i1, term
             Signature::new(Visibility::PUBLIC | Visibility::EXTERNAL, CallConv::Erlang, symbols::Empty, symbols::NifMapFetch, FunctionType::new(vec![Type::Term(TermType::Map), Type::Term(TermType::Any)], vec![Type::Primitive(PrimitiveType::I1), Type::Term(TermType::Any)])),
             // pub __firefly_build_stacktrace(exception_trace) -> term
-            Signature::new(Visibility::PUBLIC | Visibility::EXTERNAL, CallConv::C, symbols::Empty, symbols::NifBuildStacktrace, FunctionType::new(vec![Type::ExceptionTrace], vec![Type::Term(TermType::Any)])),
+            Signature::new(Visibility::PUBLIC | Visibility::EXTERNAL, CallConv::C, symbols::Empty, symbols::NifBuildStacktrace, FunctionType::new(vec![Type::Process, Type::ExceptionTrace], vec![Type::Term(TermType::Any)])),
             // pub __firefly_bs_init() -> i1, term
             Signature::new(Visibility::PUBLIC | Visibility::EXTERNAL, CallConv::Erlang, symbols::Empty, symbols::NifBsInit, FunctionType::new(vec![], vec![Type::Primitive(PrimitiveType::I1), Type::Term(TermType::Any)])),
             // pub __firefly_bs_finish(binary_builder) -> i1, term
-            Signature::new(Visibility::PUBLIC | Visibility::EXTERNAL, CallConv::Erlang, symbols::Empty, symbols::NifBsFinish, FunctionType::new(vec![Type::BinaryBuilder], vec![Type::Primitive(PrimitiveType::I1), Type::Term(TermType::Any)])),
+            Signature::new(Visibility::PUBLIC | Visibility::EXTERNAL, CallConv::Erlang, symbols::Empty, symbols::NifBsFinish, FunctionType::new(vec![Type::Process, Type::BinaryBuilder], vec![Type::Primitive(PrimitiveType::I1), Type::Term(TermType::Any)])),
         ]
     };
 }

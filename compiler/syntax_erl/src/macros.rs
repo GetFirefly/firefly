@@ -1,62 +1,21 @@
 /// Construct a keyword list AST from a list of expressions, e.g.:
 ///
-///     kwlist!(tuple!(atom!(key), var!(Value)))
-///
 /// It is required that elements are two-tuples, but no checking is done
 /// to make sure that the first element in each tuple is an atom
 #[allow(unused_macros)]
 macro_rules! kwlist {
-    ($($element:expr),*) => {
-        let mut elements = vec![$($element),*];
-        elements.reverse();
-        elements.fold(nil!(), |acc, (key, val)| {
-            cons!(tuple!(key, val), acc)
-        })
-    };
-}
-
-#[allow(unused_macros)]
-macro_rules! kwlist_with_span {
     ($span:expr, $($element:expr),*) => {
         let mut elements = vec![$($element),*];
         elements.reverse();
-        elements.fold(nil!(), |acc, (key, val)| {
-            cons!($span, tuple_with_span!($span, key, val), acc)
+        elements.fold(nil!($span), |acc, (key, val)| {
+            cons!($span, tuple!($span, key, val), acc)
         })
-    }
+    };
 }
 
 /// Like `kwlist!`, but produces a list of elements produced by any arbitrary expression
-///
-///     list!(atom!(foo), tuple!(atom!(bar), atom!(baz)))
-///
-/// Like `kwlist!`, this produces a proper list
 #[allow(unused_macros)]
 macro_rules! list {
-    ($($element:expr),*) => {
-        {
-            let elements = [$($element),*];
-            elements.iter().rev().fold(nil!(), |acc, el| {
-                cons!(*el, acc)
-            })
-        }
-    };
-}
-
-macro_rules! ast_lit_list {
-    ($($element:expr),*) => {
-        {
-            use smallvec::smallvec_inline;
-            let mut elements = smallvec_inline![$($element),*];
-            elements.drain(..).rev().fold(ast_lit_nil!(), |tail, head| {
-                ast_lit_cons!(head, tail)
-            })
-        }
-    };
-}
-
-#[allow(unused_macros)]
-macro_rules! list_with_span {
     ($span:expr, $($element:expr),*) => {
         {
             let elements = [$($element),*];
@@ -64,27 +23,24 @@ macro_rules! list_with_span {
                 cons!($span, *el, acc)
             })
         }
-    }
+    };
+}
+
+macro_rules! ast_lit_list {
+    ($span:expr, $($element:expr),*) => {
+        {
+            use smallvec::smallvec_inline;
+            let mut elements = smallvec_inline![$($element),*];
+            elements.drain(..).rev().fold(ast_lit_nil!($span), |tail, head| {
+                ast_lit_cons!($span, head, tail)
+            })
+        }
+    };
 }
 
 /// A lower-level primitive for constructing lists, via cons cells.
-/// Given the following:
-///
-///     cons!(atom!(a), cons!(atom!(b), nil!()))
-///
-/// This is equivalent to `[a | [b | []]]`, which is in turn equivalent
-/// to `[a, b]`. You are better off using `list!` unless you explicitly
-/// need to construct an improper list
 #[allow(unused_macros)]
 macro_rules! cons {
-    ($head:expr, $tail:expr) => {
-        crate::ast::Expr::Cons(crate::ast::Cons {
-            span: firefly_diagnostics::SourceSpan::default(),
-            head: Box::new($head),
-            tail: Box::new($tail),
-        })
-    };
-
     ($span:expr, $head:expr, $tail:expr) => {
         crate::ast::Expr::Cons(crate::ast::Cons {
             span: $span,
@@ -95,14 +51,6 @@ macro_rules! cons {
 }
 
 macro_rules! ast_lit_cons {
-    ($head:expr, $tail:expr) => {
-        crate::ast::Literal::Cons(
-            firefly_diagnostics::SourceSpan::default(),
-            Box::new($head),
-            Box::new($tail),
-        )
-    };
-
     ($span:expr, $head:expr, $tail:expr) => {
         crate::ast::Literal::Cons($span, Box::new($head), Box::new($tail))
     };
@@ -110,12 +58,6 @@ macro_rules! ast_lit_cons {
 
 #[allow(unused_macros)]
 macro_rules! nil {
-    () => {
-        crate::ast::Expr::Literal(crate::ast::Literal::Nil(
-            firefly_diagnostics::SourceSpan::default(),
-        ))
-    };
-
     ($span:expr) => {
         crate::ast::Expr::Literal(crate::ast::Literal::Nil($span))
     };
@@ -123,10 +65,6 @@ macro_rules! nil {
 
 #[allow(unused_macros)]
 macro_rules! ast_lit_nil {
-    () => {
-        crate::ast::Literal::Nil(firefly_diagnostics::SourceSpan::default())
-    };
-
     ($span:expr) => {
         crate::ast::Literal::Nil($span)
     };
@@ -135,23 +73,6 @@ macro_rules! ast_lit_nil {
 /// Produces a tuple expression with the given elements
 #[allow(unused_macros)]
 macro_rules! tuple {
-    ($($element:expr),*) => {
-        crate::ast::Expr::Tuple(crate::ast::Tuple{
-            span: firefly_diagnostics::SourceSpan::default(),
-            elements: vec![$($element),*],
-        })
-    };
-}
-
-#[allow(unused_macros)]
-macro_rules! ast_lit_tuple {
-    ($($element:expr),*) => {
-        crate::ast::Literal::Tuple(firefly_diagnostics::SourceSpan::default(), vec![$($element),*])
-    };
-}
-
-#[allow(unused_macros)]
-macro_rules! tuple_with_span {
     ($span:expr, $($element:expr),*) => {
         crate::ast::Expr::Tuple(crate::ast::Tuple{
             span: $span,
@@ -161,7 +82,7 @@ macro_rules! tuple_with_span {
 }
 
 #[allow(unused_macros)]
-macro_rules! ast_lit_tuple_with_span {
+macro_rules! ast_lit_tuple {
     ($span:expr, $($element:expr),*) => {
         crate::ast::Literal::Tuple($span, vec![$($element),*])
     };
@@ -170,23 +91,12 @@ macro_rules! ast_lit_tuple_with_span {
 /// Produces an integer literal expression
 #[allow(unused_macros)]
 macro_rules! int {
-    ($i:expr) => {
-        crate::ast::Expr::Literal(crate::ast::Literal::Integer(
-            firefly_diagnostics::SourceSpan::default(),
-            $i,
-        ))
-    };
-
     ($span:expr, $i:expr) => {
         crate::ast::Expr::Literal(crate::ast::Literal::Integer($span, $i))
     };
 }
 
 macro_rules! ast_lit_int {
-    ($i:expr) => {
-        crate::ast::Literal::Integer(firefly_diagnostics::SourceSpan::default(), $i)
-    };
-
     ($span:expr, $i:expr) => {
         crate::ast::Literal::Integer($span, $i)
     };
@@ -196,28 +106,10 @@ macro_rules! ast_lit_atom {
     ($span:expr, $sym:expr) => {
         crate::ast::Literal::Atom(firefly_intern::Ident::new($sym, $span))
     };
-
-    ($sym:expr) => {
-        crate::ast::Literal::Atom(firefly_intern::Ident::with_empty_span($sym))
-    };
 }
 
 /// Produces a literal expression which evaluates to an atom
 macro_rules! atom {
-    ($sym:ident) => {
-        crate::ast::Expr::Literal(crate::ast::Literal::Atom(
-            firefly_intern::Ident::with_empty_span(firefly_intern::Symbol::intern(stringify!(
-                $sym
-            ))),
-        ))
-    };
-
-    ($sym:expr) => {
-        crate::ast::Expr::Literal(crate::ast::Literal::Atom(
-            firefly_intern::Ident::with_empty_span($sym),
-        ))
-    };
-
     ($span:expr, $sym:ident) => {
         crate::ast::Expr::Literal(crate::ast::Literal::Atom(firefly_intern::Ident::new(
             firefly_intern::Symbol::intern(stringify!($sym)),
@@ -232,7 +124,6 @@ macro_rules! atom {
     };
 }
 
-#[allow(unused_macros)]
 macro_rules! atom_from_ident {
     ($id:expr) => {
         crate::ast::Expr::Literal(crate::ast::Literal::Atom($id))
@@ -241,16 +132,15 @@ macro_rules! atom_from_ident {
 
 /// Produces an Ident from an expression, meant to be used to simplify generating
 /// identifiers in the AST from strings or symbols
-#[allow(unused_macros)]
 macro_rules! ident {
-    ($sym:ident) => {
-        firefly_intern::Ident::with_empty_span(firefly_intern::Symbol::intern(stringify!($sym)))
+    ($span:expr, $sym:ident) => {
+        firefly_intern::Ident::new(firefly_intern::Symbol::intern(stringify!($sym)), $span)
     };
-    ($sym:expr) => {
-        firefly_intern::Ident::with_empty_span(firefly_intern::Symbol::intern($sym))
+    ($span:expr, $sym:expr) => {
+        firefly_intern::Ident::new(firefly_intern::Symbol::intern($sym), $span)
     };
-    (_) => {
-        firefly_intern::Ident::with_empty_span(firefly_intern::Symbol::intern("_"))
+    ($span:expr, _) => {
+        firefly_intern::Ident::new(firefly_intern::Symbol::intern("_"), $span)
     };
 }
 
@@ -258,31 +148,25 @@ macro_rules! ident {
 /// identifiers in the AST from strings or symbols
 #[allow(unused_macros)]
 macro_rules! ident_opt {
-    ($sym:ident) => {
-        Some(firefly_intern::Ident::with_empty_span(
-            firefly_intern::Symbol::intern(stringify!($sym)),
-        ))
+    ($span:expr, $sym:ident) => {
+        Some(ident!($span, $sym))
     };
-    ($sym:expr) => {
-        Some(firefly_intern::Ident::with_empty_span(
-            firefly_intern::Symbol::intern($sym),
-        ))
+    ($span:expr, $sym:expr) => {
+        Some(ident!($span, $sym))
     };
-    (_) => {
-        Some(firefly_intern::Ident::with_empty_span(
-            firefly_intern::Symbol::intern("_"),
-        ))
+    ($span:expr, _) => {
+        Some(ident!($span, _))
     };
 }
 
 /// Produces a variable expression
 #[allow(unused_macros)]
 macro_rules! var {
-    ($name:ident) => {
-        crate::ast::Expr::Var(crate::ast::Var(ident!(stringify!($name))))
+    ($span:expr, $name:ident) => {
+        crate::ast::Expr::Var(crate::ast::Var(ident!($span, stringify!($name))))
     };
-    (_) => {
-        crate::ast::Expr::Var(crate::ast::Var(ident!(_)))
+    ($span:expr, _) => {
+        crate::ast::Expr::Var(crate::ast::Var(ident!($span, _)))
     };
 }
 
@@ -333,19 +217,19 @@ macro_rules! apply {
 /// Produces a function definition
 #[allow(unused_macros)]
 macro_rules! fun {
-    ($name:ident ($($params:ident),*) -> $body:expr) => {
+    ($span:expr, $name:ident ($($params:ident),*) -> $body:expr) => {
         {
-            let patterns = vec![$(var!($params)),*];
+            let patterns = vec![$(var!($span, $params)),*];
             let arity = patterns.len().try_into().unwrap();
             crate::ast::Function {
-                span: firefly_diagnostics::SourceSpan::default(),
-                name: ident!($name),
+                span: $span,
+                name: ident!($span, $name),
                 arity,
                 clauses: vec![
                     (
-                        Some(crate::ast::Name::Atom(ident!($name))),
+                        Some(crate::ast::Name::Atom(ident!($span, $name))),
                         crate::ast::Clause{
-                            span: firefly_diagnostics::SourceSpan::default(),
+                            span: $span,
                             patterns,
                             guards: vec![],
                             body: vec![$body],
@@ -360,14 +244,14 @@ macro_rules! fun {
             }
         }
     };
-    ($name:ident $(($($params:expr),*) -> $body:expr);*) => {
+    ($span:expr, $name:ident $(($($params:expr),*) -> $body:expr);*) => {
         {
             let mut clauses = Vec::new();
             $(
                 clauses.push((
-                    Some(crate::ast::Name::Atom(ident!($name))),
+                    Some(crate::ast::Name::Atom(ident!($span, $name))),
                     crate::ast::Clause {
-                    span: firefly_diagnostics::SourceSpan::default(),
+                    span: $span,
                     patterns: vec![$($params),*],
                     guards: vec![],
                     body: vec![$body],
@@ -376,8 +260,8 @@ macro_rules! fun {
             )*
             let arity = clauses.first().as_ref().map(|(_, c)| c.patterns.len()).unwrap().try_into().unwrap();
             crate::ast::Function {
-                span: firefly_diagnostics::SourceSpan::default(),
-                name: ident!($name),
+                span: $span,
+                name: ident!($span, $name),
                 arity,
                 clauses,
                 spec: None,

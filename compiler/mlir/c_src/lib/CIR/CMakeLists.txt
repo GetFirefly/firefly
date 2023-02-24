@@ -16,7 +16,6 @@ add_mlir_dialect_library(CIR
   MLIRCIRTypeInterfacesIncGen
   MLIRCIRAttributesIncGen
   MLIRCIRPassIncGen
-  MLIRCIRPatternsIncGen
 
   LINK_LIBS PUBLIC
   ${dialect_libs}

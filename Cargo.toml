@@ -1,9 +1,10 @@
 [workspace]
 
-members = [ 
+members = [
   "compiler/*", 
   "firefly", 
   "library/*",
+  "macros/*",
   "runtimes/*",
 ]
 
@@ -12,15 +13,70 @@ default-members = [
 ]
 
 exclude = [
-  "liblumen_alloc",
-  "liblumen_alloc_macros",
   "native_implemented/*",
-  "runtimes/core",
-  "runtimes/full",
-  "runtimes/minimal",
   "examples",
   "tools"
 ]
+
+[workspace.package]
+version = "0.1.0"
+rust-version = "1.66"
+authors = ["Paul Schoenfelder <paulschoenfelder@gmail.com>", "Elle Imhoff <Kronic.Deth@gmail.com>"]
+description = "An alternative compiler and runtime for Erlang/OTP, with support for WebAssembly"
+repository = "https://github.com/getfirefly/firefly"
+homepage = "https://getfirefly.org"
+documentation = "https://github.com/getfirefly/firefly"
+categories = ["Compilers", "WebAssembly"]
+keywords = ["erlang", "otp", "beam", "elixir", "compiler"]
+license = "Apache-2.0 OR MIT"
+readme = "README.md"
+edition = "2021"
+publish = false
+
+[workspace.dependencies]
+anyhow = { version = "1.0", default-features = false }
+backtrace = { version = "0.3", default-features = false }
+bitflags = "1.3"
+byteorder = "1.2"
+cc = "1.0"
+cfg-if = "1.0"
+clap = "2.34"
+cranelift-entity = "0.81"
+dashmap = "4.0"
+either = "1.8"
+env_logger = "0.9"
+futures = "0.3"
+fxhash = "0.2"
+half = { version = "2.0", default-features = false, features = ["alloc", "num-traits", "use-intrinsics"] }
+hashbrown = { version = "0.12", features = ["nightly"] }
+Inflector = "0.11"
+intrusive-collections = { version = "0.9", features = ["nightly"] }
+itertools = "0.10"
+lazy_static = { version = "1.4", default-features = false }
+lalrpop = "0.19"
+lalrpop-util = "0.19"
+libc = { version = "0.2", default-features = false }
+log = "0.4"
+num-traits = { version = "0.2", default-features = false, features = ["i128"] }
+num-bigint = { version = "0.4", default-features = false }
+num-integer = { version = "0.1", default-features = false, features = ["i128"] }
+parking_lot = "0.12"
+parking_lot_core = "0.9"
+paste = "1.0"
+pretty_assertions = "1.0"
+rand = "0.8"
+rpds = { version = "0.11", default-features = false }
+rustc-hash = "1.1"
+smallvec = { version = "1.9", features = ["union", "const_generics", "const_new", "specialization"] }
+smallstr = { version = "0.3", features = ["union"] }
+static_assertions = "1.1"
+thiserror = "1.0"
+toml = { version = "0.5", features = ["preserve_order"] }
+which = "4.0"
+
+# Use for workspace-level metadata useable from tools
+# [workspace.metadata.foo]
+# key = value
 
 [profile.release]
 # Experimentally determined to give the smallest size out of all `opt-level`s (0-3,'s','z') and

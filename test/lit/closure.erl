@@ -1,11 +1,11 @@
-%% RUN: @firefly compile -C no_default_init --bin -o @tempfile @file && @tempfile
+%% RUN: @firefly compile --bin -o @tempfile @file && @tempfile
 
 %% CHECK: {ok, captured}
 -module(init).
 
 -export([boot/1]).
 
-boot(Args) ->
+boot(_Args) ->
     Msg = {ok, captured},
     Fun = fun () -> callee(Msg) end,
     call(Fun).

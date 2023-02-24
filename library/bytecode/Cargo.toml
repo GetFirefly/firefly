@@ -1,0 +1,27 @@
+[package]
+name = "firefly_bytecode"
+description = "Provides tools for working with the Firefly bytecode format"
+version.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+categories.workspace = true
+keywords.workspace = true
+license.workspace = true
+readme.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[features]
+default = []
+std = ["firefly_number/std", "firefly_binary/std"]
+
+[dependencies]
+bitflags.workspace = true
+cfg-if.workspace = true
+firefly_arena = { path = "../arena" }
+firefly_binary = { path = "../binary", default-features = false }
+firefly_number = { path = "../number", default-features = false }
+hashbrown.workspace = true
+smallvec.workspace = true
+rustc-hash.workspace = true

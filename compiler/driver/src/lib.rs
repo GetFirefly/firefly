@@ -1,15 +1,10 @@
-#![deny(warnings)]
+//#![deny(warnings)]
 #![feature(iterator_try_collect)]
-#![feature(map_first_last)]
 
 mod argparser;
 mod commands;
 mod compiler;
-mod diagnostics;
-mod interner;
-mod output;
-mod parser;
-pub(crate) mod task;
+//pub(crate) mod task;
 
 use std::ffi::OsString;
 use std::path::PathBuf;
@@ -17,9 +12,15 @@ use std::sync::Arc;
 
 use anyhow::anyhow;
 use clap::crate_version;
-use firefly_session::{CodegenOptions, DebuggingOptions, OptionGroup, ShowOptionGroupHelp};
+
+use firefly_diagnostics::CodeMap;
+use firefly_session::{
+    CodegenOptions, DebuggingOptions, OptionGroup, Options, ShowOptionGroupHelp,
+};
 use firefly_util::diagnostics::Emitter;
 use firefly_util::error::HelpRequested;
+
+use self::commands::{compile, print};
 
 pub const FIREFLY_RELEASE: &'static str = crate_version!();
 pub const FIREFLY_COMMIT_HASH: &'static str = env!("FIREFLY_COMMIT_HASH");
@@ -55,18 +56,26 @@ pub fn run_compiler_with_emitter(
 
     // Dispatch to the command implementation
     match matches.subcommand() {
-        ("print", subcommand_matches) => {
-            commands::print::handle_command(c_opts, z_opts, subcommand_matches.unwrap(), cwd)
-                .map(|_| 0)
+        ("print", matches) => {
+            // Initialize options from current context and arguments
+            let codemap = Arc::new(CodeMap::new());
+            let matches = matches.unwrap();
+            let options = print::configure(codemap.clone(), c_opts, z_opts, cwd, matches)?;
+            // Initialize LLVM/MLIR backends
+            init(&options)?;
+            // Dispatch
+            print::handle_command(options, matches).map(|_| 0)
         }
-        ("compile", subcommand_matches) => commands::compile::handle_command(
-            c_opts,
-            z_opts,
-            subcommand_matches.unwrap(),
-            cwd,
-            emitter,
-        )
-        .map(|_| 0),
+        ("compile", matches) => {
+            // Initialize options from current context and arguments
+            let codemap = Arc::new(CodeMap::new());
+            let options =
+                compile::configure(codemap.clone(), c_opts, z_opts, cwd, matches.unwrap())?;
+            // Initialize LLVM/MLIR backends
+            init(&options)?;
+            // Dispatch
+            compile::handle_command(options, codemap, emitter).map(|_| 0)
+        }
         (subcommand, _) => Err(anyhow!(format!("Unrecognized subcommand '{}'", subcommand))),
     }
 }
@@ -89,4 +98,21 @@ fn parse_option_group<'a, G: OptionGroup + Default>(
             Err(err)
         }
     }
+}
+
+/// Perform initialization of MLIR/LLVM for code generation
+#[cfg(feature = "native-compilation")]
+fn init(options: &Options) -> anyhow::Result<()> {
+    firefly_mlir::init(options)?;
+    firefly_llvm::init(options)?;
+
+    Ok(())
+}
+
+/// Perform initialization of LLVM for code generation
+#[cfg(not(feature = "native-compilation"))]
+fn init(options: &Options) -> anyhow::Result<()> {
+    firefly_llvm::init(options)?;
+
+    Ok(())
 }

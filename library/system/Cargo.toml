@@ -1,30 +1,38 @@
 [package]
 name = "firefly_system"
 description = "The system interface library. Provides common low-level APIs across all supported platforms."
-version = "0.1.0"
-authors = ["Paul Schoenfelder <paulschoenfelder@gmail.com>"]
-publish = false
-edition = "2021"
+version.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+categories.workspace = true
+keywords.workspace = true
+license.workspace = true
+readme.workspace = true
+edition.workspace = true
+publish.workspace = true
 
 [dependencies]
-lazy_static = "1.4"
-parking_lot = "0.12"
+cfg-if.workspace = true
+parking_lot.workspace = true
+parking_lot_core.workspace = true
+atomig = "0.4"
 
-# On wasm32-unknown-unknown, use dlmalloc for malloc/free
-[target.'cfg(all(target_arch = "wasm32", target_vendor = "unknown"))'.dependencies.dlmalloc]
-version = "0.2"
+# For non-WASI, non-Emscripten wasm targets, we need web-sys for a few low-level APIs
+[target.'cfg(all(target_family = "wasm", not(target_os = "wasi"), not(target_os = "emscripten")))'.dependencies.web-sys]
+version = "0.3"
+features = ['Window', 'Performance', 'PerformanceTiming']
 
-# We use libc for all platforms except wasm32-unknown-unknown
+# For non-WASI, non-Emscripten wasm targets, we need web-sys for a few low-level APIs
+[target.'cfg(all(target_family = "wasm", not(target_os = "wasi"), not(target_os = "emscripten")))'.dependencies.js-sys]
+version = "0.3"
+
+# We use libc for all platforms except wasm
+#
 # NOTE: On win32 we use libc for malloc/free
-[target.'cfg(any(not(target_arch = "wasm32")))'.dependencies.libc]
-default-features = false
+[target.'cfg(any(not(target_family = "wasm")))'.dependencies.libc]
+workspace = true
 features = ["align"]
-version = "0.2"
-
-[target.'cfg(all(target_arch = "wasm32", any(target_env = "wasi", target_os = "emscripten")))'.dependencies.libc]
-default-features = false
-features = ["align"]
-version = "0.2"
 
 # Windows also requires additional APis for implementing mmap
 [target.'cfg(windows)'.dependencies.winapi]

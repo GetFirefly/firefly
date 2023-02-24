@@ -1,9 +1,16 @@
 [package]
 name = "firefly_compiler_macros"
-version = "0.1.0"
-authors = ["Firefly Developers"]
-edition = "2021"
-publish = false
+description = "Provides proc macro support for the Firefly compiler"
+version.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+categories.workspace = true
+keywords.workspace = true
+license.workspace = true
+readme.workspace = true
+edition.workspace = true
+publish.workspace = true
 
 [lib]
 proc-macro = true
@@ -11,7 +18,7 @@ proc-macro = true
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-Inflector = "0.11"
+Inflector.workspace = true
 proc-macro2 = "1.0"
 quote = "1.0"
 

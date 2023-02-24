@@ -7,7 +7,7 @@ cfg_if! {
     } else if #[cfg(unix)] {
         mod unix;
         use self::unix as arch;
-    } else if #[cfg(all(target_arch = "wasm32", not(target_os = "emscripten")))] {
+    } else if #[cfg(target_family = "wasm")] {
         mod wasm32;
         use self::wasm32 as arch;
     } else {
@@ -18,3 +18,5 @@ cfg_if! {
 pub use self::arch::*;
 
 pub type DynamicCallee = extern "C-unwind" fn() -> crate::function::ErlangResult;
+#[cfg(feature = "async")]
+pub type DynamicAsyncCallee = extern "C-unwind" fn() -> crate::futures::ErlangFuture;

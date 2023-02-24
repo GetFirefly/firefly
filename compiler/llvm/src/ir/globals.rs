@@ -356,10 +356,3 @@ impl TryFrom<ValueBase> for GlobalVariable {
         }
     }
 }
-impl TryInto<ConstantValue> for GlobalVariable {
-    type Error = InvalidTypeCastError;
-
-    fn try_into(self) -> Result<ConstantValue, Self::Error> {
-        ConstantValue::try_from(self.0)
-    }
-}

@@ -1,14 +1,18 @@
 use core::ops::ControlFlow;
 use std::collections::btree_map::Entry;
 
-use firefly_diagnostics::*;
 use firefly_intern::symbols;
 use firefly_syntax_base::*;
+use firefly_util::diagnostics::*;
 
 use crate::ast::*;
 use crate::visit::VisitMut;
 
-pub fn analyze_function(reporter: &Reporter, module: &mut Module, mut function: Function) {
+pub fn analyze_function(
+    diagnostics: &DiagnosticsHandler,
+    module: &mut Module,
+    mut function: Function,
+) {
     let resolved_name = FunctionName::new(module.name(), function.name.name, function.arity);
     let local_resolved_name = resolved_name.to_local();
     let warn_missing_specs = module
@@ -20,10 +24,11 @@ pub fn analyze_function(reporter: &Reporter, module: &mut Module, mut function: 
     if let Some(spec) = module.specs.get(&resolved_name) {
         function.spec.replace(spec.clone());
     } else if warn_missing_specs {
-        reporter.show_warning(
-            "missing function spec",
-            &[(function.span, "expected type spec for this function")],
-        );
+        diagnostics
+            .diagnostic(Severity::Warning)
+            .with_message("missing function spec")
+            .with_primary_label(function.span, "expected type spec for this function")
+            .emit();
     }
 
     let nif_name = Span::new(function.name.span, local_resolved_name.clone());
@@ -50,13 +55,12 @@ pub fn analyze_function(reporter: &Reporter, module: &mut Module, mut function: 
         }
         Entry::Occupied(initial_def) => {
             let def = initial_def.into_mut();
-            reporter.show_error(
-                "clauses from the same function should be grouped together",
-                &[
-                    (function.span, "found more clauses here"),
-                    (def.span, "function is first defined here"),
-                ],
-            );
+            diagnostics
+                .diagnostic(Severity::Error)
+                .with_message("clauses from the same function should be grouped together")
+                .with_primary_label(function.span, "found more clauses here")
+                .with_secondary_label(def.span, "function is first defined here")
+                .emit();
             def.clauses.append(&mut function.clauses);
         }
     }

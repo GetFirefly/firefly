@@ -17,27 +17,27 @@ pub enum SpecifierError {
 }
 
 impl ToDiagnostic for SpecifierError {
-    fn to_diagnostic(&self) -> Diagnostic {
+    fn to_diagnostic(self) -> Diagnostic {
         let msg = self.to_string();
         match self {
             SpecifierError::BinaryUnknownSpecifier { span } => Diagnostic::error()
                 .with_message(msg)
                 .with_labels(vec![
-                    Label::primary(span.source_id(), *span).with_message("specifier is not known")
+                    Label::primary(span.source_id(), span).with_message("specifier is not known")
                 ]),
             SpecifierError::BinaryConflictingSpecifier { new, old } => {
                 Diagnostic::error().with_message(msg).with_labels(vec![
-                    Label::primary(new.source_id(), *new).with_message("specifier 1"),
-                    Label::primary(old.source_id(), *old).with_message("specifier 2"),
+                    Label::primary(new.source_id(), new).with_message("specifier 1"),
+                    Label::primary(old.source_id(), old).with_message("specifier 2"),
                 ])
             }
             SpecifierError::BinaryInvalidSpecifier { span, typ } => Diagnostic::error()
                 .with_message(msg)
-                .with_labels(vec![Label::primary(span.source_id(), *span)
+                .with_labels(vec![Label::primary(span.source_id(), span)
                     .with_message(format!("specifier is not valid for {} entries", typ))]),
             SpecifierError::BinarySizeNotAllowed { span, typ } => Diagnostic::error()
                 .with_message(msg)
-                .with_labels(vec![Label::primary(span.source_id(), *span)
+                .with_labels(vec![Label::primary(span.source_id(), span)
                     .with_message(format!("size is not allowed for {} entries", typ))]),
         }
     }

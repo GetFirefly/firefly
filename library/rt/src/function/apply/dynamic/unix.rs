@@ -12,14 +12,34 @@ use core::arch::global_asm;
 use cfg_if::cfg_if;
 
 use crate::function::ErlangResult;
+#[cfg(feature = "async")]
+use crate::futures::ErlangFuture;
+use crate::process::ProcessLock;
 use crate::term::OpaqueTerm;
 
+#[cfg(feature = "async")]
+use super::DynamicAsyncCallee;
 use super::DynamicCallee;
 
 extern "C-unwind" {
     #[allow(improper_ctypes)]
     #[link_name = "__firefly_dynamic_apply"]
-    pub fn apply(f: DynamicCallee, argv: *const OpaqueTerm, argc: usize) -> ErlangResult;
+    pub fn apply(
+        f: DynamicCallee,
+        process: &mut ProcessLock,
+        argv: *const OpaqueTerm,
+        argc: usize,
+    ) -> ErlangResult;
+
+    #[cfg(feature = "async")]
+    #[allow(improper_ctypes)]
+    #[link_name = "__firefly_dynamic_apply_async"]
+    pub fn apply_async(
+        f: DynamicAsyncCallee,
+        process: &mut ProcessLock,
+        argv: *const OpaqueTerm,
+        argc: usize,
+    ) -> ErlangFuture;
 }
 
 cfg_if! {

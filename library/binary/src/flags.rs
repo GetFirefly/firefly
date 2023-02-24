@@ -73,83 +73,104 @@ impl fmt::Display for Encoding {
         }
     }
 }
-/// This struct represents two pieces of information about a binary:
+/// This struct represents the following information about a binary/bitstring:
 ///
 /// - The type of encoding, i.e. latin1, utf8, or unknown/raw
-/// - Whether the binary data was compiled in as a literal, and so should never be garbage
-///   collected/freed
+/// - Whether it is heap-allocated (small) or reference-counted
+/// - Whether it is a binary or a bitstring
+/// - If a bitstring, the number of trailing bits in the underlying buffer
 #[derive(Clone, Copy, PartialEq, Eq)]
 #[repr(transparent)]
 pub struct BinaryFlags(usize);
 impl BinaryFlags {
-    const FLAG_IS_RAW_BIN: usize = 0x01;
-    const FLAG_IS_LATIN1_BIN: usize = 0x02;
-    const FLAG_IS_UTF8_BIN: usize = 0x04;
-    const FLAG_IS_LITERAL: usize = 0x08;
+    const FLAG_IS_RAW_BIN: usize = 0b001;
+    const FLAG_IS_LATIN1_BIN: usize = 0b010;
+    const FLAG_IS_UTF8_BIN: usize = 0b100;
+    const FLAG_IS_BITSTRING: usize = 0b011;
     const FLAG_ENCODING_MASK: usize = 0b111;
-    const FLAG_META_MASK: usize = 0b1111;
-    const FLAG_SIZE_SHIFT: usize = 4;
+    const FLAG_TRAILING_BITS_MASK: usize = 0b1110000;
+    const FLAG_TRAILING_BITS_SHIFT: usize = 4;
+    const FLAG_SIZE_SHIFT: usize = 7;
+    const FLAG_SIZE_MASK: usize = !0b1111111;
 
-    /// Converts an `Encoding` to a raw flags bitset
+    /// Creates a new set of flags based on the given binary data size and encoding
+    ///
+    /// Use `with_trailing_bits` to mark the data as bitstring as needed.
     #[inline]
-    pub fn new(size: usize, encoding: Encoding) -> Self {
-        let meta = match encoding {
-            Encoding::Raw => Self::FLAG_IS_RAW_BIN,
-            Encoding::Latin1 => Self::FLAG_IS_LATIN1_BIN,
-            Encoding::Utf8 => Self::FLAG_IS_UTF8_BIN,
-            invalid => panic!(
-                "invalid binary encoding, must be latin1 or utf8, got {}",
-                invalid
-            ),
+    pub const fn new(size: usize, encoding: Encoding) -> Self {
+        let size = size << Self::FLAG_SIZE_SHIFT;
+        let flags = match encoding {
+            Encoding::Raw => size | Self::FLAG_IS_RAW_BIN,
+            Encoding::Latin1 => size | Self::FLAG_IS_LATIN1_BIN,
+            Encoding::Utf8 => size | Self::FLAG_IS_UTF8_BIN,
+            _ => panic!("invalid binary encoding, must be latin1 or utf8"),
         };
-        Self((size << Self::FLAG_SIZE_SHIFT) | meta)
+        Self(flags)
     }
 
-    /// Converts an `Encoding` to a raw flags bitset for a binary literal
-    #[inline]
-    pub fn new_literal(size: usize, encoding: Encoding) -> Self {
-        let meta = match encoding {
-            Encoding::Raw => Self::FLAG_IS_LITERAL | Self::FLAG_IS_RAW_BIN,
-            Encoding::Latin1 => Self::FLAG_IS_LITERAL | Self::FLAG_IS_LATIN1_BIN,
-            Encoding::Utf8 => Self::FLAG_IS_LITERAL | Self::FLAG_IS_UTF8_BIN,
-            invalid => panic!(
-                "invalid binary encoding, must be latin1 or utf8, got {}",
-                invalid
-            ),
-        };
-        Self((size << Self::FLAG_SIZE_SHIFT) | meta)
+    #[inline(always)]
+    pub const unsafe fn from_raw(raw: usize) -> Self {
+        Self(raw)
     }
 
-    /// Replaces the size value of the given flags with the provided size in bytes
-    pub fn with_size(self, size: usize) -> Self {
-        Self((self.0 & Self::FLAG_META_MASK) | (size << Self::FLAG_SIZE_SHIFT))
+    #[inline(always)]
+    pub const fn into_raw(self) -> usize {
+        self.0
+    }
+
+    /// Marks the underlying binary data as bitstring data with `n` trailing bits.
+    ///
+    /// This function will panic if `n` is greater than 7.
+    pub const fn with_trailing_bits(self, n: usize) -> Self {
+        assert!(n < 8);
+        let tb = n << Self::FLAG_TRAILING_BITS_SHIFT;
+        Self(self.0 & Self::FLAG_SIZE_MASK | Self::FLAG_IS_BITSTRING | tb)
     }
 
     /// Returns the byte size of the binary associated with these flags
     #[inline]
-    pub fn size(&self) -> usize {
-        self.0 >> Self::FLAG_SIZE_SHIFT
+    pub fn trailing_bits(&self) -> usize {
+        (self.0 & Self::FLAG_TRAILING_BITS_MASK) >> Self::FLAG_TRAILING_BITS_SHIFT
     }
 
+    /// Returns the encoding of the bytes containined in the underlying data
     #[inline]
     pub fn as_encoding(&self) -> Encoding {
         match self.0 & Self::FLAG_ENCODING_MASK {
-            Self::FLAG_IS_RAW_BIN => Encoding::Raw,
+            Self::FLAG_IS_RAW_BIN | Self::FLAG_IS_BITSTRING => Encoding::Raw,
             Self::FLAG_IS_LATIN1_BIN => Encoding::Latin1,
             Self::FLAG_IS_UTF8_BIN => Encoding::Utf8,
             value => unreachable!("{}", value),
         }
     }
 
+    /// Returns true if the binary associated with these flags is actually a bitstring
     #[inline]
-    pub fn is_literal(&self) -> bool {
-        self.0 & Self::FLAG_IS_LITERAL == Self::FLAG_IS_LITERAL
+    pub const fn is_bitstring(&self) -> bool {
+        self.0 & Self::FLAG_ENCODING_MASK == Self::FLAG_IS_BITSTRING
+    }
+
+    /// Returns the size of the binary in bytes
+    #[inline]
+    pub const fn size(&self) -> usize {
+        self.0 >> Self::FLAG_SIZE_SHIFT
+    }
+
+    /// Returns true if the binary associated with these flags is under the MAX_HEAP_SIZE limit
+    ///
+    /// When true, the underlying binary will be heap allocated, otherwise it will be reference-counted
+    #[inline]
+    pub const fn is_small(&self) -> bool {
+        self.size() <= 64
     }
 
     /// Returns true if this binary is a raw binary
     #[inline]
     pub fn is_raw(&self) -> bool {
-        self.0 & Self::FLAG_ENCODING_MASK == Self::FLAG_IS_RAW_BIN
+        match self.0 & Self::FLAG_ENCODING_MASK {
+            Self::FLAG_IS_RAW_BIN | Self::FLAG_IS_BITSTRING => true,
+            _ => false,
+        }
     }
 
     /// Returns true if this binary is a Latin-1 binary
@@ -167,9 +188,11 @@ impl BinaryFlags {
 impl fmt::Debug for BinaryFlags {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("BinaryFlags")
-            .field("size", &self.size())
             .field("encoding", &format_args!("{}", self.as_encoding()))
-            .field("literal", &self.is_literal())
+            .field("size", &self.size())
+            .field("is_small", &self.is_small())
+            .field("is_bitstring", &self.is_bitstring())
+            .field("trailing_bits", &self.trailing_bits())
             .finish()
     }
 }

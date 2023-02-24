@@ -1,38 +1,4 @@
-use std::sync::Arc;
-use std::thread::ThreadId;
-
-use log::debug;
-
-use firefly_codegen::meta::CompiledModule;
-use firefly_intern::Symbol;
-use firefly_session::OutputType;
-use firefly_syntax_base::ApplicationMetadata;
-
-use super::prelude::*;
-
-macro_rules! unwrap_or_bail {
-    ($db:ident, $e:expr) => {
-        match $e {
-            Ok(result) => result,
-            Err(ref e) => {
-                bail!($db, "{}", e);
-            }
-        }
-    };
-}
-
-macro_rules! bail {
-    ($db:ident, $e:expr) => {{
-        $db.report_error($e);
-        return Err(ErrorReported);
-    }};
-
-    ($db:ident, $fmt:literal, $($arg:expr),*) => {{
-        $db.report_error(format!($fmt, $($arg),*));
-        return Err(ErrorReported);
-    }}
-}
-
+#[cfg(feature = "native-compilation")]
 pub(super) fn compile<C>(
     db: &C,
     thread_id: ThreadId,
@@ -42,6 +8,7 @@ pub(super) fn compile<C>(
 where
     C: Compiler,
 {
+    use firefly_intern::Symbol;
     use firefly_llvm::passes::PassManagerPass;
     use firefly_mlir::translations::TranslateMLIRToLLVMIR;
     use firefly_mlir::{PassManager, PassManagerOptions};
@@ -115,7 +82,7 @@ where
         use firefly_mlir::Operation;
         module.as_ref().dump();
 
-        db.report_error(format!(
+        diagnostics.error(format!(
             "error occurred while lowering module '{}' to llvm dialect",
             &module_name
         ));

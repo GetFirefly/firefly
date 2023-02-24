@@ -1,21 +1,20 @@
 use std::collections::HashMap;
 
-use firefly_diagnostics::Reporter;
 use firefly_intern::Ident;
+use firefly_util::diagnostics::*;
 
 use crate::ast::*;
 
-pub fn analyze_record(reporter: &Reporter, module: &mut Module, mut record: Record) {
+pub fn analyze_record(diagnostics: &DiagnosticsHandler, module: &mut Module, mut record: Record) {
     let name = record.name.name;
 
     if let Some(prev) = module.records.get(&name) {
-        reporter.show_error(
-            "record already defined",
-            &[
-                (record.span, "duplicate definition occurs here"),
-                (prev.span, "previously defined here"),
-            ],
-        );
+        diagnostics
+            .diagnostic(Severity::Error)
+            .with_message("record already defined")
+            .with_primary_label(record.span, "duplicate definition occurs here")
+            .with_secondary_label(prev.span, "previously defined here")
+            .emit();
         return;
     }
 
@@ -24,17 +23,16 @@ pub fn analyze_record(reporter: &Reporter, module: &mut Module, mut record: Reco
     let mut fields = Vec::<RecordField>::with_capacity(record.fields.len());
     for mut field in record.fields.drain(0..) {
         if field.value.is_none() {
-            field.value = Some(atom!(undefined));
+            field.value = Some(atom!(field.name.span, undefined));
         }
         if let Some(prev_idx) = field_idx_map.get(&field.name) {
             let prev = fields.get(*prev_idx).unwrap();
-            reporter.show_error(
-                "duplicate field in record",
-                &[
-                    (field.name.span, "duplicate field occurs here"),
-                    (prev.span, "originally defined here"),
-                ],
-            );
+            diagnostics
+                .diagnostic(Severity::Error)
+                .with_message("duplicate field in record")
+                .with_primary_label(field.name.span, "duplicate field occurs here")
+                .with_secondary_label(prev.span, "originally defined here")
+                .emit();
         } else {
             field_idx_map.insert(field.name, index);
             fields.push(field);

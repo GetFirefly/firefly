@@ -18,9 +18,9 @@ mlir_tablegen(Passes.capi.h.inc -gen-pass-capi-header --prefix CIR)
 mlir_tablegen(Passes.capi.cpp.inc -gen-pass-capi-impl --prefix CIR)
 add_public_tablegen_target(MLIRCIRPassIncGen)
 
-set(LLVM_TARGET_DEFINITIONS Patterns.pdll)
-pdlgen(Patterns.cpp.inc)
-add_public_pdlgen_target(MLIRCIRPatternsIncGen)
+#set(LLVM_TARGET_DEFINITIONS Patterns.pdll)
+#pdlgen(Patterns.cpp.inc)
+#add_public_pdlgen_target(MLIRCIRPatternsIncGen)
 
 add_mlir_doc(Dialect Dialect CIR/ -gen-dialect-doc)
 add_mlir_doc(Ops Ops CIR/ -gen-op-doc)

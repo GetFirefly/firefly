@@ -1,10 +1,18 @@
 [package]
-authors = ["Paul Schoenfelder <paulschoenfelder@fastmail.com>"]
 name = "stackmaps"
-version = "0.1.0"
-edition = "2021"
+description = "Provides an implementation of stack maps for use by the Firefly compiler and runtime"
+version.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+categories.workspace = true
+keywords.workspace = true
+license.workspace = true
+readme.workspace = true
+edition.workspace = true
+publish.workspace = true
 
 [dependencies]
-cfg-if = "0.1.8"
-lazy_static = "1.4"
-hashbrown = "0.8"
+cfg-if.workspace = true
+lazy_static.workspace = true
+hashbrown.workspace = true

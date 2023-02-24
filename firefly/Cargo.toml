@@ -1,28 +1,31 @@
 [package]
 name = "firefly"
-version = "0.1.0"
-authors = ["Firefly Developers"]
-homepage = "https://github.com/GetFirefly/firefly"
-repository = "https://github.com/GetFirefly/firefly"
-license = "Apache-2.0"
-readme = "README.md"
-publish = false
-edition = "2021"
+version.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+description.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+categories.workspace = true
+keywords.workspace = true
+license.workspace = true
+readme.workspace = true
+edition.workspace = true
+publish.workspace = true
 
 build = "build.rs"
 
 [dependencies]
-anyhow = "1.0"
+anyhow = { workspace = true, features = ["std"] }
 clap = "2.34"
-env_logger = "0.9"
+env_logger.workspace = true
 human-panic = "1.0"
 firefly_util = { path = "../compiler/util" }
 firefly_compiler = { path = "../compiler/driver" }
 firefly_session = { path = "../compiler/session" }
-log = "0.4"
+log.workspace = true
 
 [build-dependencies]
-unwind = { path = "../compiler/unwind" }
-panic = { path = "../compiler/panic" }
 firefly_crt = { path = "../runtimes/crt" }
-firefly_rt_tiny = { path = "../runtimes/tiny" }
+firefly_emulator = { path = "../runtimes/emulator" }

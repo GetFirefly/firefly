@@ -1,8 +1,8 @@
 use core::ops::ControlFlow;
 
-use firefly_diagnostics::{CodeMap, SourceSpan};
+use firefly_diagnostics::{CodeMap, SourceSpan, Spanned};
 use firefly_intern::{symbols, Ident, Symbol};
-use firefly_number::Integer;
+use firefly_number::Int;
 use firefly_pass::Pass;
 
 use crate::ast::*;
@@ -75,9 +75,9 @@ impl<'cm> ExpandSubstitutionsVisitor<'cm> {
                 let span = *span;
                 if let Ok(loc) = self.codemap.location_for_span(span) {
                     let line = loc.line.number().to_usize() as i64;
-                    Expr::Literal(Literal::Integer(span, Integer::Small(line)))
+                    Expr::Literal(Literal::Integer(span, Int::Small(line)))
                 } else {
-                    Expr::Literal(Literal::Integer(span, Integer::Small(0)))
+                    Expr::Literal(Literal::Integer(span, Int::Small(0)))
                 }
             }
         }
@@ -85,8 +85,8 @@ impl<'cm> ExpandSubstitutionsVisitor<'cm> {
 }
 impl<'cm> VisitMut<anyhow::Error> for ExpandSubstitutionsVisitor<'cm> {
     fn visit_mut_expr(&mut self, expr: &mut Expr) -> ControlFlow<anyhow::Error> {
-        if let Expr::DelayedSubstitution(ref span, sub) = expr {
-            *expr = self.fix(span, *sub);
+        if let Expr::DelayedSubstitution(sub) = expr {
+            *expr = self.fix(&sub.span(), sub.item);
             ControlFlow::Continue(())
         } else {
             visit::visit_mut_expr(self, expr)
@@ -94,8 +94,8 @@ impl<'cm> VisitMut<anyhow::Error> for ExpandSubstitutionsVisitor<'cm> {
     }
 
     fn visit_mut_pattern(&mut self, pattern: &mut Expr) -> ControlFlow<anyhow::Error> {
-        if let Expr::DelayedSubstitution(ref span, sub) = pattern {
-            *pattern = self.fix(span, *sub);
+        if let Expr::DelayedSubstitution(sub) = pattern {
+            *pattern = self.fix(&sub.span(), sub.item);
             ControlFlow::Continue(())
         } else {
             visit::visit_mut_pattern(self, pattern)

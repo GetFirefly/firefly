@@ -207,3 +207,11 @@ MlirType mlirCirMatchContextTypeGet(MlirContext ctx) {
 bool mlirCirIsAMatchContextType(MlirType type) {
   return unwrap(type).isa<CIRMatchContextType>();
 }
+
+MlirType mlirCirProcessTypeGet(MlirContext ctx) {
+  return wrap(CIRProcessType::get(unwrap(ctx)));
+}
+
+bool mlirCirIsAProcessType(MlirType type) {
+  return unwrap(type).isa<CIRProcessType>();
+}

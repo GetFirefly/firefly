@@ -4,7 +4,7 @@ use lazy_static::lazy_static;
 
 use firefly_diagnostics::{SourceSpan, Spanned};
 use firefly_intern::{Ident, Symbol};
-use firefly_number::Integer;
+use firefly_number::Int;
 use firefly_syntax_base::{BinaryOp, UnaryOp};
 
 use crate::ast::Name;
@@ -112,7 +112,7 @@ pub enum Type {
     Tuple(#[span] SourceSpan, Vec<Type>),
     Record(#[span] SourceSpan, Ident, Vec<Type>),
     Binary(#[span] SourceSpan, Box<Type>, Box<Type>),
-    Integer(#[span] SourceSpan, Integer),
+    Integer(#[span] SourceSpan, Int),
     Char(#[span] SourceSpan, char),
     AnyFun {
         #[span]

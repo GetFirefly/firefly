@@ -9,7 +9,7 @@ pub use half::f16;
 use num_bigint::{BigInt, Sign};
 use num_traits::ToPrimitive;
 
-use crate::{DivisionError, Integer};
+use crate::{DivisionError, Int};
 
 #[derive(Debug, Copy, Clone)]
 pub enum FloatError {
@@ -74,9 +74,9 @@ impl Float {
         self.0.classify() == FpCategory::Zero
     }
 
-    /// Convers this Float to an Integer value
-    pub fn to_integer(&self) -> Integer {
-        Integer::new(self.0 as i64)
+    /// Convers this Float to an Int value
+    pub fn to_integer(&self) -> Int {
+        Int::new(self.0 as i64)
     }
 
     /// Returns whether this float is more precise than an integer.
@@ -216,11 +216,11 @@ impl PartialEq<BigInt> for Float {
         self.eq(&y)
     }
 }
-impl PartialEq<Integer> for Float {
-    fn eq(&self, y: &Integer) -> bool {
+impl PartialEq<Int> for Float {
+    fn eq(&self, y: &Int) -> bool {
         match y {
-            Integer::Small(i) => self.eq(i),
-            Integer::Big(i) => self.eq(i),
+            Int::Small(i) => self.eq(i),
+            Int::Big(i) => self.eq(i),
         }
     }
 }
@@ -272,11 +272,11 @@ impl PartialOrd<BigInt> for Float {
         }
     }
 }
-impl PartialOrd<Integer> for Float {
-    fn partial_cmp(&self, other: &Integer) -> Option<Ordering> {
+impl PartialOrd<Int> for Float {
+    fn partial_cmp(&self, other: &Int) -> Option<Ordering> {
         match other {
-            Integer::Small(i) => self.partial_cmp(i),
-            Integer::Big(i) => self.partial_cmp(i),
+            Int::Small(i) => self.partial_cmp(i),
+            Int::Big(i) => self.partial_cmp(i),
         }
     }
 }
@@ -301,7 +301,7 @@ impl Add<i64> for Float {
     type Output = Result<Float, FloatError>;
 
     fn add(self, rhs: i64) -> Self::Output {
-        let rhs: Integer = rhs.into();
+        let rhs: Int = rhs.into();
         self + rhs.to_efloat()?
     }
 }
@@ -309,21 +309,21 @@ impl Add<BigInt> for Float {
     type Output = Result<Float, FloatError>;
 
     fn add(self, rhs: BigInt) -> Self::Output {
-        let rhs = Integer::Big(rhs);
+        let rhs = Int::Big(rhs);
         self + rhs.to_efloat()?
     }
 }
-impl Add<Integer> for Float {
+impl Add<Int> for Float {
     type Output = Result<Float, FloatError>;
 
-    fn add(self, rhs: Integer) -> Self::Output {
+    fn add(self, rhs: Int) -> Self::Output {
         self + rhs.to_efloat()?
     }
 }
-impl Add<&Integer> for Float {
+impl Add<&Int> for Float {
     type Output = Result<Float, FloatError>;
 
-    fn add(self, rhs: &Integer) -> Self::Output {
+    fn add(self, rhs: &Int) -> Self::Output {
         self + rhs.to_efloat()?
     }
 }
@@ -340,7 +340,7 @@ impl Sub<i64> for Float {
     type Output = Result<Float, FloatError>;
 
     fn sub(self, rhs: i64) -> Self::Output {
-        let rhs: Integer = rhs.into();
+        let rhs: Int = rhs.into();
         self - rhs.to_efloat()?
     }
 }
@@ -348,20 +348,20 @@ impl Sub<BigInt> for Float {
     type Output = Result<Float, FloatError>;
 
     fn sub(self, rhs: BigInt) -> Self::Output {
-        let rhs = Integer::Big(rhs);
+        let rhs = Int::Big(rhs);
         self - rhs.to_efloat()?
     }
 }
-impl Sub<Integer> for Float {
+impl Sub<Int> for Float {
     type Output = Result<Float, FloatError>;
 
-    fn sub(self, rhs: Integer) -> Self::Output {
+    fn sub(self, rhs: Int) -> Self::Output {
         self - rhs.to_efloat()?
     }
 }
-impl Sub<&Integer> for Float {
+impl Sub<&Int> for Float {
     type Output = Result<Float, FloatError>;
-    fn sub(self, rhs: &Integer) -> Self::Output {
+    fn sub(self, rhs: &Int) -> Self::Output {
         self - rhs.to_efloat()?
     }
 }
@@ -377,26 +377,26 @@ impl Mul for Float {
 impl Mul<i64> for Float {
     type Output = Result<Float, FloatError>;
     fn mul(self, rhs: i64) -> Self::Output {
-        let rhs: Integer = rhs.into();
+        let rhs: Int = rhs.into();
         self * rhs.to_efloat()?
     }
 }
 impl Mul<BigInt> for Float {
     type Output = Result<Float, FloatError>;
     fn mul(self, rhs: BigInt) -> Self::Output {
-        let rhs = Integer::Big(rhs);
+        let rhs = Int::Big(rhs);
         self * rhs.to_efloat()?
     }
 }
-impl Mul<Integer> for Float {
+impl Mul<Int> for Float {
     type Output = Result<Float, FloatError>;
-    fn mul(self, rhs: Integer) -> Self::Output {
+    fn mul(self, rhs: Int) -> Self::Output {
         self * rhs.to_efloat()?
     }
 }
-impl Mul<&Integer> for Float {
+impl Mul<&Int> for Float {
     type Output = Result<Float, FloatError>;
-    fn mul(self, rhs: &Integer) -> Self::Output {
+    fn mul(self, rhs: &Int) -> Self::Output {
         self * rhs.to_efloat()?
     }
 }
@@ -416,7 +416,7 @@ impl Div<i64> for Float {
     type Output = Result<Float, DivisionError>;
 
     fn div(self, rhs: i64) -> Self::Output {
-        let rhs: Integer = rhs.into();
+        let rhs: Int = rhs.into();
         self / rhs.to_efloat().map_err(|_| DivisionError)?
     }
 }
@@ -424,21 +424,21 @@ impl Div<BigInt> for Float {
     type Output = Result<Float, DivisionError>;
 
     fn div(self, rhs: BigInt) -> Self::Output {
-        let rhs = Integer::Big(rhs);
+        let rhs = Int::Big(rhs);
         self / rhs.to_efloat().map_err(|_| DivisionError)?
     }
 }
-impl Div<Integer> for Float {
+impl Div<Int> for Float {
     type Output = Result<Float, DivisionError>;
 
-    fn div(self, rhs: Integer) -> Self::Output {
+    fn div(self, rhs: Int) -> Self::Output {
         self / rhs.to_efloat().map_err(|_| DivisionError)?
     }
 }
-impl Div<&Integer> for Float {
+impl Div<&Int> for Float {
     type Output = Result<Float, DivisionError>;
 
-    fn div(self, rhs: &Integer) -> Self::Output {
+    fn div(self, rhs: &Int) -> Self::Output {
         self / rhs.to_efloat().map_err(|_| DivisionError)?
     }
 }
@@ -458,7 +458,7 @@ impl Rem<i64> for Float {
     type Output = Result<Float, DivisionError>;
 
     fn rem(self, rhs: i64) -> Self::Output {
-        let rhs: Integer = rhs.into();
+        let rhs: Int = rhs.into();
         self % rhs.to_efloat().map_err(|_| DivisionError)?
     }
 }
@@ -466,21 +466,21 @@ impl Rem<BigInt> for Float {
     type Output = Result<Float, DivisionError>;
 
     fn rem(self, rhs: BigInt) -> Self::Output {
-        let rhs = Integer::Big(rhs);
+        let rhs = Int::Big(rhs);
         self % rhs.to_efloat().map_err(|_| DivisionError)?
     }
 }
-impl Rem<Integer> for Float {
+impl Rem<Int> for Float {
     type Output = Result<Float, DivisionError>;
 
-    fn rem(self, rhs: Integer) -> Self::Output {
+    fn rem(self, rhs: Int) -> Self::Output {
         self % rhs.to_efloat().map_err(|_| DivisionError)?
     }
 }
-impl Rem<&Integer> for Float {
+impl Rem<&Int> for Float {
     type Output = Result<Float, DivisionError>;
 
-    fn rem(self, rhs: &Integer) -> Self::Output {
+    fn rem(self, rhs: &Int) -> Self::Output {
         self % rhs.to_efloat().map_err(|_| DivisionError)?
     }
 }

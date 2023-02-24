@@ -11,7 +11,7 @@ use std::str::FromStr;
 
 use firefly_diagnostics::*;
 use firefly_intern::Symbol;
-use firefly_number::{Float, FloatError, Integer};
+use firefly_number::{Float, FloatError, Int};
 use firefly_parser::{EscapeStm, EscapeStmAction, Scanner, Source};
 
 pub struct Lexer<S> {
@@ -509,6 +509,6 @@ where
 // This function panics if the literal is unparseable due to being invalid for the given radix,
 // or containing non-ASCII digits.
 fn to_integer_literal(literal: &str, radix: u32) -> Token {
-    let int = Integer::from_string_radix(literal, radix).unwrap();
+    let int = Int::from_string_radix(literal, radix).unwrap();
     Token::IntegerLiteral(int)
 }

@@ -1,15 +1,24 @@
 [package]
 name = "firefly_beam"
-version = "0.1.0"
-authors = ["Paul Schoenfelder <paulschoenfelder@gmail.com>", "Luke Imhoff <Kronic.Deth@gmail.com>"]
-edition = "2021"
-publish = false
+version.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+categories.workspace = true
+keywords.workspace = true
+license.workspace = true
+readme.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[features]
+default = []
+std = ["anyhow/std", "firefly_intern/std", "firefly_number/std"]
 
 [dependencies]
+anyhow.workspace = true
+byteorder.workspace = true
+libflate = "0.1"
 firefly_intern = { path = "../../compiler/intern" }
 firefly_number = { path = "../number" }
-
-anyhow = "1.0"
-thiserror = "1.0"
-byteorder = "1.2"
-libflate = "0.1"
+thiserror.workspace = true

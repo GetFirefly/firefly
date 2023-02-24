@@ -3,7 +3,7 @@ use std::ops::Range;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use firefly_diagnostics::*;
+use firefly_util::diagnostics::*;
 
 pub type SourceResult<T> = std::result::Result<T, SourceError>;
 
@@ -36,8 +36,8 @@ pub enum SourceError {
         source: crate::util::PathVariableSubstituteError,
     },
 }
-impl SourceError {
-    pub fn to_diagnostic(&self) -> Diagnostic {
+impl ToDiagnostic for SourceError {
+    fn to_diagnostic(self) -> Diagnostic {
         match self {
             SourceError::RootFileIO { source, path: _ } => {
                 Diagnostic::error().with_message(source.to_string())

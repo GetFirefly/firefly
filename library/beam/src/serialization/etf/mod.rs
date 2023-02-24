@@ -31,7 +31,7 @@ pub mod pattern;
 mod test;
 
 use firefly_intern::Symbol;
-use firefly_number::{BigInt, Float, Integer, Sign, ToPrimitive};
+use firefly_number::{BigInt, Float, Int, Sign, ToPrimitive};
 
 pub use self::codec::{DecodeError, DecodeResult};
 pub use self::codec::{EncodeError, EncodeResult};
@@ -42,7 +42,7 @@ pub use self::pattern::MatchResult;
 pub enum Term {
     Atom(Atom),
     String(Str),
-    Integer(Integer),
+    Integer(Int),
     Float(Float),
     Pid(Pid),
     Port(Port),
@@ -105,8 +105,8 @@ impl From<Str> for Term {
         Self::String(x)
     }
 }
-impl From<Integer> for Term {
-    fn from(x: Integer) -> Self {
+impl From<Int> for Term {
+    fn from(x: Int) -> Self {
         Self::Integer(x)
     }
 }
@@ -610,7 +610,7 @@ mod tests {
         ]));
         assert!(t.as_match(("foo", "bar", "baz")).is_err());
 
-        let t = Term::from(Integer::from(8));
+        let t = Term::from(Int::from(8));
         t.as_match(U8).unwrap();
     }
 }

@@ -1,0 +1,12 @@
+[package]
+name = "firefly_macros_seq"
+version = "0.3.1"
+authors = ["David Tolnay <dtolnay@gmail.com>", "Paul Schoenfelder <paulschoenfelder@gmail.com>"]
+description = "Macro to repeat sequentially indexed copies of a fragment of code."
+documentation = "https://docs.rs/seq-macro"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/dtolnay/seq-macro"
+
+[lib]
+proc-macro = true

@@ -1,64 +1,61 @@
-use firefly_diagnostics::Reporter;
 use firefly_intern::Symbol;
 use firefly_syntax_base::{bifs, CompileOptions, Deprecation, FunctionName, Signature};
+use firefly_util::diagnostics::{DiagnosticsHandler, Severity};
 
 use crate::ast::*;
 
 use super::*;
 
-pub fn analyze_attribute(reporter: &Reporter, module: &mut Module, attr: Attribute) {
+pub fn analyze_attribute(diagnostics: &DiagnosticsHandler, module: &mut Module, attr: Attribute) {
     match attr {
         Attribute::Vsn(span, vsn) => {
             if module.vsn.is_none() {
                 let vsn_span = vsn.span();
                 let vsn_lit: Result<ast::Literal, _> = vsn.try_into();
                 if vsn_lit.is_err() {
-                    reporter.show_error(
-                        "invalid -vsn attribute value",
-                        &[
-                            (span, "expected a literal value"),
-                            (vsn_span, "this expression is not a valid literal"),
-                        ],
-                    );
+                    diagnostics
+                        .diagnostic(Severity::Error)
+                        .with_message("invalid -vsn attribute value")
+                        .with_primary_label(span, "expected a literal value")
+                        .with_secondary_label(vsn_span, "this expression is not a valid literal")
+                        .emit();
                 } else {
                     module.vsn = Some(vsn_lit.unwrap());
                 }
                 return;
             }
             let module_vsn_span = module.vsn.as_ref().map(|v| v.span()).unwrap();
-            reporter.show_error(
-                "attribute is already defined",
-                &[
-                    (span, "redefinition occurs here"),
-                    (module_vsn_span, "first defined here"),
-                ],
-            );
+
+            diagnostics
+                .diagnostic(Severity::Error)
+                .with_message("attribute is already defined")
+                .with_primary_label(module_vsn_span, "first defined here")
+                .with_secondary_label(span, "redefinition occurs here")
+                .emit();
         }
         Attribute::Author(span, author) => {
             if module.author.is_none() {
                 let author_span = author.span();
                 let author_lit: Result<ast::Literal, _> = author.try_into();
                 if author_lit.is_err() {
-                    reporter.show_error(
-                        "invalid -author attribute value",
-                        &[
-                            (span, "expected a literal value"),
-                            (author_span, "this expression is not a valid literal"),
-                        ],
-                    );
+                    diagnostics
+                        .diagnostic(Severity::Error)
+                        .with_message("invalid -author attribute value")
+                        .with_primary_label(span, "expected a literal value")
+                        .with_secondary_label(author_span, "this expression is not a valid literal")
+                        .emit();
                 } else {
                     module.author = Some(author_lit.unwrap());
                 }
                 return;
             }
             let module_author_span = module.author.as_ref().map(|v| v.span()).unwrap();
-            reporter.show_error(
-                "attribute is already defined",
-                &[
-                    (span, "redefinition occurs here"),
-                    (module_author_span, "first defined here"),
-                ],
-            );
+            diagnostics
+                .diagnostic(Severity::Error)
+                .with_message("attribute is already defined")
+                .with_primary_label(module_author_span, "first defined here")
+                .with_secondary_label(span, "redefinition occurs here")
+                .emit();
         }
         Attribute::OnLoad(span, fname) => {
             if module.on_load.is_none() {
@@ -66,13 +63,12 @@ pub fn analyze_attribute(reporter: &Reporter, module: &mut Module, attr: Attribu
                 return;
             }
             let module_onload_span = module.on_load.as_ref().map(|v| v.span()).unwrap();
-            reporter.show_error(
-                "on_load can only be defined once",
-                &[
-                    (span, "redefinition occurs here"),
-                    (module_onload_span, "first defined here"),
-                ],
-            );
+            diagnostics
+                .diagnostic(Severity::Error)
+                .with_message("on_load can only be defined once")
+                .with_primary_label(module_onload_span, "first defined here")
+                .with_secondary_label(span, "redefinition occurs here")
+                .emit();
         }
         Attribute::Import(span, from_module, mut imports) => {
             for local_import in imports.drain(..) {
@@ -90,13 +86,15 @@ pub fn analyze_attribute(reporter: &Reporter, module: &mut Module, attr: Attribu
                     }
                     Some(ref spanned) => {
                         let prev_span = spanned.span();
-                        reporter.show_warning(
-                            "unused import",
-                            &[
-                                (span, "this import is a duplicate of a previous import"),
-                                (prev_span, "function was first imported here"),
-                            ],
-                        );
+                        diagnostics
+                            .diagnostic(Severity::Warning)
+                            .with_message("unused import")
+                            .with_primary_label(
+                                span,
+                                "this import is a duplicate of a previous import",
+                            )
+                            .with_secondary_label(prev_span, "function was first imported here")
+                            .emit();
                     }
                 }
             }
@@ -109,13 +107,15 @@ pub fn analyze_attribute(reporter: &Reporter, module: &mut Module, attr: Attribu
                         module.exports.insert(local_export);
                     }
                     Some(ref spanned) => {
-                        reporter.show_error(
-                            "already exported",
-                            &[
-                                (span, "duplicate export occurs here"),
-                                (spanned.span(), "function was first exported here"),
-                            ],
-                        );
+                        diagnostics
+                            .diagnostic(Severity::Error)
+                            .with_message("already exported")
+                            .with_primary_label(span, "duplicate export occurs here")
+                            .with_secondary_label(
+                                spanned.span(),
+                                "function was first exported here",
+                            )
+                            .emit();
                     }
                 }
             }
@@ -128,13 +128,12 @@ pub fn analyze_attribute(reporter: &Reporter, module: &mut Module, attr: Attribu
                         module.nifs.insert(local_export);
                     }
                     Some(ref spanned) => {
-                        reporter.show_error(
-                            "duplicate -nif declaration",
-                            &[
-                                (span, "duplicate declaration occurs here"),
-                                (spanned.span(), "originally declared here"),
-                            ],
-                        );
+                        diagnostics
+                            .diagnostic(Severity::Error)
+                            .with_message("duplicate -nif declaration")
+                            .with_primary_label(span, "duplicate declaration occurs here")
+                            .with_secondary_label(spanned.span(), "originally declared here")
+                            .emit();
                     }
                 }
             }
@@ -143,13 +142,12 @@ pub fn analyze_attribute(reporter: &Reporter, module: &mut Module, attr: Attribu
             for (name, description) in removed.drain(..) {
                 let local_name = name.to_local();
                 if let Some((prev_span, _)) = module.removed.get(&local_name) {
-                    reporter.show_error(
-                        "already marked as removed",
-                        &[
-                            (span, "duplicate entry occurs here"),
-                            (*prev_span, "function was marked here"),
-                        ],
-                    );
+                    diagnostics
+                        .diagnostic(Severity::Error)
+                        .with_message("already marked as removed")
+                        .with_primary_label(span, "duplicate entry occurs here")
+                        .with_secondary_label(*prev_span, "function was marked here")
+                        .emit();
                 } else {
                     module.removed.insert(local_name, (span, description));
                 }
@@ -163,13 +161,12 @@ pub fn analyze_attribute(reporter: &Reporter, module: &mut Module, attr: Attribu
                     module.types.insert(type_name, ty);
                 }
                 Some(TypeDef { span, .. }) => {
-                    reporter.show_error(
-                        "type is already defined",
-                        &[
-                            (ty.span, "redefinition occurs here"),
-                            (*span, "type was first defined here"),
-                        ],
-                    );
+                    diagnostics
+                        .diagnostic(Severity::Error)
+                        .with_message("type is already defined")
+                        .with_primary_label(ty.span, "redefinition occurs here")
+                        .with_secondary_label(*span, "type was first defined here")
+                        .emit();
                 }
             }
         }
@@ -182,13 +179,12 @@ pub fn analyze_attribute(reporter: &Reporter, module: &mut Module, attr: Attribu
                     }
                     Some(ref spanned) => {
                         let prev_span = spanned.span();
-                        reporter.show_warning(
-                            "type already exported",
-                            &[
-                                (span, "duplicate export occurs here"),
-                                (prev_span, "type was first exported here"),
-                            ],
-                        );
+                        diagnostics
+                            .diagnostic(Severity::Error)
+                            .with_message("type already exported")
+                            .with_primary_label(span, "duplicate export occurs here")
+                            .with_secondary_label(prev_span, "type was first exported here")
+                            .emit();
                     }
                 }
             }
@@ -198,13 +194,12 @@ pub fn analyze_attribute(reporter: &Reporter, module: &mut Module, attr: Attribu
                 module.behaviours.insert(b_module);
             }
             Some(prev) => {
-                reporter.show_warning(
-                    "duplicate behavior declaration",
-                    &[
-                        (span, "duplicate declaration occurs here"),
-                        (prev.span, "first declaration occurs here"),
-                    ],
-                );
+                diagnostics
+                    .diagnostic(Severity::Error)
+                    .with_message("duplicate behavior declaration")
+                    .with_primary_label(span, "duplicate declaration occurs here")
+                    .with_secondary_label(prev.span, "first declaration occurs here")
+                    .emit();
             }
         },
         Attribute::Callback(callback) => {
@@ -219,16 +214,15 @@ pub fn analyze_attribute(reporter: &Reporter, module: &mut Module, attr: Attribu
                 {
                     if params.len() != arity {
                         let message = format!("expected arity of {}", arity);
-                        reporter.show_error(
-                            "mismatched arity",
-                            &[
-                                (*span, message.as_str()),
-                                (
-                                    first_sig.span,
-                                    "expected arity was derived from this clause",
-                                ),
-                            ],
-                        );
+                        diagnostics
+                            .diagnostic(Severity::Error)
+                            .with_message("mismatched arity")
+                            .with_primary_label(*span, message)
+                            .with_secondary_label(
+                                first_sig.span,
+                                "expected arity was derived from this clause",
+                            )
+                            .emit();
                     }
                 }
             }
@@ -245,13 +239,12 @@ pub fn analyze_attribute(reporter: &Reporter, module: &mut Module, attr: Attribu
                     return;
                 }
                 Some(ref prev_cb) => {
-                    reporter.show_error(
-                        "cannot redefined callback",
-                        &[
-                            (callback.span, "redefinition occurs here"),
-                            (prev_cb.span, "callback first defined here"),
-                        ],
-                    );
+                    diagnostics
+                        .diagnostic(Severity::Error)
+                        .with_message("cannot redefined callback")
+                        .with_primary_label(callback.span, "redefinition occurs here")
+                        .with_secondary_label(prev_cb.span, "callback first defined here")
+                        .emit();
                 }
             }
         }
@@ -267,16 +260,15 @@ pub fn analyze_attribute(reporter: &Reporter, module: &mut Module, attr: Attribu
                 {
                     if params.len() != arity {
                         let message = format!("expected arity of {}", arity);
-                        reporter.show_error(
-                            "mismatched arity",
-                            &[
-                                (*span, message.as_str()),
-                                (
-                                    first_sig.span,
-                                    "expected arity was derived from this clause",
-                                ),
-                            ],
-                        );
+                        diagnostics
+                            .diagnostic(Severity::Error)
+                            .with_message("mismatched arity")
+                            .with_primary_label(*span, message)
+                            .with_secondary_label(
+                                first_sig.span,
+                                "expected arity was derived from this clause",
+                            )
+                            .emit();
                     }
                 }
             }
@@ -292,39 +284,55 @@ pub fn analyze_attribute(reporter: &Reporter, module: &mut Module, attr: Attribu
                     module.specs.insert(spec_name, typespec);
                 }
                 Some(TypeSpec { span, .. }) => {
-                    reporter.show_error(
-                        "spec already defined",
-                        &[
-                            (typespec.span, "redefinition occurs here"),
-                            (*span, "spec first defined here"),
-                        ],
-                    );
+                    diagnostics
+                        .diagnostic(Severity::Error)
+                        .with_message("spec already defined")
+                        .with_primary_label(typespec.span, "redefinition occurs here")
+                        .with_secondary_label(*span, "spec first defined here")
+                        .emit();
                 }
             }
         }
         Attribute::Compile(_, compile) => match module.compile {
-            None => match compile_opts_from_expr(module.name, &compile, reporter) {
+            None => match compile_opts_from_expr(module.name, &compile, diagnostics) {
                 Ok(opts) => module.compile = Some(opts),
                 Err(opts) => module.compile = Some(opts),
             },
             Some(ref mut opts) => {
-                let _ = merge_compile_opts_from_expr(opts, module.name, &compile, reporter);
+                let _ = merge_compile_opts_from_expr(opts, module.name, &compile, diagnostics);
             }
         },
         Attribute::Deprecation(mut deprecations) => {
             for deprecation in deprecations.drain(..) {
                 match deprecation {
-                    Deprecation::Module { span, .. } => match module.deprecation {
-                        None => {
-                            module.deprecation = Some(deprecation);
+                    Deprecation::Module { span, .. } => {
+                        match module.deprecation {
+                            None => {
+                                module.deprecation = Some(deprecation);
+                            }
+                            Some(ref prev_dep) => {
+                                diagnostics.diagnostic(Severity::Warning)
+                                .with_message("redundant deprecation")
+                                .with_primary_label(span, "this module is already deprecated by a previous declaration")
+                                .with_secondary_label(prev_dep.span(), "deprecation first declared here")
+                                .emit();
+                            }
                         }
-                        Some(ref prev_dep) => {
-                            reporter.show_warning("redundant deprecation", &[(span, "this module is already deprecated by a previous declaration"), (prev_dep.span(), "deprecation first declared here")]);
-                        }
-                    },
+                    }
                     Deprecation::Function { span, .. } => {
                         if let Some(ref mod_dep) = module.deprecation.as_ref() {
-                            reporter.show_warning("redundant deprecation", &[(span, "module is deprecated, so deprecating functions is redundant"), (mod_dep.span(), "module deprecation occurs here")]);
+                            diagnostics
+                                .diagnostic(Severity::Warning)
+                                .with_message("redundant deprecation")
+                                .with_primary_label(
+                                    span,
+                                    "module is deprecated, so deprecating functions is redundant",
+                                )
+                                .with_secondary_label(
+                                    mod_dep.span(),
+                                    "module deprecation occurs here",
+                                )
+                                .emit();
                             return;
                         }
 
@@ -333,13 +341,28 @@ pub fn analyze_attribute(reporter: &Reporter, module: &mut Module, attr: Attribu
                                 module.deprecations.insert(deprecation);
                             }
                             Some(ref prev_dep) => {
-                                reporter.show_warning("redundant deprecation", &[(span, "this function is already deprecated by a previous declaration"), (prev_dep.span(), "deprecation first declared here")]);
+                                diagnostics.diagnostic(Severity::Warning)
+                                    .with_message("redundant deprecation")
+                                    .with_primary_label(span, "this function is already deprecated by a previous declaration")
+                                    .with_secondary_label(prev_dep.span(), "deprecation first declared here")
+                                    .emit();
                             }
                         }
                     }
                     Deprecation::FunctionAnyArity { span, .. } => {
                         if let Some(ref mod_dep) = module.deprecation.as_ref() {
-                            reporter.show_warning("redundant deprecation", &[(span, "module is deprecated, so deprecating functions is redundant"), (mod_dep.span(), "module deprecation occurs here")]);
+                            diagnostics
+                                .diagnostic(Severity::Warning)
+                                .with_message("redundant deprecation")
+                                .with_primary_label(
+                                    span,
+                                    "module is deprecated, so deprecating functions is redundant",
+                                )
+                                .with_secondary_label(
+                                    mod_dep.span(),
+                                    "module deprecation occurs here",
+                                )
+                                .emit();
                             return;
                         }
 
@@ -348,7 +371,15 @@ pub fn analyze_attribute(reporter: &Reporter, module: &mut Module, attr: Attribu
                                 module.deprecations.insert(deprecation);
                             }
                             Some(ref prev_dep) => {
-                                reporter.show_warning("conflicting deprecation", &[(span, "this deprecation is a duplicate of a previous declaration"), (prev_dep.span(), "first declared here")]);
+                                diagnostics
+                                    .diagnostic(Severity::Warning)
+                                    .with_message("conflicting deprecation")
+                                    .with_primary_label(
+                                        span,
+                                        "this deprecation is a duplicate of a previous declaration",
+                                    )
+                                    .with_secondary_label(prev_dep.span(), "first declared here")
+                                    .emit();
                             }
                         }
                     }
@@ -358,13 +389,12 @@ pub fn analyze_attribute(reporter: &Reporter, module: &mut Module, attr: Attribu
         Attribute::Custom(attr) => {
             match attr.name.name.as_str().get() {
                 "module" => {
-                    reporter.show_error(
-                        "multiple module declarations",
-                        &[
-                            (attr.span, "invalid declaration occurs here"),
-                            (module.name.span, "module first declared here"),
-                        ],
-                    );
+                    diagnostics
+                        .diagnostic(Severity::Warning)
+                        .with_message("multiple module declarations")
+                        .with_primary_label(attr.span, "invalid declaration occurs here")
+                        .with_secondary_label(module.name.span, "module first declared here")
+                        .emit();
                     return;
                 }
                 "optional_callbacks" => {
@@ -378,13 +408,12 @@ pub fn analyze_attribute(reporter: &Reporter, module: &mut Module, attr: Attribu
             }
             let attr_value: Result<ast::Literal, _> = attr.value.try_into();
             if attr_value.is_err() {
-                reporter.show_warning(
-                    "invalid attribute value",
-                    &[
-                        (attr.span, "attribute values must be literals"),
-                        (attr.span, "this attribute will be ignored"),
-                    ],
-                );
+                diagnostics
+                    .diagnostic(Severity::Warning)
+                    .with_message("invalid attribute value")
+                    .with_primary_label(attr.span, "attribute values must be literals")
+                    .with_note("this attribute will be ignored")
+                    .emit();
                 return;
             }
             match module.attributes.get(&attr.name) {
@@ -394,13 +423,12 @@ pub fn analyze_attribute(reporter: &Reporter, module: &mut Module, attr: Attribu
                         .insert(attr.name.clone(), attr_value.unwrap());
                 }
                 Some(ref prev_attr) => {
-                    reporter.show_warning(
-                        "redefined attribute",
-                        &[
-                            (attr.span, "redefinition occurs here"),
-                            (prev_attr.span(), "previously defined here"),
-                        ],
-                    );
+                    diagnostics
+                        .diagnostic(Severity::Warning)
+                        .with_message("redefined attribute")
+                        .with_primary_label(attr.span, "redefinition occurs here")
+                        .with_secondary_label(prev_attr.span(), "previously defined here")
+                        .emit();
                     module.attributes.insert(attr.name, attr_value.unwrap());
                 }
             }
@@ -411,10 +439,10 @@ pub fn analyze_attribute(reporter: &Reporter, module: &mut Module, attr: Attribu
 fn compile_opts_from_expr(
     module: Ident,
     expr: &Expr,
-    reporter: &Reporter,
+    diagnostics: &DiagnosticsHandler,
 ) -> Result<CompileOptions, CompileOptions> {
     let mut opts = CompileOptions::default();
-    match merge_compile_opts_from_expr(&mut opts, module, expr, reporter) {
+    match merge_compile_opts_from_expr(&mut opts, module, expr, diagnostics) {
         Ok(_) => Ok(opts),
         Err(_) => Err(opts),
     }
@@ -424,16 +452,16 @@ fn merge_compile_opts_from_expr(
     options: &mut CompileOptions,
     module: Ident,
     expr: &Expr,
-    reporter: &Reporter,
+    diagnostics: &DiagnosticsHandler,
 ) -> Result<(), ()> {
-    set_compile_option(options, module, expr, reporter)
+    set_compile_option(options, module, expr, diagnostics)
 }
 
 fn set_compile_option(
     options: &mut CompileOptions,
     module: Ident,
     expr: &Expr,
-    reporter: &Reporter,
+    diagnostics: &DiagnosticsHandler,
 ) -> Result<(), ()> {
     match expr {
         // e.g. -compile(export_all).
@@ -524,15 +552,14 @@ fn set_compile_option(
                 "nowarn_nif_inline" => options.warn_nif_inline = false,
 
                 _name => {
-                    reporter.diagnostic(
-                        Diagnostic::warning()
-                            .with_message("invalid compile option")
-                            .with_labels(vec![Label::primary(
-                                option_name.span.source_id(),
-                                option_name.span,
-                            )
-                            .with_message("this option is either unsupported or unrecognized")]),
-                    );
+                    diagnostics
+                        .diagnostic(Severity::Warning)
+                        .with_message("invalid compile option")
+                        .with_primary_label(
+                            option_name.span,
+                            "this option is either unsupported or unrecognized",
+                        )
+                        .emit();
                     return Err(());
                 }
             }
@@ -540,34 +567,31 @@ fn set_compile_option(
         // e.g. -compile([export_all, nowarn_unused_function]).
         &Expr::Cons(Cons {
             ref head, ref tail, ..
-        }) => compiler_opts_from_list(options, module, to_list(head, tail), reporter),
+        }) => compiler_opts_from_list(options, module, to_list(head, tail), diagnostics),
         // e.g. -compile({nowarn_unused_function, [some_fun/0]}).
         &Expr::Tuple(Tuple { ref elements, .. }) if elements.len() == 2 => {
             if let &Expr::Literal(Literal::Atom(ref option_name)) = &elements[0] {
                 let list = to_list_simple(&elements[1]);
                 match option_name.as_str().get() {
-                    "no_auto_import" => no_auto_imports(options, module, &list, reporter),
+                    "no_auto_import" => no_auto_imports(options, module, &list, diagnostics),
                     "nowarn_unused_function" => {
-                        no_warn_unused_functions(options, module, &list, reporter)
+                        no_warn_unused_functions(options, module, &list, diagnostics)
                     }
                     "nowarn_deprecated_function" => {
-                        no_warn_deprecated_functions(options, module, &list, reporter)
+                        no_warn_deprecated_functions(options, module, &list, diagnostics)
                     }
-                    "inline" => inline_functions(options, module, &list, reporter),
+                    "inline" => inline_functions(options, module, &list, diagnostics),
                     // Ignored
                     "hipe" => {}
                     _name => {
-                        reporter.diagnostic(
-                            Diagnostic::warning()
-                                .with_message("invalid compile option")
-                                .with_labels(vec![Label::primary(
-                                    option_name.span.source_id(),
-                                    option_name.span,
-                                )
-                                .with_message(
-                                    "this option is either unsupported or unrecognized",
-                                )]),
-                        );
+                        diagnostics
+                            .diagnostic(Severity::Warning)
+                            .with_message("invalid compile option")
+                            .with_primary_label(
+                                option_name.span,
+                                "this option is either unsupported or unrecognized",
+                            )
+                            .emit();
                         return Err(());
                     }
                 }
@@ -575,14 +599,14 @@ fn set_compile_option(
         }
         term => {
             let term_span = term.span();
-            reporter.diagnostic(
-                Diagnostic::warning()
-                    .with_message("invalid compile option")
-                    .with_labels(vec![Label::primary(term_span.source_id(), term_span)
-                        .with_message(
-                            "unexpected expression: expected atom, list, or tuple",
-                        )]),
-            );
+            diagnostics
+                .diagnostic(Severity::Warning)
+                .with_message("invalid compile option")
+                .with_primary_label(
+                    term_span,
+                    "unexpected expression: expected atom, list, or tuple",
+                )
+                .emit();
             return Err(());
         }
     }
@@ -594,10 +618,10 @@ fn compiler_opts_from_list(
     options: &mut CompileOptions,
     module: Ident,
     list: Vec<Expr>,
-    reporter: &Reporter,
+    diagnostics: &DiagnosticsHandler,
 ) {
     for option in list.iter() {
-        let _ = set_compile_option(options, module, option, reporter);
+        let _ = set_compile_option(options, module, option, diagnostics);
     }
 }
 
@@ -605,7 +629,7 @@ fn no_auto_imports(
     options: &mut CompileOptions,
     module: Ident,
     imports: &[Expr],
-    reporter: &Reporter,
+    diagnostics: &DiagnosticsHandler,
 ) {
     for import in imports {
         match import {
@@ -627,14 +651,14 @@ fn no_auto_imports(
             }
             other => {
                 let other_span = other.span();
-                reporter.diagnostic(
-                    Diagnostic::warning()
-                        .with_message("invalid compile option")
-                        .with_labels(vec![Label::primary(other_span.source_id(), other_span)
-                            .with_message(
-                                "expected function name/arity term for no_auto_imports",
-                            )]),
-                );
+                diagnostics
+                    .diagnostic(Severity::Warning)
+                    .with_message("invalid compile option")
+                    .with_primary_label(
+                        other_span,
+                        "expected function name/arity term for no_auto_imports",
+                    )
+                    .emit();
             }
         }
     }
@@ -644,7 +668,7 @@ fn no_warn_unused_functions(
     options: &mut CompileOptions,
     _module: Ident,
     funs: &[Expr],
-    reporter: &Reporter,
+    diagnostics: &DiagnosticsHandler,
 ) {
     for fun in funs {
         match fun {
@@ -653,14 +677,14 @@ fn no_warn_unused_functions(
             }
             other => {
                 let other_span = other.span();
-                reporter.diagnostic(
-                    Diagnostic::warning()
-                        .with_message("invalid compile option")
-                        .with_labels(vec![Label::primary(other_span.source_id(), other_span)
-                            .with_message(
-                                "expected function name/arity term for no_warn_unused_functions",
-                            )]),
-                );
+                diagnostics
+                    .diagnostic(Severity::Warning)
+                    .with_message("invalid compile option")
+                    .with_primary_label(
+                        other_span,
+                        "expected function name/arity term for no_warn_unused_functions",
+                    )
+                    .emit();
             }
         }
     }
@@ -670,9 +694,9 @@ fn no_warn_deprecated_functions(
     options: &mut CompileOptions,
     _module: Ident,
     funs: &[Expr],
-    reporter: &Reporter,
+    diagnostics: &DiagnosticsHandler,
 ) {
-    use firefly_number::Integer;
+    use firefly_number::Int;
 
     for fun in funs {
         match fun {
@@ -681,51 +705,55 @@ fn no_warn_deprecated_functions(
             }
             Expr::Literal(Literal::Tuple(span, ref elements)) if elements.len() == 3 => {
                 match elements.as_slice() {
-                    [Literal::Atom(m), Literal::Atom(f), Literal::Integer(_, Integer::Small(a))] => {
+                    [Literal::Atom(m), Literal::Atom(f), Literal::Integer(_, Int::Small(a))] => {
                         options.no_warn_deprecated_functions.insert(Span::new(
                             *span,
                             FunctionName::new(m.name, f.name, (*a).try_into().unwrap()),
                         ));
                     }
-                    _ => reporter.diagnostic(
-                        Diagnostic::warning()
+                    _ => {
+                        diagnostics
+                            .diagnostic(Severity::Warning)
                             .with_message("invalid compile option")
-                            .with_labels(vec![Label::primary(span.source_id(), *span)
-                                .with_message(
+                            .with_primary_label(
+                                *span,
                                 "expected name/arity or mfa tuple for no_warn_deprecated_function",
-                            )]),
-                    ),
+                            )
+                            .emit();
+                    }
                 }
             }
             Expr::Tuple(Tuple { span, ref elements }) if elements.len() == 3 => {
                 match elements.as_slice() {
-                    [Expr::Literal(Literal::Atom(m)), Expr::Literal(Literal::Atom(f)), Expr::Literal(Literal::Integer(_, Integer::Small(a)))] =>
+                    [Expr::Literal(Literal::Atom(m)), Expr::Literal(Literal::Atom(f)), Expr::Literal(Literal::Integer(_, Int::Small(a)))] =>
                     {
                         options.no_warn_deprecated_functions.insert(Span::new(
                             *span,
                             FunctionName::new(m.name, f.name, (*a).try_into().unwrap()),
                         ));
                     }
-                    _ => reporter.diagnostic(
-                        Diagnostic::warning()
+                    _ => {
+                        diagnostics
+                            .diagnostic(Severity::Warning)
                             .with_message("invalid compile option")
-                            .with_labels(vec![Label::primary(span.source_id(), *span)
-                                .with_message(
+                            .with_primary_label(
+                                *span,
                                 "expected name/arity or mfa tuple for no_warn_deprecated_function",
-                            )]),
-                    ),
+                            )
+                            .emit();
+                    }
                 }
             }
             other => {
                 let other_span = other.span();
-                reporter.diagnostic(
-                    Diagnostic::warning()
-                        .with_message("invalid compile option")
-                        .with_labels(vec![Label::primary(other_span.source_id(), other_span)
-                            .with_message(
-                                "expected name/arity or mfa tuple for no_warn_deprecated_function",
-                            )]),
-                );
+                diagnostics
+                    .diagnostic(Severity::Warning)
+                    .with_message("invalid compile option")
+                    .with_primary_label(
+                        other_span,
+                        "expected name/arity or mfa tuple for no_warn_deprecated_function",
+                    )
+                    .emit();
             }
         }
     }
@@ -735,7 +763,7 @@ fn inline_functions(
     options: &mut CompileOptions,
     module: Ident,
     funs: &[Expr],
-    reporter: &Reporter,
+    diagnostics: &DiagnosticsHandler,
 ) {
     for fun in funs {
         match fun {
@@ -764,12 +792,11 @@ fn inline_functions(
         }
 
         let fun_span = fun.span();
-        reporter.diagnostic(
-            Diagnostic::warning()
-                .with_message("invalid compile option")
-                .with_labels(vec![Label::primary(fun_span.source_id(), fun_span)
-                    .with_message("expected function name/arity term for inline")]),
-        );
+        diagnostics
+            .diagnostic(Severity::Warning)
+            .with_message("invalid compile option")
+            .with_primary_label(fun_span, "expected function name/arity term for inline")
+            .emit();
     }
 }
 

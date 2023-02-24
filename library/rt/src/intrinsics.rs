@@ -1,120 +1,119 @@
+///! The functions defined in this module are compiler builtins that are used to
+///! implement runtime checks in a maximally efficient manner, i.e. invariants are
+///! already guaranteed to be upheld by the compiler, and the result can be a native
+///! machine type without the encoding/decoding overhead of terms.
+#[cfg(feature = "async")]
+use core::ptr::NonNull;
+
 use crate::cmp::ExactEq;
 use crate::function::ErlangResult;
 use crate::term::{OpaqueTerm, Term, TermType};
 
-/// This is an intrinsic expected by the compiler to be defined as part of the runtime, and is used for runtime type checking
+#[inline]
 #[export_name = "__firefly_builtin_typeof"]
 pub extern "C" fn r#typeof(value: OpaqueTerm) -> TermType {
     value.r#typeof()
 }
 
-/// This is an intrinsic expected by the compiler to be defined as part of the runtime, and is used for runtime type checking
+#[inline]
 #[export_name = "__firefly_builtin_is_atom"]
 pub extern "C" fn is_atom(value: OpaqueTerm) -> bool {
     value.is_atom()
 }
 
-/// This is an intrinsic expected by the compiler to be defined as part of the runtime, and is used for runtime type checking
+#[inline]
+#[export_name = "__firefly_builtin_is_list"]
+pub extern "C" fn is_list(value: OpaqueTerm) -> bool {
+    value.is_list()
+}
+
+#[inline]
+#[export_name = "__firefly_builtin_is_binary"]
+pub extern "C" fn is_binary(value: OpaqueTerm) -> bool {
+    value.r#typeof() == TermType::Binary
+}
+
+#[inline]
+#[export_name = "__firefly_builtin_is_big_integer"]
+pub extern "C" fn is_big_integer(value: OpaqueTerm) -> bool {
+    match value.into() {
+        Term::BigInt(_) => true,
+        _ => false,
+    }
+}
+
+#[inline]
 #[export_name = "__firefly_builtin_is_number"]
 pub extern "C" fn is_number(value: OpaqueTerm) -> bool {
     value.is_number()
 }
 
-/// This is an intrinsic expected by the compiler to be defined as part of the runtime, and is used for runtime type checking
+#[inline]
 #[export_name = "__firefly_builtin_is_tuple"]
 pub extern "C" fn is_tuple(value: OpaqueTerm) -> ErlangResult<u32, u32> {
-    match value.into() {
-        Term::Tuple(tup) => ErlangResult::Ok(unsafe { tup.as_ref().len() as u32 }),
-        _ => ErlangResult::Err(0),
-    }
+    value.tuple_size().map_err(|_| 0)
 }
 
-/// This is an intrinsic expected by the compiler to be defined as part of the runtime
+#[inline]
+#[export_name = "__firefly_builtin_is_function"]
+pub extern "C" fn is_function(value: OpaqueTerm) -> bool {
+    value.r#typeof() == TermType::Closure
+}
+
+#[inline]
 #[export_name = "__firefly_builtin_size"]
 pub extern "C" fn size(value: OpaqueTerm) -> usize {
     value.size()
 }
 
-#[export_name = "erlang:is_atom/1"]
-pub extern "C" fn is_atom1(value: OpaqueTerm) -> ErlangResult {
-    ErlangResult::Ok(value.is_atom().into())
+#[inline]
+#[export_name = "__firefly_builtin_gte"]
+pub extern "C" fn gte(lhs: OpaqueTerm, rhs: OpaqueTerm) -> bool {
+    lhs >= rhs
 }
 
-#[export_name = "erlang:is_list/1"]
-pub extern "C" fn is_list1(value: OpaqueTerm) -> ErlangResult {
-    ErlangResult::Ok(value.is_list().into())
+#[inline]
+#[export_name = "__firefly_builtin_gt"]
+pub extern "C" fn gt(lhs: OpaqueTerm, rhs: OpaqueTerm) -> bool {
+    lhs > rhs
 }
 
-#[export_name = "erlang:is_binary/1"]
-pub extern "C" fn is_binary1(value: OpaqueTerm) -> ErlangResult {
-    ErlangResult::Ok((value.r#typeof() == TermType::Binary).into())
+#[inline]
+#[export_name = "__firefly_builtin_lt"]
+pub extern "C" fn lt(lhs: OpaqueTerm, rhs: OpaqueTerm) -> bool {
+    lhs < rhs
 }
 
-#[export_name = "erlang:is_function/1"]
-pub extern "C" fn is_function1(value: OpaqueTerm) -> ErlangResult {
-    ErlangResult::Ok((value.r#typeof() == TermType::Closure).into())
+#[inline]
+#[export_name = "__firefly_builtin_lte"]
+pub extern "C" fn lte(lhs: OpaqueTerm, rhs: OpaqueTerm) -> bool {
+    lhs <= rhs
 }
 
-#[export_name = "erlang:is_big_integer/1"]
-pub extern "C" fn is_big_integer1(value: OpaqueTerm) -> ErlangResult {
-    match value.into() {
-        Term::BigInt(_) => ErlangResult::Ok(true.into()),
-        _ => ErlangResult::Ok(false.into()),
-    }
-}
-
-#[export_name = "erlang:>=/2"]
-pub extern "C" fn gte2(lhs: OpaqueTerm, rhs: OpaqueTerm) -> ErlangResult {
+#[inline]
+#[export_name = "__firefly_builtin_eq"]
+pub extern "C" fn eq(lhs: OpaqueTerm, rhs: OpaqueTerm) -> bool {
     let lhs: Term = lhs.into();
     let rhs: Term = rhs.into();
-    ErlangResult::Ok((lhs >= rhs).into())
+    lhs == rhs
 }
 
-#[export_name = "erlang:>/2"]
-pub extern "C" fn gt2(lhs: OpaqueTerm, rhs: OpaqueTerm) -> ErlangResult {
+#[inline]
+#[export_name = "__firefly_builtin_ne"]
+pub extern "C" fn ne(lhs: OpaqueTerm, rhs: OpaqueTerm) -> bool {
     let lhs: Term = lhs.into();
     let rhs: Term = rhs.into();
-    ErlangResult::Ok((lhs > rhs).into())
+    lhs != rhs
 }
 
-#[export_name = "erlang:</2"]
-pub extern "C" fn lt2(lhs: OpaqueTerm, rhs: OpaqueTerm) -> ErlangResult {
-    let lhs: Term = lhs.into();
-    let rhs: Term = rhs.into();
-    ErlangResult::Ok((lhs < rhs).into())
+#[inline]
+#[export_name = "__firefly_builtin_exact_eq"]
+pub extern "C" fn exact_eq(lhs: OpaqueTerm, rhs: OpaqueTerm) -> bool {
+    lhs.exact_eq(&rhs)
 }
 
-#[export_name = "erlang:=</2"]
-pub extern "C" fn lte2(lhs: OpaqueTerm, rhs: OpaqueTerm) -> ErlangResult {
-    let lhs: Term = lhs.into();
-    let rhs: Term = rhs.into();
-    ErlangResult::Ok((lhs <= rhs).into())
-}
-
-#[export_name = "erlang:==/2"]
-pub extern "C" fn eq2(lhs: OpaqueTerm, rhs: OpaqueTerm) -> ErlangResult {
-    let lhs: Term = lhs.into();
-    let rhs: Term = rhs.into();
-    ErlangResult::Ok((lhs == rhs).into())
-}
-
-#[export_name = "erlang:/=/2"]
-pub extern "C" fn ne2(lhs: OpaqueTerm, rhs: OpaqueTerm) -> ErlangResult {
-    let lhs: Term = lhs.into();
-    let rhs: Term = rhs.into();
-    ErlangResult::Ok((lhs != rhs).into())
-}
-
-#[export_name = "erlang:=:=/2"]
-pub extern "C" fn strict_eq2(lhs: OpaqueTerm, rhs: OpaqueTerm) -> ErlangResult {
-    let lhs: Term = lhs.into();
-    let rhs: Term = rhs.into();
-    ErlangResult::Ok((lhs.exact_eq(&rhs)).into())
-}
-
-#[export_name = "erlang:=/=/2"]
-pub extern "C" fn strict_ne2(lhs: OpaqueTerm, rhs: OpaqueTerm) -> ErlangResult {
-    let lhs: Term = lhs.into();
-    let rhs: Term = rhs.into();
-    ErlangResult::Ok((lhs.exact_ne(&rhs)).into())
+#[inline]
+#[export_name = "__firefly_builtin_exact_ne"]
+pub extern "C" fn exact_ne(lhs: OpaqueTerm, rhs: OpaqueTerm) -> bool {
+    lhs.exact_ne(&rhs)
 }

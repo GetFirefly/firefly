@@ -9,15 +9,13 @@
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
-#include "mlir/Dialect/SCF/SCF.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/BuiltinOps.h"
 
-#include "llvm/ADT/Optional.h"
+#include <optional>
 
 using namespace mlir;
 using namespace mlir::cir;
-
-using llvm::Optional;
 
 MlirOperation mlirCirIsNullOp(MlirOpBuilder bldr, MlirLocation location,
                               MlirValue value) {
@@ -224,24 +222,24 @@ MlirOperation mlirCirIsTaggedTupleOp(MlirOpBuilder bldr, MlirLocation location,
 }
 
 MlirOperation mlirCirMallocOp(MlirOpBuilder bldr, MlirLocation location,
-                              MlirType ty) {
+                              MlirValue process, MlirType ty) {
   OpBuilder *builder = unwrap(bldr);
   Type pointee = unwrap(ty);
   Type pointer = CIRBoxType::get(pointee);
-  Operation *op =
-      builder->create<cir::MallocOp>(unwrap(location), pointer, pointee);
+  Operation *op = builder->create<cir::MallocOp>(unwrap(location), pointer,
+                                                 unwrap(process), pointee);
   return wrap(op);
 }
 
 MlirOperation mlirCirMakeFunOp(MlirOpBuilder bldr, MlirLocation location,
-                               MlirOperation fun, MlirValue *env,
-                               intptr_t arity) {
+                               MlirOperation fun, MlirValue process,
+                               MlirValue *env, intptr_t arity) {
   OpBuilder *builder = unwrap(bldr);
-  auto callee = cast<FuncOp>(unwrap(fun));
+  auto callee = cast<func::FuncOp>(unwrap(fun));
   SmallVector<Value, 1> operandStorage;
   ValueRange operands(unwrapList(arity, env, operandStorage));
-  Operation *op =
-      builder->create<cir::MakeFunOp>(unwrap(location), callee, operands);
+  Operation *op = builder->create<cir::MakeFunOp>(unwrap(location), callee,
+                                                  unwrap(process), operands);
   return wrap(op);
 }
 
@@ -255,10 +253,10 @@ MlirOperation mlirCirUnpackEnvOp(MlirOpBuilder bldr, MlirLocation location,
 }
 
 MlirOperation mlirCirConsOp(MlirOpBuilder bldr, MlirLocation location,
-                            MlirValue head, MlirValue tail) {
+                            MlirValue process, MlirValue head, MlirValue tail) {
   OpBuilder *builder = unwrap(bldr);
-  Operation *op = builder->create<cir::ConsOp>(unwrap(location), unwrap(head),
-                                               unwrap(tail));
+  Operation *op = builder->create<cir::ConsOp>(
+      unwrap(location), unwrap(process), unwrap(head), unwrap(tail));
   return wrap(op);
 }
 
@@ -440,7 +438,7 @@ void mlirCirDispatchTableAppendEntry(MlirOperation dispatchTable,
 MlirOperation mlirCirCallByOp(MlirOpBuilder bldr, MlirLocation location,
                               MlirOperation op, intptr_t argc,
                               MlirValue const *argv) {
-  auto callee = cast<FuncOp>(unwrap(op));
+  auto callee = cast<func::FuncOp>(unwrap(op));
   SmallVector<Value, 2> argStorage;
   ValueRange args(unwrapList(argc, argv, argStorage));
   return wrap(
@@ -450,7 +448,7 @@ MlirOperation mlirCirCallByOp(MlirOpBuilder bldr, MlirLocation location,
 MlirOperation mlirCirEnterByOp(MlirOpBuilder bldr, MlirLocation location,
                                MlirOperation op, intptr_t argc,
                                MlirValue const *argv) {
-  auto callee = cast<FuncOp>(unwrap(op));
+  auto callee = cast<func::FuncOp>(unwrap(op));
   SmallVector<Value, 2> argStorage;
   ValueRange args(unwrapList(argc, argv, argStorage));
   return wrap(
@@ -474,11 +472,11 @@ MlirOperation mlirCirEnterIndirect(MlirOpBuilder bldr, MlirLocation location,
 }
 
 bool mlirOperationIsAFuncOp(MlirOperation op) {
-  return isa<FuncOp>(unwrap(op));
+  return isa<func::FuncOp>(unwrap(op));
 }
 
 MlirType mlirFuncOpGetType(MlirOperation op) {
-  auto func = cast<FuncOp>(unwrap(op));
+  auto func = cast<func::FuncOp>(unwrap(op));
   return wrap(func.getFunctionType());
 }
 
@@ -505,14 +503,14 @@ MlirOperation mlirFuncBuildFuncOp(MlirOpBuilder bldr, MlirLocation location,
       argAttrStorage.push_back(unwrap(*(argAttrs + i)).cast<DictionaryAttr>());
   }
   FunctionType funcTy = unwrap(ty).cast<FunctionType>();
-  return wrap(unwrap(bldr)->create<FuncOp>(
+  return wrap(unwrap(bldr)->create<func::FuncOp>(
       unwrap(location), unwrap(name), funcTy, attrStorage, argAttrStorage));
 }
 
 MlirOperation mlirFuncCallByOp(MlirOpBuilder bldr, MlirLocation location,
                                MlirOperation op, intptr_t argc,
                                MlirValue const *argv) {
-  auto callee = cast<FuncOp>(unwrap(op));
+  auto callee = cast<func::FuncOp>(unwrap(op));
   SmallVector<Value, 2> argStorage;
   ValueRange args(unwrapList(argc, argv, argStorage));
   return wrap(
@@ -676,8 +674,7 @@ bool mlirLLVMICmpOpIsA(MlirOperation op) {
 
 MlirAttribute mlirLLVMICmpPredicateAttrGet(MlirContext ctx,
                                            unsigned predicate) {
-  Optional<LLVM::ICmpPredicate> pred =
-      LLVM::symbolizeICmpPredicate((uint64_t)predicate);
-  Attribute attr = LLVM::ICmpPredicateAttr::get(unwrap(ctx), pred.getValue());
+  auto pred = LLVM::symbolizeICmpPredicate((uint64_t)predicate);
+  Attribute attr = LLVM::ICmpPredicateAttr::get(unwrap(ctx), *pred);
   return wrap(attr);
 }

@@ -19,58 +19,6 @@
 #include <cstdlib>
 
 #if defined(_WIN32)
-extern "C" bool LLVMEmitToFileDescriptor(LLVMModuleRef m, HANDLE handle,
-                                         char **errorMessage) {
-  raw_win32_handle_ostream stream(handle, /*shouldClose=*/false,
-                                  /*unbuffered=*/false);
-#else
-extern "C" bool LLVMEmitToFileDescriptor(LLVMModuleRef m, int fd,
-                                         char **errorMessage) {
-  llvm::raw_fd_ostream stream(fd, /*shouldClose=*/false, /*unbuffered=*/false,
-                              llvm::raw_ostream::OStreamKind::OK_FDStream);
-#endif
-  llvm::Module *mod = llvm::unwrap(m);
-
-  mod->print(stream, nullptr);
-
-  if (stream.has_error()) {
-    std::string err = "Error printing to file: " + stream.error().message();
-    *errorMessage = strdup(err.c_str());
-    return true;
-  }
-
-  stream.flush();
-
-  return false;
-}
-
-#if defined(_WIN32)
-extern "C" bool LLVMEmitBitcodeToFileDescriptor(LLVMModuleRef m, HANDLE handle,
-                                                char **errorMessage) {
-  raw_win32_handle_ostream stream(handle, /*shouldClose=*/false,
-                                  /*unbuffered=*/false);
-#else
-extern "C" bool LLVMEmitBitcodeToFileDescriptor(LLVMModuleRef m, int fd,
-                                                char **errorMessage) {
-  llvm::raw_fd_ostream stream(fd, /*shouldClose=*/false, /*unbuffered=*/false,
-                              llvm::raw_ostream::OStreamKind::OK_FDStream);
-#endif
-  llvm::Module *mod = llvm::unwrap(m);
-
-  llvm::WriteBitcodeToFile(*mod, stream);
-
-  if (stream.has_error()) {
-    std::string err = "Error printing to file: " + stream.error().message();
-    *errorMessage = strdup(err.c_str());
-    return true;
-  }
-
-  stream.flush();
-
-  return false;
-}
-
-#if defined(_WIN32)
 extern "C" bool MLIREmitToFileDescriptor(MlirModule m, HANDLE handle,
                                          char **errorMessage) {
   llvm::raw_win32_handle_ostream stream(handle, /*shouldClose=*/false,

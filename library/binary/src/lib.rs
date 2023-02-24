@@ -3,14 +3,12 @@
 #![feature(test)]
 #![feature(trusted_len)]
 #![feature(exact_size_is_empty)]
-#![feature(let_else)]
 #![feature(str_internals)]
 #![feature(const_option_ext)]
 #![feature(slice_take)]
-#![feature(arbitrary_enum_discriminant)]
 #![feature(min_specialization)]
 #![feature(extend_one)]
-#![feature(can_vector)]
+#![cfg_attr(feature = "std", feature(can_vector))]
 
 extern crate alloc;
 #[cfg(any(test, feature = "std"))]
@@ -89,6 +87,18 @@ pub enum Endianness {
     Big = 0,
     Little,
     Native,
+}
+impl TryFrom<u8> for Endianness {
+    type Error = ();
+
+    fn try_from(n: u8) -> Result<Self, Self::Error> {
+        match n {
+            0 => Ok(Self::Big),
+            1 => Ok(Self::Little),
+            2 => Ok(Self::Native),
+            _ => Err(()),
+        }
+    }
 }
 impl fmt::Display for Endianness {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

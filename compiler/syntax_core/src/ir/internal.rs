@@ -451,9 +451,9 @@ pub struct IExprs {
 }
 annotated!(IExprs);
 impl IExprs {
-    pub fn new(bodies: Vec<Vec<IExpr>>) -> Self {
+    pub fn new(span: SourceSpan, bodies: Vec<Vec<IExpr>>) -> Self {
         Self {
-            span: SourceSpan::UNKNOWN,
+            span,
             annotations: Annotations::default(),
             bodies,
         }

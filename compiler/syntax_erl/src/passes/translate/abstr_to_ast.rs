@@ -1,6 +1,5 @@
 use std::collections::BTreeMap;
 use std::path::PathBuf;
-use std::sync::Arc;
 
 use anyhow::{anyhow, bail};
 use either::Either;
@@ -8,25 +7,28 @@ use either::Either::*;
 
 use firefly_beam::serialization::etf;
 use firefly_binary::BitVec;
-use firefly_diagnostics::*;
 use firefly_intern::{symbols, Ident};
 use firefly_pass::Pass;
 use firefly_syntax_base::{DeprecatedFlag, Deprecation, FunctionName};
 use firefly_syntax_pp::ast as abstr;
 use firefly_syntax_pp::ast::Node;
+use firefly_util::diagnostics::*;
 
 use crate::ast::*;
 
-pub struct AbstractErlangToAst {
-    reporter: Reporter,
-    codemap: Arc<CodeMap>,
+pub struct AbstractErlangToAst<'p> {
+    diagnostics: &'p DiagnosticsHandler,
+    codemap: &'p CodeMap,
 }
-impl AbstractErlangToAst {
-    pub fn new(reporter: Reporter, codemap: Arc<CodeMap>) -> Self {
-        Self { reporter, codemap }
+impl<'p> AbstractErlangToAst<'p> {
+    pub fn new(diagnostics: &'p DiagnosticsHandler, codemap: &'p CodeMap) -> Self {
+        Self {
+            diagnostics,
+            codemap,
+        }
     }
 }
-impl Pass for AbstractErlangToAst {
+impl<'p> Pass for AbstractErlangToAst<'p> {
     type Input<'a> = abstr::Ast;
     type Output<'a> = Module;
 
@@ -62,7 +64,7 @@ impl Pass for AbstractErlangToAst {
         }
 
         Ok(Module::new_with_forms(
-            &self.reporter,
+            &self.diagnostics,
             module_name.span(),
             module_name,
             tls,
@@ -70,7 +72,7 @@ impl Pass for AbstractErlangToAst {
     }
 }
 
-impl AbstractErlangToAst {
+impl<'p> AbstractErlangToAst<'p> {
     fn translate_form(
         &mut self,
         source_id: SourceId,
@@ -90,18 +92,18 @@ impl AbstractErlangToAst {
                 let span = self.loc_to_span(source_id, warn.loc());
                 match warn.message {
                     etf::Term::String(s) => {
-                        self.reporter.diagnostic(
-                            Diagnostic::warning()
-                                .with_message(s.value.as_str().get())
-                                .with_labels(vec![Label::primary(span.source_id(), span)]),
-                        );
+                        self.diagnostics
+                            .diagnostic(Severity::Warning)
+                            .with_message(s.value.as_str().get())
+                            .with_primary_span(span)
+                            .emit();
                     }
                     etf::Term::Atom(s) => {
-                        self.reporter.diagnostic(
-                            Diagnostic::warning()
-                                .with_message(s.name.as_str().get())
-                                .with_labels(vec![Label::primary(span.source_id(), span)]),
-                        );
+                        self.diagnostics
+                            .diagnostic(Severity::Warning)
+                            .with_message(s.name.as_str().get())
+                            .with_primary_span(span)
+                            .emit();
                     }
                     etf::Term::List(charlist) => {
                         let chars = charlist
@@ -116,19 +118,19 @@ impl AbstractErlangToAst {
                             Err(_) => "compiler warning".to_string(),
                             Ok(message) => message,
                         };
-                        self.reporter.diagnostic(
-                            Diagnostic::warning()
-                                .with_message(message)
-                                .with_labels(vec![Label::primary(span.source_id(), span)]),
-                        );
+                        self.diagnostics
+                            .diagnostic(Severity::Warning)
+                            .with_message(message)
+                            .with_primary_span(span)
+                            .emit();
                     }
                     term => {
                         let message = format!("{}", &term);
-                        self.reporter.diagnostic(
-                            Diagnostic::warning()
-                                .with_message(message)
-                                .with_labels(vec![Label::primary(span.source_id(), span)]),
-                        );
+                        self.diagnostics
+                            .diagnostic(Severity::Warning)
+                            .with_message(message)
+                            .with_primary_span(span)
+                            .emit();
                     }
                 }
                 None
@@ -336,9 +338,10 @@ impl AbstractErlangToAst {
                                         if f.name == symbols::Underscore
                                             && a.name == symbols::Underscore =>
                                     {
+                                        let flag = Ident::new(flag.name, span);
                                         let deprecation = Deprecation::Module {
                                             span,
-                                            flag: flag.name.into(),
+                                            flag: flag.into(),
                                         };
                                         Some(Ok(Left(TopLevel::Attribute(Attribute::Deprecation(
                                             vec![deprecation],
@@ -397,10 +400,11 @@ impl AbstractErlangToAst {
                                             span,
                                             FunctionName::new_local(f.name, a.to_arity()),
                                         );
+                                        let flag = Ident::new(flag.name, span);
                                         let deprecation = Deprecation::Function {
                                             span,
                                             function,
-                                            flag: flag.name.into(),
+                                            flag: flag.into(),
                                         };
                                         Some(Ok(Left(TopLevel::Attribute(Attribute::Deprecation(
                                             vec![deprecation],
@@ -419,12 +423,14 @@ impl AbstractErlangToAst {
                                                 // -deprecated([{f, Arity, "some message"}]).
                                                 [etf::Term::Atom(f), etf::Term::Integer(a), etf::Term::String(s)] => {
                                                     let function = Span::new(span, FunctionName::new_local(f.name, a.to_arity()));
-                                                    Some(Deprecation::Function { span, function, flag: s.value.into() })
+                                                    let flag = Ident::new(s.value, span);
+                                                    Some(Deprecation::Function { span, function, flag: flag.into() })
                                                 }
                                                 // -deprecated([{f, Arity, DeprecatedFlag}]).
                                                 [etf::Term::Atom(f), etf::Term::Integer(a), etf::Term::Atom(s)] => {
                                                     let function = Span::new(span, FunctionName::new_local(f.name, a.to_arity()));
-                                                    Some(Deprecation::Function { span, function, flag: s.name.into() })
+                                                    let flag = Ident::new(s.name, span);
+                                                    Some(Deprecation::Function { span, function, flag: flag.into() })
                                                 }
                                                 _ => None,
                                             }
@@ -1086,10 +1092,11 @@ impl AbstractErlangToAst {
                 }
                 invalid => {
                     let span = self.loc_to_span(source_id, invalid.loc());
-                    self.reporter.show_warning(
-                        "invalid callback type",
-                        &[(span, "expected a function type here")],
-                    );
+                    self.diagnostics
+                        .diagnostic(Severity::Warning)
+                        .with_message("invalid callback type")
+                        .with_primary_label(span, "expected a function type here")
+                        .emit();
                     continue;
                 }
             }

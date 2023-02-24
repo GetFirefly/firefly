@@ -1,15 +1,20 @@
 [package]
 name = "firefly_parser"
-version = "0.1.0"
-authors = ["Paul Schoenfelder <paulschoenfelder@gmail>", "Hans Elias B. Josephsen <me@hansihe.com>"]
-edition = "2021"
-license = "MIT OR Apache-2.0"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+description = "Provides reusable parsing infrastructure for the Firefly compiler"
+version.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+categories.workspace = true
+keywords.workspace = true
+license.workspace = true
+readme.workspace = true
+edition.workspace = true
+publish.workspace = true
 
 [dependencies]
-firefly_diagnostics = { path = "../diagnostics" }
-thiserror = "1.0"
+firefly_util = { path = "../util" }
+thiserror.workspace = true
 
 [dev-dependencies]
-pretty_assertions = "1.0"
+pretty_assertions.workspace = true

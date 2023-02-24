@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 use firefly_binary::{BinaryEntrySpecifier, BitVec, Bitstring};
 use firefly_diagnostics::{Diagnostic, Label, SourceSpan, Spanned, ToDiagnostic};
 use firefly_intern::{symbols, Ident};
-use firefly_number::{f16, Integer, Number, ToPrimitive};
+use firefly_number::{f16, Int, Number, ToPrimitive};
 use firefly_syntax_base::{BinaryOp, UnaryOp};
 
 use crate::ast::{self, BinaryElement, Expr, Literal};
@@ -68,37 +68,37 @@ pub enum EvalError {
     },
 }
 impl ToDiagnostic for EvalError {
-    fn to_diagnostic(&self) -> Diagnostic {
+    fn to_diagnostic(self) -> Diagnostic {
         let msg = self.to_string();
         match self {
             EvalError::InvalidConstExpression { span } => Diagnostic::error()
                 .with_message(msg)
-                .with_labels(vec![Label::primary(span.source_id(), *span)
+                .with_labels(vec![Label::primary(span.source_id(), span)
                     .with_message("expression not evaluable to constant")]),
             EvalError::FloatError { span, .. } => Diagnostic::error()
                 .with_message(msg)
-                .with_labels(vec![Label::primary(span.source_id(), *span)]),
+                .with_labels(vec![Label::primary(span.source_id(), span)]),
             EvalError::InvalidDivOperand { span } => Diagnostic::error()
                 .with_message(msg)
-                .with_labels(vec![Label::primary(span.source_id(), *span)]),
+                .with_labels(vec![Label::primary(span.source_id(), span)]),
             EvalError::DivisionByZero { span } => Diagnostic::error()
                 .with_message(msg)
-                .with_labels(vec![Label::primary(span.source_id(), *span)]),
+                .with_labels(vec![Label::primary(span.source_id(), span)]),
             EvalError::InvalidBitwiseOperand { span } => Diagnostic::error()
                 .with_message(msg)
-                .with_labels(vec![Label::primary(span.source_id(), *span)]),
+                .with_labels(vec![Label::primary(span.source_id(), span)]),
             EvalError::TooLargeShift { span } => Diagnostic::error()
                 .with_message(msg)
-                .with_labels(vec![Label::primary(span.source_id(), *span)]),
+                .with_labels(vec![Label::primary(span.source_id(), span)]),
             EvalError::NoRecord { span } => Diagnostic::error()
                 .with_message(msg)
-                .with_labels(vec![Label::primary(span.source_id(), *span)]),
+                .with_labels(vec![Label::primary(span.source_id(), span)]),
             EvalError::NoRecordField { span } => Diagnostic::error()
                 .with_message(msg)
-                .with_labels(vec![Label::primary(span.source_id(), *span)]),
+                .with_labels(vec![Label::primary(span.source_id(), span)]),
             EvalError::InvalidMapKey { span, .. } => Diagnostic::error()
                 .with_message(msg)
-                .with_labels(vec![Label::primary(span.source_id(), *span)]),
+                .with_labels(vec![Label::primary(span.source_id(), span)]),
         }
     }
 }
@@ -453,19 +453,15 @@ where
                 }
                 value => {
                     let integer = match value {
-                        Expr::Literal(Literal::Char(_, c)) => Integer::new((c as u32) as i64),
+                        Expr::Literal(Literal::Char(_, c)) => Int::new((c as u32) as i64),
                         Expr::Literal(Literal::Integer(_, i)) => i,
                         Expr::Literal(Literal::Float(_, f)) => f.to_integer(),
                         _ => return Err(()),
                     };
                     match integer {
-                        Integer::Small(i) if signed => {
-                            bin.push_ap_number(i, size * unit, endianness)
-                        }
-                        Integer::Small(i) => bin.push_ap_number(i as u64, size * unit, endianness),
-                        Integer::Big(ref i) => {
-                            bin.push_ap_bigint(i, size * unit, signed, endianness)
-                        }
+                        Int::Small(i) if signed => bin.push_ap_number(i, size * unit, endianness),
+                        Int::Small(i) => bin.push_ap_number(i as u64, size * unit, endianness),
+                        Int::Big(ref i) => bin.push_ap_bigint(i, size * unit, signed, endianness),
                     }
                 }
             }
@@ -496,7 +492,7 @@ where
                     64 => bin.push_number((c as u64) as f64, endianness),
                     _ => return Err(()),
                 },
-                Expr::Literal(Literal::Integer(_, Integer::Small(i))) => match size {
+                Expr::Literal(Literal::Integer(_, Int::Small(i))) => match size {
                     16 => {
                         let i: i32 = i.try_into().map_err(|_| ())?;
                         let f = f16::from_f32(i as f32);
@@ -574,7 +570,7 @@ where
             assert!(size.is_none());
             let codepoint = match value {
                 Expr::Literal(Literal::Char(_, c)) => c,
-                Expr::Literal(Literal::Integer(_, Integer::Small(i))) => {
+                Expr::Literal(Literal::Integer(_, Int::Small(i))) => {
                     let i: u32 = i.try_into().map_err(|_| ())?;
                     char::from_u32(i).ok_or(())?
                 }
@@ -586,7 +582,7 @@ where
             assert!(size.is_none());
             match value {
                 Expr::Literal(Literal::Char(_, c)) => bin.push_utf16(c, endianness),
-                Expr::Literal(Literal::Integer(_, Integer::Small(i))) => {
+                Expr::Literal(Literal::Integer(_, Int::Small(i))) => {
                     let i: u16 = i.try_into().map_err(|_| ())?;
                     for r in std::char::decode_utf16(core::iter::once(i)) {
                         let c = r.map_err(|_| ())?;
@@ -600,7 +596,7 @@ where
             assert!(size.is_none());
             let codepoint = match value {
                 Expr::Literal(Literal::Char(_, c)) => c,
-                Expr::Literal(Literal::Integer(_, Integer::Small(i))) => {
+                Expr::Literal(Literal::Integer(_, Int::Small(i))) => {
                     let i: u32 = i.try_into().map_err(|_| ())?;
                     char::from_u32(i).ok_or(())?
                 }

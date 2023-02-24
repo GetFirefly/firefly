@@ -20,11 +20,10 @@ use std::sync::Arc;
 use anyhow::bail;
 use clap::ArgMatches;
 
-use firefly_diagnostics::{CodeMap, Reporter};
 use firefly_intern::Symbol;
 use firefly_target::spec::{CodeModel, RelocModel, SplitDebugInfo, TlsModel};
 use firefly_target::{self as target, Target};
-use firefly_util::diagnostics::{ColorArg, ColorChoice, FileName};
+use firefly_util::diagnostics::*;
 use firefly_util::error::{HelpRequested, Verbosity};
 use firefly_util::fs::NativeLibraryKind;
 
@@ -97,18 +96,38 @@ macro_rules! option {
 
 impl Options {
     pub fn new<'a>(
-        reporter: &Reporter,
+        diagnostics: Option<Arc<DiagnosticsHandler>>,
         codemap: Arc<CodeMap>,
         codegen_opts: CodegenOptions,
         debugging_opts: DebuggingOptions,
         cwd: PathBuf,
         args: &ArgMatches<'a>,
     ) -> anyhow::Result<Self> {
+        let (warnings_as_errors, no_warn) = match args.value_of("warn") {
+            Some("0") | Some("none") => (false, true),
+            Some("error") => (true, false),
+            None | Some(_) => (false, false),
+        };
+        let verbosity = Verbosity::from_level(args.occurrences_of("verbose") as isize);
+
+        // Create a temporary diagnostics handler
+        let diagnostics = diagnostics.unwrap_or_else(|| {
+            create_diagnostics_handler(None, codemap.clone(), Verbosity::Info, false, false)
+        });
+
+        let output_file = args.value_of_os("output").map(PathBuf::from);
         let (app, dependencies, input_files) = match args.values_of_os("inputs") {
             None => {
                 // By default treat the current working directory as a standard Erlang app
                 let inputs = vec![FileName::Real(cwd.clone())];
-                let app = detect_app(reporter, codemap, args, cwd.as_path(), inputs.as_slice())?;
+                let app = detect_app(
+                    &diagnostics,
+                    codemap,
+                    args,
+                    cwd.as_path(),
+                    output_file.as_deref(),
+                    inputs.as_slice(),
+                )?;
                 let mut input_files = HashMap::new();
                 input_files.insert(app.name, inputs);
                 (app, HashMap::default(), input_files)
@@ -126,8 +145,14 @@ impl Options {
                             bail!("stdin as an input cannot be combined with other inputs");
                         }
                         let inputs = vec!["stdin".into()];
-                        let app =
-                            detect_app(reporter, codemap, args, cwd.as_path(), inputs.as_slice())?;
+                        let app = detect_app(
+                            &diagnostics,
+                            codemap,
+                            args,
+                            cwd.as_path(),
+                            output_file.as_deref(),
+                            inputs.as_slice(),
+                        )?;
                         let mut input_files = HashMap::new();
                         input_files.insert(app.name, inputs);
                         (app, HashMap::default(), input_files)
@@ -169,10 +194,11 @@ impl Options {
                             // If we have only a single directory, treat it as the root application
                             if dirs.len() == 1 {
                                 let app = detect_app(
-                                    reporter,
+                                    &diagnostics,
                                     codemap,
                                     args,
                                     cwd.as_path(),
+                                    output_file.as_deref(),
                                     dirs.as_slice(),
                                 )?;
                                 input_files.insert(app.name, dirs);
@@ -182,26 +208,35 @@ impl Options {
                                 let empty_args = ArgMatches::default();
                                 for appdir in dirs.drain(..) {
                                     let app = detect_app(
-                                        reporter,
+                                        &diagnostics,
                                         codemap.clone(),
                                         &empty_args,
                                         cwd.as_path(),
+                                        output_file.as_deref(),
                                         core::slice::from_ref(&appdir),
                                     )?;
                                     input_files.insert(app.name, vec![appdir]);
                                     dependencies.insert(app.name, app);
                                 }
-                                let app = detect_app(reporter, codemap, args, cwd.as_path(), &[])?;
+                                let app = detect_app(
+                                    &diagnostics,
+                                    codemap,
+                                    args,
+                                    cwd.as_path(),
+                                    output_file.as_deref(),
+                                    &[],
+                                )?;
                                 input_files.insert(app.name, vec![]);
                                 (app, dependencies, input_files)
                             }
                         } else if dirs.is_empty() {
                             // We have only files to process, which all belong to the root app
                             let app = detect_app(
-                                reporter,
+                                &diagnostics,
                                 codemap,
                                 args,
                                 cwd.as_path(),
+                                output_file.as_deref(),
                                 files.as_slice(),
                             )?;
                             input_files.insert(app.name, files);
@@ -211,20 +246,22 @@ impl Options {
                             let empty_args = ArgMatches::default();
                             for appdir in dirs.drain(..) {
                                 let app = detect_app(
-                                    reporter,
+                                    &diagnostics,
                                     codemap.clone(),
                                     &empty_args,
                                     cwd.as_path(),
+                                    output_file.as_deref(),
                                     core::slice::from_ref(&appdir),
                                 )?;
                                 input_files.insert(app.name, vec![appdir]);
                                 dependencies.insert(app.name, app);
                             }
                             let app = detect_app(
-                                reporter,
+                                &diagnostics,
                                 codemap,
                                 args,
                                 cwd.as_path(),
+                                output_file.as_deref(),
                                 files.as_slice(),
                             )?;
                             input_files.insert(app.name, files);
@@ -235,12 +272,14 @@ impl Options {
             }
         };
 
-        let project_type = if args.is_present("bin") || app.otp_module.is_some() {
-            ProjectType::Executable
-        } else if args.is_present("dynamic") {
-            ProjectType::Dylib
+        let project_type = if args.is_present("lib") {
+            if args.is_present("dynamic") {
+                ProjectType::Dylib
+            } else {
+                ProjectType::Staticlib
+            }
         } else {
-            ProjectType::Staticlib
+            ProjectType::Executable
         };
         let output_types = OutputTypes::parse_option(&option!("emit"), &args)?;
         let color_arg = ColorArg::parse_option(&option!("color"), &args)?;
@@ -311,7 +350,6 @@ impl Options {
         let link_libraries = parse_link_libraries(&args)?;
         let source_path_prefix = parse_source_path_prefix(&args)?;
 
-        let output_file = args.value_of_os("output").map(PathBuf::from);
         let output_dir = args.value_of_os("output-dir").map(PathBuf::from);
         if let Some(values) = args.values_of("define") {
             for value in values {
@@ -322,12 +360,6 @@ impl Options {
                 );
             }
         }
-        let (warnings_as_errors, no_warn) = match args.value_of("warn") {
-            Some("0") | Some("none") => (false, true),
-            Some("error") => (true, false),
-            None | Some(_) => (false, false),
-        };
-        let verbosity = Verbosity::from_level(args.occurrences_of("verbose") as isize);
         let mut include_path = VecDeque::new();
         let local_include_path = cwd.join("include");
         if local_include_path.exists() && local_include_path.is_dir() {
@@ -378,14 +410,25 @@ impl Options {
     // the full set of flags/options required by the compiler for actual
     // compilation
     pub fn new_with_defaults<'a>(
-        reporter: &Reporter,
+        diagnostics: Option<Arc<DiagnosticsHandler>>,
         codemap: Arc<CodeMap>,
         codegen_opts: CodegenOptions,
         debugging_opts: DebuggingOptions,
         cwd: PathBuf,
         args: &ArgMatches<'a>,
     ) -> anyhow::Result<Self> {
-        let app = detect_app(reporter, codemap, args, &cwd, &[])?;
+        let diagnostics = diagnostics.unwrap_or_else(|| {
+            create_diagnostics_handler(None, codemap.clone(), Verbosity::Info, false, false)
+        });
+        let output_file = args.value_of_os("output").map(PathBuf::from);
+        let app = detect_app(
+            &diagnostics,
+            codemap,
+            args,
+            &cwd,
+            output_file.as_deref(),
+            &[],
+        )?;
 
         let target_opt: Option<Target> = ParseOption::parse_option(&option!("target"), &args)?;
         let target = target_opt.unwrap_or_else(|| {
@@ -426,7 +469,7 @@ impl Options {
             color: ColorChoice::Auto,
             warnings_as_errors: false,
             no_warn: false,
-            verbosity: Verbosity::from_level(0),
+            verbosity: Verbosity::Info,
             host,
             target,
             opt_level: OptLevel::Default,
@@ -469,6 +512,22 @@ impl Options {
                 Some(base) => base.join(p),
                 None => p,
             })
+    }
+
+    pub fn maybe_emit_bytecode(&self) -> Option<PathBuf> {
+        if self.output_types.contains_key(&OutputType::Bytecode) {
+            Some(output::output_filename(
+                self.output_file
+                    .as_deref()
+                    .and_then(|p| p.file_stem().map(PathBuf::from))
+                    .map(FileName::real)
+                    .unwrap_or_else(|| FileName::real(self.app.name.as_str().get())),
+                OutputType::Bytecode,
+                self.output_dir.as_deref(),
+            ))
+        } else {
+            None
+        }
     }
 
     pub fn lto(&self) -> Lto {
@@ -591,6 +650,59 @@ impl Options {
     pub fn get_tools_search_paths(&self, self_contained: bool) -> Vec<PathBuf> {
         filesearch::get_tools_search_paths(&self.sysroot, self_contained)
     }
+
+    pub fn exported_symbols(&self) -> Vec<String> {
+        if let Some(ref exports) = self.target.options.override_export_symbols {
+            return exports.iter().map(ToString::to_string).collect();
+        }
+
+        vec![]
+    }
+
+    #[inline]
+    pub fn default_emitter(&self) -> Arc<dyn Emitter> {
+        default_emitter(self.verbosity, self.color)
+    }
+
+    pub fn create_diagnostics_handler(
+        &self,
+        codemap: Arc<CodeMap>,
+        emitter: Option<Arc<dyn Emitter>>,
+    ) -> Arc<DiagnosticsHandler> {
+        create_diagnostics_handler(
+            emitter,
+            codemap,
+            self.verbosity,
+            self.warnings_as_errors,
+            self.no_warn,
+        )
+    }
+}
+
+fn default_emitter(verbosity: Verbosity, color: ColorChoice) -> Arc<dyn Emitter> {
+    match verbosity {
+        Verbosity::Silent => Arc::new(NullEmitter::new(color)),
+        _ => Arc::new(DefaultEmitter::new(color)),
+    }
+}
+
+fn create_diagnostics_handler(
+    emitter: Option<Arc<dyn Emitter>>,
+    codemap: Arc<CodeMap>,
+    verbosity: Verbosity,
+    warnings_as_errors: bool,
+    no_warn: bool,
+) -> Arc<DiagnosticsHandler> {
+    Arc::new(DiagnosticsHandler::new(
+        DiagnosticsConfig {
+            verbosity,
+            warnings_as_errors,
+            no_warn,
+            display: DisplayConfig::default(),
+        },
+        codemap.clone(),
+        emitter.unwrap_or_else(|| default_emitter(verbosity, ColorChoice::Auto)),
+    ))
 }
 
 /// Fetch the application metadata for the given src directory
@@ -601,7 +713,7 @@ impl Options {
 ///
 /// NOTE: Assumes that srcdir exists, will panic otherwise
 fn try_load_app<'a>(
-    reporter: &Reporter,
+    diagnostics: &DiagnosticsHandler,
     codemap: Arc<CodeMap>,
     srcdir: &Path,
 ) -> anyhow::Result<Option<Arc<App>>> {
@@ -623,7 +735,7 @@ fn try_load_app<'a>(
     };
 
     if let Some(path) = default_appsrc {
-        Ok(Some(App::parse(reporter, codemap, &path)?))
+        Ok(Some(App::parse(&diagnostics, codemap, &path)?))
     } else {
         Ok(None)
     }
@@ -631,10 +743,11 @@ fn try_load_app<'a>(
 
 /// Fetch or generate application metadata based on the provided inputs
 fn detect_app<'a>(
-    reporter: &Reporter,
+    diagnostics: &DiagnosticsHandler,
     codemap: Arc<CodeMap>,
     args: &ArgMatches<'a>,
     cwd: &Path,
+    output_file: Option<&Path>,
     input_file_names: &[FileName],
 ) -> anyhow::Result<Arc<App>> {
     // If an path was explicitly provided, always prefer it
@@ -643,7 +756,7 @@ fn detect_app<'a>(
         if !path.exists() || !path.is_file() {
             bail!("invalid application resource file: {}", path.display());
         }
-        return Ok(App::parse(reporter, codemap, path)?);
+        return Ok(App::parse(&diagnostics, codemap, path)?);
     }
 
     // For the remaining variations, the version is always handled the same
@@ -663,22 +776,31 @@ fn detect_app<'a>(
 
     // We're left with inferring the application metadata.
     //
-    // If we have a single input, and it's a:
+    // If an output filename was given, use the basename of that file as the app name.
+    // Otherwise, if we have a single input, and it's a:
     //
     // * directory: try to treat that directory as a standard Erlang application
     // * file: use the file name as the name of the application
     //
     // Otherwise, if we have multiple inputs we use the name
     // of the current working directory as the application name.
+    if let Some(output_file) = output_file {
+        let name = Symbol::intern(output_file.file_stem().unwrap().to_str().unwrap());
+        let mut app = App::new(name);
+        app.version = version;
+        app.otp_module = otp_module;
+        return Ok(Arc::new(app));
+    }
+
     if input_file_names.len() == 1 {
         let input = &input_file_names[0];
         if input.is_dir() {
             let input_dir: &Path = input.as_ref();
             let srcdir = input_dir.join("src");
-            if let Ok(Some(app)) = try_load_app(reporter, codemap.clone(), &srcdir) {
+            if let Ok(Some(app)) = try_load_app(&diagnostics, codemap.clone(), &srcdir) {
                 return Ok(app);
             }
-            if let Ok(Some(app)) = try_load_app(reporter, codemap, input_dir) {
+            if let Ok(Some(app)) = try_load_app(&diagnostics, codemap, input_dir) {
                 return Ok(app);
             }
         }

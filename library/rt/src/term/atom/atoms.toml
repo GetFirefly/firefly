@@ -22,34 +22,96 @@ type = {}
 vsn = {}
 
 [errors]
+abort = {}
 badarg = {}
+badarity = {}
+badfun = {}
 badrecord = {}
 badmap = {}
 badmatch = {}
+bad_key = {}
 bad_filter = {}
 bad_generator = {}
 bad_value = {}
 bad_size = {}
 case_clause = {}
+DOWN = {}
 error = {}
 exit = {}
 function_clause = {}
 if_clause = {}
+kill = {}
+killed = {}
 nif_error = {}
+nocatch = {}
+noproc = {}
+system_limit = {}
 throw = {}
+timeout = {}
+timeout_value = {}
+trap = {}
 try_clause = {}
 
 [common]
 big = {}
+emulator = {}
 erlang = {}
+error_logger = {}
+gl = {}
 latin1 = {}
 little = {}
+log = {}
+logger = {}
 incomplete = {}
+info = {}
+info_msg = {}
+normal = {}
 ok = {}
+pid = {}
+port = {}
+process = {}
 raw = {}
+system = {}
+tag = {}
+time = {}
 undef = {}
+undefined = {}
 unicode = {}
 utf8 = {}
 utf16 = {}
 utf32 = {}
-normal = {}
+warning = {}
+warning_msg = {}
+
+
+[time]
+infinity = {}
+second = {}
+seconds = {}
+millisecond = {}
+milliseconds = {}
+microsecond = {}
+microseconds = {}
+nanosecond = {}
+nanoseconds = {}
+native = {}
+perf_counter = {}
+
+[distribution]
+no_node_at_no_host = { value = "nonode@nohost" }
+nocookie = {}
+noconnection = {}
+
+[signals]
+erl_signal_server = {}
+notify = {}
+sigusr1 = {}
+sigusr2 = {}
+sigchld = {}
+sigstop = {}
+sigtstp = {}
+sigquit = {}
+sigterm = {}
+sighup = {}
+sigabrt = {}
+sigalrm = {}

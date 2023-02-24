@@ -9,7 +9,6 @@
 // This feature is only used for tests, and can be removed with minimal refactoring,
 // but I'm in a rush and we're using nightly right now anyway
 #![feature(box_patterns)]
-#![feature(generic_associated_types)]
 
 /// This trait represents anything that can be run as a pass.
 ///
@@ -80,6 +79,16 @@ pub struct Chain<A, B> {
 impl<A, B> Chain<A, B> {
     fn new(a: A, b: B) -> Self {
         Self { a, b }
+    }
+}
+impl<A, B> Clone for Chain<A, B>
+where
+    A: Clone,
+    B: Clone,
+{
+    #[inline]
+    fn clone(&self) -> Self {
+        Self::new(self.a.clone(), self.b.clone())
     }
 }
 impl<A, B> Pass for Chain<A, B>

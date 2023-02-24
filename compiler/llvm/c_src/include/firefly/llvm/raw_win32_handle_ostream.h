@@ -1,10 +1,9 @@
-#ifndef LUMEN_SUPPORT_RAW_WIN32_HANDLE_OSTREAM_H
-#define LUMEN_SUPPORT_RAW_WIN32_HANDLE_OSTREAM_H
+#pragma once
 
 #if defined(_WIN32)
 
-#include "llvm/Support/raw_ostream.h"
 #include "windows.h"
+#include "llvm/Support/raw_ostream.h"
 
 class raw_win32_handle_ostream : public raw_pwrite_stream {
   HANDLE Handle;
@@ -33,7 +32,7 @@ class raw_win32_handle_ostream : public raw_pwrite_stream {
 
   void anchor() override;
 
- public:
+public:
   raw_win32_handle_ostream(HANDLE h, bool shouldClose, bool unbuffered = false);
 
   ~raw_win32_handle_ostream() override;
@@ -60,5 +59,4 @@ class raw_win32_handle_ostream : public raw_pwrite_stream {
   void clear_error() { EC = std::error_code(); }
 };
 
-#endif  // defined(_WIN32)
-#endif  // LUMEN_SUPPORT_RAW_WIN32_HANDLE_OSTREAM_H
+#endif // defined(_WIN32)

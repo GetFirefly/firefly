@@ -1,44 +1,58 @@
 [package]
 name = "firefly_compiler"
-version = "0.1.0"
-authors = ["Paul Schoenfelder <paulschoenfelder@gmail.com>"]
-license = "Apache-2.0"
-edition = "2021"
-publish = false
+description = "The driver for the Firefly compiler"
+version.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+categories.workspace = true
+keywords.workspace = true
+license.workspace = true
+readme.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[features]
+default = []
+native-compilation = ["dep:firefly_mlir"]
 
 [dependencies]
-lazy_static = "1.4"
-rand = "0.7"
-log = "0.4"
-anyhow = "1.0"
-thiserror = "1.0"
-clap = "2.34"
-walkdir = "2.2"
-salsa = "0.14"
-salsa-macros = "0.14"
-num_cpus = "1.0"
-crossbeam = "0.7"
-futures = "0.3.21"
+anyhow = { workspace = true, features = ["std"] }
 async-task = "1.3"
-parking_lot = "0.11.1"
-
+clap.workspace = true
+crossbeam = "0.7"
+futures.workspace = true
+firefly_arena = { path = "../../library/arena" }
+firefly_beam = { path = "../../library/beam" }
+firefly_binary = { path = "../../library/binary" }
+firefly_bytecode = { path = "../../library/bytecode", features = ["std"] }
 firefly_diagnostics = { path = "../diagnostics" }
-firefly_session = { path = "../session" }
-firefly_target = { path = "../target" }
-firefly_codegen = { path = "../codegen" }
-firefly_util = { path = "../util" }
 firefly_intern = { path = "../intern" }
+firefly_linker = { path = "../linker" }
 firefly_llvm = { path = "../llvm" }
-firefly_mlir = { path = "../mlir" }
+firefly_mlir = { path = "../mlir", optional = true }
+firefly_number = { path = "../../library/number" }
 firefly_pass = { path = "../pass" }
 firefly_parser = { path = "../parser" }
-firefly_beam = { path = "../../library/beam" }
+firefly_session = { path = "../session" }
 firefly_syntax_base = { path = "../syntax_base" }
 firefly_syntax_pp = { path = "../syntax_pp" }
 firefly_syntax_erl = { path = "../syntax_erl" }
 firefly_syntax_core = { path = "../syntax_core" }
 firefly_syntax_ssa = { path = "../syntax_ssa" }
 firefly_syntax_kernel = { path = "../syntax_kernel" }
+firefly_target = { path = "../target" }
+firefly_util = { path = "../util" }
+lazy_static.workspace = true
+log.workspace = true
+num_cpus = "1.0"
+parking_lot.workspace = true
+rand.workspace = true
+rayon = "1.6"
+rustc-hash.workspace = true
+smallvec.workspace = true
+thiserror.workspace = true
+walkdir = "2.2"
 
 [build-dependencies]
-which = "4.0"
+which.workspace = true

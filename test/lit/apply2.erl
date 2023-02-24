@@ -1,4 +1,4 @@
-%% RUN: @firefly compile -C no_default_init --bin -o @tempfile @file && @tempfile true
+%% RUN: @firefly compile --bin -o @tempfile @file && @tempfile true
 
 %% CHECK: found
 -module(init).

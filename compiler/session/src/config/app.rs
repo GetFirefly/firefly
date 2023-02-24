@@ -5,12 +5,10 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use firefly_diagnostics::{
-    CodeMap, Diagnostic, Label, Reporter, SourceSpan, Spanned, ToDiagnostic,
-};
 use firefly_intern::Symbol;
 use firefly_syntax_pp::ast::{Root, Term};
 use firefly_syntax_pp::ParserError;
+use firefly_util::diagnostics::*;
 
 type Parser = firefly_parser::Parser<()>;
 
@@ -23,12 +21,12 @@ pub enum AppResourceError {
     Invalid(SourceSpan),
 }
 impl ToDiagnostic for AppResourceError {
-    fn to_diagnostic(&self) -> Diagnostic {
+    fn to_diagnostic(self) -> Diagnostic {
         match self {
             Self::Parser(err) => err.to_diagnostic(),
             Self::Invalid(span) => Diagnostic::error()
                 .with_message("invalid application spec")
-                .with_labels(vec![Label::primary(span.source_id(), *span)]),
+                .with_labels(vec![Label::primary(span.source_id(), span)]),
         }
     }
 }
@@ -116,16 +114,16 @@ impl App {
 
     /// Parse an application resource from the given path
     pub fn parse<P: AsRef<Path>>(
-        reporter: &Reporter,
+        diagnostics: &DiagnosticsHandler,
         codemap: Arc<CodeMap>,
         path: P,
     ) -> Result<Arc<Self>, AppResourceError> {
         let path = path.as_ref();
         let root = path.parent().unwrap().parent().unwrap().to_path_buf();
 
-        let parser = Parser::new((), codemap);
-        match parser.parse_file::<Root, _, ParserError>(reporter.clone(), path) {
-            Ok(parsed) => Self::decode(reporter, parsed).map(|mut app| {
+        let parser = Parser::new((), codemap.clone());
+        match parser.parse_file::<Root, _, ParserError>(diagnostics, path) {
+            Ok(parsed) => Self::decode(diagnostics, parsed).map(|mut app| {
                 app.root.replace(root);
                 Arc::new(app)
             }),
@@ -139,31 +137,39 @@ impl App {
     /// you set it manually if the application has a corresponding root
     /// directory
     pub fn parse_str<S: AsRef<str>>(
-        reporter: &Reporter,
+        diagnostics: &DiagnosticsHandler,
         codemap: Arc<CodeMap>,
         source: S,
     ) -> Result<Arc<Self>, AppResourceError> {
-        let parser = Parser::new((), codemap);
-        match parser.parse_string::<Root, _, ParserError>(reporter.clone(), source) {
-            Ok(root) => Self::decode(reporter, root).map(Arc::new),
+        let parser = Parser::new((), codemap.clone());
+        match parser.parse_string::<Root, _, ParserError>(diagnostics, source) {
+            Ok(root) => Self::decode(diagnostics, root).map(Arc::new),
             Err(err) => Err(err.into()),
         }
     }
 
-    fn decode(reporter: &Reporter, root: Root) -> Result<App, AppResourceError> {
+    fn decode(diagnostics: &DiagnosticsHandler, root: Root) -> Result<App, AppResourceError> {
         // Make sure we have a minimum viable spec
         let mut resource = match root.term {
             Term::Tuple(tuple) => tuple,
             other => {
                 let span = other.span();
-                reporter.show_error("invalid application spec", &[(span, "expected a tuple")]);
+                diagnostics
+                    .diagnostic(Severity::Error)
+                    .with_message("invalid application spec")
+                    .with_primary_label(span, "expected a tuple")
+                    .emit();
                 return Err(AppResourceError::Invalid(span));
             }
         };
         if resource.len() < 3 {
             let span = resource.span();
             let message = format!("expected a 3-tuple, but found {} elements", resource.len());
-            reporter.show_error("invalid application spec", &[(span, message.as_str())]);
+            diagnostics
+                .diagnostic(Severity::Error)
+                .with_message("invalid application spec")
+                .with_primary_label(span, message)
+                .emit();
             return Err(AppResourceError::Invalid(span));
         }
 
@@ -179,10 +185,11 @@ impl App {
                 .map(|a| a.item == "application")
                 .unwrap_or_default()
             {
-                reporter.show_error(
-                    "invalid application spec",
-                    &[(span, "expected atom 'application")],
-                );
+                diagnostics
+                    .diagnostic(Severity::Error)
+                    .with_message("invalid application spec")
+                    .with_primary_label(span, "expected atom 'application'")
+                    .emit();
                 return Err(AppResourceError::Invalid(span));
             }
         }
@@ -191,7 +198,11 @@ impl App {
         let name = {
             let span = name.span();
             name.as_atom().map_err(|_| {
-                reporter.show_error("invalid application spec", &[(span, "expected atom")]);
+                diagnostics
+                    .diagnostic(Severity::Error)
+                    .with_message("invalid application spec")
+                    .with_primary_label(span, "expected atom")
+                    .emit();
                 AppResourceError::Invalid(span)
             })?
         };
@@ -203,7 +214,11 @@ impl App {
         let mut meta = {
             let span = meta.span();
             meta.as_list().map_err(|_| {
-                reporter.show_error("invalid application spec", &[(span, "expected list")]);
+                diagnostics
+                    .diagnostic(Severity::Error)
+                    .with_message("invalid application spec")
+                    .with_primary_label(span, "expected list")
+                    .emit();
                 AppResourceError::Invalid(span)
             })?
         };
@@ -212,16 +227,21 @@ impl App {
         for item in meta.item.drain(..) {
             let span = item.span();
             let mut item = item.as_tuple().map_err(|_| {
-                reporter.show_error("invalid application spec", &[(span, "expected tuple")]);
+                diagnostics
+                    .diagnostic(Severity::Error)
+                    .with_message("invalid application spec")
+                    .with_primary_label(span, "expected tuple")
+                    .emit();
                 AppResourceError::Invalid(span)
             })?;
             // Must be a valid keyword item
             if item.len() != 2 {
                 let span = item.span();
-                reporter.show_error(
-                    "invalid application spec",
-                    &[(span, "expected keyword list item (i.e. 2-tuple)")],
-                );
+                diagnostics
+                    .diagnostic(Severity::Error)
+                    .with_message("invalid application spec")
+                    .with_primary_label(span, "expected keyword list item (i.e. 2-tuple)")
+                    .emit();
                 return Err(AppResourceError::Invalid(span));
             }
             // Keys must be atoms
@@ -230,8 +250,11 @@ impl App {
                 let key = item.pop().unwrap();
                 let span = key.span();
                 key.as_atom().map_err(|_| {
-                    reporter
-                        .show_error("invalid application spec", &[(span, "expected atom here")]);
+                    diagnostics
+                        .diagnostic(Severity::Error)
+                        .with_message("invalid application spec")
+                        .with_primary_label(span, "expected atom here")
+                        .emit();
                     AppResourceError::Invalid(span)
                 })?
             };
@@ -239,25 +262,33 @@ impl App {
                 "vsn" => {
                     app.version.replace(value.as_string().map_err(|invalid| {
                         let span = invalid.span();
-                        reporter
-                            .show_error("invalid application spec", &[(span, "expected string")]);
+                        diagnostics
+                            .diagnostic(Severity::Error)
+                            .with_message("invalid application spec")
+                            .with_primary_label(span, "expected string")
+                            .emit();
                         AppResourceError::Invalid(span)
                     })?);
                 }
                 "modules" => {
                     let mut modules = value.as_list().map_err(|invalid| {
                         let span = invalid.span();
-                        reporter.show_error("invalid application spec", &[(span, "expected list")]);
+                        diagnostics
+                            .diagnostic(Severity::Error)
+                            .with_message("invalid application spec")
+                            .with_primary_label(span, "expected list")
+                            .emit();
                         AppResourceError::Invalid(span)
                     })?;
                     for module in modules.drain(..) {
                         app.modules
                             .push(module.as_atom().map(|a| a.item).map_err(|invalid| {
                                 let span = invalid.span();
-                                reporter.show_error(
-                                    "invalid application spec",
-                                    &[(span, "expected module name as an atom")],
-                                );
+                                diagnostics
+                                    .diagnostic(Severity::Error)
+                                    .with_message("invalid application spec")
+                                    .with_primary_label(span, "expected module name as an atom")
+                                    .emit();
                                 AppResourceError::Invalid(span)
                             })?);
                     }
@@ -265,17 +296,25 @@ impl App {
                 "applications" => {
                     let mut applications = value.as_list().map_err(|invalid| {
                         let span = invalid.span();
-                        reporter.show_error("invalid application spec", &[(span, "expected list")]);
+                        diagnostics
+                            .diagnostic(Severity::Error)
+                            .with_message("invalid application spec")
+                            .with_primary_label(span, "expected list")
+                            .emit();
                         AppResourceError::Invalid(span)
                     })?;
                     for application in applications.drain(..) {
                         app.applications
                             .push(application.as_atom().map(|a| a.item).map_err(|invalid| {
                                 let span = invalid.span();
-                                reporter.show_error(
-                                    "invalid application spec",
-                                    &[(span, "expected application name as an atom")],
-                                );
+                                diagnostics
+                                    .diagnostic(Severity::Error)
+                                    .with_message("invalid application spec")
+                                    .with_primary_label(
+                                        span,
+                                        "expected application name as an atom",
+                                    )
+                                    .emit();
                                 AppResourceError::Invalid(span)
                             })?);
                     }
@@ -283,17 +322,25 @@ impl App {
                 "included_applications" => {
                     let mut applications = value.as_list().map_err(|invalid| {
                         let span = invalid.span();
-                        reporter.show_error("invalid application spec", &[(span, "expected list")]);
+                        diagnostics
+                            .diagnostic(Severity::Error)
+                            .with_message("invalid application spec")
+                            .with_primary_label(span, "expected list")
+                            .emit();
                         AppResourceError::Invalid(span)
                     })?;
                     for application in applications.drain(..) {
                         app.included_applications.push(
                             application.as_atom().map(|a| a.item).map_err(|invalid| {
                                 let span = invalid.span();
-                                reporter.show_error(
-                                    "invalid application spec",
-                                    &[(span, "expected application name as an atom")],
-                                );
+                                diagnostics
+                                    .diagnostic(Severity::Error)
+                                    .with_message("invalid application spec")
+                                    .with_primary_label(
+                                        span,
+                                        "expected application name as an atom",
+                                    )
+                                    .emit();
                                 AppResourceError::Invalid(span)
                             })?,
                         );
@@ -302,17 +349,25 @@ impl App {
                 "optional_applications" => {
                     let mut applications = value.as_list().map_err(|invalid| {
                         let span = invalid.span();
-                        reporter.show_error("invalid application spec", &[(span, "expected list")]);
+                        diagnostics
+                            .diagnostic(Severity::Error)
+                            .with_message("invalid application spec")
+                            .with_primary_label(span, "expected list")
+                            .emit();
                         AppResourceError::Invalid(span)
                     })?;
                     for application in applications.drain(..) {
                         app.optional_applications.push(
                             application.as_atom().map(|a| a.item).map_err(|invalid| {
                                 let span = invalid.span();
-                                reporter.show_error(
-                                    "invalid application spec",
-                                    &[(span, "expected application name as an atom")],
-                                );
+                                diagnostics
+                                    .diagnostic(Severity::Error)
+                                    .with_message("invalid application spec")
+                                    .with_primary_label(
+                                        span,
+                                        "expected application name as an atom",
+                                    )
+                                    .emit();
                                 AppResourceError::Invalid(span)
                             })?,
                         );
@@ -321,17 +376,21 @@ impl App {
                 "runtime_dependencies" => {
                     let mut runtime_dependencies = value.as_list().map_err(|invalid| {
                         let span = invalid.span();
-                        reporter.show_error("invalid application spec", &[(span, "expected list")]);
+                        diagnostics
+                            .diagnostic(Severity::Error)
+                            .with_message("invalid application spec")
+                            .with_primary_label(span, "expected list")
+                            .emit();
                         AppResourceError::Invalid(span)
                     })?;
                     for runtime_dependency in runtime_dependencies.drain(..) {
                         app.runtime_dependencies
                             .push(runtime_dependency.as_string_symbol().map(|a| a.item).map_err(|invalid| {
                                 let span = invalid.span();
-                                reporter.show_error(
-                                    "invalid application spec",
-                                    &[(span, "expected application version string, e.g. \"kernel-3.0\"")],
-                                );
+                                diagnostics.diagnostic(Severity::Error)
+                                    .with_message("invalid application spec")
+                                    .with_primary_label(span, "expected application version string, e.g. \"kernel-3.0\"")
+                                    .emit();
                                 AppResourceError::Invalid(span)
                             })?);
                     }
@@ -339,16 +398,23 @@ impl App {
                 "mod" => {
                     let mut mod_tuple = value.as_tuple().map_err(|invalid| {
                         let span = invalid.span();
-                        reporter
-                            .show_error("invalid application spec", &[(span, "expected tuple")]);
+                        diagnostics
+                            .diagnostic(Severity::Error)
+                            .with_message("invalid application spec")
+                            .with_primary_label(span, "expected tuple")
+                            .emit();
                         AppResourceError::Invalid(span)
                     })?;
                     if mod_tuple.len() != 2 {
                         let span = mod_tuple.span();
-                        reporter.show_error(
-                            "invalid application spec",
-                            &[(span, "'mod' key must be a tuple of `{module(), any()}`")],
-                        );
+                        diagnostics
+                            .diagnostic(Severity::Error)
+                            .with_message("invalid application spec")
+                            .with_primary_label(
+                                span,
+                                "'mod' key must be a tuple of `{module(), any()}`",
+                            )
+                            .emit();
                         return Err(AppResourceError::Invalid(span));
                     }
                     let start_arg = mod_tuple.pop().unwrap();
@@ -360,10 +426,11 @@ impl App {
                             .map(|a| a.item)
                             .map_err(|invalid| {
                                 let span = invalid.span();
-                                reporter.show_error(
-                                    "invalid application spec",
-                                    &[(span, "expected module name as an atom")],
-                                );
+                                diagnostics
+                                    .diagnostic(Severity::Error)
+                                    .with_message("invalid application spec")
+                                    .with_primary_label(span, "expected module name as an atom")
+                                    .emit();
                                 AppResourceError::Invalid(span)
                             })?;
                     app.otp_module.replace(module_name);
@@ -372,24 +439,30 @@ impl App {
                 "env" => {
                     let mut env = value.as_list().map_err(|invalid| {
                         let span = invalid.span();
-                        reporter.show_error("invalid application spec", &[(span, "expected list")]);
+                        diagnostics
+                            .diagnostic(Severity::Error)
+                            .with_message("invalid application spec")
+                            .with_primary_label(span, "expected list")
+                            .emit();
                         AppResourceError::Invalid(span)
                     })?;
                     for env_tuple in env.drain(..) {
                         let mut env_tuple = env_tuple.as_tuple().map_err(|invalid| {
                             let span = invalid.span();
-                            reporter.show_error(
-                                "invalid application spec",
-                                &[(span, "expected tuple of {atom(), term()}")],
-                            );
+                            diagnostics
+                                .diagnostic(Severity::Error)
+                                .with_message("invalid application spec")
+                                .with_primary_label(span, "expected tuple of {atom(), term()}")
+                                .emit();
                             AppResourceError::Invalid(span)
                         })?;
                         if env_tuple.len() != 2 {
                             let span = env_tuple.span();
-                            reporter.show_error(
-                                "invalid application spec",
-                                &[(span, "expected tuple of {atom(), term()}")],
-                            );
+                            diagnostics
+                                .diagnostic(Severity::Error)
+                                .with_message("invalid application spec")
+                                .with_primary_label(span, "expected tuple of {atom(), term()}")
+                                .emit();
                             return Err(AppResourceError::Invalid(span));
                         }
                         let value = env_tuple.item.pop().unwrap();
@@ -401,10 +474,11 @@ impl App {
                             .map(|a| a.item)
                             .map_err(|invalid| {
                                 let span = invalid.span();
-                                reporter.show_error(
-                                    "invalid application spec",
-                                    &[(span, "expected env key as an atom")],
-                                );
+                                diagnostics
+                                    .diagnostic(Severity::Error)
+                                    .with_message("invalid application spec")
+                                    .with_primary_label(span, "expected env key as an atom")
+                                    .emit();
                                 AppResourceError::Invalid(span)
                             })?;
                         app.env.push((key, value));
@@ -413,25 +487,31 @@ impl App {
                 "start_phases" => {
                     let mut start_phases = value.as_list().map_err(|invalid| {
                         let span = invalid.span();
-                        reporter.show_error("invalid application spec", &[(span, "expected list")]);
+                        diagnostics
+                            .diagnostic(Severity::Error)
+                            .with_message("invalid application spec")
+                            .with_primary_label(span, "expected list")
+                            .emit();
                         AppResourceError::Invalid(span)
                     })?;
                     for start_phase_tuple in start_phases.drain(..) {
                         let mut start_phase_tuple =
                             start_phase_tuple.as_tuple().map_err(|invalid| {
                                 let span = invalid.span();
-                                reporter.show_error(
-                                    "invalid application spec",
-                                    &[(span, "expected tuple of {atom(), term()}")],
-                                );
+                                diagnostics
+                                    .diagnostic(Severity::Error)
+                                    .with_message("invalid application spec")
+                                    .with_primary_label(span, "expected tuple of {atom(), term()}")
+                                    .emit();
                                 AppResourceError::Invalid(span)
                             })?;
                         if start_phase_tuple.len() != 2 {
                             let span = start_phase_tuple.span();
-                            reporter.show_error(
-                                "invalid application spec",
-                                &[(span, "expected tuple of {atom(), term()}")],
-                            );
+                            diagnostics
+                                .diagnostic(Severity::Error)
+                                .with_message("invalid application spec")
+                                .with_primary_label(span, "expected tuple of {atom(), term()}")
+                                .emit();
                             return Err(AppResourceError::Invalid(span));
                         }
                         let value = start_phase_tuple.item.pop().unwrap();
@@ -443,10 +523,11 @@ impl App {
                             .map(|a| a.item)
                             .map_err(|invalid| {
                                 let span = invalid.span();
-                                reporter.show_error(
-                                    "invalid application spec",
-                                    &[(span, "expected start phase as an atom")],
-                                );
+                                diagnostics
+                                    .diagnostic(Severity::Error)
+                                    .with_message("invalid application spec")
+                                    .with_primary_label(span, "expected start phase as an atom")
+                                    .emit();
                                 AppResourceError::Invalid(span)
                             })?;
                         app.start_phases.push((key, value));
@@ -482,19 +563,16 @@ mod test {
     const INVALID_APP_RESOURCE: &'static str = "{}.";
     const MISSING_TRAILING_DOT: &'static str = "{application, simple, []}";
 
-    fn fail_with(reporter: Reporter, codemap: &CodeMap) -> ! {
-        let message = reporter.to_string(codemap);
-        panic!("{}", message);
-    }
-
     fn parse(source: &str) -> Arc<App> {
-        let reporter = Reporter::new();
+        let emitter = Arc::new(DefaultEmitter::new(ColorChoice::Auto));
         let codemap = Arc::new(CodeMap::new());
-        match App::parse_str(&reporter, codemap.clone(), source) {
+        let diagnostics =
+            DiagnosticsHandler::new(DiagnosticsConfig::default(), codemap.clone(), emitter);
+        match App::parse_str(&diagnostics, codemap.clone(), source) {
             Ok(parsed) => parsed,
             Err(err) => {
-                reporter.diagnostic(err.to_diagnostic());
-                fail_with(reporter, &codemap)
+                diagnostics.error(err);
+                panic!("parsing failed")
             }
         }
     }

@@ -24,8 +24,14 @@ impl fmt::Debug for MaybePartialByte {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         use core::fmt::Write;
 
-        f.write_str("0b")?;
         let byte = self.byte();
+        if !self.is_partial() {
+            if let Some(c) = char::from_u32(byte as u32) {
+                return f.write_char(c);
+            }
+        }
+
+        f.write_str("0b")?;
         for i in 0..self.size {
             let offset = 7 - i;
             let mask = 1 << offset;
@@ -110,7 +116,7 @@ impl Shl<u8> for MaybePartialByte {
 /// NOTE: Any partial bytes produced by the selection are guaranteed to have their extra
 /// bits zeroed, i.e. it is never the case that a selection will include bits that are
 /// not strictly within the selected range.
-#[derive(Debug, Copy, Clone)]
+#[derive(Copy, Clone)]
 pub enum Selection<'a> {
     /// The selection contains no bits
     ///
@@ -560,6 +566,53 @@ impl<'a> Selection<'a> {
                     vec.push(byte);
                 }
                 Cow::Owned(vec)
+            }
+        }
+    }
+
+    /// Like `to_bytes`, but fills `buffer` with the bytes.
+    ///
+    /// The provided buffer must be equal to or larger in size than the selection,
+    /// or this function will panic.
+    ///
+    /// Returns the number of trailing bits in the final byte
+    pub fn write_bytes_to_buffer(&self, buffer: &mut [u8]) -> u8 {
+        assert!(self.byte_size() <= buffer.len());
+        match self {
+            Self::Empty => 0,
+            Self::Byte(b) => {
+                buffer[0] = b.byte();
+                8 - b.size
+            }
+            Self::AlignedBinary(b) => {
+                let buf = &mut buffer[..b.len()];
+                buf.copy_from_slice(b);
+                0
+            }
+            Self::AlignedBitstring(b, r) => {
+                let len = b.len();
+                let buf = &mut buffer[..len];
+                buf.copy_from_slice(b);
+                buf[len] = r.byte();
+                8 - r.size
+            }
+            _ => {
+                let mut iter = self.bits();
+                let mut i = 0;
+                while let Some(byte) = iter.next() {
+                    unsafe {
+                        *buffer.get_unchecked_mut(i) = byte;
+                        i += 1;
+                    }
+                }
+                if let Some(partial) = iter.consume() {
+                    unsafe {
+                        *buffer.get_unchecked_mut(i) = partial.byte();
+                    }
+                    8 - partial.size
+                } else {
+                    0
+                }
             }
         }
     }
@@ -1090,6 +1143,30 @@ impl<'a> Hash for Selection<'a> {
 
         for byte in self.bytes() {
             Hash::hash(&byte, state);
+        }
+    }
+}
+impl<'a> fmt::Debug for Selection<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::Empty => f.write_str("Empty"),
+            Self::Byte(b) => write!(f, "Byte({:?})", b),
+            Self::AlignedBinary(bytes) => match str::from_utf8(bytes) {
+                Ok(s) => write!(f, "AlignedBinary({})", s),
+                _ => write!(f, "AlignedBinary({:?})", bytes),
+            },
+            Self::Binary(l, bytes, r) => match self.to_str() {
+                Some(s) => write!(f, "Binary({})", s),
+                None => write!(f, "Binary({:?}, {:?}, {:?})", l, bytes, r),
+            },
+            Self::AlignedBitstring(bytes, r) => match str::from_utf8(bytes) {
+                Ok(s) => write!(f, "AlignedBitstring({}, {:?})", s, r),
+                _ => write!(f, "AlignedBitstring({:?}, {:?})", bytes, r),
+            },
+            Self::Bitstring(l, bytes, r) => match str::from_utf8(bytes) {
+                Ok(s) => write!(f, "Bitstring({:?}, {}, {:?})", l, s, r),
+                _ => write!(f, "Bitstring({:?}, {:?}, {:?})", l, bytes, r),
+            },
         }
     }
 }

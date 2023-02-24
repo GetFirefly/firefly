@@ -1,6 +1,6 @@
 use std::ops::Range;
 
-use firefly_diagnostics::*;
+use firefly_util::diagnostics::*;
 
 use super::source::Source;
 

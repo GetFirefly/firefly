@@ -2,7 +2,7 @@ use core::alloc::{AllocError, Layout};
 use core::ptr::{self, NonNull};
 
 use crate::alloc::realloc_fallback;
-use crate::arch::MIN_ALIGN;
+use crate::MIN_ALIGN;
 
 #[inline]
 pub fn allocate(layout: Layout) -> Result<NonNull<[u8]>, AllocError> {

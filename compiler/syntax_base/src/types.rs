@@ -1,4 +1,5 @@
 use std::fmt::{self, Write};
+use std::str::FromStr;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
 pub struct FunctionType {
@@ -24,7 +25,7 @@ impl FunctionType {
 }
 impl fmt::Display for FunctionType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.write_char('(')?;
+        f.write_str("fn (")?;
         for (i, ty) in self.params.iter().enumerate() {
             if i > 0 {
                 write!(f, ", {}", ty)?;
@@ -47,7 +48,6 @@ impl fmt::Display for FunctionType {
 /// Types in this enumeration correspond to primitive LLVM types
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum PrimitiveType {
-    Void,
     I1,
     I8,
     I16,
@@ -95,11 +95,11 @@ impl PrimitiveType {
         }
     }
 }
+
 impl fmt::Display for PrimitiveType {
     /// Print this type for display using the provided module context
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Self::Void => f.write_str("void"),
             Self::I1 => f.write_str("i1"),
             Self::I8 => f.write_str("i8"),
             Self::I16 => f.write_str("i16"),
@@ -107,7 +107,7 @@ impl fmt::Display for PrimitiveType {
             Self::I64 => f.write_str("i64"),
             Self::Isize => f.write_str("isize"),
             Self::F64 => f.write_str("f64"),
-            Self::Ptr(inner) => write!(f, "ptr<{}>", &inner),
+            Self::Ptr(inner) => write!(f, "*mut {}", &inner),
             Self::Struct(fields) => {
                 f.write_str("{")?;
                 for (i, field) in fields.iter().enumerate() {
@@ -348,7 +348,9 @@ pub enum Type {
     // This type is used to indicate that the type of an instruction is dynamic or unable to be typed
     Unknown,
     // This type is used to indicate an instruction that produces no results, and thus has no type
-    Invalid,
+    Unit,
+    // This type is equivalent to Rust's Never/! type, i.e. it indicates that a function never returns
+    Never,
     // Primitive types are used for some instructions which are low-level and do not directly produce
     // values which are used as terms, or are castable to term (e.g. integers)
     Primitive(PrimitiveType),
@@ -357,12 +359,14 @@ pub enum Type {
     Term(TermType),
     // Represents a function type that is calling-convention agnostic
     Function(FunctionType),
-    // This type is equivalent to Rust's Never/! type, i.e. it indicates that a function never returns
-    NoReturn,
+    // Represents the type of a ErlangFuture-returning function
+    Future(Box<Type>),
     // This type maps to ErlangException in firefly_rt
     Exception,
     // This type maps to Trace in firefly_rt
     ExceptionTrace,
+    // This type maps to Process in firefly_rt
+    Process,
     // This type maps to ReceiveContext in firefly_rt_tiny
     RecvContext,
     // This type maps to ReceiveState in firefly_rt_tiny
@@ -438,17 +442,259 @@ impl fmt::Display for Type {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::Unknown => f.write_str("?"),
-            Self::Invalid => f.write_str("invalid"),
+            Self::Unit => f.write_str("()"),
+            Self::Never => f.write_char('!'),
             Self::Primitive(prim) => write!(f, "{}", &prim),
             Self::Term(ty) => write!(f, "{}", &ty),
             Self::Function(ty) => write!(f, "{}", &ty),
-            Self::NoReturn => f.write_char('!'),
+            Self::Future(ty) => write!(f, "future<{}>", &ty),
             Self::Exception => f.write_str("exception"),
             Self::ExceptionTrace => f.write_str("trace"),
+            Self::Process => f.write_str("process"),
             Self::RecvContext => f.write_str("recv_context"),
             Self::RecvState => f.write_str("recv_state"),
             Self::BinaryBuilder => f.write_str("binary_builder"),
             Self::MatchContext => f.write_str("match_context"),
         }
+    }
+}
+impl FromStr for Type {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        parser::parse(s)
+    }
+}
+
+mod parser {
+    use super::*;
+
+    use core::iter::Peekable;
+    use logos::Logos;
+
+    #[derive(Logos, Debug, PartialEq)]
+    enum Token<'a> {
+        #[error]
+        Error,
+
+        #[regex(r"[ \t\n\f ]+", logos::skip)]
+        Whitespace,
+
+        #[token(",")]
+        Comma,
+        #[token(";")]
+        Semicolon,
+        #[token("!")]
+        Bang,
+        #[token("?")]
+        Question,
+        #[token("*")]
+        Star,
+        #[token("(")]
+        LParen,
+        #[token(")")]
+        RParen,
+        #[token("[")]
+        LBracket,
+        #[token("]")]
+        RBracket,
+        #[token("{")]
+        LBrace,
+        #[token("}")]
+        RBrace,
+        #[token("->")]
+        Arrow,
+        #[token("<")]
+        Lt,
+        #[token(">")]
+        Gt,
+        #[token("fn")]
+        Fn,
+        #[token("mut")]
+        Mut,
+        #[token("const")]
+        Const,
+        #[regex("[0-9]+", |lex| lex.slice().parse())]
+        Number(usize),
+        #[regex("[a-zA-Z_]+", |lex| lex.slice())]
+        Ident(&'a str),
+    }
+
+    pub(super) fn parse(input: &str) -> Result<Type, ()> {
+        let mut lex = Token::lexer(input).peekable();
+
+        let ty = parse_ty(&mut lex)?;
+
+        // Parsing must consume all of the input
+        if lex.next().is_some() {
+            return Err(());
+        }
+
+        Ok(ty)
+    }
+
+    fn parse_ty<'a, I>(lex: &mut Peekable<I>) -> Result<Type, ()>
+    where
+        I: Iterator<Item = Token<'a>>,
+    {
+        let start = lex.next().ok_or(())?;
+
+        match start {
+            Token::Star => parse_pointer(lex),
+            Token::LBracket => parse_array(lex),
+            Token::LBrace => parse_struct(lex),
+            Token::Fn => parse_function(lex),
+            Token::Bang => Ok(Type::Never),
+            Token::Question => Ok(Type::Unknown),
+            Token::LParen => {
+                if let Token::RParen = lex.next().ok_or(())? {
+                    Ok(Type::Unit)
+                } else {
+                    Err(())
+                }
+            }
+            Token::Ident(name) => {
+                match name {
+                    // Primitive
+                    "i1" => Ok(Type::Primitive(PrimitiveType::I1)),
+                    "i8" => Ok(Type::Primitive(PrimitiveType::I8)),
+                    "i16" => Ok(Type::Primitive(PrimitiveType::I16)),
+                    "i32" => Ok(Type::Primitive(PrimitiveType::I32)),
+                    "i64" => Ok(Type::Primitive(PrimitiveType::I64)),
+                    "isize" => Ok(Type::Primitive(PrimitiveType::Isize)),
+                    "f64" => Ok(Type::Primitive(PrimitiveType::F64)),
+                    // Term
+                    "any" | "term" => Ok(Type::Term(TermType::Any)),
+                    "bool" => Ok(Type::Term(TermType::Bool)),
+                    "int" => Ok(Type::Term(TermType::Integer)),
+                    "float" => Ok(Type::Term(TermType::Float)),
+                    "number" => Ok(Type::Term(TermType::Number)),
+                    "atom" => Ok(Type::Term(TermType::Atom)),
+                    "bits" | "bitstring" => Ok(Type::Term(TermType::Bitstring)),
+                    "bytes" | "binary" => Ok(Type::Term(TermType::Binary)),
+                    "nil" => Ok(Type::Term(TermType::Nil)),
+                    "cons" => Ok(Type::Term(TermType::Cons)),
+                    "list" => Ok(Type::Term(TermType::List(None))),
+                    "maybe_improper_list" => Ok(Type::Term(TermType::MaybeImproperList)),
+                    "tuple" => Ok(Type::Term(TermType::Tuple(None))),
+                    "map" => Ok(Type::Term(TermType::Map)),
+                    "reference" => Ok(Type::Term(TermType::Reference)),
+                    "port" => Ok(Type::Term(TermType::Port)),
+                    "pid" => Ok(Type::Term(TermType::Pid)),
+                    "fun" => Ok(Type::Term(TermType::Fun(None))),
+                    // Special
+                    "exception" => Ok(Type::Exception),
+                    "trace" => Ok(Type::ExceptionTrace),
+                    "process" => Ok(Type::Process),
+                    "recv_context" => Ok(Type::RecvContext),
+                    "recv_state" => Ok(Type::RecvState),
+                    "binary_builder" => Ok(Type::BinaryBuilder),
+                    "match_context" => Ok(Type::MatchContext),
+                    "future" => parse_future(lex),
+                    _ => Err(()),
+                }
+            }
+            _ => Err(()),
+        }
+    }
+
+    fn parse_pointer<'a, I>(lex: &mut Peekable<I>) -> Result<Type, ()>
+    where
+        I: Iterator<Item = Token<'a>>,
+    {
+        match lex.next().ok_or(())? {
+            Token::Mut | Token::Const => (),
+            _ => return Err(()),
+        }
+
+        let pointee = parse_ty(lex)?;
+        if let Type::Primitive(ty) = pointee {
+            Ok(Type::Primitive(PrimitiveType::Ptr(Box::new(ty))))
+        } else {
+            Err(())
+        }
+    }
+
+    fn parse_array<'a, I>(lex: &mut Peekable<I>) -> Result<Type, ()>
+    where
+        I: Iterator<Item = Token<'a>>,
+    {
+        let Ok(Type::Primitive(ty)) = parse_ty(lex) else { return Err(()) };
+        let Token::Semicolon = lex.next().ok_or(())? else { return Err(()) };
+        let Token::Number(arity) = lex.next().ok_or(())? else { return Err(()) };
+        let Token::RBracket = lex.next().ok_or(())? else { return Err(()) };
+
+        Ok(Type::Primitive(PrimitiveType::Array(Box::new(ty), arity)))
+    }
+
+    fn parse_struct<'a, I>(lex: &mut Peekable<I>) -> Result<Type, ()>
+    where
+        I: Iterator<Item = Token<'a>>,
+    {
+        let mut fields = vec![];
+        loop {
+            let Type::Primitive(ty) = parse_ty(lex)? else { return Err(()) };
+            fields.push(ty);
+            match lex.peek() {
+                Some(Token::Comma) => {
+                    lex.next().unwrap();
+                    continue;
+                }
+                Some(Token::RBrace) => {
+                    lex.next().unwrap();
+                    break;
+                }
+                _ => return Err(()),
+            }
+        }
+
+        Ok(Type::Primitive(PrimitiveType::Struct(fields)))
+    }
+
+    fn parse_function<'a, I>(lex: &mut Peekable<I>) -> Result<Type, ()>
+    where
+        I: Iterator<Item = Token<'a>>,
+    {
+        let Token::LParen = lex.next().ok_or(())? else { return Err(()) };
+        let params = parse_punctuated(lex, Token::RParen)?;
+        let Token::Arrow = lex.next().ok_or(())? else { return Err(()) };
+        let Token::LParen = lex.next().ok_or(())? else { return Err(()) };
+        let results = parse_punctuated(lex, Token::RParen)?;
+
+        Ok(Type::Function(FunctionType::new(params, results)))
+    }
+
+    fn parse_future<'a, I>(lex: &mut Peekable<I>) -> Result<Type, ()>
+    where
+        I: Iterator<Item = Token<'a>>,
+    {
+        let Token::Lt = lex.next().ok_or(())? else { return Err(()) };
+        let ty = parse_ty(lex)?;
+        let Token::Gt = lex.next().ok_or(())? else { return Err(()) };
+        Ok(Type::Future(Box::new(ty)))
+    }
+
+    fn parse_punctuated<'a, I>(lex: &mut Peekable<I>, terminator: Token) -> Result<Vec<Type>, ()>
+    where
+        I: Iterator<Item = Token<'a>>,
+    {
+        let mut types = vec![];
+        loop {
+            let ty = parse_ty(lex)?;
+            types.push(ty);
+            match lex.peek() {
+                Some(Token::Comma) => {
+                    lex.next().unwrap();
+                    continue;
+                }
+                Some(next) if next == &terminator => {
+                    lex.next().unwrap();
+                    break;
+                }
+                _ => return Err(()),
+            }
+        }
+
+        Ok(types)
     }
 }

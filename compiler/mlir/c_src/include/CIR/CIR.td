@@ -39,7 +39,7 @@ def CIR_DispatchTableOp : CIR_Op<"dispatch_table",
   let regions = (region SizedRegion<1>:$region);
 
   let assemblyFormat = [{
-    $module attr-dict $region
+    $module attr-dict-with-keyword $region
   }];
 
   let hasRegionVerifier = 1;
@@ -47,7 +47,6 @@ def CIR_DispatchTableOp : CIR_Op<"dispatch_table",
   let extraClassDeclaration = [{
     void appendTableEntry(Operation *op);
 
-    StringRef getModule() { return (*this)->getAttrOfType<FlatSymbolRefAttr>("module").getValue(); }
     Block &getBody() { return getRegion().front(); }
   }];
 }
@@ -71,12 +70,6 @@ def CIR_DispatchEntryOp : CIR_Op<"dispatch_entry", [HasParent<"DispatchTableOp">
   let assemblyFormat = [{
     $function `,` $arity `,` $symbol attr-dict
   }];
-
-  let extraClassDeclaration = [{
-    unsigned getArity() { return (*this)->getAttrOfType<IntegerAttr>("arity").getInt(); }
-    StringRef getFunction() { return (*this)->getAttrOfType<StringAttr>("function").getValue(); }
-    FlatSymbolRefAttr getSymbol() { return (*this)->getAttrOfType<FlatSymbolRefAttr>("symbol"); }
-  }];
 }
 
 def CIR_CallOp : CIR_Op<"call",
@@ -99,7 +92,7 @@ def CIR_CallOp : CIR_Op<"call",
   let results = (outs Variadic<AnyType>);
 
   let builders = [
-    OpBuilder<(ins "FuncOp":$callee, CArg<"ValueRange", "{}">:$operands), [{
+    OpBuilder<(ins "func::FuncOp":$callee, CArg<"ValueRange", "{}">:$operands), [{
       $_state.addOperands(operands);
       $_state.addAttribute("callee", SymbolRefAttr::get(callee));
       $_state.addTypes(callee.getFunctionType().getResults());
@@ -160,7 +153,7 @@ def CIR_EnterOp : CIR_Op<"enter",
   let results = (outs);
 
   let builders = [
-    OpBuilder<(ins "FuncOp":$callee, CArg<"ValueRange", "{}">:$operands), [{
+    OpBuilder<(ins "func::FuncOp":$callee, CArg<"ValueRange", "{}">:$operands), [{
       $_state.addOperands(operands);
       $_state.addAttribute("callee", SymbolRefAttr::get(callee));
     }]>
@@ -214,7 +207,7 @@ def CIR_CallIndirectOp : CIR_Op<"call.indirect", [CallOpInterface]> {
   let skipDefaultBuilders = 1;
 
   let extraClassDeclaration = [{
-    ValueRange operands() { return callee_operands(); }
+    ValueRange operands() { return getCalleeOperands(); }
 
     /// Get the argument operands to the called function.
     operand_range getArgOperands() {
@@ -225,7 +218,7 @@ def CIR_CallIndirectOp : CIR_Op<"call.indirect", [CallOpInterface]> {
     operand_iterator arg_operand_end() { return operand_end(); }
 
     /// Return the callee of this operation.
-    CallInterfaceCallable getCallableForCallee() { return callee(); }
+    CallInterfaceCallable getCallableForCallee() { return getCallee(); }
   }];
 
   //let hasCanonicalizeMethod = 1;
@@ -253,7 +246,7 @@ def CIR_EnterIndirectOp : CIR_Op<"enter.indirect", [CallOpInterface, ReturnLike,
   let skipDefaultBuilders = 1;
 
   let extraClassDeclaration = [{
-    ValueRange operands() { return callee_operands(); }
+    ValueRange operands() { return getCalleeOperands(); }
 
     /// Get the argument operands to the called function.
     operand_range getArgOperands() {
@@ -264,7 +257,7 @@ def CIR_EnterIndirectOp : CIR_Op<"enter.indirect", [CallOpInterface, ReturnLike,
     operand_iterator arg_operand_end() { return operand_end(); }
 
     /// Return the callee of this operation.
-    CallInterfaceCallable getCallableForCallee() { return callee(); }
+    CallInterfaceCallable getCallableForCallee() { return getCallee(); }
   }];
 
   //let hasCanonicalizeMethod = 1;
@@ -274,7 +267,7 @@ def CIR_EnterIndirectOp : CIR_Op<"enter.indirect", [CallOpInterface, ReturnLike,
 }
 
 def CIR_CastOp : CIR_Op<"cast",
-  [DeclareOpInterfaceMethods<CastOpInterface>, NoSideEffect]> {
+  [DeclareOpInterfaceMethods<CastOpInterface>, Pure]> {
   let summary = "Performs a type cast between the type of the input value and given output type";
 
   let arguments = (ins Variadic<AnyType>:$inputs);
@@ -307,8 +300,7 @@ def CIR_CastOp : CIR_Op<"cast",
 }
 
 def CIR_ConstantOp : CIR_Op<"constant",
-  [ConstantLike, NoSideEffect,
-   TypesMatchWith<"result type matches value type", "value", "result", "$_self">]> {
+  [ConstantLike, Pure]> {
     let summary = "constant or immediate term";
     let description = [{
       The `constant` operation produces an SSA value equal to some term constant specified by an attribute.
@@ -318,8 +310,6 @@ def CIR_ConstantOp : CIR_Op<"constant",
     let results = (outs AnyType:$result);
 
     let builders = [
-      OpBuilder<(ins "Attribute":$value),
-      [{ build($_builder, $_state, value.getType(), value); }]>,
       OpBuilder<(ins "Attribute":$value, "Type":$type),
       [{ build($_builder, $_state, type, value); }]>,
     ];
@@ -330,10 +320,10 @@ def CIR_ConstantOp : CIR_Op<"constant",
     }];
 
     let hasFolder = 1;
-    let assemblyFormat = "$value attr-dict";
+    let assemblyFormat = "`(` $value `)` attr-dict `:` type($result)";
 }
 
-def CIR_ConstantNullOp : CIR_Op<"null", [NoSideEffect]> {
+def CIR_ConstantNullOp : CIR_Op<"null", [Pure]> {
     let summary = "constant or immediate null";
     let description = [{
       The `constant` operation produces an SSA value equal to the null value of the given type
@@ -357,7 +347,7 @@ def CIR_ConstantNullOp : CIR_Op<"null", [NoSideEffect]> {
     let assemblyFormat = "`:` type($result) attr-dict";
 }
 
-def CIR_AndOp : CIR_Op<"and", [NoSideEffect]> {
+def CIR_AndOp : CIR_Op<"and", [Pure]> {
   let summary = "Performs a boolean AND operation";
   let arguments = (ins I1:$lhs, I1:$rhs);
   let results = (outs I1:$result);
@@ -367,7 +357,7 @@ def CIR_AndOp : CIR_Op<"and", [NoSideEffect]> {
   }];
 }
 
-def CIR_AndAlsoOp : CIR_Op<"andalso", [NoSideEffect]> {
+def CIR_AndAlsoOp : CIR_Op<"andalso", [Pure]> {
   let summary = "Performs a short-circuiting boolean AND operation";
   let arguments = (ins I1:$lhs, I1:$rhs);
   let results = (outs I1:$result);
@@ -377,7 +367,7 @@ def CIR_AndAlsoOp : CIR_Op<"andalso", [NoSideEffect]> {
   }];
 }
 
-def CIR_OrOp : CIR_Op<"or", [NoSideEffect]> {
+def CIR_OrOp : CIR_Op<"or", [Pure]> {
   let summary = "Performs a boolean OR operation";
   let arguments = (ins I1:$lhs, I1:$rhs);
   let results = (outs I1:$result);
@@ -387,7 +377,7 @@ def CIR_OrOp : CIR_Op<"or", [NoSideEffect]> {
   }];
 }
 
-def CIR_OrElseOp : CIR_Op<"orelse", [NoSideEffect]> {
+def CIR_OrElseOp : CIR_Op<"orelse", [Pure]> {
   let summary = "Performs a short-circuiting boolean OR operation";
   let arguments = (ins I1:$lhs, I1:$rhs);
   let results = (outs I1:$result);
@@ -397,7 +387,7 @@ def CIR_OrElseOp : CIR_Op<"orelse", [NoSideEffect]> {
   }];
 }
 
-def CIR_XorOp : CIR_Op<"xor", [NoSideEffect]> {
+def CIR_XorOp : CIR_Op<"xor", [Pure]> {
   let summary = "Performs a boolean XOR operation";
   let arguments = (ins I1:$lhs, I1:$rhs);
   let results = (outs I1:$result);
@@ -407,7 +397,7 @@ def CIR_XorOp : CIR_Op<"xor", [NoSideEffect]> {
   }];
 }
 
-def CIR_NotOp : CIR_Op<"not", [NoSideEffect]> {
+def CIR_NotOp : CIR_Op<"not", [Pure]> {
   let summary = "Performs a boolean NOT operation";
   let arguments = (ins I1:$value);
   let results = (outs I1:$result);
@@ -417,7 +407,7 @@ def CIR_NotOp : CIR_Op<"not", [NoSideEffect]> {
   }];
 }
 
-def CIR_IsNullOp : CIR_Op<"is_null", [NoSideEffect]> {
+def CIR_IsNullOp : CIR_Op<"is_null", [Pure]> {
   let summary = "Returns true if the input value is equivalent to NULL";
 
   let arguments = (ins AnyType:$value);
@@ -428,7 +418,7 @@ def CIR_IsNullOp : CIR_Op<"is_null", [NoSideEffect]> {
   }];
 }
 
-def CIR_TruncOp : CIR_Op<"trunc", [NoSideEffect]> {
+def CIR_TruncOp : CIR_Op<"trunc", [Pure]> {
   let summary = "Returns the provided integer truncated to the given type bitwidth";
 
   let arguments = (ins AnyType:$value);
@@ -439,7 +429,7 @@ def CIR_TruncOp : CIR_Op<"trunc", [NoSideEffect]> {
   }];
 }
 
-def CIR_ZExtOp : CIR_Op<"zext", [NoSideEffect]> {
+def CIR_ZExtOp : CIR_Op<"zext", [Pure]> {
   let summary = "Returns the provided integer zero-extended to the given type bitwidth";
 
   let arguments = (ins AnyType:$value);
@@ -631,7 +621,7 @@ def CIR_IsTypeOp : CIR_Op<"is_type", [MemoryEffects<[MemRead]>]> {
 
   let extraClassDeclaration = [{
     Type getExpectedType() {
-      return expected();
+      return getExpected();
     }
   }];
 }
@@ -679,11 +669,11 @@ def CIR_MallocOp : CIR_Op<"malloc", [DeclareOpInterfaceMethods<InferTypeOpInterf
     no allocation.
   }];
 
-  let arguments = (ins TypeAttr:$allocType);
+  let arguments = (ins CIR_ProcessType:$process, TypeAttr:$allocType);
   let results = (outs PtrOf<CIR_AnyTerm>:$result);
 
   let assemblyFormat = [{
-    $allocType `:` type($result) attr-dict
+    `(` operands `)` attr-dict functional-type(operands, results)
   }];
 }
 
@@ -694,16 +684,17 @@ def CIR_MakeFunOp : CIR_Op<"fun.make", [DeclareOpInterfaceMethods<InferTypeOpInt
     and using the provided values to fill the free variables of the closure env.
   }];
 
-  let arguments = (ins FlatSymbolRefAttr:$callee, Variadic<CIR_AnyTerm>:$env);
+  let arguments = (ins FlatSymbolRefAttr:$callee, CIR_ProcessType:$process, Variadic<CIR_AnyTerm>:$env);
   let results = (outs I1:$is_err, CIR_BoxOf<CIR_FunType>:$result);
 
   let builders = [
-    OpBuilder<(ins "FuncOp":$callee, CArg<"ValueRange", "{}">:$operands), [{
+    OpBuilder<(ins "func::FuncOp":$callee, "Value":$process, CArg<"ValueRange", "{}">:$operands), [{
       auto calleeType = callee.getFunctionType();
       SmallVector<Type, 1> envTypes;
       for (auto operand : operands)
         envTypes.push_back(operand.getType());
       auto funTy = CIRFunType::get($_builder.getContext(), calleeType, envTypes);
+      $_state.addOperands({process});
       $_state.addOperands(operands);
       $_state.addAttribute("callee", SymbolRefAttr::get(callee));
       $_state.addAttribute("funType", TypeAttr::get(funTy));
@@ -738,11 +729,11 @@ def CIR_ConsOp : CIR_Op<"cons", [MemoryEffects<[MemAlloc, MemWrite]>]> {
     and writes the given head/tail values to it.
   }];
 
-  let arguments = (ins CIR_AnyTerm:$head, CIR_AnyTerm:$tail);
+  let arguments = (ins CIR_ProcessType:$process, CIR_AnyTerm:$head, CIR_AnyTerm:$tail);
   let results = (outs CIR_BoxOf<CIR_ConsType>:$result);
 
   let assemblyFormat = [{
-    `[` $head `:` type($head) `,` $tail `:` type($tail) `]` attr-dict
+    $process `,` `[` $head `:` type($head) `,` $tail `:` type($tail) `]` attr-dict
   }];
 }
 

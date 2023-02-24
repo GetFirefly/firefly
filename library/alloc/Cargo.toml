@@ -1,10 +1,16 @@
 [package]
 name = "firefly_alloc"
 description = "Memory management, garbage collection, and fundamental allocator-aware types."
-version = "0.1.0"
-authors = ["Paul Schoenfelder <paulschoenfelder@gmail.com>"]
-publish = false
-edition = "2021"
+version.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+categories.workspace = true
+keywords.workspace = true
+license.workspace = true
+readme.workspace = true
+edition.workspace = true
+publish.workspace = true
 
 [features]
 default = []
@@ -13,9 +19,6 @@ std = ["firefly_binary/std"]
 [dependencies]
 firefly_binary = { path = "../binary" }
 firefly_system = { path = "../system" }
-static_assertions = "1.1"
-thiserror = "1.0"
-
-[dependencies.intrusive-collections]
-version = "0.9"
-features = ["nightly"]
+intrusive-collections.workspace = true
+static_assertions.workspace = true
+thiserror.workspace = true

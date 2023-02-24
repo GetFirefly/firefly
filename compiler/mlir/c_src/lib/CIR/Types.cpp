@@ -58,7 +58,9 @@ void CIRFunType::walkImmediateSubElements(
     function_ref<void(Attribute)> walkAttrsFn,
     function_ref<void(Type)> walkTypesFn) const {
   FunctionType calleeType = getCalleeType();
-  calleeType.walkImmediateSubElements(walkAttrsFn, walkTypesFn);
+  auto subElementInterface =
+      llvm::dyn_cast<mlir::SubElementTypeInterface>(calleeType);
+  subElementInterface.walkImmediateSubElements(walkAttrsFn, walkTypesFn);
   ArrayRef<Type> envTypes = getEnvTypes();
   for (Type type : envTypes)
     walkTypesFn(type);

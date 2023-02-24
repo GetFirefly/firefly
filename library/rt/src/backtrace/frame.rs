@@ -1,17 +1,15 @@
 use alloc::boxed::Box;
+use alloc::string::ToString;
 use core::cell::UnsafeCell;
 
-use lazy_static::lazy_static;
-
-use crate::function::ModuleFunctionArity;
+#[cfg(feature = "std")]
+use firefly_system::sync::OnceLock;
 
 use super::{Symbol, Symbolication};
 
 #[cfg(feature = "std")]
-lazy_static! {
-    /// The symbol table used by the runtime system
-    static ref CWD: Option<std::path::PathBuf> = std::env::current_dir().ok();
-}
+/// The current working directory in which the executable is running
+static CWD: OnceLock<Option<std::path::PathBuf>> = OnceLock::new();
 
 /// This trait allows us to abstract over the concrete implementation
 /// of stack frames, which in the general case, requires libstd, which
@@ -26,9 +24,11 @@ pub trait Frame {
 #[cfg(feature = "std")]
 impl Frame for backtrace::Frame {
     fn resolve(&self) -> Option<Symbolication> {
+        use crate::function::ModuleFunctionArity;
+
         let mut result = None;
 
-        let current_dir = CWD.as_deref();
+        let current_dir = CWD.get_or_init(|| std::env::current_dir().ok());
 
         backtrace::resolve_frame(self, |resolved_symbol| {
             let name = resolved_symbol.name();
@@ -59,6 +59,39 @@ impl Frame for backtrace::Frame {
         });
 
         result
+    }
+}
+impl Frame for firefly_bytecode::Symbol<crate::term::Atom> {
+    fn resolve(&self) -> Option<Symbolication> {
+        match self {
+            Self::Erlang { mfa, loc } => {
+                let symbol = Symbol::Erlang(mfa.clone().into());
+                match loc {
+                    None => Some(Symbolication::new(symbol, None, None, None)),
+                    Some(loc) => {
+                        let file = Some(loc.file.as_ref().to_string());
+                        Some(Symbolication::new(
+                            symbol,
+                            file,
+                            Some(loc.line),
+                            Some(loc.column),
+                        ))
+                    }
+                }
+            }
+            Self::Bif(mfa) => Some(Symbolication::new(
+                Symbol::Erlang(mfa.clone().into()),
+                None,
+                None,
+                None,
+            )),
+            Self::Native(name) => Some(Symbolication::new(
+                Symbol::Native(name.as_str().to_string()),
+                None,
+                None,
+                None,
+            )),
+        }
     }
 }
 

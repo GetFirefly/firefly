@@ -18,7 +18,7 @@ using namespace mlir::cir;
 /// Creates a llvm.linkage attribute
 MlirAttribute mlirLLVMLinkageAttrGet(MlirContext ctx, MlirStringRef name) {
   auto linkage = LLVM::linkage::symbolizeLinkage(unwrap(name));
-  return wrap(LLVM::LinkageAttr::get(unwrap(ctx), linkage.getValue()));
+  return wrap(LLVM::LinkageAttr::get(unwrap(ctx), *linkage));
 }
 
 bool mlirLLVMLinkageAttrIsA(MlirAttribute attr) {

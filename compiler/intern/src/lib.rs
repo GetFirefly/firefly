@@ -1,6 +1,6 @@
-#![feature(core_intrinsics)]
 #![feature(dropck_eyepatch)]
-#![feature(test)]
+#![cfg_attr(any(test, bench), feature(test))]
+#![no_std]
 
 extern crate alloc;
 

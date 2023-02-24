@@ -1,36 +1,107 @@
 use alloc::sync::Arc;
-use core::any::TypeId;
-use core::fmt::{self, Display};
+use core::fmt;
+use core::hash::{Hash, Hasher};
+use core::ops::Deref;
 
-use anyhow::anyhow;
+use firefly_alloc::clone::WriteCloneIntoRaw;
+use firefly_alloc::heap::Heap;
 
-use super::{Node, Term};
+use crate::gc::Gc;
+use crate::process::{ProcessId, ProcessIdError};
+use crate::services::distribution::Node;
+
+use super::{Boxable, Header, Tag};
+
+#[cfg(not(target_family = "wasm"))]
+#[thread_local]
+pub static mut CURRENT_PID: Option<Pid> = None;
 
 /// This struct abstracts over the locality of a process identifier
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-#[repr(u8)]
-pub enum Pid {
-    Local { id: ProcessId },
-    External { id: ProcessId, node: Arc<Node> },
+#[repr(C)]
+#[derive(Debug, Clone)]
+pub struct Pid {
+    header: Header,
+    id: ProcessId,
+    node: Option<Arc<Node>>,
 }
-impl crate::cmp::ExactEq for Pid {}
+impl Boxable for Pid {
+    type Metadata = ();
+
+    const TAG: Tag = Tag::Pid;
+
+    #[inline]
+    fn header(&self) -> &Header {
+        &self.header
+    }
+
+    #[inline]
+    fn header_mut(&mut self) -> &mut Header {
+        &mut self.header
+    }
+
+    fn unsafe_clone_to_heap<H: ?Sized + Heap>(&self, heap: &H) -> Gc<Self> {
+        let ptr = self as *const Self;
+        if heap.contains(ptr.cast()) {
+            unsafe { Gc::from_raw(ptr.cast_mut()) }
+        } else {
+            let mut cloned = Gc::new_uninit_in(heap).unwrap();
+            unsafe {
+                self.write_clone_into_raw(cloned.as_mut_ptr());
+                cloned.assume_init()
+            }
+        }
+    }
+}
 impl Pid {
-    pub const TYPE_ID: TypeId = TypeId::of::<Pid>();
+    /// Returns the [`Pid`] of the process executing on the current thread
+    ///
+    /// This function will return `None` if called from a non-scheduler thread, or from a scheduler
+    /// thread when no process is currently executing on that thread.
+    #[cfg(not(target_family = "wasm"))]
+    pub fn current() -> Option<Self> {
+        unsafe { CURRENT_PID.clone() }
+    }
+
+    #[cfg(target_family = "wasm")]
+    pub fn current() -> Option<Self> {
+        None
+    }
 
     /// Creates a new local pid, manually.
     ///
     /// This function will return an error if the number/serial components are out of range.
-    pub fn new_local(number: usize, serial: usize) -> anyhow::Result<Self> {
-        let id = ProcessId::new(number, serial)?;
-        Ok(Self::Local { id })
+    pub fn new(number: usize, serial: usize) -> Result<Self, ProcessIdError> {
+        let id = ProcessId::new(number as u32, serial as u32)?;
+        Ok(Self {
+            header: Header::new(Tag::Pid, 0),
+            id,
+            node: None,
+        })
+    }
+
+    #[inline]
+    pub const fn new_local(id: ProcessId) -> Self {
+        Self {
+            header: Header::new(Tag::Pid, 0),
+            id,
+            node: None,
+        }
     }
 
     /// Creates a new external pid, manually.
     ///
     /// This function will return an error if the number/serial components are out of range.
-    pub fn new_external(node: Arc<Node>, number: usize, serial: usize) -> anyhow::Result<Self> {
-        let id = ProcessId::new(number, serial)?;
-        Ok(Self::External { id, node })
+    pub fn new_external(
+        node: Arc<Node>,
+        number: usize,
+        serial: usize,
+    ) -> Result<Self, ProcessIdError> {
+        let id = ProcessId::new(number as u32, serial as u32)?;
+        Ok(Self {
+            header: Header::new(Tag::Pid, 0),
+            id,
+            node: Some(node),
+        })
     }
 
     /// Allocates a new local pid, using the global counter.
@@ -41,44 +112,64 @@ impl Pid {
     /// time.
     #[inline]
     pub fn next() -> Self {
-        Self::Local {
+        Self {
+            header: Header::new(Tag::Pid, 0),
             id: ProcessId::next(),
+            node: None,
         }
     }
 
     /// Returns the raw process identifier
+    #[inline]
     pub fn id(&self) -> ProcessId {
-        match self {
-            Self::Local { id } | Self::External { id, .. } => *id,
-        }
+        self.id
     }
 
     /// Returns the node associated with this pid, if applicable
     pub fn node(&self) -> Option<Arc<Node>> {
-        match self {
-            Self::External { node, .. } => Some(node.clone()),
-            _ => None,
-        }
+        self.node.clone()
     }
-}
-impl TryFrom<Term> for Pid {
-    type Error = ();
 
-    fn try_from(term: Term) -> Result<Self, Self::Error> {
-        match term {
-            Term::Pid(pid) => Ok(Pid::clone(pid.as_ref())),
-            _ => Err(()),
+    #[inline]
+    pub fn is_local(&self) -> bool {
+        self.node.is_none()
+    }
+
+    #[inline]
+    pub fn is_external(&self) -> bool {
+        self.node.is_some()
+    }
+}
+impl fmt::Display for Pid {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self.node {
+            None => write!(f, "<0.{}.{}>", self.id.number(), self.id.serial()),
+            Some(ref node) => write!(
+                f,
+                "<{}.{}.{}>",
+                node.id(),
+                self.id.number(),
+                self.id.serial()
+            ),
         }
     }
 }
-impl Display for Pid {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Self::Local { id } => write!(f, "<0.{}.{}>", id.number(), id.serial()),
-            Self::External { id, node } => {
-                write!(f, "<{}.{}.{}>", node.id(), id.number(), id.serial())
-            }
-        }
+impl crate::cmp::ExactEq for Pid {}
+impl Eq for Pid {}
+impl PartialEq for Pid {
+    fn eq(&self, other: &Self) -> bool {
+        self.id.eq(&other.id) && self.node.eq(&other.node)
+    }
+}
+impl PartialEq<Gc<Pid>> for Pid {
+    fn eq(&self, other: &Gc<Pid>) -> bool {
+        self.eq(other.deref())
+    }
+}
+impl Hash for Pid {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.id.hash(state);
+        self.node.hash(state);
     }
 }
 impl Ord for Pid {
@@ -86,23 +177,11 @@ impl Ord for Pid {
     fn cmp(&self, other: &Self) -> core::cmp::Ordering {
         use core::cmp::Ordering;
 
-        match (self, other) {
-            (Self::Local { id: x }, Self::Local { id: y }) => x.cmp(y),
-            (Self::Local { .. }, _) => Ordering::Less,
-            (
-                Self::External {
-                    id: xid,
-                    node: xnode,
-                },
-                Self::External {
-                    id: yid,
-                    node: ynode,
-                },
-            ) => match xnode.cmp(ynode) {
-                Ordering::Equal => xid.cmp(yid),
-                other => other,
-            },
-            (Self::External { .. }, _) => Ordering::Greater,
+        match (self.node.as_ref(), other.node.as_ref()) {
+            (None, None) => self.id.cmp(&other.id),
+            (None, _) => Ordering::Less,
+            (Some(a), Some(b)) => a.cmp(b).then(self.id.cmp(&other.id)),
+            (Some(_), None) => Ordering::Greater,
         }
     }
 }
@@ -111,179 +190,3 @@ impl PartialOrd for Pid {
         Some(self.cmp(other))
     }
 }
-
-/// This struct represents a process identifier, without the node component.
-///
-/// Local pids in the BEAM are designed to fit in an immediate, which limits their range to a value
-/// that can be expressed in a single 32-bit word. However, because external pids are always 64 bits,
-/// (both number and serial are given a full 32-bits), we choose to use 64-bits in both cases, storing
-/// the serial in the high 32-bits, and the number in the low 32 bits. We do still impose a restriction
-/// on the maximum value of local pids, for both number and serial, that is less than 32-bits, allowing
-/// us to detect overflow when calculating the next possibly-available id.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[repr(transparent)]
-pub struct ProcessId(u64);
-impl ProcessId {
-    // We limit the range to 31 bits for both numbers and serials
-    const NUMBER_MAX: u64 = (1 << 31) - 1;
-    const SERIAL_MAX: u64 = Self::NUMBER_MAX << 32;
-    const NUMBER_MASK: u64 = (-1i64 as u64) >> 32;
-    const SERIAL_MASK: u64 = !Self::NUMBER_MASK;
-
-    /// Returns the number component of this process identifier
-    ///
-    /// NOTE: The value returned is guaranteed to never exceed 31 significant bits, so
-    /// as to remain compatible with External Term Format.
-    pub fn number(&self) -> u32 {
-        (self.0 & Self::NUMBER_MASK) as u32
-    }
-
-    /// Returns the serial component of this process identifier
-    ///
-    /// NOTE: The value returned is guaranteed to never exceed 31 significant bits, so
-    /// as to remain compatible with External Term Format.
-    pub fn serial(&self) -> u32 {
-        (self.0 & Self::SERIAL_MASK >> 32) as u32
-    }
-
-    /// Creates a process identifier from the given number and serial components, manually.
-    ///
-    /// This function will return `Err` if either component is out of range.
-    pub fn new(number: usize, serial: usize) -> anyhow::Result<Self> {
-        let number = number as u64;
-        let serial = serial as u64;
-        if serial > Self::SERIAL_MAX {
-            return Err(anyhow!("invalid pid, serial is too large"));
-        }
-        if number > Self::NUMBER_MAX {
-            return Err(anyhow!("invalid pid, number is too large"));
-        }
-        Ok(unsafe { Self::new_unchecked(number, serial) })
-    }
-
-    /// Creates a process identifier from the given number and serial components, bypassing
-    /// the normal validation checks.
-    ///
-    /// # Safety
-    ///
-    /// This function should only be called in contexts where the number/serial have already been
-    /// validated or are guaranteed to be valid. Callers must always uphold the guarantees provided
-    /// by this module (i.e. in terms of the valid range of the number and serial components).
-    pub unsafe fn new_unchecked(number: u64, serial: u64) -> Self {
-        debug_assert!(
-            serial <= Self::SERIAL_MAX,
-            "invalid pid, serial is too large"
-        );
-        debug_assert!(
-            number <= Self::NUMBER_MAX,
-            "invalid pid, number is too large"
-        );
-
-        Self::from_raw((serial << 32) | number)
-    }
-
-    /// Generates the next process id.
-    ///
-    /// # Safety
-    ///
-    /// Process identifiers can roll over eventually, assuming the program runs long enough and
-    /// that processes are being regularly spawned. Once the pid space has been exhausted, calling this
-    /// function will produce a pid that starts over at its initial state. It is required that the scheduler
-    /// verify that a pid is unused by any live process before spawning a process with a pid returned by this
-    /// function.
-    pub fn next() -> Self {
-        use core::sync::atomic::{AtomicU64, Ordering::SeqCst};
-
-        static COUNTER: AtomicU64 = AtomicU64::new(0);
-
-        Self(
-            COUNTER
-                .fetch_update(SeqCst, SeqCst, calculate_next_pid)
-                .unwrap(),
-        )
-    }
-
-    /// Given a the raw process id value (as a usize), reifies it into a `ProcessId`
-    #[inline]
-    pub unsafe fn from_raw(pid: u64) -> Self {
-        debug_assert!(
-            pid & Self::SERIAL_MASK <= Self::SERIAL_MAX,
-            "invalid pid, serial is too large"
-        );
-        debug_assert!(
-            pid & Self::NUMBER_MASK <= Self::NUMBER_MAX,
-            "invalid pid, number is too large"
-        );
-        Self(pid)
-    }
-}
-
-// This has been extracted from ProcessId::next() to allow for testing various scenarios without
-// polluting the global pid counter.
-fn calculate_next_pid(x: u64) -> Option<u64> {
-    use core::intrinsics::likely;
-    // The layout in memory of a process identifier is as follows:
-    //
-    //     000SSSSSSSSSSSSS0NNNNNNNNNNNNNNN
-    //
-    //     0 = unused
-    //     S = serial bit
-    //     N = number bit
-    //
-    // The serial/number ranges are limited to these sizes because they must be able to fit
-    // in the PID_EXT and NEW_PID_EXT external term formats, so even though we could support
-    // arbitrarily large pids in theory, we can't in practice.
-    const NUMBER_INC: u64 = 1;
-    const SERIAL_INC: u64 = 1 << 16;
-
-    // Fast path
-    if likely(x & ProcessId::NUMBER_MASK < ProcessId::NUMBER_MAX) {
-        return Some(x + NUMBER_INC);
-    }
-
-    // Slow path
-    let next = (x & ProcessId::SERIAL_MASK) + SERIAL_INC;
-    if likely(next & ProcessId::SERIAL_MASK <= ProcessId::SERIAL_MAX) {
-        return Some(next);
-    }
-
-    // Edge case for pid rollover
-    Some(0)
-}
-
-/*
-#[cfg(test)]
-mod tests {
-    use core::sync::atomic::{AtomicU64, Ordering::SeqCst};
-
-    use super::*;
-
-    #[test]
-    fn pid_rollover() {
-        const MAX_PID: u64 = ProcessId::SERIAL_MAX | ProcessId::NUMBER_MAX;
-        static SERIAL_ROLLOVER: AtomicU64 = AtomicU64::new(MAX_PID);
-        let next = SERIAL_ROLLOVER
-            .fetch_update(SeqCst, SeqCst, calculate_next_pid)
-            .unwrap();
-        assert_eq!(next.as_u64(), MAX_PID);
-        let next = SERIAL_ROLLOVER
-            .fetch_update(SeqCst, SeqCst, calculate_next_pid)
-            .unwrap();
-        assert_eq!(next.as_u64(), 0);
-    }
-
-    #[test]
-    fn pid_serial_increment() {
-        const MAX_NUM: u64 = ProcessId::NUMBER_MAX;
-        static NUM_ROLLOVER: AtomicU64 = AtomicU64::new(MAX_NUM);
-        let next = NUM_ROLLOVER
-            .fetch_update(SeqCst, SeqCst, calculate_next_pid)
-            .unwrap();
-        assert_eq!(next.as_u64(), MAX_NUM);
-        let next = NUM_ROLLOVER
-            .fetch_update(SeqCst, SeqCst, calculate_next_pid)
-            .unwrap();
-        assert_eq!(next.as_u64(), (1u64 << 32));
-    }
-}
-*/

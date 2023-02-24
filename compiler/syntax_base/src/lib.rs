@@ -66,6 +66,16 @@ pub struct ModuleMetadata {
     pub deprecation: Option<Deprecation>,
     pub deprecations: BTreeMap<FunctionName, Deprecation>,
 }
+impl ModuleMetadata {
+    pub fn new(name: Ident) -> Self {
+        Self {
+            name,
+            exports: BTreeSet::default(),
+            deprecation: None,
+            deprecations: BTreeMap::default(),
+        }
+    }
+}
 
 /// This structure holds module-specific compiler options and configuration; it is passed through all phases of
 /// compilation alongside its associated module, and is a superset of options in CompilerSettings

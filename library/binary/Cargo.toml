@@ -1,34 +1,25 @@
 [package]
 name = "firefly_binary"
 description = "Provides the runtime for Erlang-style binary pattern matching/construction"
-version = "0.1.0"
-authors = ["Paul Schoenfelder <paulschoenfelder@gmail.com>"]
-edition = "2021"
-license = "MIT OR Apache-2.0"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+version.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+categories.workspace = true
+keywords.workspace = true
+license.workspace = true
+readme.workspace = true
+edition.workspace = true
+publish.workspace = true
 
 [features]
 default = []
-std = ["anyhow/std"]
+std = ["anyhow/std", "num-bigint/std", "num-traits/std"]
 
 [dependencies]
-static_assertions = "1.1"
-paste = "1.0"
-
-[dependencies.anyhow]
-version = "1.0"
-default-features = false
-
-[dependencies.num-traits]
-version = "0.2"
-default-features = false
-
-[dependencies.num-bigint]
-version = "0.4"
-default-features = false
-
-[dependencies.half]
-version = "2.0"
-default-features = false
-features = ["num-traits", "use-intrinsics"]
+anyhow.workspace = true
+half.workspace = true
+num-traits.workspace = true
+num-bigint.workspace = true
+paste.workspace = true
+static_assertions.workspace = true

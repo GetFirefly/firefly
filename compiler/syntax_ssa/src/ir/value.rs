@@ -11,6 +11,14 @@ pub type ValueListPool = entity::ListPool<Value>;
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Value(u32);
 entity_impl!(Value, "v");
+impl Default for Value {
+    #[inline]
+    fn default() -> Self {
+        use cranelift_entity::packed_option::ReservedValue;
+
+        Self::reserved_value()
+    }
+}
 
 #[derive(Debug, Clone)]
 pub enum ValueData {

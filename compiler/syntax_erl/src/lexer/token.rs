@@ -4,7 +4,7 @@ use std::mem;
 
 use firefly_diagnostics::{SourceIndex, SourceSpan};
 use firefly_intern::Symbol;
-use firefly_number::{Float, Integer, ToPrimitive};
+use firefly_number::{Float, Int, ToPrimitive};
 
 use super::{LexicalError, TokenConvertError, TokenConvertResult};
 
@@ -302,7 +302,7 @@ pub enum Token {
     Edoc,
     // Literals
     Char(char),
-    Integer(Integer),
+    Integer(Int),
     Float(Float),
     Atom(Symbol),
     String(Symbol),

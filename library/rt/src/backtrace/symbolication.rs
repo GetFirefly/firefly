@@ -1,6 +1,5 @@
 use alloc::alloc::{AllocError, Layout};
 use alloc::string::{String, ToString};
-use core::ptr;
 
 use firefly_alloc::heap::Heap;
 
@@ -62,7 +61,31 @@ pub struct Symbolication {
     pub(super) line: Option<u32>,
     pub(super) column: Option<u32>,
 }
+impl From<ModuleFunctionArity> for Symbolication {
+    fn from(mfa: ModuleFunctionArity) -> Self {
+        Self {
+            symbol: Some(mfa.into()),
+            filename: None,
+            line: None,
+            column: None,
+        }
+    }
+}
 impl Symbolication {
+    pub fn new(
+        symbol: Symbol,
+        filename: Option<String>,
+        line: Option<u32>,
+        column: Option<u32>,
+    ) -> Self {
+        Self {
+            symbol: Some(symbol),
+            filename,
+            line,
+            column,
+        }
+    }
+
     #[inline]
     pub fn module(&self) -> Option<Atom> {
         self.symbol.as_ref().and_then(|mfa| mfa.module())
@@ -107,9 +130,7 @@ impl TryFrom<Term> for Symbolication {
     type Error = ();
 
     fn try_from(term: Term) -> Result<Self, Self::Error> {
-        let Term::Tuple(ptr) = term else { return Err(()); };
-
-        let tuple = unsafe { ptr.as_ref() };
+        let Term::Tuple(tuple) = term else { return Err(()); };
 
         // If this tuple doesn't have 4 elements, then it is not a symbolicated frame
         if tuple.len() != 4 {
@@ -131,12 +152,10 @@ impl TryFrom<Term> for Symbolication {
                 function,
                 arity: 0,
             },
-            Term::Cons(ptr) => unsafe {
-                ModuleFunctionArity {
-                    module,
-                    function,
-                    arity: ptr.as_ref().iter().count().try_into().unwrap(),
-                }
+            Term::Cons(cons) => ModuleFunctionArity {
+                module,
+                function,
+                arity: cons.iter().count().try_into().unwrap(),
             },
             _ => return Err(()),
         };
@@ -150,12 +169,11 @@ impl TryFrom<Term> for Symbolication {
                 line: None,
                 column: None,
             }),
-            Term::Cons(ptr) => {
-                let list = unsafe { ptr.as_ref() };
+            Term::Cons(list) => {
                 let filename = if let Some(term) = list.keyfind(0, atoms::File).ok().unwrap_or(None)
                 {
                     match term.into() {
-                        Term::Cons(list) => unsafe { list.as_ref().to_string() },
+                        Term::Cons(list) => Some(list.to_string()),
                         _ => None,
                     }
                 } else {
@@ -261,80 +279,53 @@ pub fn calculate_fragment_layout(
         return None;
     }
 
-    let arguments_layout = match arguments {
-        None => Layout::new::<OpaqueTerm>(),
-        Some(terms) if terms.is_empty() => Layout::new::<OpaqueTerm>(),
-        Some(terms) => {
-            let base = Layout::array::<Cons>(terms.len()).unwrap();
-            terms.iter().copied().fold(base, |layout, term| {
-                let decoded: Term = term.into();
-                let (extended, _) = layout.extend(decoded.layout()).unwrap();
-                extended.pad_to_align()
-            })
+    let mut arguments_layout = LayoutBuilder::new();
+    if let Some(terms) = arguments {
+        for term in terms.iter().copied() {
+            if !term.is_gcbox() {
+                arguments_layout.build_cons();
+                continue;
+            }
+            let term: Term = term.into();
+            arguments_layout += term.layout();
+            arguments_layout.build_cons();
         }
-    };
+    }
+    let arguments_layout = arguments_layout.finish();
 
-    let base = min_tuple_layout(4);
-    let first_frame_arity_or_args = arguments_layout;
-    let arity_or_args = Layout::new::<OpaqueTerm>();
-    let meta = Layout::array::<Cons>(2).unwrap();
-    let file = min_tuple_layout(2);
-    let line = min_tuple_layout(2);
-    let filename = Layout::array::<Cons>(MAX_FILENAME_LEN).unwrap();
+    let mut metadata_layout = LayoutBuilder::new();
+    metadata_layout
+        .build_list(MAX_FILENAME_LEN) // filename charlist
+        .build_tuple(2) // file tuple
+        .build_tuple(2) // line tuple
+        .build_list(2); // metadata list
+    let metadata_layout = metadata_layout.finish();
 
-    let frame_tail_layout = meta
-        .extend(file)
-        .unwrap()
-        .0
-        .extend(line)
-        .unwrap()
-        .0
-        .extend(filename)
-        .unwrap()
-        .0
-        .pad_to_align();
-    let first_frame_base_layout = base
-        .extend(first_frame_arity_or_args)
-        .unwrap()
-        .0
-        .extend(frame_tail_layout)
-        .unwrap()
-        .0;
-    let frame_base_layout = base
-        .extend(arity_or_args)
-        .unwrap()
-        .0
-        .extend(frame_tail_layout)
-        .unwrap()
-        .0;
+    // The first frame is a bit larger because it may contain arguments
+    let mut first_frame_base_layout = LayoutBuilder::new();
+    first_frame_base_layout += arguments_layout;
+    first_frame_base_layout += metadata_layout;
+    first_frame_base_layout.build_tuple(4); // {module, function, arity_or_args, meta}
+    let first_frame_base_layout = first_frame_base_layout.finish();
 
-    let frame_list_layout = if num_frames > 1 {
-        Layout::array::<Cons>(num_frames)
-            .unwrap()
-            .extend(first_frame_base_layout)
-            .unwrap()
-            .0
-            .pad_to_align()
-            .extend(frame_base_layout.repeat(num_frames).unwrap().0)
-            .unwrap()
-            .0
-            .pad_to_align()
-    } else {
-        Layout::array::<Cons>(1)
-            .unwrap()
-            .extend(first_frame_base_layout)
-            .unwrap()
-            .0
-            .pad_to_align()
-    };
+    // Most frames just contain the arity however
+    let mut frame_base_layout = LayoutBuilder::new();
+    frame_base_layout += metadata_layout;
+    frame_base_layout.build_tuple(4); // {module, function, arity, meta}
+    let frame_base_layout = frame_base_layout.finish();
 
-    Some(frame_list_layout)
-}
-
-#[inline]
-fn min_tuple_layout(capacity: usize) -> Layout {
-    let ptr: *const Tuple = ptr::from_raw_parts(ptr::null(), capacity);
-    unsafe { Layout::for_value_raw(ptr) }
+    // The list of frames is either an empty list (nil) or a list of frames,
+    // where the first frame is potentially larger than the rest
+    let mut frame_list_layout = LayoutBuilder::new();
+    for i in 0..num_frames {
+        if i > 0 {
+            frame_list_layout += frame_base_layout;
+        } else {
+            frame_list_layout += first_frame_base_layout;
+        }
+        frame_list_layout.build_cons();
+    }
+    Some(frame_list_layout.finish())
 }
 
 pub fn format_mfa<H>(
@@ -351,7 +342,7 @@ where
     let function: OpaqueTerm = mfa.function.into();
 
     let locs = format_locations(filename, line, alloc)
-        .unwrap_or(Term::Nil)
+        .unwrap_or(OpaqueTerm::NIL)
         .into();
 
     let frame = if let Some(args) = argv {
@@ -360,20 +351,20 @@ where
             builder.push(arg.into())?;
         }
         let arglist: OpaqueTerm = builder.finish().unwrap().into();
-        Tuple::from_slice(&[module, function, arglist, locs], alloc)?
+        Tuple::from_slice(&[module, function, arglist, locs], alloc).map(Term::Tuple)?
     } else {
         let arity: OpaqueTerm = Term::Int(mfa.arity as i64).into();
-        Tuple::from_slice(&[module, function, arity, locs], alloc)?
+        Tuple::from_slice(&[module, function, arity, locs], alloc).map(Term::Tuple)?
     };
 
-    Ok(frame.into())
+    Ok(frame)
 }
 
 pub fn format_locations<H>(
     filename: Option<&str>,
     line: Option<u32>,
     alloc: &H,
-) -> Result<Term, AllocError>
+) -> Result<OpaqueTerm, AllocError>
 where
     H: Heap,
 {
@@ -382,16 +373,16 @@ where
     let line_key = atoms::Line.into();
     let file = if let Some(f) = filename {
         let filename = to_trimmed_charlist(f, alloc).unwrap_or(OpaqueTerm::NIL);
-        Tuple::from_slice(&[file_key, filename], alloc)?
+        Tuple::from_slice(&[file_key, filename], alloc).map(Term::Tuple)?
     } else {
-        Tuple::from_slice(&[file_key, OpaqueTerm::NIL], alloc)?
+        Tuple::from_slice(&[file_key, OpaqueTerm::NIL], alloc).map(Term::Tuple)?
     };
     let line = Term::Int(line.unwrap_or_default().try_into().unwrap());
-    let line = Tuple::from_slice(&[line_key, line.into()], alloc)?;
+    let line = Tuple::from_slice(&[line_key, line.into()], alloc).map(Term::Tuple)?;
 
     let mut builder = ListBuilder::new(alloc);
-    builder.push(line.into())?;
-    builder.push(file.into())?;
+    builder.push(line)?;
+    builder.push(file)?;
 
     Ok(builder.finish().unwrap().into())
 }

@@ -1,17 +1,17 @@
 use std::sync::Arc;
 
 use firefly_binary::BinaryEntrySpecifier;
-use firefly_diagnostics::*;
 use firefly_intern::{symbols, Symbol, Ident};
-use firefly_number::{Integer, Float};
+use firefly_number::{Int, Float};
 use firefly_syntax_base::{FunctionName, BinaryOp, UnaryOp, Deprecation, DeprecatedFlag};
+use firefly_util::diagnostics::*;
 
 use crate::ParserError;
 use crate::ast::*;
 use crate::lexer::{Token, DelayedSubstitution};
 use crate::parser::binary::specifier_from_parsed;
 
-grammar<'a>(reporter: &Reporter, codemap: &Arc<CodeMap>);
+grammar<'a>(diagnostics: &DiagnosticsHandler, codemap: &Arc<CodeMap>);
 
 // The following are _not_ non-terminals, but macros
 // which can be identified by the generic type parameter,
@@ -63,7 +63,7 @@ pub Module: Module = {
             None => Vec::new(),
             Some(body) => body,
         };
-        Module::new_with_forms(reporter, span!(l, r), name, body)
+        Module::new_with_forms(diagnostics, span!(l, r), name, body)
     }
 };
 
@@ -82,7 +82,7 @@ TopLevel: TopLevel = {
 
 FunctionDefinition: Function = {
     <l:@L> <clauses:Semi<FunctionHead>> "." <r:@R>
-        =>? Function::new(reporter, span!(l, r), clauses).map_err(|e| e.into())
+        =>? Function::new(diagnostics, span!(l, r), clauses).map_err(|e| e.into())
 };
 
 FunctionHead: (Option<Name>, Clause) = {
@@ -264,12 +264,10 @@ DeprecatedFlag: DeprecatedFlag = {
             "next_major_release" => DeprecatedFlag::NextMajorRelease,
             other => {
                 let span = span!(l, r);
-                reporter.diagnostic(Diagnostic::warning()
-                        .with_message("invalid deprecation flag")
-                        .with_labels(vec![
-                            Label::primary(span.source_id(), span)
-                                .with_message(format!("expected one of 'eventually', 'next_version', or 'next_major_release', got '{}'", other))
-                        ]));
+                diagnostics.diagnostic(Severity::Warning)
+                    .with_message("invalid deprecation flag")
+                    .with_primary_label(span, format!("expected one of 'eventually', 'next_version', or 'next_major_release', got '{}'", other))
+                    .emit();
                 DeprecatedFlag::Eventually
             }
         }
@@ -645,7 +643,7 @@ Fun: Expr = {
     <l:@L> "fun" <module:atom_or_var> ":" <function:atom_or_var> "/" <arity:arity_or_var> <r:@R> =>
         Expr::FunctionVar(FunctionVar::detect(span!(l, r), Some(module), function, arity)),
     <l:@L> "fun" <clauses:Semi<FunctionClause>> "end" <r:@R> =>? {
-        Fun::new(reporter, span!(l, r), clauses).map(Expr::Fun).map_err(|e| e.into())
+        Fun::new(diagnostics, span!(l, r), clauses).map(Expr::Fun).map_err(|e| e.into())
     },
 };
 
@@ -739,7 +737,7 @@ BinaryElement: BinaryElement = {
             Ok(specifier) => specifier,
             Err(error) => {
                 // TODO
-                reporter.error(error);
+                diagnostics.error(error);
                 BinaryEntrySpecifier::default()
             },
         });
@@ -986,7 +984,7 @@ StringLiteral: Ident = <l:@L> <s:string+> <r:@R> => {
 
 DelayedSubstitution: Expr = {
     <l:@L> <subs: delayed_substitution> <r:@R> =>
-        Expr::DelayedSubstitution(span!(l, r), subs),
+        Expr::DelayedSubstitution(Span::new(span!(l, r), subs)),
 };
 
 #[inline]
@@ -1089,7 +1087,7 @@ CompOp: BinaryOp = {
     "=/=" => BinaryOp::StrictNotEqual
 };
 
-BaseInt: Integer = {
+BaseInt: Int = {
     "-" <i:int> => -i,
     <i:int> => i,
 };
@@ -1107,7 +1105,7 @@ extern {
         "COMMENT" => Token::Comment,
         // Literals
         char => Token::Char(<char>),
-        int => Token::Integer(<Integer>),
+        int => Token::Integer(<Int>),
         float => Token::Float(<Float>),
         "atom" => Token::Atom(<Symbol>),
         string => Token::String(<Symbol>),

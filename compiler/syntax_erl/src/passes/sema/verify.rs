@@ -1,24 +1,26 @@
 use core::ops::ControlFlow;
 use std::collections::{BTreeMap, BTreeSet};
 
-use firefly_diagnostics::*;
+use anyhow::anyhow;
+
 use firefly_intern::Symbol;
 use firefly_pass::Pass;
 use firefly_syntax_base::{ApplicationMetadata, Deprecation, FunctionName};
+use firefly_util::diagnostics::*;
 
 use crate::ast::*;
 use crate::visit::{self, VisitMut};
 
 /// Verifies that all declared exports have matching definitions
-pub struct VerifyExports {
-    reporter: Reporter,
+pub struct VerifyExports<'p> {
+    diagnostics: &'p DiagnosticsHandler,
 }
-impl VerifyExports {
-    pub fn new(reporter: Reporter) -> Self {
-        Self { reporter }
+impl<'p> VerifyExports<'p> {
+    pub fn new(diagnostics: &'p DiagnosticsHandler) -> Self {
+        Self { diagnostics }
     }
 }
-impl Pass for VerifyExports {
+impl<'p> Pass for VerifyExports<'p> {
     type Input<'a> = &'a mut Module;
     type Output<'a> = &'a mut Module;
 
@@ -49,27 +51,27 @@ impl Pass for VerifyExports {
                 match most_similar {
                     None => {
                         let span = export.span();
-                        self.reporter.show_error(
-                            "invalid export",
-                            &[(
+                        self.diagnostics
+                            .diagnostic(Severity::Error)
+                            .with_message("invalid export")
+                            .with_primary_label(
                                 span,
                                 "the referenced function is not defined in this module",
-                            )],
-                        );
+                            )
+                            .emit();
                     }
                     Some(f) => {
                         let span = export.span();
                         let msg = format!("maybe you meant to export {} instead?", &f);
-                        self.reporter.show_error(
-                            "invalid export",
-                            &[
-                                (
-                                    span,
-                                    "the referenced function is not defined in this module",
-                                ),
-                                (f.span(), msg.as_str()),
-                            ],
-                        );
+                        self.diagnostics
+                            .diagnostic(Severity::Error)
+                            .with_message("invalid export")
+                            .with_primary_label(
+                                span,
+                                "the referenced function is not defined in this module",
+                            )
+                            .with_secondary_label(f.span(), msg)
+                            .emit();
                     }
                 }
             }
@@ -80,15 +82,15 @@ impl Pass for VerifyExports {
 }
 
 /// Verifies that the on_load function exists, if -on_load is present
-pub struct VerifyOnLoadFunctions {
-    reporter: Reporter,
+pub struct VerifyOnLoadFunctions<'p> {
+    diagnostics: &'p DiagnosticsHandler,
 }
-impl VerifyOnLoadFunctions {
-    pub fn new(reporter: Reporter) -> Self {
-        Self { reporter }
+impl<'p> VerifyOnLoadFunctions<'p> {
+    pub fn new(diagnostics: &'p DiagnosticsHandler) -> Self {
+        Self { diagnostics }
     }
 }
-impl Pass for VerifyOnLoadFunctions {
+impl<'p> Pass for VerifyOnLoadFunctions<'p> {
     type Input<'a> = &'a mut Module;
     type Output<'a> = &'a mut Module;
 
@@ -96,10 +98,11 @@ impl Pass for VerifyOnLoadFunctions {
         if let Some(on_load_name) = module.on_load.as_ref() {
             if !module.functions.contains_key(on_load_name.as_ref()) {
                 let span = on_load_name.span();
-                self.reporter.show_error(
-                    "invalid on_load function",
-                    &[(span, "this function is not defined in this module")],
-                );
+                self.diagnostics
+                    .diagnostic(Severity::Error)
+                    .with_message("invalid on_load function")
+                    .with_primary_label(span, "this function is not defined in this module")
+                    .emit();
             }
         }
 
@@ -108,15 +111,15 @@ impl Pass for VerifyOnLoadFunctions {
 }
 
 /// Like `VerifyExports`, but for `-nifs`; ensures all NIF declarations have a corresponding definition.
-pub struct VerifyNifs {
-    reporter: Reporter,
+pub struct VerifyNifs<'p> {
+    diagnostics: &'p DiagnosticsHandler,
 }
-impl VerifyNifs {
-    pub fn new(reporter: Reporter) -> Self {
-        Self { reporter }
+impl<'p> VerifyNifs<'p> {
+    pub fn new(diagnostics: &'p DiagnosticsHandler) -> Self {
+        Self { diagnostics }
     }
 }
-impl Pass for VerifyNifs {
+impl<'p> Pass for VerifyNifs<'p> {
     type Input<'a> = &'a mut Module;
     type Output<'a> = &'a mut Module;
 
@@ -125,24 +128,26 @@ impl Pass for VerifyNifs {
             match module.functions.get(nif.as_ref()) {
                 None => {
                     let span = nif.span();
-                    self.reporter.show_error(
-                        "invalid -nif declaration",
-                        &[(
+                    self.diagnostics
+                        .diagnostic(Severity::Error)
+                        .with_message("invalid -nif declaration")
+                        .with_primary_label(
                             span,
                             "the referenced function is not defined in this module",
-                        )],
-                    );
+                        )
+                        .emit();
                 }
                 Some(fun) => {
                     if !fun.is_nif {
                         let span = fun.span;
-                        self.reporter.show_error(
-                            "misplaced -nif declaration",
-                            &[(
+                        self.diagnostics
+                            .diagnostic(Severity::Error)
+                            .with_message("misplaced -nif declaration")
+                            .with_primary_label(
                                 span,
                                 "expected -nif declaration to precede the function it references",
-                            )],
-                        );
+                            )
+                            .emit();
                     }
                 }
             }
@@ -153,15 +158,15 @@ impl Pass for VerifyNifs {
 }
 
 /// Verifies that all declared type specs are associated with a function definition
-pub struct VerifyTypeSpecs {
-    reporter: Reporter,
+pub struct VerifyTypeSpecs<'p> {
+    diagnostics: &'p DiagnosticsHandler,
 }
-impl VerifyTypeSpecs {
-    pub fn new(reporter: Reporter) -> Self {
-        Self { reporter }
+impl<'p> VerifyTypeSpecs<'p> {
+    pub fn new(diagnostics: &'p DiagnosticsHandler) -> Self {
+        Self { diagnostics }
     }
 }
-impl Pass for VerifyTypeSpecs {
+impl<'p> Pass for VerifyTypeSpecs<'p> {
     type Input<'a> = &'a mut Module;
     type Output<'a> = &'a mut Module;
 
@@ -169,13 +174,14 @@ impl Pass for VerifyTypeSpecs {
         for (spec_name, spec) in module.specs.iter() {
             let local_spec_name = spec_name.to_local();
             if !module.functions.contains_key(&local_spec_name) {
-                self.reporter.show_warning(
-                    "type spec for undefined function",
-                    &[(
+                self.diagnostics
+                    .diagnostic(Severity::Warning)
+                    .with_message("type spec for undefined function")
+                    .with_primary_label(
                         spec.span,
                         "this type spec has no corresponding function definition",
-                    )],
-                );
+                    )
+                    .emit();
             }
         }
         Ok(module)
@@ -190,16 +196,16 @@ impl Pass for VerifyTypeSpecs {
 /// access to the entire set of modules that was provided to the compiler, however this does not account for cases in which
 /// we're only compiling a library and thus only a subset of the modules is known - we could make such analysis optional and
 /// only perform it when the full set of modules is known.
-pub struct VerifyCalls<'app> {
-    reporter: Reporter,
-    app: &'app ApplicationMetadata,
+pub struct VerifyCalls<'p> {
+    diagnostics: &'p DiagnosticsHandler,
+    app: &'p ApplicationMetadata,
 }
-impl<'app> VerifyCalls<'app> {
-    pub fn new(reporter: Reporter, app: &'app ApplicationMetadata) -> Self {
-        Self { reporter, app }
+impl<'p> VerifyCalls<'p> {
+    pub fn new(diagnostics: &'p DiagnosticsHandler, app: &'p ApplicationMetadata) -> Self {
+        Self { diagnostics, app }
     }
 }
-impl<'app> Pass for VerifyCalls<'app> {
+impl<'p> Pass for VerifyCalls<'p> {
     type Input<'a> = &'a mut Module;
     type Output<'a> = &'a mut Module;
 
@@ -212,26 +218,39 @@ impl<'app> Pass for VerifyCalls<'app> {
             .map(|(name, sig)| (*name, sig.mfa()))
             .collect::<BTreeMap<FunctionName, FunctionName>>();
 
+        let mut has_errors = false;
         for (_, function) in module.functions.iter_mut() {
             let mut visitor = VerifyCallsVisitor {
-                reporter: self.reporter.clone(),
+                diagnostics: self.diagnostics,
                 app: self.app,
                 module: module_name,
                 locals: &locals,
                 imports: &imports,
+                has_errors: false,
             };
             visitor.visit_mut_function(function);
+            if visitor.has_errors {
+                has_errors = true;
+            }
         }
-        Ok(module)
+
+        if has_errors {
+            Err(anyhow!(
+                "semantic analysis found one or more errors, see diagnostics for details"
+            ))
+        } else {
+            Ok(module)
+        }
     }
 }
 
 struct VerifyCallsVisitor<'a> {
-    reporter: Reporter,
+    diagnostics: &'a DiagnosticsHandler,
     app: &'a ApplicationMetadata,
     module: Symbol,
     locals: &'a BTreeSet<FunctionName>,
     imports: &'a BTreeMap<FunctionName, FunctionName>,
+    has_errors: bool,
 }
 impl<'a> VisitMut<()> for VerifyCallsVisitor<'a> {
     fn visit_mut_apply(&mut self, apply: &mut Apply) -> ControlFlow<()> {
@@ -252,10 +271,12 @@ impl<'a> VisitMut<()> for VerifyCallsVisitor<'a> {
                     if !self.locals.contains(&name) {
                         let message =
                             format!("the function {} is not defined in this module", &name);
-                        self.reporter.show_error(
-                            "reference to undefined function",
-                            &[(*rspan, message.as_str())],
-                        );
+                        self.has_errors = true;
+                        self.diagnostics
+                            .diagnostic(Severity::Error)
+                            .with_message("reference to undefined function")
+                            .with_primary_label(*rspan, message)
+                            .emit();
                     }
                     ControlFlow::Continue(())
                 }
@@ -265,26 +286,24 @@ impl<'a> VisitMut<()> for VerifyCallsVisitor<'a> {
                         None => ControlFlow::Continue(()),
                         Some(Deprecation::Module { span: dspan, flag }) => {
                             let note = format!("this module will be deprecated {}", &flag);
-                            self.reporter.show_warning(
-                                "use of deprecated module",
-                                &[
-                                    (m.span, note.as_str()),
-                                    (dspan, "deprecation declared here"),
-                                ],
-                            );
+                            self.diagnostics
+                                .diagnostic(Severity::Warning)
+                                .with_message("use of deprecated module")
+                                .with_primary_label(m.span, note)
+                                .with_secondary_label(dspan, "deprecated here")
+                                .emit();
                             ControlFlow::Continue(())
                         }
                         Some(Deprecation::Function {
                             span: dspan, flag, ..
                         }) => {
                             let note = format!("this function will be deprecated {}", &flag);
-                            self.reporter.show_warning(
-                                "use of deprecated function",
-                                &[
-                                    (f.span, note.as_str()),
-                                    (dspan, "deprecation declared here"),
-                                ],
-                            );
+                            self.diagnostics
+                                .diagnostic(Severity::Warning)
+                                .with_message("use of deprecated function")
+                                .with_primary_label(f.span, note)
+                                .with_secondary_label(dspan, "deprecated here")
+                                .emit();
                             ControlFlow::Continue(())
                         }
                         // These deprecation types have all been converted to Deprecation::Function
@@ -300,36 +319,36 @@ impl<'a> VisitMut<()> for VerifyCallsVisitor<'a> {
                                     "the function {} is not defined or imported in this module",
                                     &name
                                 );
-                                self.reporter.show_error(
-                                    "reference to undefined function",
-                                    &[(f.span, message.as_str())],
-                                );
+                                self.has_errors = true;
+                                self.diagnostics
+                                    .diagnostic(Severity::Error)
+                                    .with_message("reference to undefined function")
+                                    .with_primary_label(f.span, message)
+                                    .emit();
                             }
                             Some(imported) => match self.app.get_function_deprecation(&imported) {
                                 None => (),
                                 Some(Deprecation::Module { span: dspan, flag }) => {
                                     let note =
                                         format!("this function will be deprecated {}", &flag);
-                                    self.reporter.show_warning(
-                                        "use of deprecated module",
-                                        &[
-                                            (f.span, note.as_str()),
-                                            (dspan, "deprecation declared here"),
-                                        ],
-                                    );
+                                    self.diagnostics
+                                        .diagnostic(Severity::Warning)
+                                        .with_message("use of deprecated module")
+                                        .with_primary_label(f.span, note)
+                                        .with_secondary_label(dspan, "deprecated here")
+                                        .emit();
                                 }
                                 Some(Deprecation::Function {
                                     span: dspan, flag, ..
                                 }) => {
                                     let note =
                                         format!("this function will be deprecated {}", &flag);
-                                    self.reporter.show_warning(
-                                        "use of deprecated function",
-                                        &[
-                                            (f.span, note.as_str()),
-                                            (dspan, "deprecation declared here"),
-                                        ],
-                                    );
+                                    self.diagnostics
+                                        .diagnostic(Severity::Warning)
+                                        .with_message("use of deprecated function")
+                                        .with_primary_label(f.span, note)
+                                        .with_secondary_label(dspan, "deprecated here")
+                                        .emit();
                                 }
                                 // These deprecation types have all been converted to Deprecation::Function
                                 Some(Deprecation::FunctionAnyArity { .. }) => unreachable!(),
@@ -346,35 +365,35 @@ impl<'a> VisitMut<()> for VerifyCallsVisitor<'a> {
                     if !self.locals.contains(&local_name) {
                         let message =
                             format!("the function {} is not defined in this module", &local_name);
-                        self.reporter.show_error(
-                            "reference to undefined function",
-                            &[(name.span(), message.as_str())],
-                        );
+                        self.has_errors = true;
+                        self.diagnostics
+                            .diagnostic(Severity::Error)
+                            .with_message("reference to undefined function")
+                            .with_primary_label(name.span(), message)
+                            .emit();
                     }
                 } else {
                     match self.app.get_function_deprecation(&name) {
                         None => (),
                         Some(Deprecation::Module { span: dspan, flag }) => {
                             let note = format!("this function will be deprecated {}", &flag);
-                            self.reporter.show_warning(
-                                "use of deprecated module",
-                                &[
-                                    (name.span(), note.as_str()),
-                                    (dspan, "deprecation declared here"),
-                                ],
-                            );
+                            self.diagnostics
+                                .diagnostic(Severity::Warning)
+                                .with_message("use of deprecated module")
+                                .with_primary_label(name.span(), note)
+                                .with_secondary_label(dspan, "deprecated here")
+                                .emit();
                         }
                         Some(Deprecation::Function {
                             span: dspan, flag, ..
                         }) => {
                             let note = format!("this function will be deprecated {}", &flag);
-                            self.reporter.show_warning(
-                                "use of deprecated function",
-                                &[
-                                    (name.span(), note.as_str()),
-                                    (dspan, "deprecation declared here"),
-                                ],
-                            );
+                            self.diagnostics
+                                .diagnostic(Severity::Warning)
+                                .with_message("use of deprecated function")
+                                .with_primary_label(name.span(), note)
+                                .with_secondary_label(dspan, "deprecated here")
+                                .emit();
                         }
                         // These deprecation types have all been converted to Deprecation::Function
                         Some(Deprecation::FunctionAnyArity { .. }) => unreachable!(),
@@ -385,15 +404,23 @@ impl<'a> VisitMut<()> for VerifyCallsVisitor<'a> {
                         "{} requires {} arguments, but only {} were provided",
                         name, name.arity, arity
                     );
-                    self.reporter
-                        .show_error("missing arguments", &[(span, message.as_str())]);
+                    self.has_errors = true;
+                    self.diagnostics
+                        .diagnostic(Severity::Error)
+                        .with_message("missing arguments")
+                        .with_primary_label(span, message)
+                        .emit();
                 } else if name.arity < arity {
                     let message = format!(
                         "{} only takes {} arguments, but {} were provided",
                         name, name.arity, arity
                     );
-                    self.reporter
-                        .show_error("too many arguments", &[(span, message.as_str())]);
+                    self.has_errors = true;
+                    self.diagnostics
+                        .diagnostic(Severity::Error)
+                        .with_message("too many arguments")
+                        .with_primary_label(span, message)
+                        .emit();
                 }
                 ControlFlow::Continue(())
             }
@@ -406,28 +433,34 @@ impl<'a> VisitMut<()> for VerifyCallsVisitor<'a> {
                                 "the function {} is not defined or imported in this module",
                                 &local_name
                             );
-                            self.reporter.show_error(
-                                "reference to undefined function",
-                                &[(span, message.as_str())],
-                            );
+                            self.has_errors = true;
+                            self.diagnostics
+                                .diagnostic(Severity::Error)
+                                .with_message("reference to undefined function")
+                                .with_primary_label(span, message)
+                                .emit();
                         }
                         Some(imported) => match self.app.get_function_deprecation(&imported) {
                             None => (),
                             Some(Deprecation::Module { span: dspan, flag }) => {
                                 let note = format!("this module will be deprecated {}", &flag);
-                                self.reporter.show_warning(
-                                    "use of deprecated module",
-                                    &[(span, note.as_str()), (dspan, "deprecation declared here")],
-                                );
+                                self.diagnostics
+                                    .diagnostic(Severity::Warning)
+                                    .with_message("use of deprecated module")
+                                    .with_primary_label(span, note)
+                                    .with_secondary_label(dspan, "deprecated here")
+                                    .emit();
                             }
                             Some(Deprecation::Function {
                                 span: dspan, flag, ..
                             }) => {
                                 let note = format!("this function will be deprecated {}", &flag);
-                                self.reporter.show_warning(
-                                    "use of deprecated function",
-                                    &[(span, note.as_str()), (dspan, "deprecation declared here")],
-                                );
+                                self.diagnostics
+                                    .diagnostic(Severity::Warning)
+                                    .with_message("use of deprecated function")
+                                    .with_primary_label(span, note)
+                                    .with_secondary_label(dspan, "deprecated here")
+                                    .emit();
                             }
                             // These deprecation types have all been converted to Deprecation::Function
                             Some(Deprecation::FunctionAnyArity { .. }) => unreachable!(),
@@ -440,15 +473,23 @@ impl<'a> VisitMut<()> for VerifyCallsVisitor<'a> {
                         "{} requires {} arguments, but only {} were provided",
                         name, name.arity, arity
                     );
-                    self.reporter
-                        .show_error("missing arguments", &[(span, message.as_str())]);
+                    self.has_errors = true;
+                    self.diagnostics
+                        .diagnostic(Severity::Error)
+                        .with_message("missing arguments")
+                        .with_primary_label(span, message)
+                        .emit();
                 } else if name.arity < arity {
                     let message = format!(
                         "{} only takes {} arguments, but {} were provided",
                         name, name.arity, arity
                     );
-                    self.reporter
-                        .show_error("too many arguments", &[(span, message.as_str())]);
+                    self.has_errors = true;
+                    self.diagnostics
+                        .diagnostic(Severity::Error)
+                        .with_message("too many arguments")
+                        .with_primary_label(span, message)
+                        .emit();
                 }
                 ControlFlow::Continue(())
             }
@@ -457,10 +498,12 @@ impl<'a> VisitMut<()> for VerifyCallsVisitor<'a> {
                     match self.app.get_module_deprecation(&m.name) {
                         Some(Deprecation::Module { span: dspan, flag }) => {
                             let note = format!("this module will be deprecated {}", &flag);
-                            self.reporter.show_warning(
-                                "use of deprecated module",
-                                &[(span, note.as_str()), (dspan, "deprecation declared here")],
-                            );
+                            self.diagnostics
+                                .diagnostic(Severity::Warning)
+                                .with_message("use of deprecated module")
+                                .with_primary_label(span, note)
+                                .with_secondary_label(dspan, "deprecated here")
+                                .emit();
                         }
                         _ => (),
                     }
@@ -475,10 +518,12 @@ impl<'a> VisitMut<()> for VerifyCallsVisitor<'a> {
                                         "the function {} is not defined or imported in this module",
                                         &name
                                     );
-                                    self.reporter.show_error(
-                                        "reference to undefined function",
-                                        &[(span, message.as_str())],
-                                    );
+                                    self.has_errors = true;
+                                    self.diagnostics
+                                        .diagnostic(Severity::Error)
+                                        .with_message("reference to undefined function")
+                                        .with_primary_label(span, message)
+                                        .emit();
                                 }
                                 Some(imported) => {
                                     match self.app.get_function_deprecation(&imported) {
@@ -486,13 +531,12 @@ impl<'a> VisitMut<()> for VerifyCallsVisitor<'a> {
                                         Some(Deprecation::Module { span: dspan, flag }) => {
                                             let note =
                                                 format!("this module will be deprecated {}", &flag);
-                                            self.reporter.show_warning(
-                                                "use of deprecated module",
-                                                &[
-                                                    (span, note.as_str()),
-                                                    (dspan, "deprecation declared here"),
-                                                ],
-                                            );
+                                            self.diagnostics
+                                                .diagnostic(Severity::Warning)
+                                                .with_message("use of deprecated module")
+                                                .with_primary_label(span, note)
+                                                .with_secondary_label(dspan, "deprecated here")
+                                                .emit();
                                         }
                                         Some(Deprecation::Function {
                                             span: dspan, flag, ..
@@ -501,13 +545,12 @@ impl<'a> VisitMut<()> for VerifyCallsVisitor<'a> {
                                                 "this function will be deprecated {}",
                                                 &flag
                                             );
-                                            self.reporter.show_warning(
-                                                "use of deprecated function",
-                                                &[
-                                                    (span, note.as_str()),
-                                                    (dspan, "deprecation declared here"),
-                                                ],
-                                            );
+                                            self.diagnostics
+                                                .diagnostic(Severity::Warning)
+                                                .with_message("use of deprecated function")
+                                                .with_primary_label(span, note)
+                                                .with_secondary_label(dspan, "deprecated here")
+                                                .emit();
                                         }
                                         // These deprecation types have all been converted to Deprecation::Function
                                         Some(Deprecation::FunctionAnyArity { .. }) => {
@@ -525,16 +568,24 @@ impl<'a> VisitMut<()> for VerifyCallsVisitor<'a> {
                             "this call requires {} arguments, but only {} were provided",
                             i, arity
                         );
-                        self.reporter
-                            .show_error("missing arguments", &[(span, message.as_str())]);
+                        self.has_errors = true;
+                        self.diagnostics
+                            .diagnostic(Severity::Error)
+                            .with_message("missing arguments")
+                            .with_primary_label(span, message)
+                            .emit();
                     }
                     Arity::Int(i) if i < arity => {
                         let message = format!(
                             "this call should only have {} arguments, but {} were provided",
                             i, arity
                         );
-                        self.reporter
-                            .show_error("too many arguments", &[(span, message.as_str())]);
+                        self.has_errors = true;
+                        self.diagnostics
+                            .diagnostic(Severity::Error)
+                            .with_message("too many arguments")
+                            .with_primary_label(span, message)
+                            .emit();
                     }
                     _ => (),
                 }
@@ -547,28 +598,34 @@ impl<'a> VisitMut<()> for VerifyCallsVisitor<'a> {
                         None => {
                             let message =
                                 format!("{} is not defined or imported in this module", &name);
-                            self.reporter.show_error(
-                                "reference to undefined function",
-                                &[(span, message.as_str())],
-                            );
+                            self.has_errors = true;
+                            self.diagnostics
+                                .diagnostic(Severity::Error)
+                                .with_message("reference to undefined function")
+                                .with_primary_label(span, message)
+                                .emit();
                         }
                         Some(imported) => match self.app.get_function_deprecation(&imported) {
                             None => (),
                             Some(Deprecation::Module { span: dspan, flag }) => {
                                 let note = format!("this module will be deprecated {}", &flag);
-                                self.reporter.show_warning(
-                                    "use of deprecated module",
-                                    &[(span, note.as_str()), (dspan, "deprecation declared here")],
-                                );
+                                self.diagnostics
+                                    .diagnostic(Severity::Warning)
+                                    .with_message("use of deprecated module")
+                                    .with_primary_label(span, note)
+                                    .with_secondary_label(dspan, "deprecated here")
+                                    .emit();
                             }
                             Some(Deprecation::Function {
                                 span: dspan, flag, ..
                             }) => {
                                 let note = format!("this function will be deprecated {}", &flag);
-                                self.reporter.show_warning(
-                                    "use of deprecated function",
-                                    &[(span, note.as_str()), (dspan, "deprecation declared here")],
-                                );
+                                self.diagnostics
+                                    .diagnostic(Severity::Warning)
+                                    .with_message("use of deprecated function")
+                                    .with_primary_label(span, note)
+                                    .with_secondary_label(dspan, "deprecated here")
+                                    .emit();
                             }
                             // These deprecation types have all been converted to Deprecation::Function
                             Some(Deprecation::FunctionAnyArity { .. }) => unreachable!(),

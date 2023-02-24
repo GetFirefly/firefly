@@ -48,7 +48,7 @@ impl Hash for LexicalError {
     }
 }
 impl ToDiagnostic for LexicalError {
-    fn to_diagnostic(&self) -> Diagnostic {
+    fn to_diagnostic(self) -> Diagnostic {
         let span = self.span();
         let msg = self.to_string();
         match self {

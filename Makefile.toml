@@ -339,7 +339,7 @@ dependencies = [
 category = "Build"
 description = "Builds the Firefly compiler"
 condition = { env = { "BUILD_FIREFLY" = "true" } }
-env = { RUSTFLAGS = "-Z unstable-options -C link-args=-Wl,-rpath,${LLVM_PREFIX}/lib" }
+env = { RUSTFLAGS = "-Z unstable-options -C link-args=-Wl,-rpath,${LLVM_PREFIX}/lib", CARGO_TARGET_DIR = "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/target" }
 command = "bin/firefly-make"
 args = ["build", "@@remove-empty(CARGO_MAKE_CARGO_VERBOSE_FLAGS)"]
 dependencies = [
@@ -361,7 +361,7 @@ category = "Tools"
 description = "Builds the firefly-lld wrapper"
 command = "rustup"
 env = { CARGO_TARGET_DIR = "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/tools/firefly-make/target" }
-args = ["run", "${CARGO_MAKE_TOOLCHAIN}", "cargo", "-Z", "unstable-options", "build", "--manifest-path", "tools/firefly-lld/Cargo.toml", "--release", "--out-dir", "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/tools/firefly-make/target"]
+args = ["run", "${CARGO_MAKE_TOOLCHAIN}", "cargo", "-Z", "unstable-options", "build", "--manifest-path", "tools/firefly-lld/Cargo.toml", "--release", "--out-dir", "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/target"]
 
 [tasks.release]
 category = "Release"

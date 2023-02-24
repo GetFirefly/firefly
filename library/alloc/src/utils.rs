@@ -111,7 +111,7 @@ pub fn is_aligned_at<T: ?Sized>(ptr: *const T, align: usize) -> bool {
 #[inline]
 pub fn is_aligned<T: ?Sized>(ptr: *const T) -> bool {
     use core::cmp::max;
-    use firefly_system::arch::MIN_ALIGN;
+    use firefly_system::MIN_ALIGN;
 
     let align = unsafe { mem::align_of_val_raw(ptr) };
     is_aligned_at(ptr, max(MIN_ALIGN, align))

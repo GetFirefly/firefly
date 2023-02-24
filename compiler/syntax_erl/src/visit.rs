@@ -185,7 +185,7 @@ where
         Expr::Var(ref mut var) => visitor.visit_mut_var(var),
         Expr::Literal(ref mut lit) => visitor.visit_mut_literal(lit),
         Expr::FunctionVar(ref mut var) => visitor.visit_mut_function_var(var),
-        Expr::DelayedSubstitution(_, _) => ControlFlow::Continue(()),
+        Expr::DelayedSubstitution(_) => ControlFlow::Continue(()),
         Expr::Cons(ref mut cons) => visitor.visit_mut_cons(cons),
         Expr::Tuple(ref mut tuple) => visitor.visit_mut_tuple(tuple),
         Expr::Map(ref mut map) => visitor.visit_mut_map(map),
@@ -221,7 +221,7 @@ where
     match expr {
         Expr::Var(ref mut var) => visitor.visit_mut_var(var),
         Expr::Literal(ref mut lit) => visitor.visit_mut_literal(lit),
-        Expr::DelayedSubstitution(_, _) => ControlFlow::Continue(()),
+        Expr::DelayedSubstitution(_) => ControlFlow::Continue(()),
         Expr::Cons(ref mut cons) => visitor.visit_mut_cons(cons),
         Expr::Tuple(ref mut tuple) => visitor.visit_mut_tuple(tuple),
         Expr::Map(ref mut map) => visitor.visit_mut_map_pattern(map),

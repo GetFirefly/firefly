@@ -76,21 +76,18 @@ impl From<ParseError> for ParserError {
 }
 
 impl ToDiagnostic for ParserError {
-    fn to_diagnostic(&self) -> Diagnostic {
+    fn to_diagnostic(self) -> Diagnostic {
         match self {
             Self::RootFile { .. } => Diagnostic::error().with_message(self.to_string()),
             Self::ShowDiagnostic { diagnostic } => diagnostic.clone(),
             Self::Preprocessor { source } => source.to_diagnostic(),
             Self::Source { source } => source.to_diagnostic(),
-            Self::UnrecognizedToken {
-                ref span,
-                ref expected,
-            } => Diagnostic::error()
+            Self::UnrecognizedToken { span, ref expected } => Diagnostic::error()
                 .with_message("unrecognized token")
-                .with_labels(vec![Label::primary(span.source_id(), *span)
+                .with_labels(vec![Label::primary(span.source_id(), span)
                     .with_message(format!("expected: {}", expected.join(", ")))]),
             Self::InvalidToken { location } => {
-                let index = *location;
+                let index = location;
                 Diagnostic::error()
                     .with_message("unexpected token")
                     .with_labels(vec![Label::primary(
@@ -103,7 +100,7 @@ impl ToDiagnostic for ParserError {
                 location,
                 ref expected,
             } => {
-                let index = *location;
+                let index = location;
                 Diagnostic::error()
                     .with_message("unexpected end of file")
                     .with_labels(vec![Label::primary(
@@ -114,7 +111,7 @@ impl ToDiagnostic for ParserError {
             }
             Self::ExtraToken { span } => Diagnostic::error()
                 .with_message("unexpected token")
-                .with_labels(vec![Label::primary(span.source_id(), *span)
+                .with_labels(vec![Label::primary(span.source_id(), span)
                     .with_message("did not expect this token")]),
         }
     }

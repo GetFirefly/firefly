@@ -51,7 +51,7 @@ impl TryFrom<i64> for OneBasedIndex {
     type Error = anyhow::Error;
 
     fn try_from(n: i64) -> Result<Self, Self::Error> {
-        Self::new(n.try_into()?)
+        Self::new(n.try_into().map_err(|_| bad_index!())?)
     }
 }
 impl TryFrom<OpaqueTerm> for OneBasedIndex {
@@ -143,7 +143,7 @@ impl TryFrom<i64> for ZeroBasedIndex {
     type Error = anyhow::Error;
 
     fn try_from(n: i64) -> Result<Self, Self::Error> {
-        Ok(Self::new(n.try_into()?))
+        Ok(Self::new(n.try_into().map_err(|_| bad_index!())?))
     }
 }
 impl TryFrom<OpaqueTerm> for ZeroBasedIndex {

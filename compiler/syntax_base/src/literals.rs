@@ -6,7 +6,7 @@ use std::hash::{Hash, Hasher};
 use firefly_binary::BitVec;
 use firefly_diagnostics::{SourceSpan, Spanned};
 use firefly_intern::Symbol;
-use firefly_number::{Float, Integer};
+use firefly_number::{Float, Int};
 
 use crate::*;
 
@@ -27,7 +27,7 @@ impl Literal {
         }
     }
 
-    pub fn integer<I: Into<Integer>>(span: SourceSpan, i: I) -> Self {
+    pub fn integer<I: Into<Int>>(span: SourceSpan, i: I) -> Self {
         Self {
             span,
             annotations: Annotations::default(),
@@ -90,7 +90,7 @@ impl Literal {
         }
     }
 
-    pub fn as_integer(&self) -> Option<&Integer> {
+    pub fn as_integer(&self) -> Option<&Int> {
         match &self.value {
             Lit::Integer(ref i) => Some(i),
             _ => None,
@@ -133,7 +133,7 @@ impl Ord for Literal {
 #[derive(Clone, PartialEq, Eq)]
 pub enum Lit {
     Atom(Symbol),
-    Integer(Integer),
+    Integer(Int),
     Float(Float),
     Nil,
     Cons(Box<Literal>, Box<Literal>),

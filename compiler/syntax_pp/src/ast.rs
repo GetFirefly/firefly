@@ -28,7 +28,7 @@ pub enum Term {
     Atom(Span<Symbol>),
     String(Span<Symbol>),
     Char(Span<char>),
-    Integer(Span<firefly_number::Integer>),
+    Integer(Span<firefly_number::Int>),
     Float(Span<firefly_number::Float>),
     Tuple(Span<Vec<Term>>),
     Nil(SourceSpan),

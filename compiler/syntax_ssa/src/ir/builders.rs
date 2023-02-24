@@ -1,8 +1,8 @@
 use firefly_binary::{BinaryEntrySpecifier, BitVec};
 use firefly_diagnostics::SourceSpan;
 use firefly_intern::{Ident, Symbol};
-use firefly_number::{BigInt, Integer};
-use firefly_syntax_base::{PrimitiveType, TermType, Type};
+use firefly_number::{BigInt, Int};
+use firefly_syntax_base::{CallConv, PrimitiveType, TermType, Type};
 
 use super::*;
 
@@ -195,8 +195,8 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
     }
 
     fn int(self, i: i64, span: SourceSpan) -> Value {
-        match Integer::new(i) {
-            Integer::Small(i) => {
+        match Int::new(i) {
+            Int::Small(i) => {
                 let (inst, dfg) = self.UnaryImm(
                     Opcode::ImmInt,
                     Type::Term(TermType::Integer),
@@ -205,14 +205,14 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
                 );
                 dfg.first_result(inst)
             }
-            Integer::Big(i) => self.bigint(i, span),
+            Int::Big(i) => self.bigint(i, span),
         }
     }
 
     fn bigint(mut self, i: BigInt, span: SourceSpan) -> Value {
         let constant = {
             self.data_flow_graph_mut()
-                .make_constant(ConstantItem::Integer(Integer::Big(i)))
+                .make_constant(ConstantItem::Integer(Int::Big(i)))
         };
         let (inst, dfg) = self.UnaryConst(
             Opcode::ConstBigInt,
@@ -571,7 +571,7 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
             let pool = &mut self.data_flow_graph_mut().value_lists;
             vlist.extend(args.iter().copied(), pool);
         }
-        self.Br(Opcode::Br, Type::Invalid, block, vlist, span).0
+        self.Br(Opcode::Br, Type::Unit, block, vlist, span).0
     }
 
     fn br_if(mut self, cond: Value, block: Block, args: &[Value], span: SourceSpan) -> Inst {
@@ -620,59 +620,90 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
         self.Switch(arg, arms, default, span).0
     }
 
-    fn ret(self, is_err: Value, returning: Value, span: SourceSpan) -> Inst {
-        self.Ret(is_err, returning, span).0
-    }
-
-    fn ret_ok(self, returning: Value, span: SourceSpan) -> Inst {
-        self.RetImm(Immediate::I1(false), returning, span).0
-    }
-
-    fn ret_err(self, returning: Value, span: SourceSpan) -> Inst {
-        self.RetImm(Immediate::I1(true), returning, span).0
+    fn ret(mut self, returning: Value, span: SourceSpan) -> Inst {
+        let mut vlist = ValueList::default();
+        {
+            let pool = &mut self.data_flow_graph_mut().value_lists;
+            vlist.push(returning, pool);
+        }
+        self.Ret(vlist, span).0
     }
 
     fn call(mut self, callee: FuncRef, args: &[Value], span: SourceSpan) -> Inst {
+        let cc;
         let mut vlist = ValueList::default();
         {
-            let pool = &mut self.data_flow_graph_mut().value_lists;
+            let dfg = self.data_flow_graph_mut();
+            cc = dfg.callee_convention(callee);
+            let pool = &mut dfg.value_lists;
             vlist.extend(args.iter().copied(), pool);
         }
-        self.Call(Opcode::Call, callee, vlist, span).0
+        self.Call(Opcode::Call, callee, cc, vlist, span).0
     }
 
-    fn call_indirect(mut self, callee: Value, args: &[Value], span: SourceSpan) -> Inst {
+    fn call_indirect(
+        mut self,
+        callee: Value,
+        cc: CallConv,
+        args: &[Value],
+        span: SourceSpan,
+    ) -> Inst {
         let mut vlist = ValueList::default();
         {
             let pool = &mut self.data_flow_graph_mut().value_lists;
             vlist.extend(args.iter().copied(), pool);
         }
-        self.CallIndirect(Opcode::CallIndirect, callee, vlist, span)
+        self.CallIndirect(Opcode::CallIndirect, callee, cc, vlist, span)
             .0
     }
 
     fn enter(mut self, callee: FuncRef, args: &[Value], span: SourceSpan) -> Inst {
+        let cc;
         let mut vlist = ValueList::default();
         {
-            let pool = &mut self.data_flow_graph_mut().value_lists;
+            let dfg = self.data_flow_graph_mut();
+            cc = dfg.callee_convention(callee);
+            let pool = &mut dfg.value_lists;
             vlist.extend(args.iter().copied(), pool);
         }
-        self.Call(Opcode::Enter, callee, vlist, span).0
+        self.Call(Opcode::Enter, callee, cc, vlist, span).0
     }
 
-    fn enter_indirect(mut self, callee: Value, args: &[Value], span: SourceSpan) -> Inst {
+    fn enter_indirect(
+        mut self,
+        callee: Value,
+        cc: CallConv,
+        args: &[Value],
+        span: SourceSpan,
+    ) -> Inst {
         let mut vlist = ValueList::default();
         {
             let pool = &mut self.data_flow_graph_mut().value_lists;
             vlist.extend(args.iter().copied(), pool);
         }
-        self.CallIndirect(Opcode::EnterIndirect, callee, vlist, span)
+        self.CallIndirect(Opcode::EnterIndirect, callee, cc, vlist, span)
             .0
     }
 
     fn is_type(self, ty: Type, value: Value, span: SourceSpan) -> Value {
         let (inst, dfg) = self.IsType(ty, value, span);
         dfg.first_result(inst)
+    }
+
+    fn is_tuple_fetch_arity(mut self, value: Value, span: SourceSpan) -> (Value, Value) {
+        let mut vlist = ValueList::default();
+        {
+            let pool = &mut self.data_flow_graph_mut().value_lists;
+            vlist.push(value, pool);
+        }
+        let (inst, dfg) = self.PrimOp(
+            Opcode::IsTupleFetchArity,
+            Type::Term(TermType::Bool),
+            vlist,
+            span,
+        );
+        let results = dfg.inst_results(inst);
+        (results[0], results[1])
     }
 
     fn cons(self, head: Value, tail: Value, span: SourceSpan) -> Value {
@@ -699,6 +730,120 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
             span,
         );
         dfg.first_result(inst)
+    }
+
+    fn split(mut self, list: Value, span: SourceSpan) -> (Value, Value) {
+        let mut vlist = ValueList::default();
+        {
+            let pool = &mut self.data_flow_graph_mut().value_lists;
+            vlist.push(list, pool);
+        }
+        let (inst, dfg) = self.PrimOp(
+            Opcode::Split,
+            Type::Term(TermType::MaybeImproperList),
+            vlist,
+            span,
+        );
+        let results = dfg.inst_results(inst);
+        (results[0], results[1])
+    }
+
+    fn map(self, capacity: usize, span: SourceSpan) -> Value {
+        let (inst, dfg) = self.PrimOpImm(
+            Opcode::Map,
+            Type::Term(TermType::Map),
+            Immediate::Isize(capacity as isize),
+            ValueList::default(),
+            span,
+        );
+        dfg.first_result(inst)
+    }
+
+    fn map_put(mut self, map: Value, key: Value, value: Value, span: SourceSpan) -> Value {
+        let mut vlist = ValueList::default();
+        {
+            let pool = &mut self.data_flow_graph_mut().value_lists;
+            vlist.push(map, pool);
+            vlist.push(key, pool);
+            vlist.push(value, pool);
+        }
+        let (inst, dfg) = self.PrimOp(Opcode::MapPut, Type::Term(TermType::Map), vlist, span);
+        dfg.first_result(inst)
+    }
+
+    fn map_put_mut(mut self, map: Value, key: Value, value: Value, span: SourceSpan) -> Inst {
+        let mut vlist = ValueList::default();
+        {
+            let pool = &mut self.data_flow_graph_mut().value_lists;
+            vlist.push(map, pool);
+            vlist.push(key, pool);
+            vlist.push(value, pool);
+        }
+        self.PrimOp(Opcode::MapPutMut, Type::Term(TermType::Map), vlist, span)
+            .0
+    }
+
+    fn map_update(mut self, map: Value, key: Value, value: Value, span: SourceSpan) -> Value {
+        let mut vlist = ValueList::default();
+        {
+            let pool = &mut self.data_flow_graph_mut().value_lists;
+            vlist.push(map, pool);
+            vlist.push(key, pool);
+            vlist.push(value, pool);
+        }
+        let (inst, dfg) = self.PrimOp(Opcode::MapUpdate, Type::Term(TermType::Map), vlist, span);
+        dfg.first_result(inst)
+    }
+
+    fn map_update_mut(mut self, map: Value, key: Value, value: Value, span: SourceSpan) -> Inst {
+        let mut vlist = ValueList::default();
+        {
+            let pool = &mut self.data_flow_graph_mut().value_lists;
+            vlist.push(map, pool);
+            vlist.push(key, pool);
+            vlist.push(value, pool);
+        }
+        self.PrimOp(Opcode::MapUpdateMut, Type::Term(TermType::Map), vlist, span)
+            .0
+    }
+
+    fn map_extend_put(mut self, map: Value, pairs: &[Value], span: SourceSpan) -> Value {
+        let mut vlist = ValueList::default();
+        {
+            let pool = &mut self.data_flow_graph_mut().value_lists;
+            vlist.push(map, pool);
+            vlist.extend(pairs.iter().copied(), pool);
+        }
+        let (inst, dfg) = self.PrimOp(Opcode::MapExtendPut, Type::Term(TermType::Map), vlist, span);
+        dfg.first_result(inst)
+    }
+
+    fn map_extend_update(mut self, map: Value, pairs: &[Value], span: SourceSpan) -> Value {
+        let mut vlist = ValueList::default();
+        {
+            let pool = &mut self.data_flow_graph_mut().value_lists;
+            vlist.push(map, pool);
+            vlist.extend(pairs.iter().copied(), pool);
+        }
+        let (inst, dfg) = self.PrimOp(
+            Opcode::MapExtendUpdate,
+            Type::Term(TermType::Map),
+            vlist,
+            span,
+        );
+        dfg.first_result(inst)
+    }
+
+    fn map_try_get(mut self, map: Value, key: Value, span: SourceSpan) -> (Value, Value) {
+        let mut vlist = ValueList::default();
+        {
+            let pool = &mut self.data_flow_graph_mut().value_lists;
+            vlist.push(map, pool);
+            vlist.push(key, pool);
+        }
+        let (inst, dfg) = self.PrimOp(Opcode::MapTryGet, Type::Term(TermType::Map), vlist, span);
+        let results = dfg.inst_results(inst);
+        (results[0], results[1])
     }
 
     fn tuple_imm(self, arity: usize, span: SourceSpan) -> Value {
@@ -769,73 +914,63 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
         dfg.first_result(inst)
     }
 
-    fn recv_start(mut self, timeout: Value, span: SourceSpan) -> Value {
+    fn recv_next(self, span: SourceSpan) -> Inst {
+        self.PrimOp(Opcode::RecvNext, Type::Unit, ValueList::default(), span)
+            .0
+    }
+
+    fn recv_peek(self, span: SourceSpan) -> (Value, Value) {
+        let vlist = ValueList::default();
+        let (inst, dfg) = self.PrimOp(Opcode::RecvPeek, Type::Term(TermType::Any), vlist, span);
+        let results = dfg.inst_results(inst);
+        (results[0], results[1])
+    }
+
+    fn recv_pop(self, span: SourceSpan) -> Inst {
+        let vlist = ValueList::default();
+        self.PrimOp(Opcode::RecvPop, Type::Unit, vlist, span).0
+    }
+
+    fn recv_wait_timeout(mut self, timeout: Value, span: SourceSpan) -> Value {
         let mut vlist = ValueList::default();
         {
             let pool = &mut self.data_flow_graph_mut().value_lists;
             vlist.push(timeout, pool);
         }
-        let (inst, dfg) = self.PrimOp(Opcode::RecvStart, Type::RecvContext, vlist, span);
-        dfg.first_result(inst)
-    }
-
-    fn recv_next(mut self, recv_context: Value, span: SourceSpan) -> Value {
-        let mut vlist = ValueList::default();
-        {
-            let pool = &mut self.data_flow_graph_mut().value_lists;
-            vlist.push(recv_context, pool);
-        }
-        let (inst, dfg) = self.PrimOp(Opcode::RecvNext, Type::RecvState, vlist, span);
-        dfg.first_result(inst)
-    }
-
-    fn recv_peek(mut self, recv_context: Value, span: SourceSpan) -> Value {
-        let mut vlist = ValueList::default();
-        {
-            let pool = &mut self.data_flow_graph_mut().value_lists;
-            vlist.push(recv_context, pool);
-        }
-        let (inst, dfg) = self.PrimOp(Opcode::RecvPeek, Type::Term(TermType::Any), vlist, span);
-        dfg.first_result(inst)
-    }
-
-    fn recv_pop(mut self, recv_context: Value, span: SourceSpan) -> Inst {
-        let mut vlist = ValueList::default();
-        {
-            let pool = &mut self.data_flow_graph_mut().value_lists;
-            vlist.push(recv_context, pool);
-        }
-        self.PrimOp(Opcode::RecvPop, Type::Invalid, vlist, span).0
-    }
-
-    fn recv_wait(mut self, recv_context: Value, span: SourceSpan) -> Inst {
-        let mut vlist = ValueList::default();
-        {
-            let pool = &mut self.data_flow_graph_mut().value_lists;
-            vlist.push(recv_context, pool);
-        }
-        self.PrimOp(Opcode::RecvWait, Type::Invalid, vlist, span).0
-    }
-
-    fn bs_test_tail_imm(self, bin: Value, size: usize, span: SourceSpan) -> Value {
-        let (inst, dfg) = self.BinaryImm(
-            Opcode::BitsTestTail,
-            Type::Primitive(PrimitiveType::I1),
-            bin,
-            Immediate::Isize(size as isize),
+        let (inst, dfg) = self.PrimOp(
+            Opcode::RecvWaitTimeout,
+            Type::Term(TermType::Bool),
+            vlist,
             span,
         );
         dfg.first_result(inst)
     }
 
-    fn bs_start_match(mut self, bin: Value, span: SourceSpan) -> Inst {
+    fn bs_test_tail_imm(mut self, bin: Value, size: usize, span: SourceSpan) -> Value {
         let mut vlist = ValueList::default();
         {
             let pool = &mut self.data_flow_graph_mut().value_lists;
             vlist.push(bin, pool);
         }
-        self.PrimOp(Opcode::BitsMatchStart, Type::MatchContext, vlist, span)
-            .0
+        let (inst, dfg) = self.PrimOpImm(
+            Opcode::BitsTestTail,
+            Type::Term(TermType::Bool),
+            Immediate::Isize(size as isize),
+            vlist,
+            span,
+        );
+        dfg.first_result(inst)
+    }
+
+    fn bs_start_match(mut self, bin: Value, span: SourceSpan) -> (Value, Value) {
+        let mut vlist = ValueList::default();
+        {
+            let pool = &mut self.data_flow_graph_mut().value_lists;
+            vlist.push(bin, pool);
+        }
+        let (inst, dfg) = self.PrimOp(Opcode::BitsMatchStart, Type::MatchContext, vlist, span);
+        let results = dfg.inst_results(inst);
+        (results[0], results[1])
     }
 
     fn bs_match(
@@ -844,7 +979,7 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
         bin: Value,
         size: Option<Value>,
         span: SourceSpan,
-    ) -> Inst {
+    ) -> (Value, Value, Value) {
         let mut vlist = ValueList::default();
         {
             let pool = &mut self.data_flow_graph_mut().value_lists;
@@ -853,7 +988,9 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
                 vlist.push(sz, pool);
             }
         }
-        self.BitsMatch(spec, vlist, span).0
+        let (inst, dfg) = self.BitsMatch(spec, vlist, span);
+        let results = dfg.inst_results(inst);
+        (results[0], results[1], results[2])
     }
 
     fn bs_match_skip(
@@ -863,14 +1000,41 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
         size: Value,
         value: Immediate,
         span: SourceSpan,
-    ) -> Inst {
+    ) -> (Value, Value) {
         let mut vlist = ValueList::default();
         {
             let pool = &mut self.data_flow_graph_mut().value_lists;
             vlist.push(bin, pool);
             vlist.push(size, pool);
         }
-        self.BitsMatchSkip(spec, vlist, value, span).0
+        let (inst, dfg) = self.BitsMatchSkip(spec, vlist, value, span);
+        let results = dfg.inst_results(inst);
+        (results[0], results[1])
+    }
+
+    fn bs_init(self, span: SourceSpan) -> Value {
+        let (inst, dfg) = self.PrimOp(
+            Opcode::BitsInit,
+            Type::BinaryBuilder,
+            ValueList::default(),
+            span,
+        );
+        dfg.first_result(inst)
+    }
+
+    fn bs_finish(mut self, builder: Value, span: SourceSpan) -> Value {
+        let mut vlist = ValueList::default();
+        {
+            let pool = &mut self.data_flow_graph_mut().value_lists;
+            vlist.push(builder, pool);
+        }
+        let (inst, dfg) = self.PrimOp(
+            Opcode::BitsFinish,
+            Type::Term(TermType::Bitstring),
+            vlist,
+            span,
+        );
+        dfg.first_result(inst)
     }
 
     fn bs_push(
@@ -880,7 +1044,7 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
         value: Value,
         size: Option<Value>,
         span: SourceSpan,
-    ) -> Inst {
+    ) -> Value {
         let mut vlist = ValueList::default();
         {
             let pool = &mut self.data_flow_graph_mut().value_lists;
@@ -890,58 +1054,74 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
                 vlist.push(sz, pool);
             }
         }
-        self.BitsPush(spec, vlist, span).0
-    }
-
-    fn raise(mut self, class: Value, error: Value, trace: Value, span: SourceSpan) -> Inst {
-        let mut vlist = ValueList::default();
-        {
-            let pool = &mut self.data_flow_graph_mut().value_lists;
-            vlist.push(class, pool);
-            vlist.push(error, pool);
-            vlist.push(trace, pool);
-        }
-        self.PrimOp(Opcode::Raise, Type::Invalid, vlist, span).0
-    }
-
-    fn exception_class(mut self, exception: Value, span: SourceSpan) -> Value {
-        let mut vlist = ValueList::default();
-        {
-            let pool = &mut self.data_flow_graph_mut().value_lists;
-            vlist.push(exception, pool);
-        }
-        let (inst, dfg) = self.PrimOp(
-            Opcode::ExceptionClass,
-            Type::Term(TermType::Atom),
-            vlist,
-            span,
-        );
+        let (inst, dfg) = self.BitsPush(spec, vlist, span);
         dfg.first_result(inst)
     }
 
-    fn exception_reason(mut self, exception: Value, span: SourceSpan) -> Value {
+    fn start_catch(self, dest: Block, span: SourceSpan) -> Inst {
+        self.Catch(dest, span).0
+    }
+
+    fn end_catch(self, span: SourceSpan) -> Inst {
+        self.PrimOp(Opcode::EndCatch, Type::Unit, ValueList::default(), span)
+            .0
+    }
+
+    fn throw(mut self, reason: Value, span: SourceSpan) -> Inst {
         let mut vlist = ValueList::default();
         {
             let pool = &mut self.data_flow_graph_mut().value_lists;
-            vlist.push(exception, pool);
+            vlist.push(reason, pool);
         }
-        let (inst, dfg) = self.PrimOp(
-            Opcode::ExceptionReason,
-            Type::Term(TermType::Any),
-            vlist,
-            span,
-        );
+        self.PrimOp(Opcode::Throw, Type::Unit, vlist, span).0
+    }
+
+    fn error(mut self, reason: Value, span: SourceSpan) -> Inst {
+        let mut vlist = ValueList::default();
+        {
+            let pool = &mut self.data_flow_graph_mut().value_lists;
+            vlist.push(reason, pool);
+        }
+        self.PrimOp(Opcode::Error, Type::Unit, vlist, span).0
+    }
+
+    fn exit1(mut self, reason: Value, span: SourceSpan) -> Inst {
+        let mut vlist = ValueList::default();
+        {
+            let pool = &mut self.data_flow_graph_mut().value_lists;
+            vlist.push(reason, pool);
+        }
+        self.PrimOp(Opcode::Exit1, Type::Unit, vlist, span).0
+    }
+
+    fn exit2(mut self, pid: Value, reason: Value, span: SourceSpan) -> Value {
+        let mut vlist = ValueList::default();
+        {
+            let pool = &mut self.data_flow_graph_mut().value_lists;
+            vlist.push(pid, pool);
+            vlist.push(reason, pool);
+        }
+        let (inst, dfg) = self.PrimOp(Opcode::Exit2, Type::Term(TermType::Bool), vlist, span);
         dfg.first_result(inst)
     }
 
-    fn exception_trace(mut self, exception: Value, span: SourceSpan) -> Value {
+    fn halt(mut self, args: &[Value], span: SourceSpan) -> Inst {
         let mut vlist = ValueList::default();
         {
             let pool = &mut self.data_flow_graph_mut().value_lists;
-            vlist.push(exception, pool);
+            vlist.extend(args.iter().copied(), pool);
+        }
+        self.PrimOp(Opcode::Halt, Type::Unit, vlist, span).0
+    }
+
+    fn stacktrace(mut self, raw: Value, span: SourceSpan) -> Value {
+        let mut vlist = ValueList::default();
+        {
+            let pool = &mut self.data_flow_graph_mut().value_lists;
+            vlist.push(raw, pool);
         }
         let (inst, dfg) = self.PrimOp(
-            Opcode::ExceptionTrace,
+            Opcode::BuildStacktrace,
             Type::Term(TermType::List(None)),
             vlist,
             span,
@@ -978,6 +1158,11 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
     unary_bool_op!(not, Opcode::Not);
     unary_int_op!(bnot, Opcode::Bnot);
 
+    fn send(self, pid: Value, message: Value, span: SourceSpan) -> Value {
+        let (inst, dfg) = self.Binary(Opcode::Send, Type::Term(TermType::Any), pid, message, span);
+        dfg.first_result(inst)
+    }
+
     fn list_concat(self, lhs: Value, rhs: Value, span: SourceSpan) -> Value {
         let (inst, dfg) = self.Binary(
             Opcode::ListConcat,
@@ -1005,10 +1190,10 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
         self,
         ty: Type,
         callee: FuncRef,
-        env: ValueList,
+        args: ValueList,
         span: SourceSpan,
     ) -> (Inst, &'f mut DataFlowGraph) {
-        let data = InstData::MakeFun(MakeFun { callee, env });
+        let data = InstData::MakeFun(MakeFun { callee, args });
         self.build(data, ty, span)
     }
 
@@ -1027,7 +1212,7 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
             then_dest: (then_dest, then_args),
             else_dest: (else_dest, else_args),
         });
-        self.build(data, Type::Invalid, span)
+        self.build(data, Type::Unit, span)
     }
 
     #[allow(non_snake_case)]
@@ -1061,36 +1246,16 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
             arms,
             default,
         });
-        self.build(data, Type::Invalid, span)
+        self.build(data, Type::Unit, span)
     }
 
     #[allow(non_snake_case)]
-    fn Ret(
-        self,
-        is_err: Value,
-        returning: Value,
-        span: SourceSpan,
-    ) -> (Inst, &'f mut DataFlowGraph) {
+    fn Ret(self, args: ValueList, span: SourceSpan) -> (Inst, &'f mut DataFlowGraph) {
         let data = InstData::Ret(Ret {
             op: Opcode::Ret,
-            args: [is_err, returning],
+            args,
         });
-        self.build(data, Type::Invalid, span)
-    }
-
-    #[allow(non_snake_case)]
-    fn RetImm(
-        self,
-        is_err: Immediate,
-        returning: Value,
-        span: SourceSpan,
-    ) -> (Inst, &'f mut DataFlowGraph) {
-        let data = InstData::RetImm(RetImm {
-            op: Opcode::Ret,
-            imm: is_err,
-            arg: returning,
-        });
-        self.build(data, Type::Invalid, span)
+        self.build(data, Type::Unit, span)
     }
 
     #[allow(non_snake_case)]
@@ -1098,11 +1263,17 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
         self,
         op: Opcode,
         callee: FuncRef,
+        cc: CallConv,
         args: ValueList,
         span: SourceSpan,
     ) -> (Inst, &'f mut DataFlowGraph) {
-        let data = InstData::Call(Call { op, callee, args });
-        self.build(data, Type::Invalid, span)
+        let data = InstData::Call(Call {
+            op,
+            callee,
+            cc,
+            args,
+        });
+        self.build(data, Type::Unit, span)
     }
 
     #[allow(non_snake_case)]
@@ -1110,11 +1281,17 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
         self,
         op: Opcode,
         callee: Value,
+        cc: CallConv,
         args: ValueList,
         span: SourceSpan,
     ) -> (Inst, &'f mut DataFlowGraph) {
-        let data = InstData::CallIndirect(CallIndirect { op, callee, args });
-        self.build(data, Type::Invalid, span)
+        let data = InstData::CallIndirect(CallIndirect {
+            op,
+            callee,
+            cc,
+            args,
+        });
+        self.build(data, Type::Unit, span)
     }
 
     #[allow(non_snake_case)]
@@ -1189,6 +1366,15 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
     }
 
     #[allow(non_snake_case)]
+    fn Catch(self, dest: Block, span: SourceSpan) -> (Inst, &'f mut DataFlowGraph) {
+        let data = InstData::Catch(Catch {
+            op: Opcode::StartCatch,
+            dest,
+        });
+        self.build(data, Type::Unit, span)
+    }
+
+    #[allow(non_snake_case)]
     fn PrimOp(
         self,
         op: Opcode,
@@ -1242,7 +1428,7 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
         span: SourceSpan,
     ) -> (Inst, &'f mut DataFlowGraph) {
         let data = InstData::BitsMatchSkip(BitsMatchSkip { spec, args, value });
-        self.build(data, Type::Invalid, span)
+        self.build(data, Type::Unit, span)
     }
 
     #[allow(non_snake_case)]

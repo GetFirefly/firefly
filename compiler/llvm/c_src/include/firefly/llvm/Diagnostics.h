@@ -1,6 +1,7 @@
-#ifndef FIREFLY_DIAGNOSTICS_H
-#define FIREFLY_DIAGNOSTICS_H
+#pragma once
 
+#include "mlir-c/Support.h"
+#include "llvm-c/Types.h"
 #include "llvm/IR/DiagnosticInfo.h"
 
 namespace llvm {
@@ -39,4 +40,37 @@ static DiagnosticKind toDiagnosticKind(llvm::DiagnosticKind Kind);
 
 } // namespace firefly
 
-#endif
+extern "C" {
+
+MLIR_CAPI_EXPORTED firefly::DiagnosticKind
+LLVMFireflyGetDiagInfoKind(LLVMDiagnosticInfoRef di);
+
+MLIR_CAPI_EXPORTED bool
+LLVMFireflyOptimizationDiagnosticIsVerbose(LLVMDiagnosticInfoRef d);
+
+MLIR_CAPI_EXPORTED MlirStringRef
+LLVMFireflyOptimizationDiagnosticPassName(LLVMDiagnosticInfoRef d);
+
+MLIR_CAPI_EXPORTED MlirStringRef
+LLVMFireflyOptimizationDiagnosticRemarkName(LLVMDiagnosticInfoRef d);
+
+MLIR_CAPI_EXPORTED const char *
+LLVMFireflyOptimizationDiagnosticMessage(LLVMDiagnosticInfoRef d);
+
+MLIR_CAPI_EXPORTED LLVMValueRef
+LLVMFireflyOptimizationDiagnosticCodeRegion(LLVMDiagnosticInfoRef d);
+
+MLIR_CAPI_EXPORTED LLVMValueRef
+LLVMFireflyDiagnosticWithLocFunction(LLVMDiagnosticInfoRef d);
+
+MLIR_CAPI_EXPORTED bool
+LLVMFireflyDiagnosticWithLocSourceLoc(LLVMDiagnosticInfoRef d,
+                                      MlirStringRef *relativePath,
+                                      unsigned *line, unsigned *col);
+
+MLIR_CAPI_EXPORTED LLVMValueRef
+LLVMFireflyISelFallbackDiagnosticFunction(LLVMDiagnosticInfoRef di);
+
+MLIR_CAPI_EXPORTED const char *
+LLVMFireflyUnsupportedDiagnosticMessage(LLVMDiagnosticInfoRef di);
+}

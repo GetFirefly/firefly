@@ -4,24 +4,34 @@ mod slice;
 pub use self::matching::{MatchContext, MatchResult};
 pub use self::slice::BitSlice;
 
-use alloc::alloc::{AllocError, Allocator};
+use alloc::alloc::{AllocError, Allocator, Global, Layout};
 use alloc::borrow::Cow;
+use alloc::boxed::Box;
 use alloc::string::String;
+use alloc::sync::Arc;
 use core::any::TypeId;
 use core::fmt;
 use core::hash::{Hash, Hasher};
 use core::ops::{Index, IndexMut};
+use core::ptr::{self, NonNull};
 use core::slice::SliceIndex;
 
-use firefly_alloc::gc::GcBox;
-use firefly_alloc::rc::Rc;
-use firefly_binary::{Aligned, Binary, BinaryFlags, Bitstring, Encoding};
+use firefly_alloc::heap::Heap;
+use firefly_binary::{Aligned, Binary, BinaryFlags, Bitstring, Encoding, Selection};
 
-/// This represents binary data, i.e. byte-aligned, with a number of bits
-/// divisible by 8 evenly.
-#[repr(C, align(16))]
+use crate::gc::Gc;
+
+use super::{Boxable, Header, Metadata, Tag};
+
+/// This struct is used to represent both binary _and_ bitstring data.
+///
+/// Data is always stored aligned, but with a possibly non-zero number of trailing bits.
+///
+/// The binary flags, contained in the header, can be used to tell whether or not this data
+/// is binary or bitstring, and if the latter, how many trailing bits are in the last byte.
+#[repr(C)]
 pub struct BinaryData {
-    flags: BinaryFlags,
+    header: Header,
     data: [u8],
 }
 impl<I> Index<I> for BinaryData
@@ -50,10 +60,44 @@ impl BinaryData {
     /// The maximum size of a binary stored on a process heap, in bytes
     pub const MAX_HEAP_BYTES: usize = 64;
 
+    /// Creates a constant utf-8 encoded `BinaryData` value.
+    ///
+    /// See the usage notes on [`make_constant`]
+    pub const fn make_constant_utf8(s: &'static str) -> &'static Self {
+        let bytes = s.as_bytes();
+        Self::make_constant(BinaryFlags::new(bytes.len(), Encoding::Utf8), bytes)
+    }
+
+    /// Creates a constant `BinaryData` value
+    ///
+    /// This is intended for use at compile-time only, in order to more efficiently construct strings
+    /// in the runtime which are used in Erlang code without requiring runtime allocations
+    pub const fn make_constant(flags: BinaryFlags, bytes: &'static [u8]) -> &'static Self {
+        use core::intrinsics::const_allocate;
+
+        let size = bytes.len();
+        assert!(size == flags.size());
+        unsafe {
+            let array: *const [u8] = ptr::from_raw_parts(ptr::null(), size);
+            let (layout, value_offset) =
+                match Layout::new::<Header>().extend(Layout::for_value_raw(array)) {
+                    Ok(result) => result,
+                    Err(_) => unreachable!(),
+                };
+            let ptr = const_allocate(layout.size(), layout.align());
+            let data_ptr = ptr.add(value_offset);
+            let header_ptr = ptr as *mut Header;
+            header_ptr.write(Header::new(Tag::Binary, flags.into_raw()));
+            ptr::copy_nonoverlapping(bytes.as_ptr(), data_ptr, size);
+            let ptr: *const BinaryData = ptr::from_raw_parts(ptr.cast_const().cast(), size);
+            &*ptr
+        }
+    }
+
     /// Overrides the flags/metadata of this binary data
     pub unsafe fn set_flags(&mut self, flags: BinaryFlags) {
-        // We force the size value of the provided flags to match the actual size
-        self.flags = flags.with_size(self.data.len());
+        let meta = <BinaryFlags as Metadata<Self>>::pack(flags);
+        self.header.set_arity(meta);
     }
 
     /// Returns the size in bytes of the underlying data
@@ -70,60 +114,140 @@ impl BinaryData {
         self.data.copy_from_slice(bytes)
     }
 
-    /// Constructs an Rc<BinaryData> from the given string.
+    /// Copies the bytes from the given selection into `self`
+    ///
+    /// NOTE: The length of the selection must match the capacity of `self`, or the function will panic
+    pub fn copy_from_selection(&mut self, selection: Selection<'_>) {
+        assert_eq!(self.len(), selection.byte_size());
+        let trailing_bits = selection.write_bytes_to_buffer(&mut self.data);
+        if trailing_bits > 0 {
+            let flags = self.metadata();
+            let meta = <BinaryFlags as Metadata<Self>>::pack(
+                flags.with_trailing_bits(trailing_bits as usize),
+            );
+            self.header.set_arity(meta);
+        } else {
+            let encoding = Encoding::detect(&self.data);
+            let meta =
+                <BinaryFlags as Metadata<Self>>::pack(BinaryFlags::new(self.len(), encoding));
+            self.header.set_arity(meta);
+        }
+    }
+
+    /// Constructs a new boxed `BinaryData` from the given string.
+    ///
+    /// The size of the given string must be <= 64 bytes.
+    pub fn from_small_str<A: ?Sized + Allocator>(
+        s: &str,
+        alloc: &A,
+    ) -> Result<Gc<BinaryData>, AllocError> {
+        let bytes = s.as_bytes();
+        assert!(bytes.len() <= 64);
+        let mut boxed = Gc::<BinaryData>::with_capacity_in(bytes.len(), alloc)?;
+        {
+            let meta = <BinaryFlags as Metadata<Self>>::pack(BinaryFlags::new(
+                bytes.len(),
+                Encoding::Utf8,
+            ));
+            boxed.header = Header::new(Tag::Binary, meta);
+            boxed.copy_from_slice(bytes);
+        }
+        Ok(boxed)
+    }
+
+    /// Constructs an Arc<BinaryData> from the given string.
     ///
     /// The encoding of the resulting BinaryData is always UTF-8.
     ///
-    /// NOTE: This function always allocates via Rc, even if the binary is smaller than 64 bytes.
-    pub fn from_str(s: &str) -> Rc<BinaryData> {
+    /// NOTE: This function always allocates via Arc, even if the binary is smaller than 64 bytes.
+    pub fn from_str(s: &str) -> Arc<BinaryData> {
         let bytes = s.as_bytes();
-        let mut rcbox = Rc::<BinaryData>::with_capacity(bytes.len());
+        let byte_size = bytes.len();
+        let placeholder: *const BinaryData = ptr::from_raw_parts(ptr::null(), byte_size);
+        let layout = unsafe { Layout::for_value_raw(placeholder) };
+        let ptr: NonNull<()> = Global.allocate(layout).unwrap().cast();
+        let ptr: *mut BinaryData = ptr::from_raw_parts_mut(ptr.as_ptr(), byte_size);
+        let mut boxed = unsafe { Box::from_raw(ptr) };
         {
-            let value = unsafe { Rc::get_mut_unchecked(&mut rcbox) };
-            value.flags = BinaryFlags::new(bytes.len(), Encoding::Utf8);
-            value.copy_from_slice(bytes);
+            let meta =
+                <BinaryFlags as Metadata<Self>>::pack(BinaryFlags::new(byte_size, Encoding::Utf8));
+            boxed.header = Header::new(Tag::Binary, meta);
+            boxed.copy_from_slice(bytes);
         }
-        rcbox
+        Arc::from(boxed)
     }
 
-    pub fn with_capacity_small<A: Allocator>(
-        cap: usize,
-        alloc: A,
-    ) -> Result<GcBox<BinaryData>, AllocError> {
-        assert!(cap <= 64);
-        let mut gcbox = GcBox::<BinaryData>::with_capacity_in(cap, alloc)?;
+    pub fn clone_from_small<A: ?Sized + Allocator>(
+        &self,
+        alloc: &A,
+    ) -> Result<Gc<Self>, AllocError> {
+        let mut cloned = Self::with_capacity_small(self.data.len(), alloc)?;
         {
-            gcbox.flags = BinaryFlags::new(cap, Encoding::Raw);
+            cloned.header = self.header;
+            cloned.data.copy_from_slice(&self.data);
+        }
+        Ok(cloned)
+    }
+
+    pub fn with_capacity_small<A: ?Sized + Allocator>(
+        cap: usize,
+        alloc: &A,
+    ) -> Result<Gc<BinaryData>, AllocError> {
+        assert!(cap <= 64);
+        let mut gcbox = Gc::<BinaryData>::with_capacity_in(cap, alloc)?;
+        {
+            let meta = <BinaryFlags as Metadata<Self>>::pack(BinaryFlags::new(cap, Encoding::Raw));
+            gcbox.header = Header::new(Tag::Binary, meta);
         }
         Ok(gcbox)
     }
 
-    pub fn with_capacity_large<A: Allocator>(
-        cap: usize,
-        alloc: A,
-    ) -> Result<Rc<BinaryData>, AllocError> {
+    pub fn with_capacity_large(cap: usize) -> Arc<BinaryData> {
         assert!(cap > 64);
-        let mut rcbox = Rc::<BinaryData>::with_capacity_in(cap, alloc)?;
+        let placeholder: *const BinaryData = ptr::from_raw_parts(ptr::null(), cap);
+        let layout = unsafe { Layout::for_value_raw(placeholder) };
+        let ptr: NonNull<()> = Global.allocate(layout).unwrap().cast();
+        let ptr: *mut BinaryData = ptr::from_raw_parts_mut(ptr.as_ptr(), cap);
+        let mut boxed = unsafe { Box::from_raw(ptr) };
         {
-            let value = unsafe { Rc::get_mut_unchecked(&mut rcbox) };
-            value.flags = BinaryFlags::new(cap, Encoding::Raw);
+            let meta = <BinaryFlags as Metadata<Self>>::pack(BinaryFlags::new(cap, Encoding::Raw));
+            boxed.header = Header::new(Tag::Binary, meta);
         }
-        Ok(rcbox)
+        Arc::from(boxed)
     }
 
-    /// Constructs an Rc<BinaryData> from the given byte slice.
+    /// Constructs a new boxed `BinaryData` from the given bytes.
+    ///
+    /// The size of the given slice must be <= 64 bytes.
+    pub fn from_small_bytes<A: ?Sized + Allocator>(
+        bytes: &[u8],
+        alloc: &A,
+    ) -> Result<Gc<BinaryData>, AllocError> {
+        assert!(bytes.len() <= 64);
+        let encoding = Encoding::detect(bytes);
+        let mut boxed = Gc::<BinaryData>::with_capacity_in(bytes.len(), alloc)?;
+        {
+            let meta =
+                <BinaryFlags as Metadata<Self>>::pack(BinaryFlags::new(bytes.len(), encoding));
+            boxed.header = Header::new(Tag::Binary, meta);
+            boxed.copy_from_slice(bytes);
+        }
+        Ok(boxed)
+    }
+
+    /// Constructs an Arc<BinaryData> from the given byte slice.
     ///
     /// The encoding of the given data is detected by examining the bytes. If you
     /// wish to construct a binary from a byte slice with a manually-specified encoding, use
     /// `from_bytes_with_encoding`.
     ///
-    /// NOTE: This function always allocates via Rc, even if the binary is smaller than 64 bytes.
-    pub fn from_bytes(bytes: &[u8]) -> Rc<BinaryData> {
+    /// NOTE: This function always allocates via Arc, even if the binary is smaller than 64 bytes.
+    pub fn from_bytes(bytes: &[u8]) -> Arc<BinaryData> {
         let encoding = Encoding::detect(bytes);
         unsafe { Self::from_bytes_with_encoding(bytes, encoding) }
     }
 
-    /// Constructs an Rc<BinaryData> from the given byte slice.
+    /// Constructs an Arc<BinaryData> from the given byte slice.
     ///
     /// # Safety
     ///
@@ -131,14 +255,19 @@ impl BinaryData {
     /// of those encodings assumed by other runtime functions. The caller must be sure that
     /// the given bytes are valid for the specified encoding, preferably by having run validation
     /// checks in a previous step.
-    pub unsafe fn from_bytes_with_encoding(bytes: &[u8], encoding: Encoding) -> Rc<BinaryData> {
-        let mut rcbox = Rc::<BinaryData>::with_capacity(bytes.len());
+    pub unsafe fn from_bytes_with_encoding(bytes: &[u8], encoding: Encoding) -> Arc<BinaryData> {
+        let byte_size = bytes.len();
+        let placeholder: *const BinaryData = ptr::from_raw_parts(ptr::null(), byte_size);
+        let layout = unsafe { Layout::for_value_raw(placeholder) };
+        let ptr: NonNull<()> = Global.allocate(layout).unwrap().cast();
+        let ptr: *mut BinaryData = ptr::from_raw_parts_mut(ptr.as_ptr(), byte_size);
+        let mut boxed = unsafe { Box::from_raw(ptr) };
         {
-            let value = Rc::get_mut_unchecked(&mut rcbox);
-            value.flags = BinaryFlags::new(bytes.len(), encoding);
-            value.copy_from_slice(bytes);
+            let meta = <BinaryFlags as Metadata<Self>>::pack(BinaryFlags::new(byte_size, encoding));
+            boxed.header = Header::new(Tag::Binary, meta);
+            boxed.copy_from_slice(bytes);
         }
-        rcbox
+        Arc::from(boxed)
     }
 }
 impl fmt::Debug for BinaryData {
@@ -211,8 +340,14 @@ impl Bitstring for BinaryData {
     }
 
     #[inline]
+    fn trailing_bits(&self) -> u8 {
+        self.metadata().trailing_bits() as u8
+    }
+
+    #[inline]
     fn bit_size(&self) -> usize {
-        self.len() * 8
+        let trailing_bits = self.metadata().trailing_bits();
+        (self.len() * 8) - ((8 - trailing_bits) * (trailing_bits > 0) as usize)
     }
 
     #[inline(always)]
@@ -222,7 +357,7 @@ impl Bitstring for BinaryData {
 
     #[inline(always)]
     fn is_binary(&self) -> bool {
-        true
+        !self.metadata().is_bitstring()
     }
 
     #[inline]
@@ -242,7 +377,7 @@ impl Bitstring for BinaryData {
 impl Binary for BinaryData {
     #[inline]
     fn flags(&self) -> BinaryFlags {
-        self.flags
+        self.metadata()
     }
 
     #[inline]
@@ -254,3 +389,32 @@ impl Binary for BinaryData {
     }
 }
 impl Aligned for BinaryData {}
+impl Boxable for BinaryData {
+    type Metadata = BinaryFlags;
+
+    const TAG: Tag = Tag::Binary;
+
+    #[inline]
+    fn header(&self) -> &Header {
+        &self.header
+    }
+
+    #[inline]
+    fn header_mut(&mut self) -> &mut Header {
+        &mut self.header
+    }
+
+    fn unsafe_clone_to_heap<H: ?Sized + Heap>(&self, heap: &H) -> Gc<Self> {
+        assert!(self.byte_size() <= Self::MAX_HEAP_BYTES);
+
+        let ptr = self as *const Self;
+        if heap.contains(ptr.cast()) {
+            return unsafe { Gc::from_raw(ptr.cast_mut()) };
+        }
+
+        let mut cloned = Self::with_capacity_small(self.byte_size(), heap).unwrap();
+        cloned.header = self.header;
+        cloned.data.copy_from_slice(&self.data);
+        cloned
+    }
+}

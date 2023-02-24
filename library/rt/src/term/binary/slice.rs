@@ -1,21 +1,26 @@
-use core::any::TypeId;
+use alloc::alloc::Layout;
+use core::assert_matches::debug_assert_matches;
 use core::fmt;
 use core::hash::{Hash, Hasher};
 
+use firefly_alloc::clone::WriteCloneIntoRaw;
+use firefly_alloc::heap::Heap;
 use firefly_binary::{Bitstring, Selection};
 
-use crate::term::OpaqueTerm;
+use crate::gc::Gc;
+use crate::term::{BinaryData, Boxable, Header, LayoutBuilder, OpaqueTerm, Tag, Term};
 
 /// A slice of another binary or bitstring value
 #[repr(C)]
 pub struct BitSlice {
+    header: Header,
     /// This a thin pointer to the original term we're borrowing from
     /// This is necessary to properly keep the owner live, either from the perspective
     /// of the garbage collector, or reference counting, until this slice is no
     /// longer needed.
     ///
     /// If the original data is not from a term, this will be None
-    owner: OpaqueTerm,
+    pub(crate) owner: OpaqueTerm,
     /// We give the selection static lifetime because we are managing the lifetime
     /// of the referenced data manually. The Rust borrow checker is of no help to
     /// us with most term data structures, due to their lifetimes being tied to a
@@ -25,8 +30,6 @@ pub struct BitSlice {
     selection: Selection<'static>,
 }
 impl BitSlice {
-    pub const TYPE_ID: TypeId = TypeId::of::<BitSlice>();
-
     /// Create a new BitSlice.
     ///
     /// # Safety
@@ -41,13 +44,52 @@ impl BitSlice {
         let selection =
             Selection::new(data, 0, bit_offset, None, num_bits).expect("invalid selection");
 
-        Self { owner, selection }
+        Self {
+            header: Header::new(Tag::Slice, 0),
+            owner,
+            selection,
+        }
+    }
+
+    /// Returns the term from which this bit slice is derived
+    #[inline]
+    pub fn owner(&self) -> Term {
+        self.owner.into()
+    }
+
+    /// Returns a raw pointer pointing to the owner term on a process heap
+    ///
+    /// This function may only be called when the owner of the underlying data
+    /// is a heap binary, _not_ a ref-counted binary. No other term types are
+    /// allowed for bit slices currently.
+    ///
+    /// This is only used internally for heap containment checks.
+    pub(crate) unsafe fn owner_ptr(&self) -> *const () {
+        let ptr = self.owner.as_ptr();
+        debug_assert_matches!(self.owner(), Term::HeapBinary(_));
+        ptr
+    }
+
+    /// Returns true if the term from which this bit slice is derived is a literal binary
+    #[inline]
+    pub fn is_owner_literal(&self) -> bool {
+        self.owner.is_literal()
+    }
+
+    /// Returns true if the term from which this bit slice is derived is a ref-counted binary
+    #[inline]
+    pub fn is_owner_refcounted(&self) -> bool {
+        self.owner.is_rc()
     }
 
     /// Create a BitSlice from an existing selection and its owning term
     #[inline]
     pub fn from_selection(owner: OpaqueTerm, selection: Selection<'static>) -> Self {
-        Self { owner, selection }
+        Self {
+            header: Header::new(Tag::Slice, 0),
+            owner,
+            selection,
+        }
     }
 
     /// Returns the selection represented by this slice
@@ -80,6 +122,7 @@ impl Bitstring for BitSlice {
 impl Clone for BitSlice {
     fn clone(&self) -> Self {
         let cloned = Self {
+            header: Header::new(Tag::Slice, 0),
             owner: self.owner,
             selection: self.selection,
         };
@@ -133,5 +176,72 @@ impl Hash for BitSlice {
 impl fmt::Display for BitSlice {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", &self.selection)
+    }
+}
+impl Boxable for BitSlice {
+    type Metadata = ();
+
+    const TAG: Tag = Tag::Slice;
+
+    #[inline]
+    fn header(&self) -> &Header {
+        &self.header
+    }
+
+    #[inline]
+    fn header_mut(&mut self) -> &mut Header {
+        &mut self.header
+    }
+
+    fn layout_excluding_heap<H: ?Sized + Heap>(&self, heap: &H) -> Layout {
+        if heap.contains((self as *const Self).cast()) {
+            return Layout::new::<()>();
+        }
+        let mut builder = LayoutBuilder::new();
+        builder += Layout::new::<Self>();
+        // If the referenced data is ref-counted, and is larger than a heap binary, its better to clone
+        // the slice rather than the data. If the data is not ref-counted, or is a candidate for a heap
+        // allocated binary, clone just the data referenced by the slice
+        if !self.owner.is_literal() {
+            let byte_size = self.byte_size();
+            if byte_size <= BinaryData::MAX_HEAP_BYTES {
+                builder.build_heap_binary(byte_size);
+            }
+        }
+        builder.finish()
+    }
+
+    fn unsafe_clone_to_heap<H: ?Sized + Heap>(&self, heap: &H) -> Gc<Self> {
+        let ptr = self as *const Self;
+        if heap.contains(ptr.cast()) {
+            unsafe { Gc::from_raw(ptr.cast_mut()) }
+        } else {
+            if self.owner.is_literal() {
+                let mut cloned = Gc::new_uninit_in(heap).unwrap();
+                unsafe {
+                    self.write_clone_into_raw(cloned.as_mut_ptr());
+                    return cloned.assume_init();
+                }
+            }
+
+            if self.is_owner_refcounted() {
+                self.owner.maybe_increment_refcount();
+                let mut cloned = Gc::new_uninit_in(heap).unwrap();
+                unsafe {
+                    self.write_clone_into_raw(cloned.as_mut_ptr());
+                    return cloned.assume_init();
+                }
+            }
+
+            let byte_size = self.byte_size();
+            assert!(byte_size <= BinaryData::MAX_HEAP_BYTES);
+            let mut owner = Gc::<BinaryData>::with_capacity_in(byte_size, heap).unwrap();
+            let selection = self.as_selection();
+            let bit_size = selection.bit_size();
+            owner.copy_from_selection(selection);
+            let bytes = unsafe { owner.as_bytes_unchecked() };
+            let clone = unsafe { Self::new(owner.into(), bytes, 0, bit_size) };
+            Gc::new_in(clone, heap).unwrap()
+        }
     }
 }

@@ -190,13 +190,7 @@ impl Spanned for Attribute {
             | Self::OnLoad(span, _)
             | Self::Nifs(span, _)
             | Self::Behaviour(span, _) => *span,
-            Self::Deprecation(deprecations) => {
-                if let Some(d) = deprecations.first() {
-                    d.span()
-                } else {
-                    SourceSpan::UNKNOWN
-                }
-            }
+            Self::Deprecation(deprecations) => deprecations.first().map(|d| d.span()).unwrap(),
         }
     }
 }

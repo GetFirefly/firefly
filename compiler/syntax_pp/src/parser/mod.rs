@@ -29,9 +29,9 @@ mod errors;
 
 use std::sync::Arc;
 
-use firefly_diagnostics::{CodeMap, Diagnostic, Reporter, SourceIndex};
 use firefly_parser::{Parse as GParse, Parser as GParser};
 use firefly_parser::{Scanner, Source};
+use firefly_util::diagnostics::{CodeMap, DiagnosticsHandler, SourceIndex};
 
 pub use self::errors::ParserError;
 
@@ -53,7 +53,7 @@ impl GParse for ast::Ast {
 
     fn parse<S>(
         parser: &GParser<Self::Config>,
-        reporter: Reporter,
+        diagnostics: &DiagnosticsHandler,
         source: S,
     ) -> Result<Self, Self::Error>
     where
@@ -61,28 +61,20 @@ impl GParse for ast::Ast {
     {
         let scanner = Scanner::new(source);
         let lexer = Lexer::new(scanner);
-        Self::parse_tokens(reporter, parser.codemap.clone(), lexer)
+        Self::parse_tokens(diagnostics, parser.codemap.clone(), lexer)
     }
 
     fn parse_tokens<S>(
-        reporter: Reporter,
+        diagnostics: &DiagnosticsHandler,
         codemap: Arc<CodeMap>,
         tokens: S,
     ) -> Result<Self, Self::Error>
     where
         S: IntoIterator<Item = Self::Token>,
     {
-        let result = Self::Parser::new().parse(&reporter, &codemap, tokens);
+        let result = Self::Parser::new().parse(diagnostics, &codemap, tokens);
         match result {
-            Ok(ast) => {
-                if reporter.is_failed() {
-                    return Err(ParserError::ShowDiagnostic {
-                        diagnostic: Diagnostic::error()
-                            .with_message("parsing failed, see diagnostics for details"),
-                    });
-                }
-                Ok(ast)
-            }
+            Ok(ast) => Ok(ast),
             Err(lalrpop_util::ParseError::User { error }) => Err(error.into()),
             Err(err) => Err(ParserError::from(err).into()),
         }
@@ -101,7 +93,7 @@ impl GParse for ast::Root {
 
     fn parse<S>(
         parser: &GParser<Self::Config>,
-        reporter: Reporter,
+        diagnostics: &DiagnosticsHandler,
         source: S,
     ) -> Result<Self, Self::Error>
     where
@@ -109,28 +101,20 @@ impl GParse for ast::Root {
     {
         let scanner = Scanner::new(source);
         let lexer = Lexer::new(scanner);
-        Self::parse_tokens(reporter, parser.codemap.clone(), lexer)
+        Self::parse_tokens(diagnostics, parser.codemap.clone(), lexer)
     }
 
     fn parse_tokens<S>(
-        reporter: Reporter,
+        diagnostics: &DiagnosticsHandler,
         codemap: Arc<CodeMap>,
         tokens: S,
     ) -> Result<Self, Self::Error>
     where
         S: IntoIterator<Item = Self::Token>,
     {
-        let result = Self::Parser::new().parse(&reporter, &codemap, tokens);
+        let result = Self::Parser::new().parse(diagnostics, &codemap, tokens);
         match result {
-            Ok(root) => {
-                if reporter.is_failed() {
-                    return Err(ParserError::ShowDiagnostic {
-                        diagnostic: Diagnostic::error()
-                            .with_message("parsing failed, see diagnostics for details"),
-                    });
-                }
-                Ok(root)
-            }
+            Ok(root) => Ok(root),
             Err(lalrpop_util::ParseError::User { error }) => Err(error.into()),
             Err(err) => Err(ParserError::from(err).into()),
         }
@@ -141,28 +125,25 @@ impl GParse for ast::Root {
 mod test {
     use std::sync::Arc;
 
-    use firefly_diagnostics::*;
+    use firefly_util::diagnostics::*;
 
     use super::*;
     use crate::ast::*;
-
-    fn fail_with(reporter: Reporter, codemap: &CodeMap, message: &'static str) -> ! {
-        reporter.print(codemap);
-        panic!("{}", message);
-    }
 
     fn parse<T, S>(codemap: Arc<CodeMap>, input: S) -> T
     where
         T: Parse<T, Config = (), Error = ParserError>,
         S: AsRef<str>,
     {
-        let errors = Reporter::new();
+        let emitter = Arc::new(DefaultEmitter::new(ColorChoice::Auto));
+        let diagnostics =
+            DiagnosticsHandler::new(DiagnosticsConfig::default(), codemap.clone(), emitter);
         let parser = Parser::new((), codemap);
-        match parser.parse_string::<T, S, ParserError>(errors.clone(), input) {
+        match parser.parse_string::<T, S, ParserError>(&diagnostics, input) {
             Ok(ast) => return ast,
             Err(err) => {
-                errors.diagnostic(err.to_diagnostic());
-                fail_with(errors, &parser.codemap, "parse failed")
+                diagnostics.error(err);
+                panic!("parse failed");
             }
         }
     }

@@ -50,6 +50,22 @@ impl TryFrom<ValueBase> for ConstantValue {
         }
     }
 }
+impl From<Function> for ConstantValue {
+    fn from(fun: Function) -> Self {
+        Self(fun.base())
+    }
+}
+impl TryFrom<GlobalVariable> for ConstantValue {
+    type Error = InvalidTypeCastError;
+
+    fn try_from(value: GlobalVariable) -> Result<Self, Self::Error> {
+        if value.is_constant() {
+            Ok(Self(value.base()))
+        } else {
+            value.base().try_into()
+        }
+    }
+}
 
 /// Represents an undefined initial value of some type
 #[repr(transparent)]

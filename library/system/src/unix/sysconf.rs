@@ -1,21 +1,30 @@
-use lazy_static::lazy_static;
+use crate::sync::OnceLock;
 
-lazy_static! {
-    static ref PAGE_SIZE: usize = unsafe { libc::sysconf(libc::_SC_PAGESIZE) as usize };
-}
-
-lazy_static! {
-    static ref NUM_CPUS: usize = get_num_cpus();
-}
+static SYSTEM_INFO: OnceLock<SystemInfo> = OnceLock::new();
 
 #[inline]
 pub fn page_size() -> usize {
-    *PAGE_SIZE
+    SYSTEM_INFO.get_or_init(SystemInfo::get).page_size
 }
 
 #[inline]
 pub fn num_cpus() -> usize {
-    *NUM_CPUS
+    SYSTEM_INFO.get_or_init(SystemInfo::get).num_cpus
+}
+
+#[derive(Copy, Clone)]
+struct SystemInfo {
+    page_size: usize,
+    num_cpus: usize,
+}
+impl SystemInfo {
+    fn get() -> Self {
+        let page_size = unsafe { libc::sysconf(libc::_SC_PAGESIZE) as usize };
+        Self {
+            page_size,
+            num_cpus: get_num_cpus(),
+        }
+    }
 }
 
 #[cfg(any(

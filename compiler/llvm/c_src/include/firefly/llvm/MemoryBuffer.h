@@ -1,10 +1,13 @@
-#ifndef LUMEN_SUPPORT_MEMORY_H
-#define LUMEN_SUPPORT_MEMORY_H
+#pragma once
 
-#include "llvm-c/Types.h"
-#include "llvm/Support/CBindingWrapping.h"
-#include "llvm/Support/MemoryBuffer.h"
+#include "firefly/llvm/CAPI.h"
 
-DEFINE_SIMPLE_CONVERSION_FUNCTIONS(llvm::MemoryBuffer, LLVMMemoryBufferRef);
+namespace llvm {
+class MemoryBuffer;
+}
 
-#endif
+extern "C" {
+DEFINE_C_API_STRUCT(LLVMMemoryBufferRef, void);
+}
+
+DEFINE_C_API_PTR_METHODS(LLVMMemoryBufferRef, llvm::MemoryBuffer);

@@ -1,9 +1,5 @@
-// Used to permit specifying discriminant values on enums-with-fields
-#![feature(arbitrary_enum_discriminant)]
 // Used to represent FFI-opaque types
 #![feature(extern_types)]
-// Used with firefly_pass::Pass
-#![feature(generic_associated_types)]
 // Allow overlapping implementations of certain IR traits
 #![feature(min_specialization)]
 
@@ -35,7 +31,6 @@ pub fn init(_options: &firefly_session::Options) -> anyhow::Result<()> {
     unsafe {
         register_mlir_cli_options();
     }
-    pass::register_all_passes();
 
     Ok(())
 }

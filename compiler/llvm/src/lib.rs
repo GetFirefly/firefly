@@ -1,10 +1,6 @@
 #![deny(warnings)]
 // Used for the FFI bridge
 #![feature(extern_types)]
-// Used for various LLVM enumerations
-#![feature(arbitrary_enum_discriminant)]
-// Used for firefly_pass::Pass
-#![feature(generic_associated_types)]
 
 pub mod archives;
 pub mod builder;
@@ -28,18 +24,6 @@ use anyhow::anyhow;
 use firefly_session::Options;
 
 static INIT: Once = Once::new();
-
-/// Returns the current version of LLVM
-///
-/// NOTE: Can be called without initializing LLVM
-pub fn version() -> String {
-    extern "C" {
-        fn LLVMFireflyVersionMajor() -> u32;
-        fn LLVMFireflyVersionMinor() -> u32;
-    }
-
-    unsafe { format!("{}.{}", LLVMFireflyVersionMajor(), LLVMFireflyVersionMinor()) }
-}
 
 /// Performs one-time initialization of LLVM
 ///

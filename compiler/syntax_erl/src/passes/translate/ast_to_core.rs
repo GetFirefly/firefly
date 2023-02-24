@@ -60,17 +60,18 @@
 use std::cell::UnsafeCell;
 use std::collections::{BTreeMap, HashSet};
 use std::rc::Rc;
+use std::sync::Arc;
 
 use firefly_binary::{BinaryEntrySpecifier, BitVec};
-use firefly_diagnostics::*;
 use firefly_intern::{symbols, Ident, Symbol};
-use firefly_number::Integer;
+use firefly_number::Int;
 use firefly_pass::Pass;
 use firefly_syntax_base::*;
 use firefly_syntax_core::passes::{
     AnnotateVariableUsage, FunctionContext, RewriteExports, RewriteReceivePrimitives,
 };
 use firefly_syntax_core::*;
+use firefly_util::diagnostics::*;
 
 use crate::ast;
 use crate::evaluator;
@@ -83,11 +84,11 @@ const COLLAPSE_MAX_SIZE_SEGMENT: usize = 1024;
 ///
 /// This pass performs numerous small transformations to normalize the structure of the AST
 pub struct AstToCore {
-    reporter: Reporter,
+    diagnostics: Arc<DiagnosticsHandler>,
 }
 impl AstToCore {
-    pub fn new(reporter: Reporter) -> Self {
-        Self { reporter }
+    pub fn new(diagnostics: Arc<DiagnosticsHandler>) -> Self {
+        Self { diagnostics }
     }
 }
 impl Pass for AstToCore {
@@ -118,7 +119,7 @@ impl Pass for AstToCore {
                 is_nif,
             )));
 
-            let mut pipeline = TranslateAst::new(self.reporter.clone(), Rc::clone(&context))
+            let mut pipeline = TranslateAst::new(&self.diagnostics, Rc::clone(&context))
                 .chain(AnnotateVariableUsage::new(Rc::clone(&context)))
                 .chain(RewriteExports::new(Rc::clone(&context)))
                 .chain(RewriteReceivePrimitives::new(Rc::clone(&context)));
@@ -139,13 +140,16 @@ impl Pass for AstToCore {
 /// This phase flattens expressions into an internal core form
 /// without doing matching. This form is more amenable to further
 /// transformations and lowering.
-struct TranslateAst {
-    reporter: Reporter,
+struct TranslateAst<'p> {
+    diagnostics: &'p DiagnosticsHandler,
     context: Rc<UnsafeCell<FunctionContext>>,
 }
-impl TranslateAst {
-    fn new(reporter: Reporter, context: Rc<UnsafeCell<FunctionContext>>) -> Self {
-        Self { reporter, context }
+impl<'p> TranslateAst<'p> {
+    fn new(diagnostics: &'p DiagnosticsHandler, context: Rc<UnsafeCell<FunctionContext>>) -> Self {
+        Self {
+            diagnostics,
+            context,
+        }
     }
 
     #[inline(always)]
@@ -158,7 +162,7 @@ impl TranslateAst {
         unsafe { &mut *self.context.get() }
     }
 }
-impl Pass for TranslateAst {
+impl<'p> Pass for TranslateAst<'p> {
     type Input<'a> = ast::Function;
     type Output<'a> = IFun;
 
@@ -209,7 +213,7 @@ impl Pass for TranslateAst {
         })
     }
 }
-impl TranslateAst {
+impl<'p> TranslateAst<'p> {
     fn clauses(&mut self, mut clauses: Vec<ast::Clause>) -> anyhow::Result<Vec<IClause>> {
         let mut out = Vec::with_capacity(clauses.len());
         for clause in clauses.drain(..) {
@@ -237,10 +241,11 @@ impl TranslateAst {
                 // To ensure we can proceed with compilation, we rewrite the pattern
                 // to a pattern that binds the same variables, but ensuring the clause is never
                 // executed by having the guard return false
-                self.reporter.show_warning(
-                    "this clause can never match",
-                    &[(span, "the pattern in this clause can never succeed")],
-                );
+                self.diagnostics
+                    .diagnostic(Severity::Warning)
+                    .with_message("this clause can never match")
+                    .with_primary_label(span, "the pattern in this clause can never succeed")
+                    .emit();
                 let patterns = clause.patterns.iter().cloned().map(sanitize).collect();
                 assert_ne!(&clause.patterns, &patterns);
                 self.clause(ast::Clause {
@@ -369,10 +374,11 @@ impl TranslateAst {
                     value: Box::new(value),
                 });
             } else {
-                self.reporter.show_error(
-                    "invalid map pattern",
-                    &[(field.span(), "only := is permitted in map patterns")],
-                );
+                self.diagnostics
+                    .diagnostic(Severity::Error)
+                    .with_message("invalid map pattern")
+                    .with_primary_label(field.span(), "only := is permitted in map patterns")
+                    .emit();
                 bail!("invalid map pattern");
             }
         }
@@ -469,29 +475,33 @@ impl TranslateAst {
             (p1, p2) => {
                 // Aliases between binaries are not allowed, so the only legal patterns that remain are data patterns.
                 if !p1.is_data() {
-                    self.reporter.show_error(
-                        "invalid alias pattern",
-                        &[(p1.span(), "this is not a legal pattern")],
-                    );
+                    self.diagnostics
+                        .diagnostic(Severity::Error)
+                        .with_message("invalid alias pattern")
+                        .with_primary_label(p1.span(), "this is not a legal pattern")
+                        .emit();
                     bail!("invalid alias pattern")
                 }
                 if !p2.is_data() {
-                    self.reporter.show_error(
-                        "invalid alias pattern",
-                        &[(p1.span(), "this is not a legal pattern")],
-                    );
+                    self.diagnostics
+                        .diagnostic(Severity::Error)
+                        .with_message("invalid alias pattern")
+                        .with_primary_label(p1.span(), "this is not a legal pattern")
+                        .emit();
                     bail!("invalid alias pattern")
                 }
                 match (p1, p2) {
                     (IExpr::Literal(l1), IExpr::Literal(l2)) => {
                         if l1.value != l2.value {
-                            self.reporter.show_error(
-                                "invalid alias pattern",
-                                &[
-                                    (l1.span(), "this pattern cannot alias"),
-                                    (l2.span(), "because this literal has a different value"),
-                                ],
-                            );
+                            self.diagnostics
+                                .diagnostic(Severity::Error)
+                                .with_message("invalid alias pattern")
+                                .with_primary_label(l1.span(), "this pattern cannot alias")
+                                .with_secondary_label(
+                                    l2.span(),
+                                    "because this literal has a different value",
+                                )
+                                .emit();
                             bail!("invalid alias pattern")
                         }
                         Ok(IExpr::Literal(l1))
@@ -524,7 +534,15 @@ impl TranslateAst {
                         }),
                     ) => {
                         if es1.len() != es2.len() {
-                            self.reporter.show_error("invalid alias pattern", &[(span, "this tuple pattern cannot alias"), (span2, "because this tuple pattern has a different number of elements")]);
+                            self.diagnostics
+                                .diagnostic(Severity::Error)
+                                .with_message("invalid alias pattern")
+                                .with_primary_label(span, "this tuple pattern cannot alias")
+                                .with_secondary_label(
+                                    span2,
+                                    "because this tuple pattern has a different number of elements",
+                                )
+                                .emit();
                             bail!("invalid alias pattern")
                         }
                         let mut aliased = Vec::with_capacity(es1.len());
@@ -557,7 +575,7 @@ impl TranslateAst {
                     bit_expr: ast::Expr::Literal(ast::Literal::String(s)),
                     ..
                 } if s != symbols::Empty => {
-                    let mut s = bin_expand_string(s, Integer::Small(0), 0);
+                    let mut s = bin_expand_string(s, Int::Small(0), 0);
                     expanded.extend(s.drain(..));
                 }
                 ast::BinaryElement {
@@ -620,10 +638,12 @@ impl TranslateAst {
                 })
             }
             Err(reason) => {
-                self.reporter.show_error(
-                    "invalid binary element",
-                    &[(element.span, reason), (span, "in this binary expression")],
-                );
+                self.diagnostics
+                    .diagnostic(Severity::Error)
+                    .with_message("invalid binary element")
+                    .with_primary_label(element.span, reason)
+                    .with_secondary_label(span, "in this binary expression")
+                    .emit();
                 bail!("invalid binary pattern")
             }
         }
@@ -720,7 +740,7 @@ impl TranslateAst {
                 if op == BinaryOp::OrElse =>
             {
                 let var = self.context_mut().next_var(Some(span));
-                let atom_true = atom!(true);
+                let atom_true = atom!(span, true);
                 let expr = make_bool_switch(span, *lhs, ast::Var(var.name), atom_true, *rhs);
                 self.gexpr(expr, bools)
             }
@@ -792,7 +812,7 @@ impl TranslateAst {
                             self.gexpr_test(
                                 ast::Expr::Apply(ast::Apply {
                                     span,
-                                    callee: Box::new(name.into()),
+                                    callee: Box::new(Span::new(remote.span, name).into()),
                                     args,
                                 }),
                                 bools,
@@ -818,7 +838,7 @@ impl TranslateAst {
                             self.gexpr_test(
                                 ast::Expr::Apply(ast::Apply {
                                     span,
-                                    callee: Box::new(name.into()),
+                                    callee: Box::new(Span::new(remote.span, name).into()),
                                     args,
                                 }),
                                 bools,
@@ -1072,7 +1092,7 @@ impl TranslateAst {
             )),
             ast::Expr::Literal(lit) => Ok((IExpr::Literal(lit.into()), vec![])),
             ast::Expr::Cons(ast::Cons { span, head, tail }) => {
-                let (mut es, pre) = self.safe_list(vec![*head, *tail])?;
+                let (mut es, pre) = self.safe_list(span, vec![*head, *tail])?;
                 let tail = es.pop().unwrap();
                 let head = es.pop().unwrap();
                 Ok((icons!(span, head, tail), pre))
@@ -1094,7 +1114,7 @@ impl TranslateAst {
                 self.bc_tq(span, *body, qualifiers)
             }
             ast::Expr::Tuple(ast::Tuple { span, elements }) => {
-                let (elements, pre) = self.safe_list(elements)?;
+                let (elements, pre) = self.safe_list(span, elements)?;
                 Ok((IExpr::Tuple(ITuple::new(span, elements)), pre))
             }
             ast::Expr::Map(ast::Map { span, fields }) => {
@@ -1107,10 +1127,14 @@ impl TranslateAst {
                 match self.expr_bin(span, elements) {
                     Ok(ok) => Ok(ok),
                     Err(pre) => {
-                        self.reporter.show_warning(
-                            "invalid binary expression",
-                            &[(span, "this binary expression has an invalid element")],
-                        );
+                        self.diagnostics
+                            .diagnostic(Severity::Warning)
+                            .with_message("invalid binary expression")
+                            .with_primary_label(
+                                span,
+                                "this binary expression has an invalid element",
+                            )
+                            .emit();
                         let badarg = iatom!(span, symbols::Badarg);
                         Ok((
                             IExpr::PrimOp(IPrimOp::new(span, symbols::Error, vec![badarg])),
@@ -1362,8 +1386,8 @@ impl TranslateAst {
                     }) => {
                         let module = module.into();
                         let function = function.into();
-                        let arity = arity.into();
-                        let (mfa, pre) = self.safe_list(vec![module, function, arity])?;
+                        let arity = Span::new(span, arity).into();
+                        let (mfa, pre) = self.safe_list(span, vec![module, function, arity])?;
                         let call = IExpr::PrimOp(IPrimOp::new(span, symbols::MakeFun, mfa));
                         Ok((call, pre))
                     }
@@ -1381,11 +1405,14 @@ impl TranslateAst {
                 mut args,
             }) => match *callee {
                 ast::Expr::Remote(ast::Remote {
-                    module, function, ..
+                    span: remote_span,
+                    module,
+                    function,
+                    ..
                 }) => {
                     let mut safes = vec![*module, *function];
                     safes.append(&mut args);
-                    let (mut args, pre) = self.safe_list(safes)?;
+                    let (mut args, pre) = self.safe_list(remote_span, safes)?;
                     let mut argv = args.split_off(2);
                     let mut mf = args;
                     let function = mf.pop().unwrap();
@@ -1397,7 +1424,8 @@ impl TranslateAst {
                                 symbols::Error
                                 | symbols::Exit
                                 | symbols::Throw
-                                | symbols::Raise => Some(sym),
+                                | symbols::Raise
+                                | symbols::NifError => Some(sym),
                                 _ => None,
                             },
                             None => None,
@@ -1460,7 +1488,7 @@ impl TranslateAst {
                     self.expr(apply)
                 }
                 ast::Expr::Literal(ast::Literal::Atom(f)) => {
-                    let (args, pre) = self.safe_list(args)?;
+                    let (args, pre) = self.safe_list(f.span(), args)?;
                     let op = IExpr::Var(Var {
                         annotations: Annotations::default(),
                         name: f,
@@ -1476,7 +1504,7 @@ impl TranslateAst {
                 }
                 callee => {
                     let (fun, mut pre) = self.safe(callee)?;
-                    let (args, mut pre2) = self.safe_list(args)?;
+                    let (args, mut pre2) = self.safe_list(span, args)?;
                     pre.append(&mut pre2);
                     let apply = IExpr::Apply(IApply {
                         span,
@@ -1526,8 +1554,11 @@ impl TranslateAst {
                         //        error({badmatch,Other})
                         //   end.
                         //
-                        self.reporter
-                            .show_warning("bad pattern", &[(span, "this pattern cannot match")]);
+                        self.diagnostics
+                            .diagnostic(Severity::Warning)
+                            .with_message("bad pattern")
+                            .with_primary_label(span, "this pattern cannot match")
+                            .emit();
                         let (expr, mut pre) = self.safe(expr1)?;
                         let sanpat = sanitize(pattern1);
                         let sanpat = self.pattern(sanpat)?;
@@ -1633,7 +1664,7 @@ impl TranslateAst {
                 self.expr(expr)
             }
             ast::Expr::BinaryExpr(ast::BinaryExpr { op, lhs, rhs, span }) => {
-                let (args, pre) = self.safe_list(vec![*lhs, *rhs])?;
+                let (args, pre) = self.safe_list(span, vec![*lhs, *rhs])?;
                 let call = IExpr::Call(ICall::new(span, symbols::Erlang, op.to_symbol(), args));
                 Ok((call, pre))
             }
@@ -1811,7 +1842,7 @@ impl TranslateAst {
             pre.append(&mut gen.pre);
         }
         let (expr, mut bcpre) = self.bc_tq1(span, body, qualifiers, IExpr::Var(binvar.clone()))?;
-        let initial_size = IExpr::Literal(lit_int!(span, Integer::Small(256)));
+        let initial_size = IExpr::Literal(lit_int!(span, Int::Small(256)));
         let init = IExpr::PrimOp(IPrimOp::new(
             span,
             symbols::BitsInitWritable,
@@ -2412,10 +2443,12 @@ impl TranslateAst {
                 }
                 Err(reason) => {
                     failed = true;
-                    self.reporter.show_error(
-                        "invalid binary element",
-                        &[(element.span, reason), (span, "in this binary expression")],
-                    );
+                    self.diagnostics
+                        .diagnostic(Severity::Error)
+                        .with_message("invalid binary element")
+                        .with_primary_label(element.span, reason)
+                        .with_secondary_label(span, "in this binary expression")
+                        .emit();
                 }
             }
         }
@@ -2724,13 +2757,12 @@ impl TranslateAst {
             pre.append(&mut pre1);
             if let IExpr::Literal(ref lit) = &key {
                 if let Some(prev) = used.get(lit) {
-                    self.reporter.show_warning(
-                        "duplicate map key",
-                        &[
-                            (lit.span, "this map key is repeated"),
-                            (prev.span, "it is was first used here"),
-                        ],
-                    );
+                    self.diagnostics
+                        .diagnostic(Severity::Warning)
+                        .with_message("duplicate map key")
+                        .with_primary_label(lit.span, "this map key is repeated")
+                        .with_secondary_label(prev.span, "it is was first used here")
+                        .emit();
                 } else {
                     used.insert(lit.clone());
                 }
@@ -2802,7 +2834,11 @@ impl TranslateAst {
     /// safe_list(Expr, State) -> {Safe,[PreExpr],State}.
     ///  Generate an internal safe expression for a list of
     ///  expressions.
-    fn safe_list(&mut self, mut exprs: Vec<ast::Expr>) -> anyhow::Result<(Vec<IExpr>, Vec<IExpr>)> {
+    fn safe_list(
+        &mut self,
+        span: SourceSpan,
+        mut exprs: Vec<ast::Expr>,
+    ) -> anyhow::Result<(Vec<IExpr>, Vec<IExpr>)> {
         let mut out = Vec::<IExpr>::with_capacity(exprs.len());
         let mut pre = Vec::<Vec<IExpr>>::new();
         for expr in exprs.drain(..) {
@@ -2844,7 +2880,7 @@ impl TranslateAst {
         match pre.len() {
             0 => Ok((out, vec![])),
             1 => Ok((out, pre.pop().unwrap())),
-            _ => Ok((out, vec![IExpr::Exprs(IExprs::new(pre))])),
+            _ => Ok((out, vec![IExpr::Exprs(IExprs::new(span, pre))])),
         }
     }
 
@@ -3072,17 +3108,22 @@ fn bad_generator(span: SourceSpan, patterns: Vec<IExpr>, generator: Var) -> Box<
 }
 
 /// sanitize(Pat) -> SanitizedPattern
-///  Rewrite Pat so that it will be accepted by pattern/2 and will
-///  bind the same variables as the original pattern.
 ///
-///  Here is an example of a pattern that would cause a pattern/2
-///  to generate a 'nomatch' exception:
+/// Rewrite Pat so that it will be accepted by pattern/2 and will
+/// bind the same variables as the original pattern.
 ///
+/// Here is an example of a pattern that would cause a pattern/2
+/// to generate a 'nomatch' exception:
+///
+/// ```erlang
 ///      #{k:=X,k:=Y} = [Z]
+/// ```
 ///
 ///  The sanitized pattern will look like:
 ///
+/// ```erlang
 ///      {{X,Y},[Z]}
+/// ```
 fn sanitize(expr: ast::Expr) -> ast::Expr {
     match expr {
         ast::Expr::Match(ast::Match {
@@ -3142,27 +3183,34 @@ fn sanitize(expr: ast::Expr) -> ast::Expr {
 }
 
 /// unforce(Expr, PreExprList, BoolExprList) -> BoolExprList'.
-///  Filter BoolExprList. BoolExprList is a list of simple expressions
-///  (variables or literals) of which we are not sure whether they are booleans.
 ///
-///  The basic idea for filtering is the following transformation:
+/// Filter BoolExprList. BoolExprList is a list of simple expressions
+/// (variables or literals) of which we are not sure whether they are booleans.
 ///
+/// The basic idea for filtering is the following transformation:
+///
+/// ```erlang
 ///      (E =:= Bool) and is_boolean(E)   ==>  E =:= Bool
+/// ```
 ///
-///  where E is an arbitrary expression and Bool is 'true' or 'false'.
+/// where E is an arbitrary expression and Bool is 'true' or 'false'.
 ///
-///  The transformation is still valid if there are other expressions joined
-///  by 'and' operations:
+/// The transformation is still valid if there are other expressions joined
+/// by 'and' operations:
 ///
+/// ```erlang
 ///      E1 and (E2 =:= true) and E3 and is_boolean(E)   ==>  E1 and (E2 =:= true) and E3
+/// ```
 ///
-///  but expressions such as:
+/// but expressions such as:
 ///
+/// ```erlang
 ///     not (E =:= true) and is_boolean(E)
+/// ```
 ///
-///  or expression using 'or' or 'xor' cannot be transformed in this
-///  way (such expressions are the reason for adding the is_boolean/1
-///  test in the first place).
+/// or expression using 'or' or 'xor' cannot be transformed in this
+/// way (such expressions are the reason for adding the is_boolean/1
+/// test in the first place).
 ///
 fn unforce(expr: &IExpr, mut pre: Vec<IExpr>, bools: Vec<IExpr>) -> Vec<IExpr> {
     if bools.is_empty() {
@@ -3541,7 +3589,7 @@ fn set_bit_type(
     }
 }
 
-fn bin_expand_string(s: Ident, mut value: Integer, mut size: usize) -> Vec<ast::BinaryElement> {
+fn bin_expand_string(s: Ident, mut value: Int, mut size: usize) -> Vec<ast::BinaryElement> {
     let span = s.span;
     let mut expanded = vec![];
     for c in s.as_str().get().chars().map(|c| c as i64) {
@@ -3559,7 +3607,7 @@ fn bin_expand_string(s: Ident, mut value: Integer, mut size: usize) -> Vec<ast::
     expanded
 }
 
-fn make_combined(span: SourceSpan, value: Integer, size: usize) -> ast::BinaryElement {
+fn make_combined(span: SourceSpan, value: Int, size: usize) -> ast::BinaryElement {
     ast::BinaryElement {
         span,
         bit_expr: ast::Expr::Literal(ast::Literal::Integer(span, value)),
@@ -3569,7 +3617,7 @@ fn make_combined(span: SourceSpan, value: Integer, size: usize) -> ast::BinaryEl
 }
 
 fn verify_suitable_fields(elements: &[ast::BinaryElement]) -> Result<(), ()> {
-    const MAX_UNIT: Integer = Integer::Small(256);
+    const MAX_UNIT: Int = Int::Small(256);
 
     for element in elements {
         let unit = element
@@ -3595,7 +3643,7 @@ fn verify_suitable_fields(elements: &[ast::BinaryElement]) -> Result<(), ()> {
                 // of bits needed.
                 let size = i * unit;
                 let bits_needed = value.bits();
-                let bits_limit = Integer::from(2 * bits_needed);
+                let bits_limit = Int::from(2 * bits_needed);
                 if bits_limit >= size {
                     continue;
                 }
@@ -3752,7 +3800,7 @@ fn is_gexpr(expr: &ast::Expr) -> bool {
             is_gexpr(operand.as_ref())
         }
         ast::Expr::FunctionVar(_)
-        | ast::Expr::DelayedSubstitution(_, _)
+        | ast::Expr::DelayedSubstitution(_)
         | ast::Expr::Record(_)
         | ast::Expr::RecordAccess(_)
         | ast::Expr::RecordIndex(_)

@@ -48,6 +48,15 @@ impl DataFlowGraph {
         Ref::map(self.signatures.borrow(), |sigs| sigs.get(callee).unwrap())
     }
 
+    /// Returns the calling convention of `callee`
+    pub fn callee_convention(&self, callee: FuncRef) -> CallConv {
+        self.signatures
+            .borrow()
+            .get(callee)
+            .map(|sig| sig.calling_convention())
+            .unwrap()
+    }
+
     /// Looks up the concrete function for the given MFA (module of None indicates that it is a local or imported function)
     pub fn get_callee(&self, mfa: FunctionName) -> Option<FuncRef> {
         self.callees.borrow().get(&mfa).copied()
@@ -146,7 +155,6 @@ impl DataFlowGraph {
                 return 0;
             }
 
-            // Erlang functions use a multi-value return calling convention
             let mut num_results = 0;
             for ty in fdata.results() {
                 self.append_result(inst, ty.clone());
@@ -158,22 +166,20 @@ impl DataFlowGraph {
             match self.insts[inst].opcode() {
                 // Tail calls have no materialized results
                 Opcode::EnterIndirect => 0,
-                // An indirect call has no signature, but we know it must be Erlang
-                // convention, and thus multi-value return
+                // An indirect call has no signature, but we know it must be Erlang convention with a single return value
                 Opcode::CallIndirect => {
-                    self.append_result(inst, Type::Primitive(PrimitiveType::I1));
                     self.append_result(inst, ty);
-                    2
+                    1
                 }
-                // Initializing a binary match is a fallible operation that produces a match context when successful
+                // Initializing a binary match is a type check which produces a match context when successful
                 Opcode::BitsMatchStart => {
-                    self.append_result(inst, Type::Primitive(PrimitiveType::I1));
+                    self.append_result(inst, Type::Term(TermType::Bool));
                     self.append_result(inst, Type::Term(TermType::Any));
                     2
                 }
                 // Binary matches produce three results, an error flag, the matched value, and the rest of the binary
                 Opcode::BitsMatch => {
-                    self.append_result(inst, Type::Primitive(PrimitiveType::I1));
+                    self.append_result(inst, Type::Term(TermType::Bool));
                     self.append_result(inst, ty);
                     self.append_result(inst, Type::Term(TermType::Any));
                     3
@@ -181,19 +187,25 @@ impl DataFlowGraph {
                 // This is an optimized form of BitsMatch that skips extraction of the term to be matched and just
                 // advances the position in the underlying match context
                 Opcode::BitsMatchSkip => {
-                    self.append_result(inst, Type::Primitive(PrimitiveType::I1));
+                    self.append_result(inst, Type::Term(TermType::Bool));
                     self.append_result(inst, Type::Term(TermType::Any));
                     2
+                }
+                Opcode::BitsInit => {
+                    self.append_result(inst, Type::BinaryBuilder);
+                    1
                 }
                 // Binary construction produces two results, an error flag and the new binary value
                 Opcode::BitsPush => {
-                    self.append_result(inst, Type::Primitive(PrimitiveType::I1));
-                    // This value is either the none term or an exception, depending on the is_err flag
-                    self.append_result(inst, Type::Term(TermType::Any));
-                    2
+                    self.append_result(inst, Type::BinaryBuilder);
+                    1
                 }
                 Opcode::BitsTestTail => {
-                    self.append_result(inst, Type::Primitive(PrimitiveType::I1));
+                    self.append_result(inst, Type::Term(TermType::Bool));
+                    1
+                }
+                Opcode::BitsFinish => {
+                    self.append_result(inst, Type::Term(TermType::Bitstring));
                     1
                 }
                 // Constants/immediates have known types
@@ -261,6 +273,12 @@ impl DataFlowGraph {
                     self.append_result(inst, ty);
                     1
                 }
+                // This type check is a fused operation that also produces an arity value
+                Opcode::IsTupleFetchArity => {
+                    self.append_result(inst, Type::Term(TermType::Bool));
+                    self.append_result(inst, Type::Term(TermType::Any));
+                    2
+                }
                 // These boolean operators always produce primitive boolean outputs
                 Opcode::IcmpEq
                 | Opcode::IcmpNeq
@@ -270,7 +288,7 @@ impl DataFlowGraph {
                 | Opcode::IcmpLte
                 | Opcode::IsType
                 | Opcode::IsTaggedTuple => {
-                    self.append_result(inst, Type::Primitive(PrimitiveType::I1));
+                    self.append_result(inst, Type::Term(TermType::Bool));
                     1
                 }
                 // These boolean operators always produce boolean term outputs
@@ -307,44 +325,54 @@ impl DataFlowGraph {
                     self.append_result(inst, Type::Term(TermType::MaybeImproperList));
                     1
                 }
+                Opcode::Split => {
+                    self.append_result(inst, Type::Term(TermType::Any));
+                    self.append_result(inst, Type::Term(TermType::MaybeImproperList));
+                    2
+                }
                 Opcode::Tuple | Opcode::SetElement | Opcode::SetElementMut => {
                     self.append_result(inst, Type::Term(TermType::Tuple(None)));
                     1
                 }
-                Opcode::MakeFun => {
-                    self.append_result(inst, Type::Primitive(PrimitiveType::I1));
+                Opcode::Map | Opcode::MapPut | Opcode::MapUpdate => {
+                    self.append_result(inst, Type::Term(TermType::Map));
+                    1
+                }
+                Opcode::MapTryGet => {
+                    self.append_result(inst, Type::Term(TermType::Bool));
                     self.append_result(inst, Type::Term(TermType::Any));
                     2
+                }
+                Opcode::BuildStacktrace => {
+                    self.append_result(inst, ty);
+                    1
+                }
+                Opcode::MakeFun => {
+                    self.append_result(inst, Type::Term(TermType::Fun(None)));
+                    1
                 }
                 Opcode::UnpackEnv => {
                     self.append_result(inst, ty);
                     1
                 }
-                Opcode::RecvStart => {
-                    // This primop returns a receive context
-                    self.append_result(inst, Type::RecvContext);
-                    1
-                }
-                Opcode::RecvNext => {
-                    // This opcode returns the receive state machine state
-                    self.append_result(inst, Type::RecvState);
-                    1
-                }
                 Opcode::RecvPeek => {
-                    // This primop returns the current message which the receive is inspecting
+                    // This primop returns a boolean indicating whether a message was available,
+                    // and the message itself if available
+                    self.append_result(inst, Type::Term(TermType::Bool));
+                    self.append_result(inst, Type::Term(TermType::Any));
+                    2
+                }
+                Opcode::RecvWaitTimeout => {
+                    // This primop returns a boolean indicating whether the wait timed out
+                    self.append_result(inst, Type::Term(TermType::Bool));
+                    1
+                }
+                Opcode::Send => {
                     self.append_result(inst, Type::Term(TermType::Any));
                     1
                 }
-                Opcode::ExceptionClass => {
-                    self.append_result(inst, Type::Term(TermType::Atom));
-                    1
-                }
-                Opcode::ExceptionReason => {
-                    self.append_result(inst, Type::Term(TermType::Any));
-                    1
-                }
-                Opcode::ExceptionTrace => {
-                    self.append_result(inst, Type::ExceptionTrace);
+                Opcode::Exit2 => {
+                    self.append_result(inst, Type::Term(TermType::Bool));
                     1
                 }
                 _ => 0,
@@ -380,9 +408,13 @@ impl DataFlowGraph {
     pub fn call_signature(&self, inst: Inst) -> Option<Signature> {
         match self.insts[inst].analyze_call(&self.value_lists) {
             CallInfo::NotACall => None,
-            CallInfo::Indirect(_, _) => None,
-            CallInfo::Direct(f, _) => Some(self.callee_signature(f).clone()),
+            CallInfo::Indirect(_, _, _) => None,
+            CallInfo::Direct(f, _, _) => Some(self.callee_signature(f).clone()),
         }
+    }
+
+    pub fn analyze_call(&self, inst: Inst) -> CallInfo<'_> {
+        self.insts[inst].analyze_call(&self.value_lists)
     }
 
     pub fn analyze_branch(&self, inst: Inst) -> BranchInfo {

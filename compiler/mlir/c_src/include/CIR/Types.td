@@ -219,7 +219,17 @@ def CIR_FunType : CIR_BoxedType<"Fun", [DeclareTypeInterfaceMethods<SubElementTy
     unsigned getArity() const;
     unsigned getEnvArity() const { return getEnvTypes().size(); }
     bool isThin() const { return getEnvArity() == 0; }
+
+    void walkImmediateSubElements(function_ref<void(Attribute)> walkAttrsFn,
+                                    function_ref<void(Type)> walkTypesFn) const;
+
   }];
+}
+
+def CIR_ProcessType : TypeDef<CIR_Dialect, "CIRProcess"> {
+  let mnemonic = "process";
+  let summary = "an erlang process";
+  let description = "A type that represents the current process state during an invocation of a function";
 }
 
 def CIR_ExceptionType : TypeDef<CIR_Dialect, "CIRException"> {

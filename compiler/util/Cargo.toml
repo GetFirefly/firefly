@@ -1,15 +1,23 @@
 [package]
 name = "firefly_util"
-version = "0.1.0"
-authors = ["Paul Schoenfelder <paulschoenfelder@gmail.com>"]
-edition = "2021"
-publish = false
+description = "Assorted utility functions used across various components of the Firefly compiler"
+version.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+categories.workspace = true
+keywords.workspace = true
+license.workspace = true
+readme.workspace = true
+edition.workspace = true
+publish.workspace = true
 
 [dependencies]
-cfg-if = "0.1"
-anyhow = "1.0"
-thiserror = "1.0"
-libc = "0.2"
+cfg-if.workspace = true
+anyhow = { workspace = true, features = ["std"] }
+thiserror.workspace = true
+libc = { workspace = true, features = ["std"] }
 glob = "0.3"
 atty = "0.2"
 firefly_diagnostics = { path = "../diagnostics" }
+parking_lot.workspace = true

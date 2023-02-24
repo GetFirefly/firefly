@@ -1,5 +1,3 @@
-#![feature(let_else)]
-#![feature(const_type_id)]
 #![no_std]
 
 extern crate alloc;
@@ -10,7 +8,7 @@ mod bigint_to_float;
 pub use bigint_to_float::bigint_to_double;
 
 mod integer;
-pub use integer::Integer;
+pub use integer::*;
 
 mod float;
 pub use float::{f16, Float, FloatError};
@@ -21,7 +19,7 @@ pub use number::Number;
 pub use num_bigint as bigint;
 pub use num_bigint::{BigInt, BigUint, Sign, ToBigInt, ToBigUint};
 pub use num_traits as traits;
-pub use num_traits::{cast, int::PrimInt, FromPrimitive, NumCast, ToPrimitive};
+pub use num_traits::{cast, int::PrimInt, Num, NumCast, Pow};
 
 /// This occurs when an invalid division is performed (i.e. by zero)
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]

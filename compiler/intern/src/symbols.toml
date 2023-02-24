@@ -132,6 +132,7 @@ get = {}
 get_cookie = {}
 get_keys = {}
 group_leader = {}
+halt = {}
 hd = {}
 is_alive = {}
 is_map_key = {}
@@ -158,6 +159,9 @@ round = {}
 SELF = { value = "self" }
 setelement = {}
 size = {}
+spawn = {}
+spawn_link = {}
+spawn_monitor = {}
 time = {}
 term_to_binary = {}
 throw = {}

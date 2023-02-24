@@ -1,19 +1,23 @@
 [package]
 name = "firefly_syntax_core"
-version = "0.1.0"
-authors = ["Paul Schoenfelder <paulschoenfelder@gmail.com>"]
-readme = "README.md"
-publish = false
-edition = "2021"
-license = "MIT OR Apache-2.0"
+description = "Provides a high-level, extended lambda calculus intermediate representation for the Firefly compiler"
+version.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+categories.workspace = true
+keywords.workspace = true
+license.workspace = true
+readme.workspace = true
+edition.workspace = true
+publish.workspace = true
 
 [dependencies]
-firefly_binary = { path = "../../library/binary" }
+anyhow = { workspace = true, features = ["std"] }
+firefly_binary = { path = "../../library/binary", features = ["std"] }
 firefly_diagnostics = { path = "../diagnostics" }
-firefly_intern = { path = "../intern" }
+firefly_intern = { path = "../intern", features = ["std"] }
 firefly_pass = { path = "../pass" }
 firefly_syntax_base = { path = "../syntax_base" }
 firefly_util = { path = "../util" }
-
-anyhow = "1.0"
-rpds = "0.12"
+rpds = { workspace = true, features = ["std"] }

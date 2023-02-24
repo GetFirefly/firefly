@@ -1,3 +1,3 @@
-%% RUN: @firefly compile -C no_default_init --bin -o @tempfile @tests/cli.erl && @tempfile false
+%% RUN: @firefly compile --bin -o @tempfile @tests/cli.erl @tests/lists.erl && @tempfile false
 
 %% CHECK: <<"Nothing to say.">>

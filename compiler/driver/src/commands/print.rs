@@ -3,30 +3,34 @@ use std::sync::Arc;
 
 use clap::ArgMatches;
 
-use firefly_codegen as codegen;
-use firefly_diagnostics::{CodeMap, Reporter};
 use firefly_llvm::{self as llvm, target::TargetMachine};
 use firefly_session::{CodegenOptions, DebuggingOptions, Options};
 use firefly_target::{self as target, Target};
+use firefly_util::diagnostics::CodeMap;
+use firefly_util::error::Verbosity;
 
-/// The main entry point for the 'print' command
-pub fn handle_command<'a>(
+pub fn configure<'a>(
+    codemap: Arc<CodeMap>,
     c_opts: CodegenOptions,
     z_opts: DebuggingOptions,
-    matches: &ArgMatches<'a>,
     cwd: PathBuf,
-) -> anyhow::Result<()> {
+    matches: &ArgMatches<'a>,
+) -> anyhow::Result<Arc<Options>> {
+    let args = matches.subcommand().1.unwrap();
+    Options::new_with_defaults(None, codemap, c_opts, z_opts, cwd, &args).map(Arc::new)
+}
+
+/// The main entry point for the 'print' command
+pub fn handle_command<'a>(options: Arc<Options>, matches: &ArgMatches<'a>) -> anyhow::Result<()> {
     match matches.subcommand() {
-        ("version", subcommand_matches) => {
-            let verbose = subcommand_matches
-                .map(|m| m.is_present("verbose"))
-                .unwrap_or_else(|| matches.is_present("verbose"));
-            if verbose {
+        ("version", _) => {
+            if options.verbosity < Verbosity::Warning {
                 println!("release:     {}", crate::FIREFLY_RELEASE);
                 println!("commit-hash: {}", crate::FIREFLY_COMMIT_HASH);
                 println!("commit-date: {}", crate::FIREFLY_COMMIT_DATE);
                 println!("host:        {}", target::host_triple());
-                println!("llvm:        {}", llvm::version());
+                //TODO: Set env var during build to display LLVM version we compiled with
+                //println!("llvm:        {}", llvm::version());
             } else {
                 println!("{}", crate::FIREFLY_RELEASE);
             }
@@ -41,39 +45,15 @@ pub fn handle_command<'a>(
                 println!("{}", target);
             }
         }
-        ("target-features", subcommand_matches) => {
-            let reporter = Reporter::new();
-            let codemap = Arc::new(CodeMap::new());
-            let options = Options::new_with_defaults(
-                &reporter,
-                codemap,
-                c_opts,
-                z_opts,
-                cwd,
-                subcommand_matches.unwrap(),
-            )?;
-            codegen::init(&options)?;
+        ("target-features", _) => {
             let target_machine = TargetMachine::create(&options)?;
             target_machine.print_target_features();
         }
-        ("target-cpus", subcommand_matches) => {
-            let reporter = Reporter::new();
-            let codemap = Arc::new(CodeMap::new());
-            let options = Options::new_with_defaults(
-                &reporter,
-                codemap,
-                c_opts,
-                z_opts,
-                cwd,
-                subcommand_matches.unwrap(),
-            )?;
-            codegen::init(&options)?;
+        ("target-cpus", _) => {
             let target_machine = TargetMachine::create(&options)?;
             target_machine.print_target_cpus();
         }
-        ("passes", _subcommand_matches) => {
-            llvm::passes::print();
-        }
+        ("passes", _) => llvm::passes::print(),
         (subcommand, _) => unimplemented!("print subcommand '{}' is not implemented", subcommand),
     }
 

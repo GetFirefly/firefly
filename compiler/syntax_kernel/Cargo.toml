@@ -1,25 +1,30 @@
 [package]
 name = "firefly_syntax_kernel"
-version = "0.1.0"
-authors = ["Paul Schoenfelder <paulschoenfelder@gmail.com>"]
-readme = "README.md"
-publish = false
-edition = "2021"
-license = "MIT OR Apache-2.0"
+description = "Provides a high-level, pre-SSA intermediate representation used for pattern matching/optimization for the Firefly compiler"
+version.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+categories.workspace = true
+keywords.workspace = true
+license.workspace = true
+readme.workspace = true
+edition.workspace = true
+publish.workspace = true
 
 [dependencies]
-firefly_binary = { path = "../../library/binary" }
+anyhow = { workspace = true, features = ["std"] }
+cranelift-entity.workspace = true
+firefly_binary = { path = "../../library/binary", features = ["std"] }
 firefly_diagnostics = { path = "../diagnostics" }
-firefly_intern = { path = "../intern" }
-firefly_number = { path = "../../library/number" }
+firefly_intern = { path = "../intern", features = ["std"] }
+firefly_number = { path = "../../library/number", features = ["std"] }
 firefly_pass = { path = "../pass" }
 firefly_syntax_base = { path = "../syntax_base" }
 firefly_syntax_ssa = { path = "../syntax_ssa" }
 firefly_syntax_core = { path = "../syntax_core" }
 firefly_util = { path = "../util" }
-
-anyhow = "1.0"
-cranelift-entity = "0.81"
-log = "0.4"
-thiserror = "1.0"
-rpds = "0.12"
+log.workspace = true
+thiserror.workspace = true
+rpds = { workspace = true, features = ["std"] }
+smallvec.workspace = true

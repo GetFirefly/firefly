@@ -7,63 +7,41 @@
 #![feature(nonnull_slice_from_raw_parts)]
 #![feature(slice_ptr_get)]
 #![feature(slice_ptr_len)]
+// Used for OnceLock impl
+#![feature(const_default_impls)]
+#![feature(const_trait_impl)]
+#![feature(dropck_eyepatch)]
+#![feature(never_type)]
+
+/// When possible, we also link against libstd to take advantage of functionality provided there
+#[cfg(any(unix, windows, target_os = "wasi", target_family = "wasm"))]
+extern crate std;
 
 #[cfg(test)]
 extern crate test;
 
-pub mod arch {
-    // Allow referencing each platform directly when conditionally compiling
+/// The minimum alignment we use on all platforms
+pub const MIN_ALIGN: usize = 8;
 
-    #[cfg(unix)]
-    pub mod unix {
-        pub use crate::unix::*;
+cfg_if::cfg_if! {
+    if #[cfg(unix)] {
+        #[path = "unix/mod.rs"]
+        pub mod arch;
+    } else if #[cfg(windows)] {
+        #[path = "windows/mod.rs"]
+        pub mod windows;
+    } else if #[cfg(target_os = "wasi")] {
+        #[path = "wasi/mod.rs"]
+        pub mod wasi;
+    } else if #[cfg(target_family = "wasm")] {
+        #[path = "wasm/mod.rs"]
+        pub mod wasm;
+    } else {
+        compile_error!("unsupported target platform");
     }
-
-    #[cfg(all(
-        any(target_arch = "wasm32", target_arch = "wasm64"),
-        not(target_os = "emscripten")
-    ))]
-    pub mod wasm {
-        pub use crate::wasm32::*;
-    }
-
-    #[cfg(windows)]
-    pub mod windows {
-        pub use crate::windows::*;
-    }
-
-    /// The minimum alignment on all platforms
-    pub const MIN_ALIGN: usize = 8;
-
-    // Re-export the current target platform under the `arch` namespace so that
-    // shared functionality can be accessed without needing conditional compilation
-
-    #[cfg(unix)]
-    pub use self::unix::*;
-
-    #[cfg(all(
-        any(target_arch = "wasm32", target_arch = "wasm64"),
-        not(target_os = "emscripten")
-    ))]
-    pub use self::wasm::*;
-
-    #[cfg(windows)]
-    pub use self::windows::*;
 }
 
 pub mod alloc;
-pub mod cell;
 pub mod mem;
 pub mod sync;
-
-#[cfg(unix)]
-mod unix;
-
-#[cfg(all(
-    any(target_arch = "wasm32", target_arch = "wasm64"),
-    not(target_os = "emscripten")
-))]
-mod wasm;
-
-#[cfg(windows)]
-mod windows;
+pub mod time;

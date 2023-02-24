@@ -1,8 +1,16 @@
 [package]
-authors = ["Paul Schoenfelder <paulschoenfelder@fastmail.com>"]
 name = "panic"
-version = "0.1.0"
-edition = "2021"
+description = "Implements the panic infrastructure for the Firefly runtime"
+version.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+categories.workspace = true
+keywords.workspace = true
+license.workspace = true
+readme.workspace = true
+edition.workspace = true
+publish.workspace = true
 
 [lib]
 test = false
@@ -10,8 +18,17 @@ bench = false
 doc = false
 
 [dependencies]
-libc = "0.2"
-cfg-if = "1.0"
+cfg-if.workspace = true
+
+# We use libc for all platforms except wasm32-unknown-unknown
+# NOTE: On win32 we use libc for malloc/free
+[target.'cfg(any(not(target_arch = "wasm32")))'.dependencies.libc]
+workspace = true
+features = ["std", "align"]
+
+[target.'cfg(all(target_arch = "wasm32", any(target_env = "wasi", target_os = "emscripten")))'.dependencies.libc]
+workspace = true
+features = ["align"]
 
 [target.'cfg(target_arch = "wasm32")'.dependencies.unwind]
 path = "../unwind"

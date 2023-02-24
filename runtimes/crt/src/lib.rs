@@ -1,10 +1,13 @@
 #![feature(rustc_attrs)]
 #![feature(c_unwind)]
+#![feature(never_type)]
+
+use core::panic::RefUnwindSafe;
 
 mod atoms;
 mod symbols;
 
-extern "C" {
+extern "Rust" {
     /// The target-defined entry point for the generated executable.
     ///
     /// Each target has its own runtime crate, with its own entry point
@@ -14,14 +17,24 @@ extern "C" {
     #[link_name = "firefly_entry"]
     fn firefly_entry() -> i32;
 
-    #[allow(improper_ctypes)]
     #[link_name = env!("LANG_START_SYMBOL_NAME")]
-    fn lang_start(main: &dyn Fn() -> i32, argc: isize, argv: *const *const i8) -> isize;
+    fn lang_start(
+        main: &(dyn Fn() -> i32 + Sync + RefUnwindSafe),
+        argc: isize,
+        argv: *const *const i8,
+        sigpipe: u8,
+    ) -> Result<isize, !>;
 }
 
 #[no_mangle]
 pub extern "C" fn main(argc: i32, argv: *const *const std::os::raw::c_char) -> i32 {
-    unsafe { lang_start(&move || main_internal(), argc as isize, argv) as i32 }
+    const SIG_IGN: u8 = 0;
+    unsafe {
+        match lang_start(&move || main_internal(), argc as isize, argv, SIG_IGN) {
+            Ok(v) => v as i32,
+            _ => unreachable!(),
+        }
+    }
 }
 
 /// The primary entry point for the Firefly runtime

@@ -1,4 +1,3 @@
-#![allow(unused)]
 //! NOTE: Modified version of impl in rustc
 //!
 //! The arena, a fast but limited type of allocator.
@@ -12,7 +11,6 @@
 //! objects of a single type.
 use core::cell::{Cell, RefCell};
 use core::cmp;
-use core::intrinsics;
 use core::marker::{PhantomData, Send};
 use core::mem;
 use core::ptr;
@@ -124,7 +122,7 @@ impl<T> TypedArena<T> {
         unsafe {
             if mem::size_of::<T>() == 0 {
                 self.ptr
-                    .set(intrinsics::arith_offset(self.ptr.get() as *mut u8, 1) as *mut T);
+                    .set((self.ptr.get() as *mut u8).wrapping_offset(1) as *mut T);
                 let ptr = mem::align_of::<T>() as *mut T;
                 // Don't drop the object. This `write` is equivalent to `forget`.
                 ptr::write(ptr, object);
@@ -335,7 +333,7 @@ impl DroplessArena {
 
         self.align(align);
 
-        let future_end = intrinsics::arith_offset(self.ptr.get(), bytes as isize);
+        let future_end = self.ptr.get().wrapping_offset(bytes as isize);
         if (future_end as *mut u8) >= self.end.get() {
             self.grow(bytes);
         }
@@ -343,7 +341,7 @@ impl DroplessArena {
         let ptr = self.ptr.get();
         // Set the pointer past ourselves
         self.ptr
-            .set(intrinsics::arith_offset(self.ptr.get(), bytes as isize) as *mut u8);
+            .set(self.ptr.get().wrapping_offset(bytes as isize) as *mut u8);
 
         ptr
     }

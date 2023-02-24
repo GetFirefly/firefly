@@ -4,7 +4,7 @@ use std::hash::{Hash, Hasher};
 
 use firefly_binary::{BitVec, Bitstring};
 use firefly_intern::{symbols, Symbol};
-use firefly_number::{Float, Integer};
+use firefly_number::{Float, Int};
 use firefly_syntax_base::{PrimitiveType, TermType, Type};
 
 use cranelift_entity::entity_impl;
@@ -487,7 +487,7 @@ impl fmt::Display for ConstantData {
 
 #[derive(Debug, Clone)]
 pub enum ConstantItem {
-    Integer(Integer),
+    Integer(Int),
     Float(f64),
     Bool(bool),
     Atom(Symbol),
@@ -573,8 +573,8 @@ impl ConstantItem {
 
     fn byte_size(&self) -> usize {
         match self {
-            Self::Atom(_) | Self::Bool(_) | Self::Float(_) | Self::Integer(Integer::Small(_)) => 8,
-            Self::Integer(Integer::Big(b)) => {
+            Self::Atom(_) | Self::Bool(_) | Self::Float(_) | Self::Integer(Int::Small(_)) => 8,
+            Self::Integer(Int::Big(b)) => {
                 let bytes = b.to_signed_bytes_le();
                 bytes.len()
             }

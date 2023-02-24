@@ -120,7 +120,7 @@ LogicalResult CallOp::verifySymbolUses(SymbolTableCollection &symbolTable) {
   auto fnAttr = (*this)->getAttrOfType<FlatSymbolRefAttr>("callee");
   if (!fnAttr)
     return emitOpError("requires a 'callee' symbol reference attribute");
-  FuncOp fn = symbolTable.lookupNearestSymbolFrom<FuncOp>(*this, fnAttr);
+  auto fn = symbolTable.lookupNearestSymbolFrom<func::FuncOp>(*this, fnAttr);
   if (!fn)
     return emitOpError() << "'" << fnAttr.getValue()
                          << "' does not reference a valid function";
@@ -179,7 +179,7 @@ LogicalResult EnterOp::verifySymbolUses(SymbolTableCollection &symbolTable) {
   auto fnAttr = (*this)->getAttrOfType<FlatSymbolRefAttr>("callee");
   if (!fnAttr)
     return emitOpError("requires a 'callee' symbol reference attribute");
-  FuncOp fn = symbolTable.lookupNearestSymbolFrom<FuncOp>(*this, fnAttr);
+  auto fn = symbolTable.lookupNearestSymbolFrom<func::FuncOp>(*this, fnAttr);
   if (!fn)
     return emitOpError() << "'" << fnAttr.getValue()
                          << "' does not reference a valid function";
@@ -204,7 +204,7 @@ LogicalResult EnterOp::verifySymbolUses(SymbolTableCollection &symbolTable) {
              << getOperand(i).getType() << " for operand number " << i;
   }
 
-  FuncOp parent = cast<FuncOp>((*this)->getParentOp());
+  auto parent = cast<func::FuncOp>((*this)->getParentOp());
   auto parentType = parent.getFunctionType();
   if (fnType.getNumResults() != parentType.getNumResults())
     return emitOpError(
@@ -232,8 +232,8 @@ FunctionType EnterOp::getCalleeType() {
   auto fnAttr = (*this)->getAttrOfType<FlatSymbolRefAttr>("callee");
   if (!fnAttr)
     return nullptr;
-  auto fn =
-      cast<FuncOp>(mlir::SymbolTable::lookupNearestSymbolFrom(*this, fnAttr));
+  auto fn = cast<func::FuncOp>(
+      mlir::SymbolTable::lookupNearestSymbolFrom(*this, fnAttr));
   return fn.getFunctionType();
 }
 
@@ -367,8 +367,8 @@ bool cir::CastOp::areCastCompatible(TypeRange inputs, TypeRange outputs) {
 
 LogicalResult cir::CastOp::fold(ArrayRef<Attribute> attrOperands,
                                 SmallVectorImpl<OpFoldResult> &foldResults) {
-  OperandRange operands = inputs();
-  ResultRange results = outputs();
+  OperandRange operands = getInputs();
+  ResultRange results = getOutputs();
 
   if (operands.getType() == results.getType()) {
     foldResults.append(operands.begin(), operands.end());
@@ -397,22 +397,17 @@ LogicalResult cir::CastOp::fold(ArrayRef<Attribute> attrOperands,
 //===----------------------------------------------------------------------===//
 
 bool cir::ConstantOp::isBuildableWith(Attribute value, Type type) {
-  // The types must match
-  auto valueType = value.getType();
-  if (valueType != type)
-    return false;
   // Must be a concrete term type
-  if (valueType
-          .isa<CIRIntegerType, CIRNumberType, CIROpaqueTermType, CIRNoneType>())
+  if (type.isa<CIRIntegerType, CIRNumberType, CIROpaqueTermType, CIRNoneType>())
     return false;
   // Must not be a box or fun type
-  if (valueType.isa<CIRFunType, CIRBoxType>())
+  if (type.isa<CIRFunType, CIRBoxType>())
     return false;
   return true;
 }
 
 OpFoldResult cir::ConstantOp::fold(ArrayRef<Attribute> operands) {
-  return value();
+  return getValue();
 }
 
 //===----------------------------------------------------------------------===//
@@ -420,10 +415,6 @@ OpFoldResult cir::ConstantOp::fold(ArrayRef<Attribute> operands) {
 //===----------------------------------------------------------------------===//
 
 bool cir::ConstantNullOp::isBuildableWith(Attribute value, Type type) {
-  // The types must match
-  auto valueType = value.getType();
-  if (valueType != type)
-    return false;
   return true;
 }
 

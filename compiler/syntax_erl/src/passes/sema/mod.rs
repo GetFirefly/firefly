@@ -4,10 +4,10 @@ mod inject;
 mod records;
 mod verify;
 
-use firefly_diagnostics::*;
 use firefly_intern::Ident;
 use firefly_pass::Pass;
 use firefly_syntax_base::ApplicationMetadata;
+use firefly_util::diagnostics::*;
 
 use crate::ast;
 
@@ -31,30 +31,30 @@ pub use self::records::analyze_record;
 /// * Errors on redefined functions
 ///
 /// And a few other similar lints
-pub struct SemanticAnalysis<'app> {
-    reporter: Reporter,
-    app: &'app ApplicationMetadata,
+pub struct SemanticAnalysis<'p> {
+    diagnostics: &'p DiagnosticsHandler,
+    app: &'p ApplicationMetadata,
 }
-impl<'app> SemanticAnalysis<'app> {
-    pub fn new(reporter: Reporter, app: &'app ApplicationMetadata) -> Self {
-        Self { reporter, app }
+impl<'p> SemanticAnalysis<'p> {
+    pub fn new(diagnostics: &'p DiagnosticsHandler, app: &'p ApplicationMetadata) -> Self {
+        Self { diagnostics, app }
     }
 }
-impl<'app> Pass for SemanticAnalysis<'app> {
+impl<'p> Pass for SemanticAnalysis<'p> {
     type Input<'a> = ast::Module;
     type Output<'a> = ast::Module;
 
     fn run<'a>(&mut self, mut module: Self::Input<'a>) -> anyhow::Result<Self::Output<'a>> {
         let mut passes = inject::AddAutoImports
-            .chain(verify::VerifyExports::new(self.reporter.clone()))
-            .chain(verify::VerifyOnLoadFunctions::new(self.reporter.clone()))
-            .chain(verify::VerifyTypeSpecs::new(self.reporter.clone()))
-            .chain(verify::VerifyNifs::new(self.reporter.clone()))
+            .chain(verify::VerifyExports::new(self.diagnostics))
+            .chain(verify::VerifyOnLoadFunctions::new(self.diagnostics))
+            .chain(verify::VerifyTypeSpecs::new(self.diagnostics))
+            .chain(verify::VerifyNifs::new(self.diagnostics))
             // We place this after VerifyNifs so that we have all the nifs available for module_info,
             // but before VerifyCalls so that any calls to module_info are not erroneously treated as
             // errors prior to them being defined by this pass
             .chain(inject::DefinePseudoLocals)
-            .chain(verify::VerifyCalls::new(self.reporter.clone(), self.app));
+            .chain(verify::VerifyCalls::new(self.diagnostics, self.app));
 
         passes.run(&mut module)?;
 

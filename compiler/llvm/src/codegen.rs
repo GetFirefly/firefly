@@ -19,7 +19,6 @@ pub enum CodeGenFileType {
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd)]
 #[repr(C)]
 pub enum CodeGenOptLevel {
-    Other,
     None,
     Less,
     Default,
@@ -33,7 +32,6 @@ impl Default for CodeGenOptLevel {
 impl fmt::Display for CodeGenOptLevel {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Self::Other => f.write_str("other"),
             Self::None => f.write_str("none"),
             Self::Less => f.write_str("less"),
             Self::Default => f.write_str("default"),
@@ -48,8 +46,8 @@ impl fmt::Display for CodeGenOptLevel {
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd)]
 #[repr(C)]
 pub enum CodeGenOptSize {
-    Other,
     None,
+    Less,
     Default,
     Aggressive,
 }
@@ -61,8 +59,8 @@ impl Default for CodeGenOptSize {
 impl fmt::Display for CodeGenOptSize {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Self::Other => f.write_str("other"),
             Self::None => f.write_str("none"),
+            Self::Less => f.write_str("less"),
             Self::Default => f.write_str("default"),
             Self::Aggressive => f.write_str("aggressive"),
         }
@@ -74,10 +72,10 @@ pub fn to_llvm_opt_settings(cfg: firefly_session::OptLevel) -> (CodeGenOptLevel,
     use firefly_session::OptLevel;
     match cfg {
         OptLevel::No => (CodeGenOptLevel::None, CodeGenOptSize::None),
-        OptLevel::Less => (CodeGenOptLevel::Less, CodeGenOptSize::None),
-        OptLevel::Default => (CodeGenOptLevel::Default, CodeGenOptSize::None),
+        OptLevel::Less => (CodeGenOptLevel::Less, CodeGenOptSize::Less),
+        OptLevel::Default => (CodeGenOptLevel::Default, CodeGenOptSize::Default),
         OptLevel::Aggressive => (CodeGenOptLevel::Aggressive, CodeGenOptSize::None),
-        OptLevel::Size => (CodeGenOptLevel::Default, CodeGenOptSize::Default),
-        OptLevel::SizeMin => (CodeGenOptLevel::Default, CodeGenOptSize::Aggressive),
+        OptLevel::Size => (CodeGenOptLevel::Less, CodeGenOptSize::Default),
+        OptLevel::SizeMin => (CodeGenOptLevel::Less, CodeGenOptSize::Aggressive),
     }
 }

@@ -79,13 +79,13 @@ pub enum DeprecatedFlag {
     NextMajorRelease,
     Description(Ident),
 }
-impl From<Symbol> for DeprecatedFlag {
-    fn from(sym: Symbol) -> Self {
-        match sym {
+impl From<Ident> for DeprecatedFlag {
+    fn from(ident: Ident) -> Self {
+        match ident.name {
             symbols::Eventually => Self::Eventually,
             symbols::NextVersion => Self::NextVersion,
             symbols::NextMajorRelease => Self::NextMajorRelease,
-            other => Self::Description(Ident::with_empty_span(other)),
+            _ => Self::Description(ident),
         }
     }
 }

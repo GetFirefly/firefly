@@ -43,6 +43,7 @@ pub enum OutputType {
     Core,
     Kernel,
     SSA,
+    Bytecode,
     /// Used to indicate a generic/unknown dialect
     MLIR,
     LLVMAssembly,
@@ -59,6 +60,7 @@ impl FromStr for OutputType {
             "core" => Ok(Self::Core),
             "kernel" => Ok(Self::Kernel),
             "ssa" => Ok(Self::SSA),
+            "bytecode" => Ok(Self::Bytecode),
             "mlir" => Ok(Self::MLIR),
             "llvm-ir" | "ll" => Ok(Self::LLVMAssembly),
             "llvm-bc" | "bc" => Ok(Self::LLVMBitcode),
@@ -86,7 +88,8 @@ impl OutputType {
             &Self::AST => "ast",
             &Self::Core => "core",
             &Self::Kernel => "kernel",
-            &Self::SSA => "core",
+            &Self::SSA => "ssa",
+            &Self::Bytecode => "bytecode",
             &Self::MLIR => "mlir",
             &Self::LLVMAssembly => "llvm-ir",
             &Self::LLVMBitcode => "llvm-bc",
@@ -102,6 +105,7 @@ impl OutputType {
             Self::Core,
             Self::Kernel,
             Self::SSA,
+            Self::Bytecode,
             Self::MLIR,
             Self::LLVMAssembly,
             Self::LLVMBitcode,
@@ -123,6 +127,7 @@ impl OutputType {
            core      = Core Erlang\n  \
            kernel    = Kernel Erlang\n  \
            ssa       = SSA IR\n  \
+           bytecode  = Bytecode\n  \
            mlir      = MLIR \n  \
            llvm-ir   = LLVM IR\n  \
            llvm-bc   = LLVM Bitcode (*)\n  \
@@ -139,6 +144,7 @@ impl OutputType {
             Self::Core => "core",
             Self::Kernel => "kernel",
             Self::SSA => "ssa",
+            Self::Bytecode => "ff",
             Self::MLIR => "mlir",
             Self::LLVMAssembly => "ll",
             Self::LLVMBitcode => "bc",
@@ -305,6 +311,17 @@ impl OutputTypes {
 
     pub fn should_generate_mlir(&self) -> bool {
         self.0.keys().any(|k| match *k {
+            OutputType::AST
+            | OutputType::Core
+            | OutputType::Kernel
+            | OutputType::SSA
+            | OutputType::Bytecode => false,
+            _ => true,
+        })
+    }
+
+    pub fn should_generate_bytecode(&self) -> bool {
+        self.0.keys().any(|k| match *k {
             OutputType::AST | OutputType::Core | OutputType::Kernel | OutputType::SSA => false,
             _ => true,
         })
@@ -462,7 +479,7 @@ fn map_input_output(input: &Input, output_type: &OutputType, output_dir: &Path) 
     }
 }
 
-fn output_filename(
+pub(super) fn output_filename(
     source_name: FileName,
     output_type: OutputType,
     output_dir_opt: Option<&Path>,

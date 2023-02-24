@@ -1,9 +1,20 @@
 [package]
 name = "firefly_crt"
-version = "0.1.0"
-authors = ["Firefly Developers"]
-publish = false
-edition = "2021"
+version.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+categories.workspace = true
+keywords.workspace = true
+license.workspace = true
+readme.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[features]
+default = ["no_std"]
+std = ["firefly_rt/std"]
+no_std = ["firefly_rt/no_std"]
 
 [dependencies]
-firefly_rt = { path = "../../library/rt" }
+firefly_rt = { path = "../../library/rt", default-features = false }

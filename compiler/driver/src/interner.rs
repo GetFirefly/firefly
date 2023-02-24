@@ -1,26 +1,23 @@
+use std::sync::OnceLock;
+
+use parking_lot::RwLock;
+
 use firefly_session::Input;
 
-/// Maps to an interned instance of Input
-#[derive(Copy, Clone, Debug, Hash, PartialEq, Eq)]
-pub struct InternedInput(salsa::InternId);
-impl From<u32> for InternedInput {
-    #[inline]
-    fn from(i: u32) -> Self {
-        Self(i.into())
-    }
-}
-impl salsa::InternKey for InternedInput {
-    fn from_intern_id(id: salsa::InternId) -> Self {
-        Self(id)
-    }
+static INTERNED_INPUTS: OnceLock<RwLock<Vec<Input>>> = OnceLock::new();
 
-    fn as_intern_id(&self) -> salsa::InternId {
-        self.0
-    }
+pub type InputId = u32;
+
+pub fn intern(input: Input) -> InputId {
+    let inputs = INTERNED_INPUTS.get_or_init(|| RwLock::new(Vec::with_capacity(1024)));
+    let mut guard = inputs.write();
+    let id = guard.len() as InputId;
+    guard.push(input);
+    id
 }
 
-#[salsa::query_group(InternerStorage)]
-pub trait Interner: salsa::Database {
-    #[salsa::interned]
-    fn intern_input(&self, input: Input) -> InternedInput;
+pub fn get(input: InputId) -> Input {
+    let inputs = INTERNED_INPUTS.get().unwrap();
+    let guard = inputs.read();
+    guard[input].clone()
 }

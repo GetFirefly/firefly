@@ -2,14 +2,13 @@ use alloc::alloc::AllocError;
 use alloc::boxed::Box;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
+use core::cell::UnsafeCell;
 use core::iter::FusedIterator;
 use core::ptr::NonNull;
 
 use firefly_alloc::fragment::HeapFragment;
-use firefly_system::cell::ThreadLocalCell;
 
-use crate::function::ModuleFunctionArity;
-use crate::term::{Cons, OpaqueTerm, Term};
+use crate::term::{Cons, OpaqueTerm, Term, TermFragment};
 
 use super::{Frame, Symbolication, TraceFrame};
 
@@ -19,9 +18,7 @@ use super::{Frame, Symbolication, TraceFrame};
 /// to provide access to details needed to symbolicate and format traces.
 pub struct Trace {
     frames: Vec<TraceFrame>,
-    fragment: ThreadLocalCell<Option<NonNull<HeapFragment>>>,
-    term: ThreadLocalCell<Option<Term>>,
-    top: ThreadLocalCell<Option<Term>>,
+    fragment: UnsafeCell<Option<TermFragment>>,
 }
 impl Trace {
     pub const MAX_FRAMES: usize = 10;
@@ -30,9 +27,7 @@ impl Trace {
     pub fn new(frames: Vec<TraceFrame>) -> Arc<Self> {
         Arc::new(Self {
             frames,
-            fragment: ThreadLocalCell::new(None),
-            term: ThreadLocalCell::new(None),
-            top: ThreadLocalCell::new(None),
+            fragment: UnsafeCell::new(None),
         })
     }
 
@@ -73,19 +68,17 @@ impl Trace {
 
     #[cfg(not(feature = "std"))]
     pub fn capture() -> Arc<Self> {
-        Self::new()
+        Self::new(Vec::new())
     }
 
     /// Used by `erlang:raise/3` when the caller can specify a constrained format of `Term` for
     /// the `term` in this `Trace`.
     pub fn from_term(term: Term) -> Arc<Self> {
-        let (fragment_term, fragment) = term.clone_to_fragment().unwrap();
+        let fragment = TermFragment::new(term).unwrap();
 
         Arc::new(Self {
             frames: Default::default(),
-            fragment: ThreadLocalCell::new(Some(fragment)),
-            term: ThreadLocalCell::new(Some(fragment_term)),
-            top: Default::default(),
+            fragment: UnsafeCell::new(Some(fragment)),
         })
     }
 
@@ -97,34 +90,7 @@ impl Trace {
 
     #[inline]
     pub fn iter_symbols(&self) -> SymbolIter<'_> {
-        SymbolIter::new(self.frames.as_slice(), self.top.as_ref().clone())
-    }
-
-    /// Sets the top frame of the stacktrace to a specific module/function/arity,
-    /// using the provided argument list in place of arity. This is a special case
-    /// added to support `undef` or `badarg` errors, which may display the arguments
-    /// used to call the function which raised the error.
-    ///
-    /// NOTE: Support for this is optional, we are not required to display the arguments,
-    /// but may do so if available. At a minimum, we do need to support the ability to
-    /// add a frame to the trace for calls which we know will fail (e.g. apply/3 with
-    /// a function that doesn't exist). This still feels like a gross hack though.
-    #[inline]
-    pub fn set_top_frame(&self, mfa: &ModuleFunctionArity, arguments: &[OpaqueTerm]) {
-        assert!(self.top.is_none(), "top of trace was already set");
-
-        // Get heap to allocate the frame on
-        let heap_ptr = self.get_or_create_fragment(Some(arguments)).unwrap_or(None);
-        if let Some(mut heap) = heap_ptr {
-            let heap_mut = unsafe { heap.as_mut() };
-            if let Ok(frame) =
-                super::symbolication::format_mfa(mfa, Some(arguments), None, None, heap_mut)
-            {
-                unsafe {
-                    self.top.set(Some(frame));
-                }
-            }
-        }
+        SymbolIter::new(self.frames.as_slice())
     }
 
     #[inline]
@@ -132,11 +98,11 @@ impl Trace {
         self.frames.push(TraceFrame::from(frame));
     }
 
-    pub fn as_term(&self) -> Result<Term, AllocError> {
-        if let Some(term) = self.term.as_ref() {
-            Ok(*term)
+    pub fn as_term(&self, args: Option<&[OpaqueTerm]>) -> Result<Term, AllocError> {
+        if let Some(fragment) = self.fragment() {
+            Ok(fragment.term.into())
         } else {
-            self.construct()
+            self.construct(args)
         }
     }
 
@@ -149,43 +115,27 @@ impl Trace {
     pub unsafe fn from_raw(trace: *mut Trace) -> Arc<Trace> {
         Arc::from_raw(trace)
     }
+
+    #[inline]
+    fn fragment(&self) -> Option<&TermFragment> {
+        unsafe { &*self.fragment.get() }.as_ref()
+    }
 }
 
 pub struct SymbolIter<'a> {
     frames: &'a [TraceFrame],
-    top: Option<Term>,
     pos: Option<usize>,
 }
 impl<'a> SymbolIter<'a> {
-    fn new(frames: &'a [TraceFrame], top: Option<Term>) -> Self {
-        Self {
-            frames,
-            top,
-            pos: None,
-        }
+    fn new(frames: &'a [TraceFrame]) -> Self {
+        Self { frames, pos: None }
     }
 }
-
 impl Iterator for SymbolIter<'_> {
     type Item = Symbolication;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.pos.is_none() {
-            self.pos = Some(0);
-        }
-
-        let mut pos = self.pos.unwrap();
-        if pos == 0 {
-            if let Some(top) = self.top {
-                if let Ok(symbol) = top.try_into() {
-                    self.pos = Some(1);
-                    return Some(symbol);
-                }
-            }
-
-            // Skip the top
-            self.pos = Some(1);
-        }
+        let mut pos = self.pos.unwrap_or(0);
 
         loop {
             if pos >= self.frames.len() {
@@ -206,32 +156,21 @@ impl Iterator for SymbolIter<'_> {
 impl FusedIterator for SymbolIter<'_> {}
 impl DoubleEndedIterator for SymbolIter<'_> {
     fn next_back(&mut self) -> Option<Self::Item> {
-        if self.pos.is_none() {
-            self.pos = Some(self.frames.len());
-        }
-
-        let mut pos = self.pos.unwrap();
-
-        if pos == 0 {
+        if self.frames.is_empty() {
             return None;
         }
 
-        loop {
-            if pos == 1 {
-                if let Some(top) = self.top {
-                    if let Ok(symbol) = top.try_into() {
-                        self.pos = Some(0);
-                        return Some(symbol);
-                    }
-                }
+        let mut pos = self.pos.unwrap_or_else(|| self.frames.len() - 1);
 
-                // Skip the top
-                self.pos = Some(0);
+        loop {
+            if pos == 0 {
+                self.pos = Some(pos);
                 return None;
             }
 
-            pos -= 1;
             let frame = &self.frames[pos];
+            pos -= 1;
+
             if let Some(symbol) = frame.symbolicate() {
                 self.pos = Some(pos);
                 return Some(symbol.clone());
@@ -247,22 +186,18 @@ impl Trace {
     ///
     /// The allocated size of the fragment is sufficient to hold all of the frames
     /// of the trace in Erlang Term form. The `extra` parameter is used to indicate
-    /// that some amount of extra bytes is requested to fulfill auxillary requests,
-    /// such as for `top`.
+    /// that some amount of extra bytes is requested to fulfill auxillary requests.
     fn get_or_create_fragment(
         &self,
         extra: Option<&[OpaqueTerm]>,
     ) -> Result<Option<NonNull<HeapFragment>>, AllocError> {
-        if let Some(fragment) = self.fragment.as_ref() {
-            Ok(Some(fragment.clone()))
+        if let Some(fragment) = self.fragment() {
+            Ok(Some(fragment.fragment.unwrap()))
         } else {
             if let Some(layout) =
                 super::symbolication::calculate_fragment_layout(self.frames.len(), extra)
             {
                 let heap_ptr = HeapFragment::new(layout, None)?;
-                unsafe {
-                    self.fragment.set(Some(heap_ptr.clone()));
-                }
                 Ok(Some(heap_ptr))
             } else {
                 // No fragment needed, nothing to construct
@@ -274,11 +209,11 @@ impl Trace {
     /// Constructs the stacktrace in its Erlang Term form, caching the result
     ///
     /// NOTE: This function should only ever be called once.
-    fn construct(&self) -> Result<Term, AllocError> {
-        assert!(self.term.is_none());
+    fn construct(&self, args: Option<&[OpaqueTerm]>) -> Result<Term, AllocError> {
+        assert!(self.fragment().is_none());
 
         // Either create a heap fragment for the terms, or use the one created already
-        let heap_ptr = self.get_or_create_fragment(None)?;
+        let heap_ptr = self.get_or_create_fragment(args)?;
         if heap_ptr.is_none() {
             return Ok(Term::Nil);
         }
@@ -286,16 +221,7 @@ impl Trace {
         let heap = unsafe { heap_ptr.as_ref() };
 
         // If top was set, we have an extra frame to append
-        let mut erlang_frames = if self.top.is_some() {
-            Vec::with_capacity(1 + self.frames.len())
-        } else {
-            Vec::with_capacity(self.frames.len())
-        };
-
-        // If top was set, add it as the most recent frame on the stack
-        if let Some(top) = self.top.as_ref() {
-            erlang_frames.push(*top);
-        }
+        let mut erlang_frames = Vec::with_capacity(self.frames.len());
 
         // Add all of the "real" stack frames
         for frame in &self.frames[..] {
@@ -304,12 +230,12 @@ impl Trace {
                 if let Some(ref mfa) = symbol.mfa() {
                     let erlang_frame = super::symbolication::format_mfa(
                         mfa,
-                        None,
+                        args,
                         symbol.filename(),
                         symbol.line(),
                         heap,
                     )?;
-                    erlang_frames.push(erlang_frame);
+                    erlang_frames.push(erlang_frame.into());
                 }
             }
         }
@@ -320,7 +246,13 @@ impl Trace {
             .unwrap_or(Term::Nil);
 
         // Cache the stacktrace for future queries
-        unsafe { self.term.set(Some(list)) };
+        unsafe {
+            let fragment = &mut *self.fragment.get();
+            *fragment = Some(TermFragment {
+                term: list.clone().into(),
+                fragment: Some(heap_ptr),
+            })
+        }
 
         Ok(list)
     }

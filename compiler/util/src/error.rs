@@ -25,6 +25,13 @@ impl Verbosity {
             _ => Verbosity::Debug,
         }
     }
+
+    pub fn is_silent(&self) -> bool {
+        match self {
+            Self::Silent => true,
+            _ => false,
+        }
+    }
 }
 
 #[derive(Error, Debug, Clone, PartialEq, Eq)]

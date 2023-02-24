@@ -2,6 +2,7 @@
 #![feature(proc_macro_def_site)]
 #![feature(box_syntax)]
 #![feature(box_patterns)]
+#![feature(iterator_try_collect)]
 extern crate proc_macro;
 
 mod bif;
@@ -32,13 +33,8 @@ pub fn bif(input: TokenStream) -> TokenStream {
     use self::bif::BifSpec;
 
     let spec = parse_macro_input!(input as BifSpec);
-    self::bif::define_bif(spec)
-}
-
-#[proc_macro]
-pub fn guard_bif(input: TokenStream) -> TokenStream {
-    use self::bif::BifSpec;
-
-    let spec = parse_macro_input!(input as BifSpec);
-    self::bif::define_guard_bif(spec)
+    match self::bif::define_bif(spec) {
+        Ok(tokens) => tokens,
+        Err(error) => error.into_compile_error().into(),
+    }
 }

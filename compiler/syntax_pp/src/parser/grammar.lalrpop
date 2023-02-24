@@ -1,14 +1,14 @@
 use std::sync::Arc;
 
-use firefly_diagnostics::{Reporter, SourceIndex, SourceSpan, CodeMap, Span};
 use firefly_intern::{symbols, Symbol};
 use firefly_number::ToPrimitive;
+use firefly_util::diagnostics::{DiagnosticsHandler, SourceSpan, CodeMap, Span, SourceIndex};
 use firefly_beam::ast::*;
 
 use crate::ast::*;
 use crate::lexer::Token;
 
-grammar<'a>(reporter: &Reporter, codemap: &Arc<CodeMap>);
+grammar<'a>(diagnostics: &DiagnosticsHandler, codemap: &Arc<CodeMap>);
 
 // The following are _not_ non-terminals, but macros
 // which can be identified by the generic type parameter,
@@ -472,7 +472,7 @@ extern {
         "COMMENT" => Token::Comment,
         // Literals
         char => Token::CharLiteral(<char>),
-        int => Token::IntegerLiteral(<firefly_number::Integer>),
+        int => Token::IntegerLiteral(<firefly_number::Int>),
         float => Token::FloatLiteral(<firefly_number::Float>),
         atom => Token::AtomLiteral(<Symbol>),
         string => Token::StringLiteral(<Symbol>),

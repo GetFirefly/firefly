@@ -5,7 +5,49 @@ use core::ptr::NonNull;
 use firefly_alloc::fragment::HeapFragment;
 
 use crate::backtrace::Trace;
-use crate::term::{Atom, OpaqueTerm, Term};
+use crate::term::{atoms, Atom, OpaqueTerm, Term};
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum ExceptionClass {
+    Error,
+    Exit,
+    Throw,
+}
+impl TryFrom<Atom> for ExceptionClass {
+    type Error = ();
+
+    fn try_from(a: Atom) -> Result<Self, ()> {
+        if a == atoms::Error {
+            Ok(Self::Error)
+        } else if a == atoms::Exit {
+            Ok(Self::Exit)
+        } else if a == atoms::Throw {
+            Ok(Self::Throw)
+        } else {
+            Err(())
+        }
+    }
+}
+impl Into<Atom> for ExceptionClass {
+    fn into(self) -> Atom {
+        match self {
+            Self::Error => atoms::Error,
+            Self::Exit => atoms::Exit,
+            Self::Throw => atoms::Throw,
+        }
+    }
+}
+impl Into<OpaqueTerm> for ExceptionClass {
+    fn into(self) -> OpaqueTerm {
+        let atom: Atom = self.into();
+        atom.into()
+    }
+}
+impl Into<Term> for ExceptionClass {
+    fn into(self) -> Term {
+        Term::Atom(self.into())
+    }
+}
 
 /// The raw representation of an Erlang panic.
 ///
@@ -40,18 +82,18 @@ use crate::term::{Atom, OpaqueTerm, Term};
 #[derive(Debug)]
 #[repr(C)]
 pub struct ErlangException {
-    kind: Atom,
-    reason: OpaqueTerm,
-    meta: OpaqueTerm,
+    pub kind: ExceptionClass,
+    pub reason: OpaqueTerm,
+    pub meta: OpaqueTerm,
     trace: *mut Trace,
-    fragment: Option<NonNull<HeapFragment>>,
+    pub fragment: Option<NonNull<HeapFragment>>,
 }
 impl ErlangException {
     pub fn new(kind: Atom, reason: Term, trace: Arc<Trace>) -> Box<Self> {
         let trace = Trace::into_raw(trace);
 
         Box::new(Self {
-            kind,
+            kind: kind.try_into().unwrap(),
             reason: reason.into(),
             meta: OpaqueTerm::NIL,
             trace,
@@ -63,7 +105,7 @@ impl ErlangException {
         let trace = Trace::into_raw(trace);
 
         Box::new(Self {
-            kind,
+            kind: kind.try_into().unwrap(),
             reason: reason.into(),
             meta: meta.into(),
             trace,
@@ -71,9 +113,24 @@ impl ErlangException {
         })
     }
 
+    /// Convert a boxed `ErlangException` into a `NonNull<ErlangException>`
+    pub fn into_raw(self: Box<Self>) -> NonNull<Self> {
+        unsafe { NonNull::new_unchecked(Box::into_raw(self)) }
+    }
+
+    /// Convert a pointer produced by `ErlangException::as_ptr` into a `Box<ErlangException>`
+    ///
+    /// # SAFETY
+    ///
+    /// Calls to this function _must_ be paired with a call to `as_ptr`, otherwise you risk a double-free
+    pub unsafe fn from_raw(ptr: *mut Self) -> Box<Self> {
+        assert!(!ptr.is_null());
+        Box::from_raw(ptr)
+    }
+
     #[inline]
     pub fn kind(&self) -> Atom {
-        self.kind
+        self.kind.into()
     }
 
     #[inline]

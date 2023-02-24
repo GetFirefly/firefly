@@ -1,25 +1,26 @@
 [package]
 name = "firefly_syntax_ssa"
-version = "0.1.0"
-authors = ["Paul Schoenfelder <paulschoenfelder@gmail.com>"]
-readme = "README.md"
-publish = false
-edition = "2021"
-license = "MIT OR Apache-2.0"
+description = "Provides a high-level SSA intermediate representation used by the Firefly compiler"
+version.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+categories.workspace = true
+keywords.workspace = true
+license.workspace = true
+readme.workspace = true
+edition.workspace = true
+publish.workspace = true
 
 [dependencies]
+anyhow = { workspace = true, features = ["std"] }
+cranelift-entity.workspace = true
 firefly_arena = { path = "../../library/arena" }
-firefly_binary = { path = "../../library/binary" }
+firefly_binary = { path = "../../library/binary", features = ["std"] }
 firefly_diagnostics = { path = "../diagnostics" }
-firefly_intern = { path = "../intern" }
-firefly_number = { path = "../../library/number" }
+firefly_intern = { path = "../intern", features = ["std"] }
+firefly_number = { path = "../../library/number", features = ["std"] }
 firefly_util = { path = "../util" }
 firefly_syntax_base = { path = "../syntax_base" }
-
-anyhow = "1.0"
-cranelift-entity = "0.81"
-paste = "1.0"
-
-[dependencies.intrusive-collections]
-version = "0.9"
-features = ["nightly"]
+intrusive-collections.workspace = true
+paste.workspace = true

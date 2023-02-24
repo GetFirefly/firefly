@@ -31,7 +31,6 @@ static inline MlirVisibility wrap(mlir::SymbolTable::Visibility v) {
   case mlir::SymbolTable::Visibility::Nested:
     return MlirVisibilityNested;
   case mlir::SymbolTable::Visibility::Private:
-  default:
     return MlirVisibilityPrivate;
   }
 }

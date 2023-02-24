@@ -1,6 +1,4 @@
 add_mlir_dialect_library(MLIRFireflyExtensions
-  Builder.cpp
-  Diagnostics.cpp
   Helpers.cpp
   ModuleReader.cpp
   ModuleWriter.cpp
@@ -19,3 +17,4 @@ add_mlir_dialect_library(MLIRFireflyExtensions
   MLIRParser
   MLIRTargetLLVMIRExport
 )
+

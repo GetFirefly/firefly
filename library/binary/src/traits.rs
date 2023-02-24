@@ -1,7 +1,9 @@
 use alloc::borrow::Cow;
 use alloc::string::String;
+use alloc::sync::Arc;
 use alloc::vec::Vec;
 use core::fmt;
+use core::ops::Deref;
 
 use half::f16;
 use paste::paste;
@@ -213,6 +215,51 @@ where
     #[inline]
     unsafe fn as_bytes_unchecked(&self) -> &[u8] {
         (**self).as_bytes_unchecked()
+    }
+}
+
+impl<B> Bitstring for Arc<B>
+where
+    B: Bitstring + ?Sized,
+{
+    #[inline]
+    fn byte_size(&self) -> usize {
+        self.deref().byte_size()
+    }
+
+    #[inline]
+    fn bit_size(&self) -> usize {
+        self.deref().bit_size()
+    }
+
+    #[inline]
+    fn trailing_bits(&self) -> u8 {
+        self.deref().trailing_bits()
+    }
+
+    #[inline]
+    fn bytes(&self) -> ByteIter<'_> {
+        self.deref().bytes()
+    }
+
+    #[inline]
+    fn is_aligned(&self) -> bool {
+        self.deref().is_aligned()
+    }
+
+    #[inline]
+    fn is_binary(&self) -> bool {
+        self.deref().is_binary()
+    }
+
+    #[inline]
+    fn as_str(&self) -> Option<&str> {
+        self.deref().as_str()
+    }
+
+    #[inline]
+    unsafe fn as_bytes_unchecked(&self) -> &[u8] {
+        self.deref().as_bytes_unchecked()
     }
 }
 
@@ -464,6 +511,36 @@ where
     }
 }
 
+impl<B> Binary for Arc<B>
+where
+    B: Binary + ?Sized,
+{
+    #[inline]
+    fn flags(&self) -> BinaryFlags {
+        self.deref().flags()
+    }
+
+    #[inline]
+    fn is_raw(&self) -> bool {
+        self.deref().is_raw()
+    }
+
+    #[inline]
+    fn is_latin1(&self) -> bool {
+        self.deref().is_latin1()
+    }
+
+    #[inline]
+    fn is_utf8(&self) -> bool {
+        self.deref().is_utf8()
+    }
+
+    #[inline]
+    fn encoding(&self) -> Encoding {
+        self.deref().encoding()
+    }
+}
+
 impl Binary for [u8] {
     fn flags(&self) -> BinaryFlags {
         let size = self.len();
@@ -561,6 +638,7 @@ impl Binary for String {
 pub trait Aligned {}
 
 impl<A: Aligned + ?Sized> Aligned for &A {}
+impl<A: Aligned + ?Sized> Aligned for Arc<A> {}
 
 impl<const N: usize> Aligned for [u8; N] {}
 impl Aligned for [u8] {}

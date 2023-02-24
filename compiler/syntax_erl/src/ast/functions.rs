@@ -2,10 +2,10 @@ use std::cmp::Ordering;
 use std::fmt;
 use std::hash::{Hash, Hasher};
 
-use firefly_diagnostics::{Diagnostic, Label, Reporter, SourceSpan, Span, Spanned};
 use firefly_intern::Symbol;
-use firefly_number::Integer;
+use firefly_number::Int;
 use firefly_syntax_base::FunctionName;
+use firefly_util::diagnostics::*;
 
 use super::{Arity, Clause, Expr, Ident, Literal, Name, TypeSpec, Var};
 use crate::ParserError;
@@ -52,7 +52,7 @@ impl Function {
     }
 
     pub fn new(
-        reporter: &Reporter,
+        diagnostics: &DiagnosticsHandler,
         span: SourceSpan,
         clauses: Vec<(Option<Name>, Clause)>,
     ) -> Result<Self, ParserError> {
@@ -70,16 +70,18 @@ impl Function {
         for (clause_name, clause) in clauses.iter().skip(1) {
             if clause_name.is_none() {
                 return Err(ParserError::ShowDiagnostic {
-                    diagnostic: Diagnostic::error()
+                    diagnostic: diagnostics
+                        .diagnostic(Severity::Error)
                         .with_message("expected named function clause")
-                        .with_labels(vec![
-                            Label::primary(clause.span.source_id(), clause.span).with_message(
-                                "this clause has no name, but a name is required here",
-                            ),
-                            Label::secondary(last_clause.source_id(), last_clause).with_message(
-                                "expected a clause with the same name as this clause",
-                            ),
-                        ]),
+                        .with_primary_label(
+                            clause.span,
+                            "this clause has no name, but a name is required here",
+                        )
+                        .with_secondary_label(
+                            last_clause,
+                            "expected a clause with the same name as this clause",
+                        )
+                        .take(),
                 });
             }
 
@@ -87,33 +89,27 @@ impl Function {
             let clause_arity: u8 = clause.patterns.len().try_into().unwrap();
 
             if clause_name != Name::Atom(name) {
-                reporter.diagnostic(
-                    Diagnostic::error()
-                        .with_message("unterminated function clause")
-                        .with_labels(vec![
-                            Label::primary(last_clause.source_id(), last_clause.clone())
-                                .with_message(
-                                "this clause ends with ';', indicating that another clause follows",
-                            ),
-                            Label::secondary(clause.span.source_id(), clause.span.clone())
-                                .with_message("but this clause has a different name"),
-                        ]),
-                );
+                diagnostics
+                    .diagnostic(Severity::Error)
+                    .with_message("unterminated function clause")
+                    .with_primary_label(
+                        last_clause,
+                        "this clause ends with ';', indicating that another clause follows",
+                    )
+                    .with_secondary_label(clause.span, "but this clause has a different name")
+                    .emit();
                 continue;
             }
             if clause_arity != arity {
-                reporter.diagnostic(
-                    Diagnostic::error()
-                        .with_message("unterminated function clause")
-                        .with_labels(vec![
-                            Label::primary(last_clause.source_id(), last_clause.clone())
-                                .with_message(
-                                "this clause ends with ';', indicating that another clause follows",
-                            ),
-                            Label::secondary(clause.span.source_id(), clause.span.clone())
-                                .with_message("but this clause has a different arity"),
-                        ]),
-                );
+                diagnostics
+                    .diagnostic(Severity::Error)
+                    .with_message("unterminated function clause")
+                    .with_primary_label(
+                        last_clause,
+                        "this clause ends with ';', indicating that another clause follows",
+                    )
+                    .with_secondary_label(clause.span, "but this clause has a different arity")
+                    .emit();
                 continue;
             }
 
@@ -204,7 +200,7 @@ pub enum Fun {
 }
 impl Fun {
     pub fn new(
-        reporter: &Reporter,
+        diagnostics: &DiagnosticsHandler,
         span: SourceSpan,
         mut clauses: Vec<(Option<Name>, Clause)>,
     ) -> Result<Self, ParserError> {
@@ -220,65 +216,59 @@ impl Fun {
         for (clause_name, clause) in clauses.iter().skip(1) {
             if name.is_some() && clause_name.is_none() {
                 return Err(ParserError::ShowDiagnostic {
-                    diagnostic: Diagnostic::error()
+                    diagnostic: diagnostics
+                        .diagnostic(Severity::Error)
                         .with_message("expected named function clause")
-                        .with_labels(vec![
-                            Label::primary(clause.span.source_id(), clause.span.clone())
-                                .with_message(
-                                    "this clause has no name, but a name is required here",
-                                ),
-                            Label::secondary(last_clause.source_id(), last_clause).with_message(
-                                "expected a clause with the same name as this clause",
-                            ),
-                        ]),
+                        .with_primary_label(
+                            clause.span,
+                            "this clause has no name, but a name is required here",
+                        )
+                        .with_secondary_label(
+                            last_clause,
+                            "expected a clause with the same name as this clause",
+                        )
+                        .take(),
                 });
             }
 
             if name.is_none() && clause_name.is_some() {
                 return Err(ParserError::ShowDiagnostic {
-                    diagnostic: Diagnostic::error()
+                    diagnostic: diagnostics
+                        .diagnostic(Severity::Error)
                         .with_message("mismatched function clause")
-                        .with_labels(vec![
-                            Label::primary(clause.span.source_id(), clause.span.clone())
-                                .with_message("this clause is named"),
-                            Label::secondary(last_clause.source_id(), last_clause.clone())
-                                .with_message(
-                                "but this clause is unnamed, all clauses must share the same name",
-                            ),
-                        ]),
+                        .with_primary_label(clause.span, "this clause is named")
+                        .with_secondary_label(
+                            last_clause,
+                            "but this clause is unnamed, all clauses must share the same name",
+                        )
+                        .take(),
                 });
             }
 
             if *clause_name != name {
-                reporter.diagnostic(
-                    Diagnostic::error()
-                        .with_message("unterminated function clause")
-                        .with_labels(vec![
-                            Label::primary(last_clause.source_id(), last_clause.clone())
-                                .with_message(
-                                "this clause ends with ';', indicating that another clause follows",
-                            ),
-                            Label::secondary(clause.span.source_id(), clause.span.clone())
-                                .with_message("but this clause has a different name"),
-                        ]),
-                );
+                diagnostics
+                    .diagnostic(Severity::Error)
+                    .with_message("unterminated function clause")
+                    .with_primary_label(
+                        last_clause,
+                        "this clause ends with ';', indicating that another clause follows",
+                    )
+                    .with_secondary_label(clause.span, "but this clause has a different name")
+                    .emit();
                 continue;
             }
 
             let clause_arity: u8 = clause.patterns.len().try_into().unwrap();
             if clause_arity != arity {
-                reporter.diagnostic(
-                    Diagnostic::error()
-                        .with_message("unterminated function clause")
-                        .with_labels(vec![
-                            Label::primary(last_clause.source_id(), last_clause.clone())
-                                .with_message(
-                                "this clause ends with ';', indicating that another clause follows",
-                            ),
-                            Label::secondary(clause.span.source_id(), clause.span.clone())
-                                .with_message("but this clause has a different arity"),
-                        ]),
-                );
+                diagnostics
+                    .diagnostic(Severity::Error)
+                    .with_message("unterminated function clause")
+                    .with_primary_label(
+                        last_clause,
+                        "this clause ends with ';', indicating that another clause follows",
+                    )
+                    .with_secondary_label(clause.span, "but this clause has a different arity")
+                    .emit();
                 continue;
             }
 
@@ -346,12 +336,12 @@ pub enum FunctionVar {
     PartiallyResolved(Span<FunctionName>),
     Unresolved(UnresolvedFunctionName),
 }
-impl From<FunctionName> for FunctionVar {
-    fn from(name: FunctionName) -> Self {
+impl From<Span<FunctionName>> for FunctionVar {
+    fn from(name: Span<FunctionName>) -> Self {
         if name.is_local() {
-            Self::PartiallyResolved(Span::new(SourceSpan::UNKNOWN, name))
+            Self::PartiallyResolved(name)
         } else {
-            Self::Resolved(Span::new(SourceSpan::UNKNOWN, name))
+            Self::Resolved(name)
         }
     }
 }
@@ -404,9 +394,7 @@ impl FunctionVar {
                     Name::Atom(id) => Expr::Literal(Literal::Atom(*id)),
                 };
                 let arity = match arity {
-                    Arity::Int(i) => {
-                        Expr::Literal(Literal::Integer(*span, Integer::Small(*i as i64)))
-                    }
+                    Arity::Int(i) => Expr::Literal(Literal::Integer(*span, Int::Small(*i as i64))),
                     Arity::Var(id) => Expr::Var(Var(*id)),
                 };
                 (module, function, arity)

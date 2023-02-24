@@ -3,12 +3,6 @@
 
 include "mlir/Pass/PassBase.td"
 
-def InjectYields : InterfacePass<"inject-yields", "FunctionOpInterface"> {
-    let summary = "Injects yield points for scheduling/garbage-collection at appropriate points in each function";
-    let constructor = "mlir::cir::createInjectYieldPointsPass()";
-    let dependentDialects = ["CIRDialect"];
-}
-
 def ConvertCIRToLLVM : Pass<"convert-cir-to-llvm", "ModuleOp"> {
     let summary = "Convert CIR dialect to LLVM dialect";
     let description = [{

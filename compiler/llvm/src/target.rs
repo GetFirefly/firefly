@@ -8,7 +8,7 @@ use anyhow::anyhow;
 use firefly_session::{Options, ProjectType};
 use firefly_target::{CodeModel, Endianness, RelocModel};
 
-use crate::codegen::{self, CodeGenFileType, CodeGenOptLevel, CodeGenOptSize};
+use crate::codegen::{self, CodeGenFileType, CodeGenOptLevel};
 use crate::ir::*;
 use crate::support::{OwnedStringRef, StringRef};
 
@@ -260,10 +260,9 @@ struct TargetMachineConfig {
     pub emit_stack_size_section: bool,
     pub preserve_asm_comments: bool,
     pub enable_threading: bool,
-    pub code_model: CodeModel,
-    pub reloc_model: RelocModel,
+    pub code_model: *const CodeModel,
+    pub reloc_model: *const RelocModel,
     pub opt_level: CodeGenOptLevel,
-    pub size_level: CodeGenOptSize,
 }
 
 /// Represents a non-owning reference to an LLVM target machine
@@ -323,12 +322,12 @@ impl TargetMachine {
             true
         };
         let default_code_model = options.target.options.code_model;
-        let code_model = options
-            .codegen_opts
-            .code_model
-            .or(default_code_model)
-            .unwrap_or(CodeModel::None);
-        let (opt_level, size_level) = codegen::to_llvm_opt_settings(options.opt_level);
+        let code_model = options.codegen_opts.code_model.or(default_code_model);
+        let code_model_ptr = code_model
+            .as_ref()
+            .map(|cm| cm as *const CodeModel)
+            .unwrap_or(std::ptr::null());
+        let (opt_level, _) = codegen::to_llvm_opt_settings(options.opt_level);
 
         let features = features_owned
             .iter()
@@ -348,10 +347,9 @@ impl TargetMachine {
             emit_stack_size_section,
             preserve_asm_comments,
             enable_threading,
-            code_model,
-            reloc_model,
+            code_model: code_model_ptr,
+            reloc_model: &reloc_model,
             opt_level,
-            size_level,
         };
 
         let mut error = MaybeUninit::uninit();

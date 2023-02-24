@@ -1,12 +1,12 @@
 use core::cmp::Ordering;
 use core::ops::{Add, Div, Mul, Neg, Sub};
 
-use crate::{BigInt, DivisionError, Float, FloatError, Integer};
+use crate::{BigInt, DivisionError, Float, FloatError, Int};
 
 #[derive(Debug, Clone, Hash)]
 #[repr(u8)]
 pub enum Number {
-    Integer(Integer),
+    Integer(Int),
     Float(Float),
 }
 impl Number {
@@ -82,8 +82,8 @@ impl PartialOrd for Number {
     }
 }
 
-impl From<Integer> for Number {
-    fn from(int: Integer) -> Self {
+impl From<Int> for Number {
+    fn from(int: Int) -> Self {
         Self::Integer(int)
     }
 }

@@ -1,8 +1,9 @@
 use alloc::alloc::{AllocError, Allocator, Layout};
 use core::mem;
+use core::ops::Range;
 use core::ptr::NonNull;
 
-use super::{GenerationalHeap, Heap};
+use super::{GenerationalHeap, Heap, HeapMut};
 
 /// This struct implements a semi-space generational heap, like that used in the
 /// BEAM for Erlang processes.
@@ -44,11 +45,7 @@ use super::{GenerationalHeap, Heap};
 /// is allocated and live matured objects from both heaps are swept into the new mature heap. The old mature
 /// heap becomes the new immature heap, and the old immature heap is freed.
 #[derive(Debug)]
-pub struct SemispaceHeap<A, B>
-where
-    A: Heap,
-    B: Heap,
-{
+pub struct SemispaceHeap<A, B> {
     immature: A,
     mature: B,
 }
@@ -60,16 +57,6 @@ where
     /// Creates a new semi-space heap composed of the given immature and mature heaps
     pub fn new(immature: A, mature: B) -> Self {
         Self { immature, mature }
-    }
-
-    /// Check if a garbage collection should be initiated based on the current
-    /// usage relative to a percentage threshold.
-    #[inline]
-    pub fn should_collect(&self, gc_threshold: f64) -> bool {
-        let used = self.immature.heap_used();
-        let size = self.immature.heap_size();
-        let threshold = (size as f64 * gc_threshold).ceil() as usize;
-        used >= threshold
     }
 }
 unsafe impl<A, B> Allocator for SemispaceHeap<A, B>
@@ -84,7 +71,7 @@ where
 
     #[inline]
     unsafe fn deallocate(&self, ptr: NonNull<u8>, layout: Layout) {
-        if self.mature.contains(ptr.as_ptr()) {
+        if self.mature.contains(ptr.as_ptr().cast()) {
             self.mature.deallocate(ptr, layout);
         } else {
             self.immature.deallocate(ptr, layout);
@@ -98,7 +85,7 @@ where
         old_layout: Layout,
         new_layout: Layout,
     ) -> Result<NonNull<[u8]>, AllocError> {
-        if self.mature.contains(ptr.as_ptr()) {
+        if self.mature.contains(ptr.as_ptr().cast()) {
             self.mature.grow(ptr, old_layout, new_layout)
         } else {
             self.immature.grow(ptr, old_layout, new_layout)
@@ -112,7 +99,7 @@ where
         old_layout: Layout,
         new_layout: Layout,
     ) -> Result<NonNull<[u8]>, AllocError> {
-        if self.mature.contains(ptr.as_ptr()) {
+        if self.mature.contains(ptr.as_ptr().cast()) {
             self.mature.grow_zeroed(ptr, old_layout, new_layout)
         } else {
             self.immature.grow_zeroed(ptr, old_layout, new_layout)
@@ -126,7 +113,7 @@ where
         old_layout: Layout,
         new_layout: Layout,
     ) -> Result<NonNull<[u8]>, AllocError> {
-        if self.mature.contains(ptr.as_ptr()) {
+        if self.mature.contains(ptr.as_ptr().cast()) {
             self.mature.shrink(ptr, old_layout, new_layout)
         } else {
             self.immature.shrink(ptr, old_layout, new_layout)
@@ -149,13 +136,38 @@ where
     }
 
     #[inline]
+    unsafe fn reset_heap_top(&self, top: *mut u8) {
+        self.immature.reset_heap_top(top);
+    }
+
+    #[inline]
     fn heap_end(&self) -> *mut u8 {
         self.immature.heap_end()
     }
 
     #[inline]
+    fn as_ptr_range(&self) -> Range<*mut u8> {
+        self.immature.as_ptr_range()
+    }
+
+    #[inline]
+    fn used_range(&self) -> Range<*mut u8> {
+        self.immature.used_range()
+    }
+
+    #[inline]
     fn high_water_mark(&self) -> Option<NonNull<u8>> {
         self.immature.high_water_mark()
+    }
+
+    #[inline]
+    fn mature_range(&self) -> Range<*mut u8> {
+        self.immature.mature_range()
+    }
+
+    #[inline]
+    fn immature_range(&self) -> Range<*mut u8> {
+        self.immature.immature_range()
     }
 
     #[inline]
@@ -174,8 +186,23 @@ where
     }
 
     #[inline]
-    fn contains<T: ?Sized>(&self, ptr: *const T) -> bool {
+    fn should_collect(&self, gc_threshold: f64) -> bool {
+        self.immature.should_collect(gc_threshold)
+    }
+
+    #[inline]
+    fn contains(&self, ptr: *const ()) -> bool {
         self.immature.contains(ptr) || self.mature.contains(ptr)
+    }
+}
+impl<A, B> HeapMut for SemispaceHeap<A, B>
+where
+    A: HeapMut,
+    B: HeapMut,
+{
+    #[inline]
+    fn set_high_water_mark(&mut self, ptr: *mut u8) {
+        self.immature.set_high_water_mark(ptr);
     }
 }
 impl<A, B> GenerationalHeap for SemispaceHeap<A, B>
@@ -188,12 +215,12 @@ where
 
     #[inline]
     fn is_immature(&self, ptr: *const u8) -> bool {
-        self.immature.contains(ptr)
+        self.immature.contains(ptr.cast())
     }
 
     #[inline]
     fn is_mature(&self, ptr: *const u8) -> bool {
-        self.mature.contains(ptr)
+        self.mature.contains(ptr.cast())
     }
 
     #[inline]

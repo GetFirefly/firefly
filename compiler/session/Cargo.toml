@@ -1,20 +1,26 @@
 [package]
 name = "firefly_session"
-version = "0.1.0"
-authors = ["Paul Schoenfelder <paulschoenfelder@gmail.com>"]
-edition = "2021"
-publish = false
+description = "Provides configuration for the Firefly compiler"
+version.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+categories.workspace = true
+keywords.workspace = true
+license.workspace = true
+readme.workspace = true
+edition.workspace = true
+publish.workspace = true
 
 [dependencies]
-anyhow = "1.0"
-clap = "2.34"
-log = "0.4"
-thiserror = "1.0"
-
+anyhow = { workspace = true, features = ["std"] }
+clap.workspace = true
 firefly_compiler_macros = { path = "../macros" }
 firefly_diagnostics = { path = "../diagnostics" }
-firefly_intern = { path = "../intern" }
+firefly_intern = { path = "../intern", features = ["std"] }
 firefly_target = { path = "../target" }
 firefly_util = { path = "../util" }
 firefly_syntax_pp = { path = "../syntax_pp" }
 firefly_parser = { path = "../parser" }
+log.workspace = true
+thiserror.workspace = true

@@ -1,25 +1,29 @@
 [package]
 name = "firefly_syntax_pp"
-version = "0.1.0"
-authors = ["Paul Schoenfelder <paulschoenfelder@gmail.com>"]
-readme = "README.md"
-publish = false
-edition = "2021"
-license = "MIT OR Apache-2.0"
+description = "Provides the Firefly compiler with a frontend for Erlang Abstract Format"
+version.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+categories.workspace = true
+keywords.workspace = true
+license.workspace = true
+readme.workspace = true
+edition.workspace = true
+publish.workspace = true
 
 build = "build.rs"
 
 [dependencies]
+anyhow = { workspace = true, features = ["std"] }
 firefly_beam = { path = "../../library/beam" }
 firefly_diagnostics = { path = "../diagnostics" }
-firefly_intern = { path = "../intern" }
-firefly_number = { path = "../../library/number" }
+firefly_intern = { path = "../intern", features = ["std"] }
+firefly_number = { path = "../../library/number", features = ["std"] }
 firefly_parser = { path = "../parser" }
 firefly_util = { path = "../util" }
-
-anyhow = "1.0"
-lalrpop-util = "0.19"
-thiserror = "1.0"
+lalrpop-util.workspace = true
+thiserror.workspace = true
 
 [build-dependencies]
-lalrpop = "0.19"
+lalrpop.workspace = true

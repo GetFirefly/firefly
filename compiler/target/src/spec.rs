@@ -159,7 +159,6 @@ flavor_mappings! {
 pub enum RelocModel {
     Static,
     Pic,
-    Pie,
     DynamicNoPic,
     /// Read-Only Position Independence
     ///
@@ -182,7 +181,6 @@ impl FromStr for RelocModel {
         match s {
             "static" => Ok(Self::Static),
             "pic" => Ok(Self::Pic),
-            "pie" => Ok(Self::Pie),
             "dynamic-no-pic" => Ok(Self::DynamicNoPic),
             "ropi" => Ok(Self::Ropi),
             "rwpi" => Ok(Self::Rwpi),
@@ -195,19 +193,18 @@ impl FromStr for RelocModel {
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 #[repr(C)]
 pub enum CodeModel {
-    #[allow(dead_code)]
-    Other,
+    Tiny,
     Small,
     Kernel,
     Medium,
     Large,
-    None,
 }
 impl FromStr for CodeModel {
     type Err = ();
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
+            "tiny" => Ok(Self::Tiny),
             "small" => Ok(Self::Small),
             "kernel" => Ok(Self::Kernel),
             "medium" => Ok(Self::Medium),

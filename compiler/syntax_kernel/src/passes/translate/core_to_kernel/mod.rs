@@ -54,16 +54,17 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::mem;
 use std::ops::RangeInclusive;
+use std::sync::Arc;
 
 use rpds::{rbt_set, RedBlackTreeSet};
 
 use firefly_binary::{BinaryEntrySpecifier, BitVec, Endianness};
-use firefly_diagnostics::*;
 use firefly_intern::{symbols, Ident, Symbol};
-use firefly_number::Integer;
+use firefly_number::Int;
 use firefly_pass::Pass;
 use firefly_syntax_base::*;
 use firefly_syntax_core as core;
+use firefly_util::diagnostics::*;
 
 use crate::{passes::FunctionContext, *};
 
@@ -78,11 +79,11 @@ pub enum ExprError {
 
 /// This pass transforms a Core IR function into its Kernel IR form for further analysis and eventual lowering to SSA IR
 pub struct CoreToKernel {
-    reporter: Reporter,
+    diagnostics: Arc<DiagnosticsHandler>,
 }
 impl CoreToKernel {
-    pub fn new(reporter: Reporter) -> Self {
-        Self { reporter }
+    pub fn new(diagnostics: Arc<DiagnosticsHandler>) -> Self {
+        Self { diagnostics }
     }
 }
 impl Pass for CoreToKernel {
@@ -106,7 +107,7 @@ impl Pass for CoreToKernel {
         while let Some((name, function)) = cst.functions.pop_first() {
             let context = FunctionContext::new(function.span(), name, function.var_counter);
 
-            let mut pipeline = TranslateCore::new(self.reporter.clone(), context, module.name.name);
+            let mut pipeline = TranslateCore::new(&self.diagnostics, context, module.name.name);
             let fun = pipeline.run(function.fun)?;
             module.functions.push(fun);
             funs.append(&mut pipeline.context.funs);
@@ -118,21 +119,25 @@ impl Pass for CoreToKernel {
     }
 }
 
-struct TranslateCore {
-    reporter: Reporter,
+struct TranslateCore<'p> {
+    diagnostics: &'p DiagnosticsHandler,
     context: FunctionContext,
     module_name: Symbol,
 }
-impl TranslateCore {
-    fn new(reporter: Reporter, context: FunctionContext, module_name: Symbol) -> Self {
+impl<'p> TranslateCore<'p> {
+    fn new(
+        diagnostics: &'p DiagnosticsHandler,
+        context: FunctionContext,
+        module_name: Symbol,
+    ) -> Self {
         Self {
-            reporter,
+            diagnostics,
             context,
             module_name,
         }
     }
 }
-impl Pass for TranslateCore {
+impl<'p> Pass for TranslateCore<'p> {
     type Input<'a> = core::Fun;
     type Output<'a> = Function;
 
@@ -172,7 +177,7 @@ impl Pass for TranslateCore {
         }
     }
 }
-impl TranslateCore {
+impl<'p> TranslateCore<'p> {
     /// body(Cexpr, Sub, State) -> {Kexpr,[PreKepxr],State}.
     ///  Do the main sequence of a body.  A body ends in an atomic value or
     ///  values.  Must check if vector first so do expr.
@@ -362,10 +367,11 @@ impl TranslateCore {
                     pre,
                 )),
                 Err(ExprError::BadSegmentSize(span)) => {
-                    self.reporter.show_error(
-                        "invalid binary size",
-                        &[(span, "associated with this segment")],
-                    );
+                    self.diagnostics
+                        .diagnostic(Severity::Error)
+                        .with_message("invalid binary size")
+                        .with_primary_label(span, "associated with this segment")
+                        .emit();
                     let badarg = core::Expr::Literal(Literal::atom(span, symbols::Badarg));
                     let error =
                         core::Call::new(span, symbols::Erlang, symbols::Error, vec![badarg]);
@@ -614,7 +620,7 @@ impl TranslateCore {
                         value: Lit::Atom(f),
                         ..
                     }), core::Expr::Literal(Literal {
-                        value: Lit::Integer(Integer::Small(arity)),
+                        value: Lit::Integer(Int::Small(arity)),
                         ..
                     })] => {
                         let arity = *arity;
@@ -1402,7 +1408,7 @@ impl TranslateCore {
                 unit,
             } => match size.as_deref() {
                 Some(Expr::Literal(Literal {
-                    value: Lit::Integer(Integer::Small(sz)),
+                    value: Lit::Integer(Int::Small(sz)),
                     ..
                 })) => {
                     let size = (*sz as usize) * unit as usize;
@@ -1437,7 +1443,7 @@ impl TranslateCore {
                             span,
                             annotations,
                             bits,
-                            Integer::from(c as u32),
+                            Int::from(c as u32),
                             next,
                         );
                     }
@@ -1502,13 +1508,13 @@ impl Ord for MatchGroupKey {
         match (self, other) {
             (Self::Lit(x), Self::Lit(y)) => x.cmp(y),
             (Self::Lit(x), Self::Arity(y)) => {
-                let lit = Lit::Integer(Integer::Small(*y as i64));
+                let lit = Lit::Integer(Int::Small(*y as i64));
                 x.cmp(&lit)
             }
             (Self::Lit(_), _) => Ordering::Less,
             (Self::Arity(x), Self::Arity(y)) => x.cmp(y),
             (Self::Arity(x), Self::Lit(y)) => {
-                let x = Lit::Integer(Integer::Small(*x as i64));
+                let x = Lit::Integer(Int::Small(*x as i64));
                 x.cmp(y)
             }
             (_, Self::Lit(_)) => Ordering::Greater,
@@ -1588,7 +1594,7 @@ fn build_bin_seg_integer_recur(
     span: SourceSpan,
     annotations: Annotations,
     bits: usize,
-    n: Integer,
+    n: Int,
     next: Box<Expr>,
 ) -> Box<Expr> {
     if bits > 8 {
@@ -1606,7 +1612,7 @@ fn build_bin_seg_integer(
     span: SourceSpan,
     annotations: Annotations,
     bits: usize,
-    n: Integer,
+    n: Int,
     next: Box<Expr>,
 ) -> Box<Expr> {
     let size = Some(Box::new(Expr::Literal(Literal::integer(span, bits))));
@@ -1621,7 +1627,7 @@ fn build_bin_seg_integer(
     }))
 }
 
-fn integer_fits_and_is_expandable(i: &Integer, size: usize) -> bool {
+fn integer_fits_and_is_expandable(i: &Int, size: usize) -> bool {
     if size > EXPAND_MAX_SIZE_SEGMENT {
         return false;
     }
@@ -1781,7 +1787,7 @@ fn flatten_alias(expr: core::Expr) -> (Vec<Var>, core::Expr) {
 // 2. The pattern matching is optimised.  Variable substitutions are
 // added to the VarSub structure and new variables are made visible.
 // The guard and body are then converted to Kernel form.
-impl TranslateCore {
+impl<'p> TranslateCore<'p> {
     /// kmatch([Var], [Clause], Sub, State) -> {Kexpr,State}.
     fn kmatch(
         &mut self,
@@ -1875,23 +1881,21 @@ impl TranslateCore {
             let (body, pre) = self.body(*clause.body, clause.osub.clone())?;
             for clause in clauses.iter() {
                 if !clause.is_compiler_generated() {
-                    self.reporter.show_warning(
-                        "pattern cannot match",
-                        &[
-                            (clause.span, "this clause will never match"),
-                            (span, "it is shadowed by this clause"),
-                        ],
-                    );
+                    self.diagnostics
+                        .diagnostic(Severity::Warning)
+                        .with_message("pattern cannot match")
+                        .with_primary_label(clause.span, "this clause will never match")
+                        .with_secondary_label(span, "it is shadowed by this clause")
+                        .emit();
                 }
             }
             if let Some(default) = default.as_ref() {
-                self.reporter.show_warning(
-                    "pattern cannot match",
-                    &[
-                        (default.span(), "this clause will never match"),
-                        (span, "it is shadowed by this clause"),
-                    ],
-                );
+                self.diagnostics
+                    .diagnostic(Severity::Warning)
+                    .with_message("pattern cannot match")
+                    .with_primary_label(default.span(), "this clause will never match")
+                    .with_secondary_label(span, "it is shadowed by this clause")
+                    .emit();
             }
             Ok((vec![], Some(pre_seq(pre, body))))
         } else {
@@ -2452,12 +2456,7 @@ fn is_select_bin_int_possible(clauses: &[IClause]) -> bool {
 }
 
 /// Returns true if roundtripping `value` through the given encoding would succeed
-fn select_match_possible(
-    size: usize,
-    value: &Integer,
-    signed: bool,
-    endianness: Endianness,
-) -> bool {
+fn select_match_possible(size: usize, value: &Int, signed: bool, endianness: Endianness) -> bool {
     // Make sure there is enough available bits to hold the value
     let needs_bits = value.bits();
     let available_bits = size as u64;
@@ -2468,13 +2467,13 @@ fn select_match_possible(
     // Encode `value` into a binary
     let mut bv = BitVec::new();
     match value {
-        Integer::Small(i) if signed => {
+        Int::Small(i) if signed => {
             bv.push_ap_number(*i, size, endianness);
         }
-        Integer::Small(i) => {
+        Int::Small(i) => {
             bv.push_ap_number(*i as u64, size, endianness);
         }
-        Integer::Big(ref i) => {
+        Int::Big(ref i) => {
             bv.push_ap_bigint(i, size, signed, endianness);
         }
     }
@@ -2482,21 +2481,21 @@ fn select_match_possible(
     // Match an integer using the specified encoding, and make sure it equals the input value
     let mut matcher = bv.matcher();
     match value {
-        Integer::Small(i) if signed => {
+        Int::Small(i) if signed => {
             let parsed: Option<i64> = matcher.read_ap_number(size, endianness);
             match parsed {
                 None => false,
                 Some(p) => p.eq(i),
             }
         }
-        Integer::Small(i) => {
+        Int::Small(i) => {
             let parsed: Option<u64> = matcher.read_ap_number(size, endianness);
             match parsed {
                 None => false,
                 Some(p) => p == (*i as u64),
             }
         }
-        Integer::Big(ref i) => {
+        Int::Big(ref i) => {
             let parsed = matcher.read_bigint(size, signed, endianness);
             match parsed {
                 None => false,
@@ -3007,7 +3006,7 @@ impl Brk {
     }
 }
 
-impl TranslateCore {
+impl<'p> TranslateCore<'p> {
     /// ubody(Expr, Break, State) -> {Expr,[UsedVar],State}.
     ///  Tag the body sequence with its used variables.  These bodies
     ///  either end with a #k_break{}, or with #k_return{} or an expression
@@ -3892,18 +3891,13 @@ impl TranslateCore {
         }
 
         let sig = bifs::get(&callee).unwrap();
-        let num_values = match sig.name {
-            // RecvWaitTimeout produces two values, but only one of
-            // those is visible to Erlang code, the other is handled
-            // in the kernel lowering code to raise an error
-            symbols::RecvWaitTimeout => 1,
-            // Remaining bifs may have multiple results, but we must
-            // consult the calling convention and number of results to
-            // determine how many "bif values" this op produces
-            _ if sig.cc == CallConv::Erlang => sig.results().len() - 1,
-            _ => sig.results().len(),
-        };
+        // If this function raises, there are no values to return, but we need
+        // to pretend there is one anyway if needed
+        if sig.raises() {
+            return ret;
+        }
 
+        let num_values = sig.results().len();
         let mut ns = self.context.n_vars(num_values - ret.len(), Some(span));
         ret.extend(ns.drain(..).map(Expr::Var));
         ret

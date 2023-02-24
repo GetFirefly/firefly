@@ -10,7 +10,7 @@ use super::*;
 /// pattern matching semantics.
 #[derive(Clone)]
 pub struct Matcher<'a> {
-    selection: Selection<'a>,
+    pub selection: Selection<'a>,
 }
 impl<'a> Matcher<'a> {
     pub fn new(selection: Selection<'a>) -> Self {
@@ -26,6 +26,11 @@ impl<'a> Matcher<'a> {
     #[inline]
     pub fn bit_size(&self) -> usize {
         self.selection.bit_size()
+    }
+
+    #[inline]
+    pub fn byte_size(&self) -> usize {
+        self.selection.byte_size()
     }
 
     /// Reads a single byte from the current position in the input without

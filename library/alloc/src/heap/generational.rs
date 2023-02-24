@@ -1,5 +1,12 @@
 use super::Heap;
 
+/// An enumeration of the generation types that can be targeted
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum Generation {
+    Young,
+    Old,
+}
+
 /// A generational heap is a special form of heap which actually consists
 /// of two heaps, one for immature allocations, and another for mature allocations
 /// which have survived at least one garbage collection cycle. This is used so
@@ -16,12 +23,12 @@ pub trait GenerationalHeap: Heap {
 
     /// Returns true if the given pointer is in the immature region of this heap
     fn is_immature(&self, ptr: *const u8) -> bool {
-        self.immature().contains(ptr)
+        self.immature().contains(ptr.cast())
     }
 
     /// Returns true if the given pointer is in the mature region of this heap
     fn is_mature(&self, ptr: *const u8) -> bool {
-        self.mature().contains(ptr)
+        self.mature().contains(ptr.cast())
     }
 
     /// Replaces the current immature heap with a new heap, returning the previous immature heap

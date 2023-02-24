@@ -273,6 +273,7 @@ pub fn run(config: &Config) -> anyhow::Result<()> {
     let mut child = cargo_cmd.spawn().unwrap();
 
     let mut deps: HashMap<String, Vec<String>> = HashMap::new();
+    let mut dylibs: HashMap<String, PathBuf> = HashMap::new();
     {
         let child_stdout = child.stdout.take().unwrap();
         let child_stdout_reader = BufReader::new(child_stdout);
@@ -326,7 +327,25 @@ pub fn run(config: &Config) -> anyhow::Result<()> {
                         }
                     }
                 }
-                Message::BuildScriptExecuted(_script) => {
+                Message::BuildScriptExecuted(mut script) => {
+                    // Track dynamic libraries built by crates in our workspace so
+                    // that they can be added to the libs folder in the toolchain
+                    if workspace_members.contains(&script.package_id) {
+                        let out_dir = script.out_dir.into_std_path_buf().join("lib");
+                        for ll in script.linked_libs.drain(..) {
+                            let ll = ll.into_string();
+                            match ll.split_once('=') {
+                                Some(("dylib", lib)) => {
+                                    let name = format!("lib{}.dylib", &lib);
+                                    let path = out_dir.join(&name);
+                                    if path.exists() {
+                                        dylibs.insert(lib.to_string(), path);
+                                    }
+                                }
+                                _ => continue,
+                            }
+                        }
+                    }
                     continue;
                 }
                 Message::BuildFinished(result) if result.success => {
@@ -457,7 +476,7 @@ pub fn run(config: &Config) -> anyhow::Result<()> {
 
     println!("Installing runtime libraries..");
 
-    let firefly_libs = &["firefly_rt_tiny", "panic", "unwind"];
+    let firefly_libs = &["firefly_emulator"];
     for lib in firefly_libs.iter().copied() {
         if let Some(files) = deps.get(lib) {
             for file in files.iter() {
@@ -487,6 +506,25 @@ pub fn run(config: &Config) -> anyhow::Result<()> {
     }
 
     if config.link_dynamic() {
+        // Copy all dylibs built by our workspace crates into the lib directory
+        for (_link_name, path) in dylibs.iter() {
+            let filename = path.file_name().unwrap().to_str().unwrap();
+            let target_path = install_host_lib_dir.join(filename);
+            if !target_path.exists() {
+                fs::copy(&path, &target_path).unwrap();
+            } else {
+                let src_metadata = path.metadata().unwrap();
+                let dst_metadata = target_path.metadata().unwrap();
+                let src_ctime = src_metadata.created().ok();
+                let dst_ctime = dst_metadata.created().ok();
+                // Skip unchanged files
+                if src_ctime.is_some() && dst_ctime.is_some() && src_ctime == dst_ctime {
+                    continue;
+                }
+                fs::copy(&path, &target_path).unwrap();
+            }
+        }
+
         match env::var_os("LLVM_LINK_LLVM_DYLIB") {
             Some(val) if val == "ON" => {
                 let walker = WalkDir::new(config.llvm_prefix().join("lib")).into_iter();
@@ -510,7 +548,7 @@ pub fn run(config: &Config) -> anyhow::Result<()> {
                     let target_path = install_host_lib_dir.join(filename);
 
                     if !target_path.exists() {
-                        fs::copy(&path, &install_host_lib_dir.join(filename)).unwrap();
+                        fs::copy(&path, &target_path).unwrap();
                     } else {
                         let src_metadata = entry.metadata().unwrap();
                         let dst_metadata = target_path.metadata().unwrap();
@@ -520,7 +558,7 @@ pub fn run(config: &Config) -> anyhow::Result<()> {
                         if src_ctime.is_some() && dst_ctime.is_some() && src_ctime == dst_ctime {
                             continue;
                         }
-                        fs::copy(&path, &install_host_lib_dir.join(filename)).unwrap();
+                        fs::copy(&path, &target_path).unwrap();
                     }
                 }
 
@@ -569,6 +607,7 @@ fn is_dir_or_llvm_lib(entry: &DirEntry) -> bool {
     let path = entry.path();
     let filename = path.file_name().unwrap().to_str().unwrap();
     filename.starts_with("libMLIR.")
+        || filename.starts_with("libMLIR-.")
         || filename.starts_with("libLLVM.")
         || filename.starts_with("libLLVM-")
 }

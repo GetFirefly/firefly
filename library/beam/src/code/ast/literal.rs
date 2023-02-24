@@ -9,11 +9,11 @@ use super::Location;
 #[derive(Debug, Clone)]
 pub struct Integer {
     pub loc: Location,
-    pub value: number::Integer,
+    pub value: number::Int,
 }
 impl_node!(Integer);
 impl Integer {
-    pub fn new(loc: Location, value: number::Integer) -> Self {
+    pub fn new(loc: Location, value: number::Int) -> Self {
         Self { loc, value }
     }
 

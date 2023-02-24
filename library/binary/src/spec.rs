@@ -30,7 +30,7 @@ use crate::Endianness;
 ///
 /// NOTE: This compact encoding is possible because `Endianness` is `#[repr(u8)]`
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[repr(u32)]
+#[repr(u8)]
 pub enum BinaryEntrySpecifier {
     Integer {
         signed: bool,
@@ -53,7 +53,7 @@ pub enum BinaryEntrySpecifier {
     } = 5,
 }
 
-assert_eq_size!(BinaryEntrySpecifier, u64);
+assert_eq_size!(BinaryEntrySpecifier, u32);
 
 impl BinaryEntrySpecifier {
     pub const DEFAULT: Self = Self::Integer {

@@ -4,8 +4,6 @@
 #include "mlir/Pass/Pass.h"
 
 namespace mlir {
-class FunctionOpInterface;
-
 // Forward declaration from Dialect.h
 template <typename ConcreteDialect>
 void registerDialect(DialectRegistry &registry);

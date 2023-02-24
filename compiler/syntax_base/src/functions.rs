@@ -145,10 +145,12 @@ impl FunctionName {
         }
         match self.function {
             symbols::NifStart
+            | symbols::NifError
             | symbols::MatchFail
             | symbols::Error
             | symbols::Exit
             | symbols::Throw
+            | symbols::Halt
             | symbols::Raise
             | symbols::RawRaise
             | symbols::MakeFun
@@ -169,6 +171,7 @@ impl FunctionName {
         }
         match self.function {
             symbols::MatchFail
+            | symbols::NifError
             | symbols::Error
             | symbols::Exit
             | symbols::Throw
@@ -213,6 +216,41 @@ impl FunctionName {
             }
             symbols::IsFunction | symbols::IsRecord if self.arity == 2 => true,
             symbols::IsRecord => self.arity == 3,
+            _ => false,
+        }
+    }
+
+    pub fn is_operator(&self) -> bool {
+        match self.module {
+            Some(symbols::Erlang) => (),
+            _ => return false,
+        }
+        match self.function {
+            symbols::Plus | symbols::Minus => self.arity == 1 || self.arity == 2,
+            symbols::Bnot => self.arity == 1,
+            symbols::Star
+            | symbols::Slash
+            | symbols::Div
+            | symbols::Rem
+            | symbols::Band
+            | symbols::Bor
+            | symbols::Bxor
+            | symbols::Bsl
+            | symbols::Bsr => self.arity == 2,
+            symbols::Not => self.arity == 1,
+            symbols::And | symbols::Or | symbols::Xor => self.arity == 2,
+            symbols::PlusPlus | symbols::MinusMinus => self.arity == 2,
+            symbols::Bang => self.arity == 2,
+            symbols::Equal
+            | symbols::NotEqual
+            | symbols::EqualStrict
+            | symbols::NotEqualStrict
+            | symbols::Gte
+            | symbols::Gt
+            | symbols::Lte
+            | symbols::Lt => self.arity == 2,
+            symbols::Hd => self.arity == 1,
+            symbols::Tl => self.arity == 1,
             _ => false,
         }
     }
@@ -477,11 +515,12 @@ impl Default for Visibility {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+#[derive(Default, Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum CallConv {
-    /// Our calling convention for Erlang uses multi-value returns
-    /// to propagate an exception bit and the return value. In all
-    /// other respects it follows the FastCC calling convention
+    /// Our calling convention for Erlang uses multi-value returns to propagate an
+    /// exception bit and the return value. Additionally, the first argument of an
+    /// Erlang function is always a `Process` reference. In all other respects it
+    /// follows the C calling convention.
     ///
     /// This is not formally its own calling convention in LLVM, instead
     /// during lowering we transform multi-return values into the best
@@ -490,15 +529,27 @@ pub enum CallConv {
     /// to do things such as make use of CPU flags for exception state, ensure
     /// tail calls in more scenarios, use multi-return values natively when supported,
     /// etc.
-    Erlang,
-    /// This is the standard C calling convention for the target platform
-    /// When calling such functions from Erlang, we have to check an out-of-band
-    /// exception flag upon return in order to convert back to Erlang convention
     ///
-    /// NOTE: We use this for interactions with Rust, even though it has its own
-    /// calling convention, as it is more predictable. This of course requires that
-    /// those functions are marked extern "C" or extern "C-unwind".
+    /// This is the default calling convention used for Erlang functions
+    #[default]
+    Erlang,
+    /// This is the standard C calling convention for the target platform and is used
+    /// for interop with runtime functions implemented with a calling convention different
+    /// than the `Erlang` convention. This is primarily used with intrinsics that have different
+    /// error handling semantics than `Erlang`, or which return a non-term value.
+    ///
+    /// NOTE: We use this vs the `Rust` calling convention because `Rust` is not a stable
+    /// convention. It is expected that all functions using this convention are implemented
+    /// in Rust with `extern "C"` or `extern "C-unwind"`, depending on whether they can panic.
     C,
+}
+impl fmt::Display for CallConv {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::Erlang => f.write_str("erlang"),
+            Self::C => f.write_str("C"),
+        }
+    }
 }
 
 /// A signature represents the full set of available metadata about a given function.
@@ -549,14 +600,9 @@ impl Signature {
     pub fn generate(name: &FunctionName) -> Self {
         let visibility = Visibility::PUBLIC | Visibility::EXTERNAL;
         let cc = CallConv::Erlang;
-        let cap = name.arity as usize;
-        let mut params = Vec::with_capacity(cap);
-        params.resize(cap, Type::Term(TermType::Any));
+        let params = vec![Type::Term(TermType::Any); name.arity as usize];
         let ty = FunctionType {
-            results: vec![
-                Type::Primitive(PrimitiveType::I1),
-                Type::Term(TermType::Any),
-            ],
+            results: vec![Type::Term(TermType::Any)],
             params,
         };
         Self {
@@ -602,6 +648,12 @@ impl Signature {
         self.ty.params()
     }
 
+    /// Returns the parameter type of the argument at `index`, if present
+    #[inline]
+    pub fn param(&self, index: usize) -> Option<&Type> {
+        self.ty.params().get(index)
+    }
+
     /// Returns a slice of the result types for this function
     ///
     /// NOTE: This allows for multi-return functions to be expressed, which is leveraged by
@@ -610,7 +662,11 @@ impl Signature {
     /// targets supports multi-return natively (WebAssembly), and we want to be able to take
     /// advantage of that when we can.
     pub fn results(&self) -> &[Type] {
-        self.ty.results()
+        match self.ty.results() {
+            [Type::Unit] => &[],
+            [Type::Never] => &[],
+            results => results,
+        }
     }
 
     /// Returns true if this signature has the given name and arity, disregarding the module
@@ -634,6 +690,14 @@ impl Signature {
     /// Returns the calling convention used by this function
     pub fn calling_convention(&self) -> CallConv {
         self.cc
+    }
+
+    /// Returns `true` if this function is guaranteed to never return
+    pub fn raises(&self) -> bool {
+        match self.ty.results() {
+            [Type::Never] => true,
+            _ => false,
+        }
     }
 }
 impl Eq for Signature {}

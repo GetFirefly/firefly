@@ -2,7 +2,7 @@ use std::env;
 use std::fmt::Debug;
 use std::path::{Path, PathBuf};
 
-use firefly_diagnostics::{Diagnostic, Label, SourceIndex, SourceSpan, ToDiagnostic};
+use firefly_util::diagnostics::{Diagnostic, Label, SourceIndex, SourceSpan, ToDiagnostic};
 
 #[derive(Debug, thiserror::Error)]
 pub enum PathVariableSubstituteError {
@@ -12,8 +12,8 @@ pub enum PathVariableSubstituteError {
         source: std::env::VarError,
     },
 }
-impl PathVariableSubstituteError {
-    pub fn to_diagnostic(&self) -> Diagnostic {
+impl ToDiagnostic for PathVariableSubstituteError {
+    fn to_diagnostic(self) -> Diagnostic {
         match self {
             PathVariableSubstituteError::InvalidPathVariable {
                 source: env::VarError::NotPresent,
@@ -107,7 +107,7 @@ impl EscapeStmError<SourceIndex> {
 }
 
 impl ToDiagnostic for EscapeStmError<SourceIndex> {
-    fn to_diagnostic(&self) -> Diagnostic {
+    fn to_diagnostic(self) -> Diagnostic {
         let msg = self.to_string();
         let span = self.span();
 

@@ -949,6 +949,7 @@ primitive_cir_type!(PidType, pid);
 primitive_cir_type!(PortType, port);
 primitive_cir_type!(ReferenceType, reference);
 primitive_cir_type!(ExceptionType, exception);
+primitive_cir_type!(ProcessType, process);
 primitive_cir_type!(TraceType, trace);
 primitive_cir_type!(RecvContextType, recv_context);
 primitive_cir_type!(BinaryBuilderType, binary_builder);
@@ -1502,16 +1503,22 @@ impl Operation for MallocOp {
 }
 impl<'a, B: OpBuilder> CirBuilder<'a, B> {
     #[inline]
-    pub fn build_malloc<T: Type>(&self, loc: Location, alloc_type: T) -> MallocOp {
+    pub fn build_malloc<T: Type>(
+        &self,
+        loc: Location,
+        process: ValueBase,
+        alloc_type: T,
+    ) -> MallocOp {
         extern "C" {
             fn mlirCirMallocOp(
                 builder: OpBuilderBase,
                 loc: Location,
+                process: ValueBase,
                 alloc_type: TypeBase,
             ) -> MallocOp;
         }
 
-        unsafe { mlirCirMallocOp(self.base().into(), loc, alloc_type.base()) }
+        unsafe { mlirCirMallocOp(self.base().into(), loc, process, alloc_type.base()) }
     }
 }
 
@@ -1526,18 +1533,34 @@ impl Operation for MakeFunOp {
 }
 impl<'a, B: OpBuilder> CirBuilder<'a, B> {
     #[inline]
-    pub fn build_fun(&self, loc: Location, callee: FuncOp, env: &[ValueBase]) -> MakeFunOp {
+    pub fn build_fun(
+        &self,
+        loc: Location,
+        callee: FuncOp,
+        process: ValueBase,
+        env: &[ValueBase],
+    ) -> MakeFunOp {
         extern "C" {
             fn mlirCirMakeFunOp(
                 builder: OpBuilderBase,
                 loc: Location,
                 callee: FuncOp,
+                process: ValueBase,
                 env: *const ValueBase,
                 env_len: usize,
             ) -> MakeFunOp;
         }
 
-        unsafe { mlirCirMakeFunOp(self.base().into(), loc, callee, env.as_ptr(), env.len()) }
+        unsafe {
+            mlirCirMakeFunOp(
+                self.base().into(),
+                loc,
+                callee,
+                process,
+                env.as_ptr(),
+                env.len(),
+            )
+        }
     }
 }
 
@@ -1582,17 +1605,24 @@ impl Operation for ConsOp {
 }
 impl<'a, B: OpBuilder> CirBuilder<'a, B> {
     #[inline]
-    pub fn build_cons<H: Value, T: Value>(&self, loc: Location, head: H, tail: T) -> ConsOp {
+    pub fn build_cons<H: Value, T: Value>(
+        &self,
+        loc: Location,
+        process: ValueBase,
+        head: H,
+        tail: T,
+    ) -> ConsOp {
         extern "C" {
             fn mlirCirConsOp(
                 builder: OpBuilderBase,
                 loc: Location,
+                process: ValueBase,
                 head: ValueBase,
                 tail: ValueBase,
             ) -> ConsOp;
         }
 
-        unsafe { mlirCirConsOp(self.base().into(), loc, head.base(), tail.base()) }
+        unsafe { mlirCirConsOp(self.base().into(), loc, process, head.base(), tail.base()) }
     }
 }
 

@@ -43,11 +43,11 @@ pub enum DirectiveError {
     },
 }
 impl ToDiagnostic for DirectiveError {
-    fn to_diagnostic(&self) -> Diagnostic {
+    fn to_diagnostic(self) -> Diagnostic {
         match self {
             DirectiveError::PathSubstitute { span, source } => Diagnostic::error()
                 .with_message(source.to_string())
-                .with_labels(vec![Label::primary(span.source_id(), *span)
+                .with_labels(vec![Label::primary(span.source_id(), span)
                     .with_message("in expansion of this path")]),
             DirectiveError::FileNotFound { span, searched } => {
                 let aux_msg = if searched.is_empty() {
@@ -64,7 +64,7 @@ impl ToDiagnostic for DirectiveError {
                 Diagnostic::error()
                     .with_message("could not find file")
                     .with_labels(vec![
-                        Label::primary(span.source_id(), *span).with_message("failed to find file")
+                        Label::primary(span.source_id(), span).with_message("failed to find file")
                     ])
                     .with_notes(vec![aux_msg])
             }
@@ -111,7 +111,7 @@ impl ToDiagnostic for DirectiveError {
                 Diagnostic::error()
                     .with_message("could not find file")
                     .with_labels(vec![
-                        Label::primary(span.source_id(), *span).with_message("failed to find file")
+                        Label::primary(span.source_id(), span).with_message("failed to find file")
                     ])
                     .with_notes(vec![aux_msg_1, aux_msg_2])
             }

@@ -1,25 +1,22 @@
 use alloc::alloc::{AllocError, Allocator, Layout};
-use core::any::TypeId;
 use core::convert::AsRef;
 use core::fmt::{self, Debug};
 use core::hash::{Hash, Hasher};
-use core::ops::Range;
-use core::ptr::{self, NonNull};
+use core::ops::{Deref, Range};
 
-use anyhow::anyhow;
+use firefly_alloc::heap::Heap;
 
 use crate::cmp::ExactEq;
+use crate::gc::Gc;
 
-use super::{OpaqueTerm, Term, TupleIndex};
+use super::{Boxable, Header, LayoutBuilder, OpaqueTerm, Tag, Term, TupleIndex};
 
-#[repr(C, align(16))]
+#[repr(C)]
 pub struct Tuple {
-    capacity: usize,
+    header: Header,
     elements: [OpaqueTerm],
 }
 impl Tuple {
-    pub const TYPE_ID: TypeId = TypeId::of::<Tuple>();
-
     /// Creates a new tuple in the given allocator, with room for `capacity` elements
     ///
     /// # Safety
@@ -27,87 +24,78 @@ impl Tuple {
     /// It is not safe to use the pointer returned from this function without first initializing all
     /// of the tuple elements with valid values. This function does not guarantee that the elements are
     /// in any particular state, so use of the tuple without the initialization step is undefined behavior.
-    pub fn new_in<A: Allocator>(capacity: usize, alloc: A) -> Result<NonNull<Tuple>, AllocError> {
-        let (layout, _elements_offset) = Layout::new::<usize>()
-            .align_to(16)
-            .unwrap()
-            .extend(Layout::array::<OpaqueTerm>(capacity).unwrap())
-            .unwrap();
-        let ptr: *mut u8 = alloc.allocate(layout)?.cast().as_ptr();
-        unsafe {
-            // Write the pointer metadata
-            ptr::write(ptr as *mut usize, capacity);
-            Ok(NonNull::from_raw_parts(
-                NonNull::new_unchecked(ptr.cast()),
-                capacity,
-            ))
-        }
+    pub fn new_in<A: ?Sized + Allocator>(
+        capacity: usize,
+        alloc: &A,
+    ) -> Result<Gc<Self>, AllocError> {
+        let mut this = Gc::<Tuple>::with_capacity_zeroed_in(capacity, alloc)?;
+        this.header = Header::new(Tag::Tuple, capacity);
+        Ok(this)
     }
 
     /// Creates a new tuple in the given allocator, from a slice of elements.
     ///
     /// This is a safer alternative to `new_in`, and ensures that the resulting pointer is valid for use
     /// right away.
-    pub fn from_slice<A: Allocator>(
+    pub fn from_slice<A: ?Sized + Allocator>(
         slice: &[OpaqueTerm],
-        alloc: A,
-    ) -> Result<NonNull<Tuple>, AllocError> {
-        unsafe {
-            let mut tuple = Self::new_in(slice.len(), alloc)?;
-            tuple.as_mut().copy_from_slice(slice);
-            Ok(tuple)
-        }
+        alloc: &A,
+    ) -> Result<Gc<Tuple>, AllocError> {
+        let mut this = Self::new_in(slice.len(), alloc)?;
+        this.copy_from_slice(slice);
+        Ok(this)
     }
 
     /// Gets the size of this tuple
     #[inline]
     pub fn len(&self) -> usize {
-        self.capacity
+        self.header.arity()
     }
 
     /// Returns true if this tuple has no elements
+    #[inline]
     pub fn is_empty(&self) -> bool {
-        self.capacity == 0
+        self.len() == 0
     }
 
-    /// Returns the element at 0-based index `index` as a `Term`
+    /// Returns the element at 0-based index `index`
     ///
     /// If the index is out of bounds, returns `None`
-    pub fn get(&self, index: usize) -> Option<Term> {
-        self.elements.get(index).copied().map(|term| term.into())
+    #[inline]
+    pub fn get(&self, index: usize) -> Option<OpaqueTerm> {
+        self.elements.get(index).copied()
     }
 
-    /// Returns the element at the given 0-based index as a `Term` without bounds checks
+    /// Returns the element at the given 0-based index without bounds checks
     ///
     /// # Safety
     ///
     /// Calling this function with an out-of-bounds index is undefined behavior
-    pub unsafe fn get_unchecked(&self, index: usize) -> Term {
-        let term = *self.elements.get_unchecked(index);
-        term.into()
+    #[inline]
+    pub unsafe fn get_unchecked(&self, index: usize) -> OpaqueTerm {
+        *self.elements.get_unchecked(index)
     }
 
     /// Like `get` but with either 0 or 1-based indexing.
+    ///
+    /// Returns `None` if the index is out of bounds
     #[inline]
-    pub fn get_element<I: TupleIndex>(&self, index: I) -> anyhow::Result<Term> {
-        let index: usize = index.into();
-        self.get(index).ok_or_else(|| {
-            anyhow!(
-                "invalid index {}, exceeds max length of {}",
-                index,
-                self.len()
-            )
-        })
+    pub fn get_element<I: TupleIndex>(&self, index: I) -> Option<OpaqueTerm> {
+        self.get(index.into())
     }
 
-    /// Sets the element at the given index
-    #[inline]
-    pub fn set_element<A: Allocator, I: TupleIndex, V: Into<OpaqueTerm>>(
+    /// Produces a new tuple with the element at `index` set to `value`
+    ///
+    /// Consider using `set_element_mut` if the caller can guarantee that no
+    /// other references to this tuple exist.
+    ///
+    /// This function will panic if the index is out of bounds
+    pub fn set_element<A: ?Sized + Allocator, I: TupleIndex, V: Into<OpaqueTerm>>(
         &self,
         index: I,
         value: V,
-        alloc: A,
-    ) -> Result<NonNull<Tuple>, AllocError> {
+        alloc: &A,
+    ) -> Result<Gc<Tuple>, AllocError> {
         let index: usize = index.into();
         if index >= self.len() {
             panic!(
@@ -118,34 +106,25 @@ impl Tuple {
         }
 
         let mut tuple = Self::new_in(self.len(), alloc)?;
-        let t = unsafe { tuple.as_mut() };
-        t.copy_from_slice(self.as_slice());
+        tuple.copy_from_slice(self.as_slice());
 
-        let element = t.elements.get_mut(index).unwrap();
-        *element = value.into();
+        unsafe {
+            *tuple.elements.get_unchecked_mut(index) = value.into();
+        }
 
         Ok(tuple)
     }
 
-    /// Sets the element at the given index
-    #[inline]
-    pub fn set_element_mut<I: TupleIndex, V: Into<OpaqueTerm>>(
-        &mut self,
-        index: I,
-        value: V,
-    ) -> anyhow::Result<()> {
+    /// Mutates this tuple in place, setting the element at `index` to `value`
+    ///
+    /// This function will panic if the index is out of bounds
+    pub fn set_element_mut<I: TupleIndex, V: Into<OpaqueTerm>>(&mut self, index: I, value: V) {
         let index: usize = index.into();
-        if let Some(element) = self.elements.get_mut(index) {
-            *element = value.into();
-            return Ok(());
-        }
-
-        let len = self.len();
-        Err(anyhow!(
-            "invalid index {}, exceeds max length of {}",
-            index,
-            len
-        ))
+        let element = self
+            .elements
+            .get_mut(index)
+            .expect("invalid tuple index, out of bounds");
+        *element = value.into();
     }
 
     /// Copies all of the elements from `slice` into this tuple
@@ -171,6 +150,61 @@ impl Tuple {
     /// Get an iterator over the elements of this tuple as `Term`
     pub fn iter(&self) -> TupleIter<'_> {
         TupleIter::new(self)
+    }
+}
+impl Boxable for Tuple {
+    type Metadata = usize;
+
+    const TAG: Tag = Tag::Tuple;
+
+    #[inline]
+    fn header(&self) -> &Header {
+        &self.header
+    }
+
+    #[inline]
+    fn header_mut(&mut self) -> &mut Header {
+        &mut self.header
+    }
+
+    fn layout_excluding_heap<H: ?Sized + Heap>(&self, heap: &H) -> Layout {
+        if heap.contains((self as *const Self).cast()) {
+            return Layout::new::<()>();
+        }
+
+        let mut builder = LayoutBuilder::new();
+        for element in self.elements.iter().copied() {
+            if element.is_gcbox() || element.is_nonempty_list() || element.is_tuple() {
+                let element: Term = element.into();
+                builder.extend(&element);
+            }
+        }
+        builder += Layout::for_value(self);
+        builder.finish()
+    }
+
+    fn unsafe_clone_to_heap<H: ?Sized + Heap>(&self, heap: &H) -> Gc<Self> {
+        let ptr = self as *const Self;
+        if heap.contains(ptr.cast()) {
+            unsafe { Gc::from_raw(ptr.cast_mut()) }
+        } else {
+            let mut cloned = Self::new_in(self.len(), heap).unwrap();
+            let elements = cloned.as_mut_slice();
+            for (i, element) in self.elements.iter().copied().enumerate() {
+                if element.is_gcbox() || element.is_nonempty_list() || element.is_tuple() {
+                    let element: Term = element.into();
+                    unsafe {
+                        *elements.get_unchecked_mut(i) = element.unsafe_clone_to_heap(heap).into();
+                    }
+                } else {
+                    element.maybe_increment_refcount();
+                    unsafe {
+                        *elements.get_unchecked_mut(i) = element;
+                    }
+                }
+            }
+            cloned
+        }
     }
 }
 impl AsRef<[OpaqueTerm]> for Tuple {
@@ -245,6 +279,11 @@ impl PartialEq for Tuple {
         self.iter().zip(other.iter()).all(|(x, y)| x == y)
     }
 }
+impl PartialEq<Gc<Tuple>> for Tuple {
+    fn eq(&self, other: &Gc<Tuple>) -> bool {
+        self.eq(other.deref())
+    }
+}
 impl ExactEq for Tuple {
     fn exact_eq(&self, other: &Self) -> bool {
         if self.len() != other.len() {
@@ -273,7 +312,7 @@ impl<'a> Iterator for TupleIter<'a> {
     fn next(&mut self) -> Option<Self::Item> {
         self.alive
             .next()
-            .map(|idx| unsafe { self.tuple.get_unchecked(idx) })
+            .map(|idx| unsafe { self.tuple.get_unchecked(idx).into() })
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
@@ -293,7 +332,7 @@ impl<'a> core::iter::DoubleEndedIterator for TupleIter<'a> {
     fn next_back(&mut self) -> Option<Self::Item> {
         self.alive
             .next_back()
-            .map(|idx| unsafe { self.tuple.get_unchecked(idx) })
+            .map(|idx| unsafe { self.tuple.get_unchecked(idx).into() })
     }
 }
 impl<'a> core::iter::ExactSizeIterator for TupleIter<'a> {

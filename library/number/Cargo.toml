@@ -1,23 +1,22 @@
 [package]
 name = "firefly_number"
-version = "0.1.0"
-authors = ["Hans Elias B. Josephsen <me@hansihe.com>", "Paul Schoenfelder <paulschoenfelder@gmail.com>"]
-edition = "2021"
-license = "MIT OR Apache-2.0"
+version.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+categories.workspace = true
+keywords.workspace = true
+license.workspace = true
+readme.workspace = true
+edition.workspace = true
+publish.workspace = true
 
-[dependencies.num-integer]
-version = "0.1"
-default-features = false
+[features]
+default = []
+std = ["half/std", "num-bigint/std", "num-integer/std", "num-traits/std"]
 
-[dependencies.num-bigint]
-version = "0.4"
-default-features = false
-
-[dependencies.num-traits]
-version = "0.2"
-default-features = false
-
-[dependencies.half]
-version = "2.0"
-default-features = false
-features = ["num-traits", "use-intrinsics"]
+[dependencies]
+half.workspace = true
+num-integer.workspace = true
+num-bigint.workspace = true
+num-traits.workspace = true

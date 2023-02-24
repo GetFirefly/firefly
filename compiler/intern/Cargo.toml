@@ -1,19 +1,26 @@
 [package]
 name = "firefly_intern"
-version = "0.1.0"
-authors = ["Paul Schoenfelder <paulschoenfelder@gmail.com>", "Hans Elias B. Josephsen <me@hansihe.com>"]
-edition = "2021"
-license = "MIT OR Apache-2.0"
+version.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+categories.workspace = true
+keywords.workspace = true
+license.workspace = true
+readme.workspace = true
+edition.workspace = true
+publish.workspace = true
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[features]
+default = []
+std = ["smallstr/std"]
 
 [dependencies]
 firefly_diagnostics = { path = "../diagnostics" }
 firefly_diagnostics_macros = { path = "../diagnostics_macros" }
-
-rustc-hash = "1.1"
-lazy_static = "1.4"
+firefly_system = { path = "../../library/system" }
+smallstr.workspace = true
 
 [build-dependencies]
-toml = { version = "0.5", features = ["preserve_order"] }
-Inflector = "0.11"
+toml.workspace = true
+Inflector.workspace = true

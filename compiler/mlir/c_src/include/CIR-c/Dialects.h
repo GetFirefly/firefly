@@ -5,7 +5,7 @@
 #include "CIR-c/BinaryEntrySpecifier.h"
 #include "CIR-c/Builder.h"
 #include "mlir-c/IR.h"
-#include "mlir-c/Registration.h"
+#include "mlir/CAPI/Registration.h"
 
 #ifdef __cplusplus
 using ::mlir::cir::AtomRef;
@@ -19,6 +19,7 @@ MLIR_DECLARE_CAPI_DIALECT_REGISTRATION(CIR, cir);
 
 MLIR_DECLARE_CAPI_DIALECT_REGISTRATION(Arithmetic, arith);
 
+MLIR_CAPI_EXPORTED MlirTypeID mlirDialectHandleGetTypeID(MlirDialect dialect);
 //===----------------------------------------------------------------------===//
 /// Types
 //===----------------------------------------------------------------------===//
@@ -84,6 +85,9 @@ MLIR_CAPI_EXPORTED bool mlirCirIsAPortType(MlirType type);
 /// Creates a cir.ref type
 MLIR_CAPI_EXPORTED MlirType mlirCirReferenceTypeGet(MlirContext ctx);
 MLIR_CAPI_EXPORTED bool mlirCirIsAReferenceType(MlirType type);
+/// Creates a cir.process type
+MLIR_CAPI_EXPORTED MlirType mlirCirProcessTypeGet(MlirContext ctx);
+MLIR_CAPI_EXPORTED bool mlirCirIsAProcessType(MlirType type);
 /// Creates a cir.exception type
 MLIR_CAPI_EXPORTED MlirType mlirCirExceptionTypeGet(MlirContext ctx);
 MLIR_CAPI_EXPORTED bool mlirCirIsAExceptionType(MlirType type);
@@ -102,7 +106,9 @@ MLIR_CAPI_EXPORTED bool mlirCirIsABinaryBuilderType(MlirType type);
 /// Creates a cir.match_context type
 MLIR_CAPI_EXPORTED MlirType mlirCirMatchContextTypeGet(MlirContext ctx);
 MLIR_CAPI_EXPORTED bool mlirCirIsAMatchContextType(MlirType type);
-
+/// Creates a cir.process type
+MLIR_CAPI_EXPORTED MlirType mlirCirProcessTypeGet(MlirContext ctx);
+MLIR_CAPI_EXPORTED bool mlirCirIsAProcessType(MlirType type);
 //===----------------------------------------------------------------------===//
 /// Attributes
 //===----------------------------------------------------------------------===//
@@ -265,13 +271,12 @@ MLIR_CAPI_EXPORTED MlirOperation mlirCirIsTaggedTupleOp(MlirOpBuilder builder,
 
 MLIR_CAPI_EXPORTED MlirOperation mlirCirMallocOp(MlirOpBuilder builder,
                                                  MlirLocation location,
+                                                 MlirValue process,
                                                  MlirType ty);
 
-MLIR_CAPI_EXPORTED MlirOperation mlirCirMakeFunOp(MlirOpBuilder builder,
-                                                  MlirLocation location,
-                                                  MlirOperation fun,
-                                                  MlirValue *env,
-                                                  intptr_t arity);
+MLIR_CAPI_EXPORTED MlirOperation mlirCirMakeFunOp(
+    MlirOpBuilder builder, MlirLocation location, MlirOperation fun,
+    MlirValue process, MlirValue *env, intptr_t arity);
 
 MLIR_CAPI_EXPORTED MlirOperation mlirCirUnpackEnvOp(MlirOpBuilder builder,
                                                     MlirLocation location,
@@ -280,6 +285,7 @@ MLIR_CAPI_EXPORTED MlirOperation mlirCirUnpackEnvOp(MlirOpBuilder builder,
 
 MLIR_CAPI_EXPORTED MlirOperation mlirCirConsOp(MlirOpBuilder builder,
                                                MlirLocation location,
+                                               MlirValue process,
                                                MlirValue head, MlirValue value);
 
 MLIR_CAPI_EXPORTED MlirOperation mlirCirHeadOp(MlirOpBuilder builder,

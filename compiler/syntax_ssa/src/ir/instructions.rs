@@ -6,7 +6,7 @@ use intrusive_collections::{intrusive_adapter, LinkedListLink, UnsafeRef};
 
 use firefly_binary::BinaryEntrySpecifier;
 use firefly_diagnostics::{Span, Spanned};
-use firefly_syntax_base::Type;
+use firefly_syntax_base::{CallConv, Type};
 
 use super::*;
 
@@ -58,12 +58,12 @@ pub enum InstData {
     UnaryOpConst(UnaryOpConst),
     Call(Call),
     CallIndirect(CallIndirect),
+    Catch(Catch),
     MakeFun(MakeFun),
     Br(Br),
     CondBr(CondBr),
     Switch(Switch),
     Ret(Ret),
-    RetImm(RetImm),
     PrimOp(PrimOp),
     PrimOpImm(PrimOpImm),
     IsType(IsType),
@@ -83,11 +83,12 @@ impl InstData {
             | Self::UnaryOpConst(UnaryOpConst { ref op, .. }) => *op,
             Self::Call(Call { ref op, .. }) => *op,
             Self::CallIndirect(CallIndirect { ref op, .. }) => *op,
+            Self::Catch(Catch { ref op, .. }) => *op,
             Self::MakeFun(_) => Opcode::MakeFun,
             Self::Br(Br { ref op, .. }) => *op,
             Self::CondBr(_) => Opcode::CondBr,
             Self::Switch(Switch { ref op, .. }) => *op,
-            Self::Ret(_) | Self::RetImm(_) => Opcode::Ret,
+            Self::Ret(_) => Opcode::Ret,
             Self::PrimOp(PrimOp { ref op, .. }) | Self::PrimOpImm(PrimOpImm { ref op, .. }) => *op,
             Self::IsType(_) => Opcode::IsType,
             Self::BitsMatch(_) => Opcode::BitsMatch,
@@ -107,12 +108,12 @@ impl InstData {
             Self::UnaryOpConst(UnaryOpConst { .. }) => &[],
             Self::Call(Call { ref args, .. }) => args.as_slice(pool),
             Self::CallIndirect(CallIndirect { ref args, .. }) => args.as_slice(pool),
-            Self::MakeFun(MakeFun { ref env, .. }) => env.as_slice(pool),
+            Self::Catch(_) => &[],
+            Self::MakeFun(MakeFun { ref args, .. }) => args.as_slice(pool),
             Self::Br(Br { ref args, .. }) => args.as_slice(pool),
             Self::CondBr(CondBr { ref cond, .. }) => core::slice::from_ref(cond),
             Self::Switch(Switch { ref arg, .. }) => core::slice::from_ref(arg),
-            Self::Ret(Ret { ref args, .. }) => args.as_slice(),
-            Self::RetImm(RetImm { ref arg, .. }) => core::slice::from_ref(arg),
+            Self::Ret(Ret { ref args, .. }) => args.as_slice(pool),
             Self::PrimOp(PrimOp { ref args, .. }) => args.as_slice(pool),
             Self::PrimOpImm(PrimOpImm { ref args, .. }) => args.as_slice(pool),
             Self::IsType(IsType { ref arg, .. }) => core::slice::from_ref(arg),
@@ -133,12 +134,12 @@ impl InstData {
             Self::UnaryOpConst(UnaryOpConst { .. }) => &mut [],
             Self::Call(Call { ref mut args, .. }) => args.as_mut_slice(pool),
             Self::CallIndirect(CallIndirect { ref mut args, .. }) => args.as_mut_slice(pool),
-            Self::MakeFun(MakeFun { ref mut env, .. }) => env.as_mut_slice(pool),
+            Self::Catch(_) => &mut [],
+            Self::MakeFun(MakeFun { ref mut args, .. }) => args.as_mut_slice(pool),
             Self::Br(Br { ref mut args, .. }) => args.as_mut_slice(pool),
             Self::CondBr(CondBr { ref mut cond, .. }) => core::slice::from_mut(cond),
             Self::Switch(Switch { ref mut arg, .. }) => core::slice::from_mut(arg),
-            Self::Ret(Ret { ref mut args, .. }) => args.as_mut_slice(),
-            Self::RetImm(RetImm { ref mut arg, .. }) => core::slice::from_mut(arg),
+            Self::Ret(Ret { ref mut args, .. }) => args.as_mut_slice(pool),
             Self::PrimOp(PrimOp { ref mut args, .. }) => args.as_mut_slice(pool),
             Self::PrimOpImm(PrimOpImm { ref mut args, .. }) => args.as_mut_slice(pool),
             Self::IsType(IsType { ref mut arg, .. }) => core::slice::from_mut(arg),
@@ -189,6 +190,7 @@ impl InstData {
                 targets.push(JumpTable::new(*default, &[]));
                 BranchInfo::MultiDest(targets)
             }
+            Self::Catch(Catch { dest, .. }) => BranchInfo::SingleDest(*dest, &[]),
             _ => BranchInfo::NotABranch,
         }
     }
@@ -196,14 +198,15 @@ impl InstData {
     pub fn branch_destination(&self) -> Option<Block> {
         match self {
             Self::Br(ref b) => Some(b.destination),
+            Self::Catch(Catch { dest, .. }) => Some(*dest),
             _ => None,
         }
     }
 
     pub fn analyze_call<'a>(&'a self, pool: &'a ValueListPool) -> CallInfo<'a> {
         match self {
-            Self::Call(ref c) => CallInfo::Direct(c.callee, c.args.as_slice(pool)),
-            Self::CallIndirect(ref c) => CallInfo::Indirect(c.callee, c.args.as_slice(pool)),
+            Self::Call(ref c) => CallInfo::Direct(c.callee, c.cc, c.args.as_slice(pool)),
+            Self::CallIndirect(ref c) => CallInfo::Indirect(c.callee, c.cc, c.args.as_slice(pool)),
             _ => CallInfo::NotACall,
         }
     }
@@ -227,8 +230,8 @@ impl<'a> JumpTable<'a> {
 
 pub enum CallInfo<'a> {
     NotACall,
-    Direct(FuncRef, &'a [Value]),
-    Indirect(Value, &'a [Value]),
+    Direct(FuncRef, CallConv, &'a [Value]),
+    Indirect(Value, CallConv, &'a [Value]),
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
@@ -290,11 +293,13 @@ pub enum Opcode {
     Switch,
     Ret,
     IsType,
+    IsTupleFetchArity,
     IsTaggedTuple,
     // List Operations
     Cons,
     Head,
     Tail,
+    Split,
     ListConcat,
     ListSubtract,
     // Tuple Operations
@@ -302,28 +307,42 @@ pub enum Opcode {
     GetElement,
     SetElement,
     SetElementMut,
+    // Map Operations
+    Map,
+    MapPut,
+    MapPutMut,
+    MapUpdate,
+    MapUpdateMut,
+    MapExtendPut,
+    MapExtendUpdate,
+    MapTryGet,
     // Binary Operations
     BitsMatchStart,
     BitsMatch,
     BitsMatchSkip,
+    BitsInit,
     BitsPush,
     BitsTestTail,
+    BitsFinish,
     // Closures
     MakeFun,
     UnpackEnv,
     // Primops
-    RecvStart,
+    Send,
     RecvNext,
     RecvPeek,
     RecvPop,
-    RecvWait,
-    RecvDone,
+    RecvWaitTimeout,
     NifStart,
     // Errors
-    Raise,
-    ExceptionClass,
-    ExceptionReason,
-    ExceptionTrace,
+    StartCatch,
+    EndCatch,
+    BuildStacktrace,
+    Halt,
+    Throw,
+    Error,
+    Exit1,
+    Exit2,
 }
 impl Opcode {
     pub fn is_terminator(&self) -> bool {
@@ -332,7 +351,10 @@ impl Opcode {
             | Self::CondBr
             | Self::Switch
             | Self::Ret
-            | Self::Raise
+            | Self::Halt
+            | Self::Throw
+            | Self::Error
+            | Self::Exit1
             | Self::Enter
             | Self::EnterIndirect => true,
             _ => false,
@@ -341,7 +363,7 @@ impl Opcode {
 
     pub fn is_exception(&self) -> bool {
         match self {
-            Self::Raise => true,
+            Self::Halt | Self::Throw | Self::Error | Self::Exit1 => true,
             _ => false,
         }
     }
@@ -398,8 +420,10 @@ impl Opcode {
             | Self::Not
             | Self::Bnot
             | Self::IsType
+            | Self::IsTupleFetchArity
             | Self::Head
-            | Self::Tail => 1,
+            | Self::Tail
+            | Self::Split => 1,
             // Tagged tuple checks take two arguments, the tuple and the tag
             Self::IsTaggedTuple => 2,
             // Tuple constructor takes a single argument, the arity
@@ -410,8 +434,16 @@ impl Opcode {
             Self::SetElement | Self::SetElementMut => 2,
             // Cons constructors/concat/subtract take two arguments, the head and tail elements/lists
             Self::Cons | Self::ListConcat | Self::ListSubtract => 2,
-            // Creating a fun only requires the callee, the environment is variable-sized
-            Self::MakeFun => 0,
+            // Map constructor has no arguments
+            Self::Map => 0,
+            // Extending a map has at least 3 arguments, the base map and one key/value pair
+            Self::MapExtendPut | Self::MapExtendUpdate => 3,
+            // Getting a value from a map requires two arguments
+            Self::MapTryGet => 2,
+            // Map modifiers always have 3 arguments
+            Self::MapPut | Self::MapUpdate | Self::MapPutMut | Self::MapUpdateMut => 3,
+            // Creating a fun requires the current process and the callee; the environment is variable-sized
+            Self::MakeFun => 1,
             // Unpacking a closure environment requires the closure value
             Self::UnpackEnv => 1,
             // Calls are entirely variable
@@ -425,19 +457,22 @@ impl Opcode {
             // Returns require at least one argument
             Self::Ret => 1,
             // This receive intrinsic expects a timeout value as argument,
-            Self::RecvStart => 1,
-            // These receive intrinsics expect the receive context as argument
-            Self::RecvNext | Self::RecvPeek | Self::RecvPop | Self::RecvWait | Self::RecvDone => 1,
-            // These exception primops expect the exception value
-            Self::ExceptionClass | Self::ExceptionReason | Self::ExceptionTrace => 1,
+            Self::RecvWaitTimeout => 1,
+            // These receive intrinsics manipulate "global" state, they don't take any arguments
+            Self::RecvNext | Self::RecvPeek | Self::RecvPop => 0,
             // These primops expect either no arguments, an immediate or a value, so the number is not fixed
-            Self::BitsMatchStart | Self::NifStart => 0,
-            // Raising errors requires the class, the error value, and the stacktrace
-            Self::Raise => 3,
+            Self::Halt | Self::BitsInit | Self::BitsMatchStart | Self::NifStart => 0,
+            // Except with these primitives which only require a value
+            Self::Throw | Self::Error => 1,
+            // Exit always has at least one argument, but may have two
+            Self::Exit1 => 1,
+            Self::Exit2 => 2,
             // Bitstring ops
             Self::BitsMatchSkip => 2,
-            Self::BitsMatch | Self::BitsPush => 1,
+            Self::BitsMatch | Self::BitsPush | Self::BitsFinish => 1,
             Self::BitsTestTail => 2,
+            Self::StartCatch | Self::EndCatch | Self::BuildStacktrace => 0,
+            Self::Send => 2,
         }
     }
 }
@@ -501,9 +536,11 @@ impl fmt::Display for Opcode {
             Self::Not => f.write_str("not"),
             Self::Bnot => f.write_str("bnot"),
             Self::IsType => f.write_str("is_type"),
+            Self::IsTupleFetchArity => f.write_str("is_tuple_fetch_arity"),
             Self::Cons => f.write_str("cons"),
             Self::Head => f.write_str("list.hd"),
             Self::Tail => f.write_str("list.tl"),
+            Self::Split => f.write_str("list.split"),
             Self::ListConcat => f.write_str("list.concat"),
             Self::ListSubtract => f.write_str("list.subtract"),
             Self::Tuple => f.write_str("tuple"),
@@ -511,24 +548,37 @@ impl fmt::Display for Opcode {
             Self::GetElement => f.write_str("tuple.get"),
             Self::SetElement => f.write_str("tuple.set"),
             Self::SetElementMut => f.write_str("tuple.set.mut"),
+            Self::Map => f.write_str("map"),
+            Self::MapPut => f.write_str("map.put"),
+            Self::MapPutMut => f.write_str("map.put_mut"),
+            Self::MapUpdate => f.write_str("map.update"),
+            Self::MapUpdateMut => f.write_str("map.update_mut"),
+            Self::MapExtendPut => f.write_str("map.extend.put"),
+            Self::MapExtendUpdate => f.write_str("map.extend.update"),
+            Self::MapTryGet => f.write_str("map.try_get"),
             Self::MakeFun => f.write_str("fun.make"),
             Self::UnpackEnv => f.write_str("fun.env.get"),
-            Self::RecvStart => f.write_str("recv.start"),
+            Self::Send => f.write_str("send"),
             Self::RecvNext => f.write_str("recv.next"),
             Self::RecvPeek => f.write_str("recv.peek"),
             Self::RecvPop => f.write_str("recv.pop"),
-            Self::RecvWait => f.write_str("recv.wait"),
-            Self::RecvDone => f.write_str("recv.done"),
+            Self::RecvWaitTimeout => f.write_str("recv.wait_timeout"),
             Self::BitsMatchStart => f.write_str("bs.match.start"),
             Self::BitsMatch => f.write_str("bs.match"),
             Self::BitsMatchSkip => f.write_str("bs.match.skip"),
+            Self::BitsInit => f.write_str("bs.init"),
             Self::BitsPush => f.write_str("bs.push"),
             Self::BitsTestTail => f.write_str("bs.test.tail"),
-            Self::Raise => f.write_str("raise"),
+            Self::BitsFinish => f.write_str("bs.finish"),
+            Self::StartCatch => f.write_str("catch.start"),
+            Self::EndCatch => f.write_str("catch.end"),
+            Self::BuildStacktrace => f.write_str("build_stacktrace"),
+            Self::Halt => f.write_str("halt"),
+            Self::Throw => f.write_str("throw"),
+            Self::Error => f.write_str("error"),
+            Self::Exit1 => f.write_str("exit1"),
+            Self::Exit2 => f.write_str("exit2"),
             Self::NifStart => f.write_str("nif.start"),
-            Self::ExceptionClass => f.write_str("exception.class"),
-            Self::ExceptionReason => f.write_str("exception.reason"),
-            Self::ExceptionTrace => f.write_str("exception.trace"),
         }
     }
 }
@@ -645,6 +695,7 @@ pub enum UnaryOpType {
 #[derive(Debug, Clone)]
 pub struct Call {
     pub op: Opcode,
+    pub cc: CallConv,
     pub callee: FuncRef,
     pub args: ValueList,
 }
@@ -652,6 +703,7 @@ pub struct Call {
 #[derive(Debug, Clone)]
 pub struct CallIndirect {
     pub op: Opcode,
+    pub cc: CallConv,
     pub callee: Value,
     pub args: ValueList,
 }
@@ -672,6 +724,13 @@ pub struct CondBr {
     pub else_dest: (Block, ValueList),
 }
 
+/// Start of catch region
+#[derive(Debug, Clone)]
+pub struct Catch {
+    pub op: Opcode,
+    pub dest: Block,
+}
+
 /// Switch-case
 #[derive(Debug, Clone)]
 pub struct Switch {
@@ -685,15 +744,7 @@ pub struct Switch {
 #[derive(Debug, Clone)]
 pub struct Ret {
     pub op: Opcode,
-    pub args: [Value; 2],
-}
-
-/// Return w/ immediate exception flag
-#[derive(Debug, Clone)]
-pub struct RetImm {
-    pub op: Opcode,
-    pub imm: Immediate,
-    pub arg: Value,
+    pub args: ValueList,
 }
 
 /// A primop that takes a variable number of terms
@@ -720,7 +771,9 @@ pub struct IsType {
 #[derive(Debug, Clone)]
 pub struct MakeFun {
     pub callee: FuncRef,
-    pub env: ValueList,
+    /// This argument list always has at least one value, the current process;
+    /// the remainder are the variable-sized closure env values
+    pub args: ValueList,
 }
 
 #[derive(Debug, Clone)]

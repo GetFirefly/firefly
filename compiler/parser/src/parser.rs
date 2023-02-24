@@ -2,7 +2,7 @@ use std::error::Error;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use firefly_diagnostics::*;
+use firefly_util::diagnostics::*;
 
 use crate::{FileMapSource, Source};
 
@@ -18,15 +18,19 @@ impl<C> Parser<C> {
 }
 
 impl<C> Parser<C> {
-    pub fn parse<T, E>(&self, reporter: Reporter, source: Arc<SourceFile>) -> Result<T, E>
+    pub fn parse<T, E>(
+        &self,
+        diagnostics: &DiagnosticsHandler,
+        source: Arc<SourceFile>,
+    ) -> Result<T, E>
     where
         E: Error + ToDiagnostic,
         T: Parse<Config = C, Error = E>,
     {
-        <T as Parse<T>>::parse(&self, reporter, FileMapSource::new(source))
+        <T as Parse<T>>::parse(&self, diagnostics, FileMapSource::new(source))
     }
 
-    pub fn parse_string<T, S, E>(&self, reporter: Reporter, source: S) -> Result<T, E>
+    pub fn parse_string<T, S, E>(&self, diagnostics: &DiagnosticsHandler, source: S) -> Result<T, E>
     where
         E: Error + ToDiagnostic,
         T: Parse<Config = C, Error = E>,
@@ -34,10 +38,10 @@ impl<C> Parser<C> {
     {
         let id = self.codemap.add("nofile", source.as_ref().to_string());
         let file = self.codemap.get(id).unwrap();
-        self.parse(reporter, file)
+        self.parse(diagnostics, file)
     }
 
-    pub fn parse_file<T, S, E>(&self, reporter: Reporter, source: S) -> Result<T, E>
+    pub fn parse_file<T, S, E>(&self, diagnostics: &DiagnosticsHandler, source: S) -> Result<T, E>
     where
         E: Error + ToDiagnostic,
         T: Parse<Config = C, Error = E>,
@@ -49,7 +53,7 @@ impl<C> Parser<C> {
             Ok(content) => {
                 let id = self.codemap.add(path, content);
                 let file = self.codemap.get(id).unwrap();
-                self.parse(reporter, file)
+                self.parse(diagnostics, file)
             }
         }
     }
@@ -66,7 +70,7 @@ pub trait Parse<T = Self> {
     /// Initializes a token stream for the underlying parser and invokes parse_tokens
     fn parse<S>(
         parser: &Parser<Self::Config>,
-        reporter: Reporter,
+        diagnostics: &DiagnosticsHandler,
         source: S,
     ) -> Result<T, Self::Error>
     where
@@ -74,7 +78,7 @@ pub trait Parse<T = Self> {
 
     /// Implemented by each parser, which should parse the token stream and produce a T
     fn parse_tokens<S>(
-        reporter: Reporter,
+        diagnostics: &DiagnosticsHandler,
         codemap: Arc<CodeMap>,
         tokens: S,
     ) -> Result<T, Self::Error>

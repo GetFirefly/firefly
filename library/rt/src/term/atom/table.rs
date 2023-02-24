@@ -1,3 +1,4 @@
+use alloc::collections::btree_map::BTreeMap;
 use core::alloc::Layout;
 use core::fmt;
 use core::mem;
@@ -5,18 +6,13 @@ use core::ptr::{self, NonNull};
 use core::slice;
 use core::str;
 
-use hashbrown::HashMap;
-use lazy_static::lazy_static;
-
 use firefly_arena::DroplessArena;
-use firefly_system::sync::RwLock;
+use firefly_system::sync::{OnceLock, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 use super::{Atom, AtomError};
 
-lazy_static! {
-    /// The atom table used by the runtime system
-    static ref ATOMS: RwLock<AtomTable> = Default::default();
-}
+/// The atom table used by the runtime system
+static ATOMS: OnceLock<RwLock<AtomTable>> = OnceLock::new();
 
 #[derive(Copy, Clone, Debug)]
 pub struct TryAtomFromTermError(pub &'static str);
@@ -36,8 +32,8 @@ impl fmt::Display for TryAtomFromTermError {
 #[derive(Debug, Copy, Clone)]
 #[repr(C, align(8))]
 pub struct AtomData {
-    pub(super) size: usize,
-    pub(super) ptr: *const u8,
+    pub size: usize,
+    pub ptr: *const u8,
 }
 unsafe impl Send for AtomData {}
 unsafe impl Sync for AtomData {}
@@ -75,8 +71,9 @@ pub unsafe extern "C-unwind" fn init(start: *const AtomData, end: *const AtomDat
     let len = end.offset_from(start);
     let data = slice::from_raw_parts::<'static, _>(start, len as usize);
 
-    let mut default_table = ATOMS.write();
-    default_table.extend(data);
+    with_atom_table(|mut atoms| {
+        atoms.extend(data);
+    });
 
     true
 }
@@ -88,7 +85,7 @@ pub unsafe extern "C-unwind" fn init(start: *const AtomData, end: *const AtomDat
 pub(super) unsafe fn get_data_or_insert_static(
     name: &'static str,
 ) -> Result<NonNull<AtomData>, AtomError> {
-    ATOMS.write().get_data_or_insert_static(name)
+    with_atom_table(|mut atoms| atoms.get_data_or_insert_static(name))
 }
 
 /// Gets the atom with the given name from the global atom table, or inserts it as a new atom if not present.
@@ -99,7 +96,7 @@ pub(super) unsafe fn get_data_or_insert_static(
 /// be used when creating new atoms.
 #[inline]
 pub(super) unsafe fn get_data_or_insert(name: &str) -> Result<NonNull<AtomData>, AtomError> {
-    ATOMS.write().get_data_or_insert(name)
+    with_atom_table(|mut atoms| atoms.get_data_or_insert(name))
 }
 
 /// Checks the global atom table for an atom by the given name, or returns None.
@@ -108,15 +105,87 @@ pub(super) unsafe fn get_data_or_insert(name: &str) -> Result<NonNull<AtomData>,
 /// readers, but will block if a writer is currently inserting into the table.
 #[inline]
 pub(super) fn get_data(name: &str) -> Option<NonNull<AtomData>> {
-    ATOMS.read().get_data(name)
+    with_atom_table_readonly(|atoms| atoms.get_data(name))
+}
+
+#[inline]
+pub fn with_atom_table_readonly<F, T>(callback: F) -> T
+where
+    F: FnOnce(RwLockReadGuard<'static, AtomTable>) -> T,
+{
+    let atoms = ATOMS.get_or_init(|| RwLock::new(AtomTable::default()));
+    callback(atoms.read())
+}
+
+#[inline]
+pub fn with_atom_table<F, T>(callback: F) -> T
+where
+    F: FnOnce(RwLockWriteGuard<'static, AtomTable>) -> T,
+{
+    let atoms = ATOMS.get_or_init(|| RwLock::new(AtomTable::default()));
+    callback(atoms.write())
+}
+
+#[derive(Default)]
+pub struct GlobalAtomTable;
+impl firefly_bytecode::AtomTable for GlobalAtomTable {
+    type Atom = Atom;
+    type AtomError = AtomError;
+    type Guard = RwLockWriteGuard<'static, AtomTable>;
+
+    fn len(&self) -> usize {
+        with_atom_table_readonly(|atoms| atoms.len())
+    }
+
+    fn iter<'a>(&'a self) -> impl Iterator<Item = Self::Atom> + 'a {
+        core::iter::empty()
+    }
+
+    fn get_or_insert(&mut self, s: &str) -> Result<Self::Atom, Self::AtomError> {
+        Ok(Atom(with_atom_table(|mut atoms| {
+            atoms.get_data_or_insert(s)
+        })?))
+    }
+
+    fn change<F, T>(&mut self, callback: F) -> T
+    where
+        F: FnOnce(&mut Self::Guard) -> T,
+    {
+        with_atom_table(|mut atoms| callback(&mut atoms))
+    }
 }
 
 /// This struct represents the atom table, of which a program will only ever have one at a time,
 /// with static lifetime. The atoms it contains are never collected.
-struct AtomTable {
-    ids: HashMap<&'static str, NonNull<AtomData>>,
+pub struct AtomTable {
+    ids: BTreeMap<&'static str, NonNull<AtomData>>,
     arena: DroplessArena,
 }
+impl firefly_bytecode::AtomTable for AtomTable {
+    type Atom = Atom;
+    type AtomError = AtomError;
+    type Guard = Self;
+
+    fn len(&self) -> usize {
+        self.ids.len()
+    }
+
+    fn iter<'a>(&'a self) -> impl Iterator<Item = Self::Atom> + 'a {
+        self.ids.values().map(|ptr| Atom(*ptr))
+    }
+
+    fn get_or_insert(&mut self, s: &str) -> Result<Self::Atom, Self::AtomError> {
+        Ok(Atom(self.get_data_or_insert(s)?))
+    }
+
+    fn change<F, T>(&mut self, callback: F) -> T
+    where
+        F: FnOnce(&mut Self::Guard) -> T,
+    {
+        callback(self)
+    }
+}
+
 // By default, `NonNull<T>` is neither send nor sync, as such pointers may alias, however, in our
 // case, the pointers are to data which is pinned, 'static, read-only, and does not support interior mutability,
 // making such pointers trivially Send and Sync.
@@ -128,7 +197,7 @@ unsafe impl Sync for AtomTable {}
 impl Default for AtomTable {
     fn default() -> Self {
         Self {
-            ids: HashMap::with_capacity(100),
+            ids: BTreeMap::new(),
             arena: DroplessArena::default(),
         }
     }
@@ -136,13 +205,21 @@ impl Default for AtomTable {
 impl fmt::Debug for AtomTable {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         for (_name, data) in self.ids.iter() {
-            let atom = Atom(data.as_ptr() as *const AtomData);
+            let atom = Atom(*data);
             writeln!(f, "atom(value = {}, ptr = {:p})", &atom, data)?;
         }
         Ok(())
     }
 }
 impl AtomTable {
+    pub fn len(&self) -> usize {
+        self.ids.len()
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = NonNull<AtomData>> + '_ {
+        self.ids.values().copied()
+    }
+
     fn extend(&mut self, data: &'static [AtomData]) {
         for atom in data {
             let ptr = unsafe { NonNull::new_unchecked(atom as *const AtomData as *mut AtomData) };
@@ -155,7 +232,7 @@ impl AtomTable {
         self.ids.get(name).copied()
     }
 
-    fn get_data_or_insert(&mut self, name: &str) -> Result<NonNull<AtomData>, AtomError> {
+    pub fn get_data_or_insert(&mut self, name: &str) -> Result<NonNull<AtomData>, AtomError> {
         match self.get_data(name) {
             Some(existing_id) => Ok(existing_id),
             None => unsafe { self.insert(name) },
@@ -163,7 +240,7 @@ impl AtomTable {
     }
 
     // SAFETY: See insert_static for the safety constraints
-    unsafe fn get_data_or_insert_static(
+    pub unsafe fn get_data_or_insert_static(
         &mut self,
         name: &'static str,
     ) -> Result<NonNull<AtomData>, AtomError> {

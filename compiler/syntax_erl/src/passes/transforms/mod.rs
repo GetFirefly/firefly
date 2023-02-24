@@ -5,7 +5,7 @@ mod expand_unqualified_calls;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use firefly_diagnostics::*;
+use firefly_diagnostics::CodeMap;
 use firefly_pass::Pass;
 
 use crate::ast;
@@ -15,13 +15,11 @@ use self::expand_substitutions::ExpandSubstitutions;
 use self::expand_unqualified_calls::ExpandUnqualifiedCalls;
 
 pub struct CanonicalizeSyntax {
-    #[allow(dead_code)]
-    reporter: Reporter,
     codemap: Arc<CodeMap>,
 }
 impl CanonicalizeSyntax {
-    pub fn new(reporter: Reporter, codemap: Arc<CodeMap>) -> Self {
-        Self { reporter, codemap }
+    pub fn new(codemap: Arc<CodeMap>) -> Self {
+        Self { codemap }
     }
 }
 impl Pass for CanonicalizeSyntax {

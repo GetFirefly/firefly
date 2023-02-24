@@ -149,26 +149,26 @@ impl OwnedContext {
         context.disallow_unregistered_dialects();
 
         // Register the MLIR dialects we use
-        let llvm_dialect = DialectHandle::get(DialectType::LLVM).unwrap();
-        let func_dialect = DialectHandle::get(DialectType::Func).unwrap();
-        let arith_dialect = DialectHandle::get(DialectType::Arithmetic).unwrap();
-        let cf_dialect = DialectHandle::get(DialectType::ControlFlow).unwrap();
-        let scf_dialect = DialectHandle::get(DialectType::SCF).unwrap();
-        let cir_dialect = DialectHandle::get(DialectType::CIR).unwrap();
+        //let llvm_dialect = DialectHandle::get(DialectType::LLVM).unwrap();
+        //let func_dialect = DialectHandle::get(DialectType::Func).unwrap();
+        //let arith_dialect = DialectHandle::get(DialectType::Arithmetic).unwrap();
+        //let cf_dialect = DialectHandle::get(DialectType::ControlFlow).unwrap();
+        //let scf_dialect = DialectHandle::get(DialectType::SCF).unwrap();
+        //let cir_dialect = DialectHandle::get(DialectType::CIR).unwrap();
 
         // LLVM requires special registration as its LLVM IR translation interface needs registering as well
         unsafe {
             mlir_context_register_llvm_dialect_translation(context);
         }
         // Register the remaining dialects we use
-        arith_dialect.register(context);
-        func_dialect.register(context);
-        cf_dialect.register(context);
-        scf_dialect.register(context);
-        cir_dialect.register(context);
+        //arith_dialect.register(context);
+        //func_dialect.register(context);
+        //cf_dialect.register(context);
+        //scf_dialect.register(context);
+        //cir_dialect.register(context);
         // Load the CIR dialect, which will trigger loading of its dependent dialects
-        cir_dialect.load(context);
-        llvm_dialect.load(context);
+        //cir_dialect.load(context);
+        //llvm_dialect.load(context);
 
         // The diagnostics callback expects a reference to our global diagnostics handler
         diagnostics::register_diagnostics_handler(context, diagnostics);

@@ -1,6 +1,8 @@
 use std::fmt;
 use std::io::{self, Write};
 
+use firefly_syntax_base::CallConv;
+
 use super::{Block, DataFlowGraph, Function, Immediate, Inst, Value};
 
 pub fn write_function(w: &mut dyn Write, func: &Function) -> io::Result<()> {
@@ -8,7 +10,11 @@ pub fn write_function(w: &mut dyn Write, func: &Function) -> io::Result<()> {
     if is_public {
         write!(w, "pub ")?;
     }
-    write!(w, "function ")?;
+    match func.signature.cc {
+        CallConv::C => write!(w, "extern \"C\" ")?,
+        CallConv::Erlang => (),
+    }
+    write!(w, "fn ")?;
     write_spec(w, func)?;
     if func.signature.visibility.is_externally_defined() {
         return Ok(());
@@ -132,8 +138,7 @@ fn write_operands(w: &mut dyn Write, dfg: &DataFlowGraph, inst: Inst) -> io::Res
         InstData::UnaryOp(UnaryOp { arg, .. }) => write!(w, " {}", arg),
         InstData::UnaryOpImm(UnaryOpImm { imm, .. }) => write!(w, " {}", imm),
         InstData::UnaryOpConst(UnaryOpConst { imm, .. }) => write!(w, " {}", dfg.constant(*imm)),
-        InstData::Ret(Ret { args, .. }) => write!(w, " {}", DisplayValues(args.as_slice())),
-        InstData::RetImm(RetImm { arg, imm, .. }) => write!(w, " {}, {}", imm, arg),
+        InstData::Ret(Ret { args, .. }) => write!(w, " {}", DisplayValues(args.as_slice(pool))),
         InstData::Call(Call { args, .. }) => {
             let func_data = dfg.call_signature(inst).unwrap();
             write!(
@@ -146,10 +151,13 @@ fn write_operands(w: &mut dyn Write, dfg: &DataFlowGraph, inst: Inst) -> io::Res
         InstData::CallIndirect(CallIndirect { callee, args, .. }) => {
             write!(w, " {:?}({})", &callee, DisplayValues(args.as_slice(pool)))
         }
-        InstData::MakeFun(MakeFun { callee, env, .. }) => {
+        InstData::Catch(Catch { dest, .. }) => {
+            write!(w, " {}", dest)
+        }
+        InstData::MakeFun(MakeFun { callee, args, .. }) => {
             let sig = dfg.callee_signature(*callee);
             let mfa = sig.mfa();
-            write!(w, " {}({})", &mfa, DisplayValues(env.as_slice(pool)))
+            write!(w, " {}({})", &mfa, DisplayValues(args.as_slice(pool)))
         }
         InstData::CondBr(CondBr {
             cond,

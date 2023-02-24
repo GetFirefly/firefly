@@ -9,11 +9,12 @@
 ///! between strict/non-strict equality, this trait should be specialized on those types.
 use alloc::alloc::Allocator;
 use alloc::boxed::Box;
+use alloc::sync::Arc;
 use alloc::vec::Vec;
 
-use firefly_alloc::gc::GcBox;
-use firefly_alloc::rc::Rc;
-use firefly_number::{Float, Integer, Number};
+use firefly_number::{Float, Int, Number};
+
+use crate::gc::Gc;
 
 /// This trait implies precise equality between two terms, i.e. no coercion
 /// between types. By default, an implementation is provided for all types
@@ -48,7 +49,7 @@ impl crate::cmp::ExactEq for Float {
     }
 }
 
-impl crate::cmp::ExactEq for Integer {
+impl crate::cmp::ExactEq for Int {
     #[inline]
     fn exact_eq(&self, other: &Self) -> bool {
         self.eq(other)
@@ -62,14 +63,14 @@ impl<T: ExactEq, A: Allocator> ExactEq for Box<T, A> {
     }
 }
 
-impl<T: ExactEq> ExactEq for GcBox<T> {
+impl<T: ExactEq + Eq + PartialEq<Self>> ExactEq for Gc<T> {
     #[inline]
     fn exact_eq(&self, other: &Self) -> bool {
         ExactEq::exact_eq(&**self, &**other)
     }
 }
 
-impl<T: ExactEq> ExactEq for Rc<T> {
+impl<T: ExactEq> ExactEq for Arc<T> {
     #[inline]
     fn exact_eq(&self, other: &Self) -> bool {
         ExactEq::exact_eq(&**self, &**other)

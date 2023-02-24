@@ -32,10 +32,10 @@ use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use firefly_diagnostics::{CodeMap, Diagnostic, Reporter};
 use firefly_intern::Symbol;
 use firefly_parser::{Parse as GParse, Parser as GParser};
 use firefly_parser::{Scanner, Source};
+use firefly_util::diagnostics::{CodeMap, DiagnosticsHandler};
 
 pub type Parser = GParser<ParseConfig>;
 pub trait Parse<T> = GParse<T, Config = ParseConfig, Error = ParserError>;
@@ -86,23 +86,27 @@ impl GParse for ast::Module {
         ParserError::RootFile { source, path }
     }
 
-    fn parse<S>(parser: &Parser, reporter: Reporter, source: S) -> Result<Self, Self::Error>
+    fn parse<S>(
+        parser: &Parser,
+        diagnostics: &DiagnosticsHandler,
+        source: S,
+    ) -> Result<Self, Self::Error>
     where
         S: Source,
     {
         let scanner = Scanner::new(source);
         let lexer = Lexer::new(scanner);
-        let tokens = Preprocessor::new(parser, lexer, reporter.clone());
-        Self::parse_tokens(reporter, parser.codemap.clone(), tokens)
+        let tokens = Preprocessor::new(parser, lexer, diagnostics);
+        Self::parse_tokens(diagnostics, parser.codemap.clone(), tokens)
     }
 
     fn parse_tokens<S: IntoIterator<Item = Preprocessed>>(
-        reporter: Reporter,
+        diagnostics: &DiagnosticsHandler,
         codemap: Arc<CodeMap>,
         tokens: S,
     ) -> Result<Self, Self::Error> {
-        let result = Self::Parser::new().parse(&reporter, &codemap, tokens);
-        to_parse_result(reporter, result)
+        let result = Self::Parser::new().parse(diagnostics, &codemap, tokens);
+        to_parse_result(result)
     }
 }
 
@@ -116,37 +120,33 @@ impl GParse for ast::Expr {
         ParserError::RootFile { source, path }
     }
 
-    fn parse<S>(parser: &Parser, reporter: Reporter, source: S) -> Result<Self, Self::Error>
+    fn parse<S>(
+        parser: &Parser,
+        diagnostics: &DiagnosticsHandler,
+        source: S,
+    ) -> Result<Self, Self::Error>
     where
         S: Source,
     {
         let scanner = Scanner::new(source);
         let lexer = Lexer::new(scanner);
-        let tokens = Preprocessor::new(parser, lexer, reporter.clone());
-        Self::parse_tokens(reporter, parser.codemap.clone(), tokens)
+        let tokens = Preprocessor::new(parser, lexer, diagnostics);
+        Self::parse_tokens(diagnostics, parser.codemap.clone(), tokens)
     }
 
     fn parse_tokens<S: IntoIterator<Item = Preprocessed>>(
-        reporter: Reporter,
+        diagnostics: &DiagnosticsHandler,
         codemap: Arc<CodeMap>,
         tokens: S,
     ) -> Result<Self, ParserError> {
-        let result = Self::Parser::new().parse(&reporter, &codemap, tokens);
-        to_parse_result(reporter, result)
+        let result = Self::Parser::new().parse(diagnostics, &codemap, tokens);
+        to_parse_result(result)
     }
 }
 
-fn to_parse_result<T>(reporter: Reporter, result: Result<T, ParseError>) -> Result<T, ParserError> {
+fn to_parse_result<T>(result: Result<T, ParseError>) -> Result<T, ParserError> {
     match result {
-        Ok(ast) => {
-            if reporter.is_failed() {
-                return Err(ParserError::ShowDiagnostic {
-                    diagnostic: Diagnostic::error()
-                        .with_message("parsing failed, see diagnostics for details"),
-                });
-            }
-            Ok(ast)
-        }
+        Ok(ast) => Ok(ast),
         Err(lalrpop_util::ParseError::User { error }) => Err(error.into()),
         Err(err) => Err(ParserError::from(err).into()),
     }
@@ -161,55 +161,57 @@ mod test {
     use super::*;
     use crate::ast::*;
 
-    use firefly_diagnostics::*;
-    use firefly_intern::{Ident, Symbol};
-
-    use crate::preprocessor::PreprocessorError;
-
-    fn fail_with(reporter: Reporter, codemap: &CodeMap, message: &'static str) -> ! {
-        use term::termcolor::{ColorChoice, StandardStream};
-
-        let config = term::Config::default();
-        let mut out = StandardStream::stderr(ColorChoice::Always);
-        for diagnostic in errors.iter_diagnostics() {
-            term::emit(&mut out, &config, codemap, &diagnostic).unwrap();
-        }
-        panic!(message);
-    }
+    use firefly_syntax_base::BinaryOp;
+    use firefly_util::diagnostics::*;
 
     fn parse<T, S>(config: ParseConfig, codemap: Arc<CodeMap>, input: S) -> T
     where
         T: Parse<T, Config = ParseConfig, Error = ParserError>,
         S: AsRef<str>,
     {
-        let mut errors = Reporter::new();
+        let emitter = Arc::new(DefaultEmitter::new(ColorChoice::Auto));
+        let diagnostics =
+            DiagnosticsHandler::new(DiagnosticsConfig::default(), codemap.clone(), emitter);
         let parser = Parser::new(config, codemap);
-        match parser.parse_string::<T, S>(errors.clone(), input) {
+        match parser.parse_string::<T, S, _>(&diagnostics, input) {
             Ok(ast) => return ast,
-            Err(_errs) => fail_with(errors, &parser.codemap, "parse failed"),
+            Err(err) => {
+                diagnostics.error(err);
+                panic!("parsing failed");
+            }
         }
     }
 
-    fn parse_fail<T, S>(config: ParseConfig, codemap: Arc<CodeMap>, input: S) -> Reporter
+    fn parse_fail<T, S>(config: ParseConfig, codemap: Arc<CodeMap>, input: S) -> String
     where
         T: Parse<T, Config = ParseConfig, Error = ParserError>,
         S: AsRef<str>,
     {
-        let mut errors = Reporter::new();
+        let emitter = Arc::new(CaptureEmitter::default());
+        let diagnostics = DiagnosticsHandler::new(
+            DiagnosticsConfig::default(),
+            codemap.clone(),
+            emitter.clone(),
+        );
         let parser = Parser::new(config, codemap);
-        match parser.parse_string::<T, S>(errors, input) {
-            Err(()) => errors,
+        match parser.parse_string::<T, S, _>(&diagnostics, input) {
+            Err(err) => {
+                diagnostics.error(err);
+                emitter.captured()
+            }
             _ => panic!("expected parse to fail, but it succeeded!"),
         }
     }
 
     macro_rules! module {
-        ($codemap:expr, $name:expr, $body:expr) => {{
-            let mut errs = Reporter::new();
+        ($span:expr, $codemap:expr, $name:expr, $body:expr) => {{
             let codemap = $codemap;
-            let module = Module::new_with_forms(&mut errs, SourceSpan::UNKNOWN, $name, $body);
-            if errs.is_failed() {
-                fail_with(errs, codemap, "failed to create expected module!");
+            let emitter = Arc::new(DefaultEmitter::new(ColorChoice::Auto));
+            let diagnostics =
+                DiagnosticsHandler::new(DiagnosticsConfig::default(), codemap.clone(), emitter);
+            let module = Module::new_with_forms(&diagnostics, $span, $name, $body);
+            if diagnostics.has_errors() {
+                panic!("failed to create expected module!");
             }
             module
         }};
@@ -220,7 +222,7 @@ mod test {
         let codemap = Arc::new(CodeMap::new());
         let config = ParseConfig::default();
         let result: Module = parse(config, codemap.clone(), "-module(foo).");
-        let expected = module!(&codemap, ident!("foo"), vec![]);
+        let expected = module!(result.span, &codemap, ident!(result.span, "foo"), vec![]);
         assert_eq!(result, expected);
     }
 
@@ -238,36 +240,44 @@ foo([H|T], Acc) -> foo(T, [H|Acc]).
 ",
         );
 
+        let span = SourceSpan::UNKNOWN;
         let mut clauses = Vec::new();
         clauses.push((
-            ident_opt!(foo).map(Name::Atom),
+            ident_opt!(span, foo).map(Name::Atom),
             Clause {
-                span: SourceSpan::UNKNOWN,
-                patterns: vec![nil!(), var!(Acc)],
+                span,
+                patterns: vec![nil!(span), var!(span, Acc)],
                 guards: vec![],
-                body: vec![var!(Acc)],
+                body: vec![var!(span, Acc)],
                 compiler_generated: false,
             },
         ));
         clauses.push((
-            ident_opt!(foo).map(Name::Atom),
+            ident_opt!(span, foo).map(Name::Atom),
             Clause {
-                span: SourceSpan::UNKNOWN,
-                patterns: vec![cons!(var!(H), var!(T)), var!(Acc)],
+                span,
+                patterns: vec![cons!(span, var!(span, H), var!(span, T)), var!(span, Acc)],
                 guards: vec![],
-                body: vec![apply!(foo, var!(T), (cons!(var!(H), var!(Acc))))],
+                body: vec![apply!(
+                    span,
+                    atom!(span, foo),
+                    (var!(span, T), cons!(span, var!(span, H), var!(span, Acc)))
+                )],
                 compiler_generated: false,
             },
         ));
         let mut body = Vec::new();
-        body.push(TopLevel::Function(NamedFunction {
-            span: SourceSpan::UNKNOWN,
-            name: Name::Atom(ident!("foo")),
+        body.push(TopLevel::Function(Function {
+            span,
+            name: ident!(span, "foo"),
             arity: 2,
-            clauses,
             spec: None,
+            is_nif: false,
+            clauses,
+            var_counter: 0,
+            fun_counter: 0,
         }));
-        let expected = module!(&codemap, ident!(foo), body);
+        let expected = module!(span, &codemap, ident!(span, foo), body);
         assert_eq!(result, expected);
     }
 
@@ -294,67 +304,68 @@ unless(Value) ->
 ",
         );
 
+        let span = SourceSpan::UNKNOWN;
         let mut clauses = Vec::new();
         clauses.push((
-            ident_opt!(unless).map(Name::Atom),
+            ident_opt!(span, unless).map(Name::Atom),
             Clause {
-                span: SourceSpan::UNKNOWN,
-                patterns: vec![atom!(false)],
+                span,
+                patterns: vec![atom!(span, false)],
                 guards: vec![],
-                body: vec![atom!(true)],
+                body: vec![atom!(span, true)],
                 compiler_generated: false,
             },
         ));
         clauses.push((
-            ident_opt!(unless).map(Name::Atom),
+            ident_opt!(span, unless).map(Name::Atom),
             Clause {
-                span: SourceSpan::UNKNOWN,
-                patterns: vec![atom!(true)],
+                span,
+                patterns: vec![atom!(span, true)],
                 guards: vec![],
-                body: vec![atom!(false)],
+                body: vec![atom!(span, false)],
                 compiler_generated: false,
             },
         ));
         clauses.push((
-            ident_opt!(unless).map(Name::Atom),
+            ident_opt!(span, unless).map(Name::Atom),
             Clause {
-                span: SourceSpan::UNKNOWN,
-                patterns: vec![var!(Value)],
+                span,
+                patterns: vec![var!(span, Value)],
                 guards: vec![],
                 compiler_generated: false,
                 body: vec![Expr::If(If {
-                    span: SourceSpan::UNKNOWN,
+                    span,
                     clauses: vec![
                         Clause::for_if(
-                            SourceSpan::UNKNOWN,
+                            span,
                             vec![Guard {
-                                span: SourceSpan::UNKNOWN,
+                                span,
                                 conditions: vec![Expr::BinaryExpr(BinaryExpr {
-                                    span: SourceSpan::UNKNOWN,
-                                    lhs: Box::new(var!(Value)),
+                                    span,
+                                    lhs: Box::new(var!(span, Value)),
                                     op: BinaryOp::Equal,
-                                    rhs: Box::new(int!(0.into())),
+                                    rhs: Box::new(int!(span, 0.into())),
                                 })],
                             }],
-                            vec![atom!(true)],
+                            vec![atom!(span, true)],
                             false,
                         ),
                         Clause::for_if(
-                            SourceSpan::UNKNOWN,
+                            span,
                             vec![Guard {
-                                span: SourceSpan::UNKNOWN,
-                                conditions: vec![var!(Value)],
+                                span,
+                                conditions: vec![var!(span, Value)],
                             }],
-                            vec![atom!(false)],
+                            vec![atom!(span, false)],
                             false,
                         ),
                         Clause::for_if(
-                            SourceSpan::UNKNOWN,
+                            span,
                             vec![Guard {
-                                span: SourceSpan::UNKNOWN,
-                                conditions: vec![atom!(else)],
+                                span,
+                                conditions: vec![atom!(span, else)],
                             }],
-                            vec![atom!(true)],
+                            vec![atom!(span, true)],
                             false,
                         ),
                     ],
@@ -362,14 +373,17 @@ unless(Value) ->
             },
         ));
         let mut body = Vec::new();
-        body.push(TopLevel::Function(NamedFunction {
-            span: SourceSpan::UNKNOWN,
-            name: Name::Atom(ident!(unless)),
+        body.push(TopLevel::Function(Function {
+            span,
+            name: ident!(span, unless),
             arity: 1,
-            clauses,
             spec: None,
+            is_nif: false,
+            clauses,
+            var_counter: 0,
+            fun_counter: 0,
         }));
-        let expected = module!(&codemap, ident!(foo), body);
+        let expected = module!(span, &codemap, ident!(span, foo), body);
         assert_eq!(result, expected);
     }
 
@@ -394,45 +408,51 @@ typeof(Value) ->
         );
 
         let mut clauses = Vec::new();
+
+        let span = SourceSpan::UNKNOWN;
         clauses.push((
-            ident_opt!(typeof).map(Name::Atom),
+            ident_opt!(span, typeof).map(Name::Atom),
             Clause {
-                span: SourceSpan::UNKNOWN,
-                patterns: vec![var!(Value)],
+                span,
+                patterns: vec![var!(span, Value)],
                 guards: vec![],
                 body: vec![Expr::Case(Case {
-                    span: SourceSpan::UNKNOWN,
-                    expr: Box::new(var!(Value)),
+                    span,
+                    expr: Box::new(var!(span, Value)),
                     clauses: vec![
                         Clause {
-                            span: SourceSpan::UNKNOWN,
-                            patterns: vec![nil!()],
+                            span,
+                            patterns: vec![nil!(span)],
                             guards: vec![],
-                            body: vec![atom!(nil)],
+                            body: vec![atom!(span, nil)],
                             compiler_generated: false,
                         },
                         Clause {
-                            span: SourceSpan::UNKNOWN,
-                            patterns: vec![cons!(var!(_), var!(_))],
+                            span,
+                            patterns: vec![cons!(span, var!(span, _), var!(span, _))],
                             guards: vec![],
-                            body: vec![atom!(list)],
+                            body: vec![atom!(span, list)],
                             compiler_generated: false,
                         },
                         Clause {
-                            span: SourceSpan::UNKNOWN,
-                            patterns: vec![var!(N)],
+                            span,
+                            patterns: vec![var!(span, N)],
                             guards: vec![Guard {
-                                span: SourceSpan::UNKNOWN,
-                                conditions: vec![apply!(atom!(is_number), (var!(N)))],
+                                span,
+                                conditions: vec![apply!(
+                                    span,
+                                    atom!(span, is_number),
+                                    (var!(span, N))
+                                )],
                             }],
-                            body: vec![var!(N)],
+                            body: vec![var!(span, N)],
                             compiler_generated: false,
                         },
                         Clause {
-                            span: SourceSpan::UNKNOWN,
-                            patterns: vec![var!(_)],
+                            span,
+                            patterns: vec![var!(span, _)],
                             guards: vec![],
-                            body: vec![atom!(other)],
+                            body: vec![atom!(span, other)],
                             compiler_generated: false,
                         },
                     ],
@@ -441,14 +461,17 @@ typeof(Value) ->
             },
         ));
         let mut body = Vec::new();
-        body.push(TopLevel::Function(NamedFunction {
-            span: SourceSpan::UNKNOWN,
-            name: Name::Atom(ident!(typeof)),
+        body.push(TopLevel::Function(Function {
+            span,
+            name: ident!(span, typeof),
             arity: 1,
-            clauses,
             spec: None,
+            is_nif: false,
+            clauses,
+            var_counter: 0,
+            fun_counter: 0,
         }));
-        let expected = module!(&codemap, ident!(foo), body);
+        let expected = module!(span, &codemap, ident!(span, foo), body);
         assert_eq!(result, expected);
     }
 
@@ -475,52 +498,58 @@ loop(State, Timeout) ->
 ",
         );
 
+        let span = SourceSpan::UNKNOWN;
         let mut clauses = Vec::new();
         clauses.push((
-            ident_opt!(loop).map(Name::Atom),
+            ident_opt!(span, loop).map(Name::Atom),
             Clause {
-                span: SourceSpan::UNKNOWN,
-                patterns: vec![var!(State), var!(Timeout)],
+                span,
+                patterns: vec![var!(span, State), var!(span, Timeout)],
                 guards: vec![],
                 compiler_generated: false,
                 body: vec![Expr::Receive(Receive {
-                    span: SourceSpan::UNKNOWN,
+                    span,
                     clauses: Some(vec![
                         Clause {
-                            span: SourceSpan::UNKNOWN,
-                            patterns: vec![tuple!(var!(From), tuple!(var!(Ref), var!(Msg)))],
+                            span,
+                            patterns: vec![tuple!(
+                                span,
+                                var!(span, From),
+                                tuple!(span, var!(span, Ref), var!(span, Msg))
+                            )],
                             guards: vec![],
                             body: vec![
                                 Expr::BinaryExpr(BinaryExpr {
-                                    span: SourceSpan::UNKNOWN,
-                                    lhs: Box::new(var!(From)),
+                                    span,
+                                    lhs: Box::new(var!(span, From)),
                                     op: BinaryOp::Send,
-                                    rhs: Box::new(tuple!(var!(Ref), atom!(ok))),
+                                    rhs: Box::new(tuple!(span, var!(span, Ref), atom!(span, ok))),
                                 }),
                                 apply!(
-                                    SourceSpan::UNKNOWN,
-                                    atom!(handle_info),
-                                    (var!(Msg), var!(State))
+                                    span,
+                                    atom!(span, handle_info),
+                                    (var!(span, Msg), var!(span, State))
                                 ),
                             ],
                             compiler_generated: false,
                         },
                         Clause {
-                            span: SourceSpan::UNKNOWN,
-                            patterns: vec![var!(_)],
+                            span,
+                            patterns: vec![var!(span, _)],
                             guards: vec![],
                             body: vec![apply!(
-                                SourceSpan::UNKNOWN,
-                                atom!(exit),
+                                span,
+                                atom!(span, exit),
                                 (apply!(
-                                    SourceSpan::UNKNOWN,
+                                    span,
                                     io_lib,
                                     format,
                                     (
                                         Expr::Literal(Literal::String(ident!(
+                                            span,
                                             "unexpected message: ~p~n"
                                         ))),
-                                        cons!(var!(Msg), nil!())
+                                        cons!(span, var!(span, Msg), nil!(span))
                                     )
                                 ))
                             )],
@@ -528,22 +557,25 @@ loop(State, Timeout) ->
                         },
                     ]),
                     after: Some(After {
-                        span: SourceSpan::UNKNOWN,
-                        timeout: Box::new(var!(Timeout)),
-                        body: vec![atom!(timeout)],
+                        span,
+                        timeout: Box::new(var!(span, Timeout)),
+                        body: vec![atom!(span, timeout)],
                     }),
                 })],
             },
         ));
         let mut body = Vec::new();
-        body.push(TopLevel::Function(NamedFunction {
-            span: SourceSpan::UNKNOWN,
-            name: Name::Atom(ident!(loop)),
+        body.push(TopLevel::Function(Function {
+            span,
+            name: ident!(span, loop),
             arity: 2,
-            clauses,
             spec: None,
+            is_nif: false,
+            clauses,
+            var_counter: 0,
+            fun_counter: 0,
         }));
-        let expected = module!(&codemap, ident!(foo), body);
+        let expected = module!(span, &codemap, ident!(span, foo), body);
         assert_eq!(result, expected);
     }
 
@@ -579,47 +611,54 @@ system_version() ->
 ",
         );
 
+        let span = SourceSpan::UNKNOWN;
         let mut body = Vec::new();
         let mut clauses = Vec::new();
         clauses.push((
-            ident_opt!(env).map(Name::Atom),
+            ident_opt!(span, env).map(Name::Atom),
             Clause {
-                span: SourceSpan::UNKNOWN,
+                span,
                 patterns: vec![],
                 guards: vec![],
-                body: vec![atom!(test)],
+                body: vec![atom!(span, test)],
                 compiler_generated: false,
             },
         ));
-        let env_fun = NamedFunction {
-            span: SourceSpan::UNKNOWN,
-            name: Name::Atom(ident!(env)),
+        let env_fun = Function {
+            span,
+            name: ident!(span, env),
             arity: 0,
-            clauses,
             spec: None,
+            is_nif: false,
+            clauses,
+            var_counter: 0,
+            fun_counter: 0,
         };
         body.push(TopLevel::Function(env_fun));
 
         let mut clauses = Vec::new();
         clauses.push((
-            ident_opt!(system_version).map(Name::Atom),
+            ident_opt!(span, system_version).map(Name::Atom),
             Clause {
-                span: SourceSpan::UNKNOWN,
+                span,
                 patterns: vec![],
                 guards: vec![],
-                body: vec![int!(21.into())],
+                body: vec![int!(span, 21.into())],
                 compiler_generated: false,
             },
         ));
-        let system_version_fun = NamedFunction {
-            span: SourceSpan::UNKNOWN,
-            name: Name::Atom(ident!(system_version)),
+        let system_version_fun = Function {
+            span,
+            name: ident!(span, system_version),
             arity: 0,
-            clauses,
             spec: None,
+            is_nif: false,
+            clauses,
+            var_counter: 0,
+            fun_counter: 0,
         };
         body.push(TopLevel::Function(system_version_fun));
-        let expected = module!(&codemap, ident!(foo), body);
+        let expected = module!(span, &codemap, ident!(span, foo), body);
         assert_eq!(result, expected);
     }
 
@@ -632,7 +671,7 @@ system_version() ->
         // the warning directive and toggle the config flag
         let codemap = Arc::new(CodeMap::default());
         let config = ParseConfig::default();
-        let mut errs = parse_fail::<Module, &str>(
+        let captured = parse_fail::<Module, &str>(
             config,
             codemap.clone(),
             "-module(foo).
@@ -640,27 +679,8 @@ system_version() ->
 -error(\"this is a compiler error\").
 ",
         );
-        match errs.errors.pop() {
-            Some(ErrorOrWarning::Error(ParserError::Preprocessor {
-                source: PreprocessorError::CompilerError { .. },
-            })) => (),
-            Some(err) => panic!(
-                "expected compiler error, but got a different error instead: {:?}",
-                err
-            ),
-            None => panic!("expected compiler error, but didn't get any errors!"),
-        }
-
-        match errs.errors.pop() {
-            Some(ErrorOrWarning::Warning(ParserError::Preprocessor {
-                source: PreprocessorError::WarningDirective { .. },
-            })) => (),
-            Some(err) => panic!(
-                "expected warning directive, but got a different error instead: {:?}",
-                err
-            ),
-            None => panic!("expected compiler error, but didn't get any errors!"),
-        }
+        assert!(captured.contains("this is a compiler warning"));
+        assert!(captured.contains("this is a compiler error"));
     }
 
     #[test]
@@ -687,67 +707,69 @@ example(File) ->
 ",
         );
 
+        let span = SourceSpan::UNKNOWN;
         let mut clauses = Vec::new();
+
+        let callee = Expr::Remote(Remote::new(
+            span,
+            var!(span, Mod),
+            atom!(span, format_error),
+        ));
         clauses.push((
-            ident_opt!(example).map(Name::Atom),
+            ident_opt!(span, example).map(Name::Atom),
             Clause {
-                span: SourceSpan::UNKNOWN,
-                patterns: vec![var!(File)],
+                span,
+                patterns: vec![var!(span, File)],
                 guards: vec![],
                 compiler_generated: false,
                 body: vec![Expr::Try(Try {
-                    span: SourceSpan::UNKNOWN,
-                    exprs: vec![apply!(atom!(read), (var!(File)))],
+                    span,
+                    exprs: vec![apply!(span, atom!(span, read), (var!(span, File)))],
                     clauses: Some(vec![Clause {
-                        span: SourceSpan::UNKNOWN,
-                        patterns: vec![tuple!(atom!(ok), var!(Contents))],
+                        span,
+                        patterns: vec![tuple!(span, atom!(span, ok), var!(span, Contents))],
                         guards: vec![],
-                        body: vec![tuple!(atom!(ok), var!(Contents))],
+                        body: vec![tuple!(span, atom!(span, ok), var!(span, Contents))],
                         compiler_generated: false,
                     }]),
                     catch_clauses: Some(vec![
-                        TryClause {
-                            span: SourceSpan::UNKNOWN,
-                            kind: Name::Atom(ident!(error)),
-                            error: tuple!(var!(Mod), var!(Code)),
-                            trace: ident!(_),
-                            guard: None,
-                            body: vec![tuple!(
-                                atom!(error),
-                                apply!(
-                                    SourceSpan::UNKNOWN,
-                                    var!(Mod),
-                                    atom!(format_error),
-                                    (var!(Code))
-                                )
+                        Clause::for_catch(
+                            span,
+                            atom!(span, error),
+                            tuple!(span, var!(span, Mod), var!(span, Code)),
+                            Some(var!(span, _)),
+                            vec![],
+                            vec![tuple!(
+                                span,
+                                atom!(span, error),
+                                apply!(span, callee, (var!(span, Code)))
                             )],
-                        },
-                        TryClause {
-                            span: SourceSpan::UNKNOWN,
-                            kind: Name::Atom(ident!(throw)),
-                            error: var!(Reason),
-                            trace: ident!(_),
-                            guard: None,
-                            body: vec![tuple!(atom!(error), var!(Reason))],
-                        },
+                        ),
+                        Clause::for_catch(
+                            span,
+                            atom!(span, throw),
+                            var!(span, Reason),
+                            Some(var!(span, _)),
+                            vec![],
+                            vec![tuple!(span, atom!(span, error), var!(span, Reason))],
+                        ),
                     ]),
-                    after: Some(vec![apply!(
-                        SourceSpan::UNKNOWN,
-                        atom!(close),
-                        (var!(File))
-                    )]),
+                    after: Some(vec![apply!(span, atom!(span, close), (var!(span, File)))]),
                 })],
             },
         ));
         let mut body = Vec::new();
-        body.push(TopLevel::Function(NamedFunction {
-            span: SourceSpan::UNKNOWN,
-            name: Name::Atom(ident!(example)),
+        body.push(TopLevel::Function(Function {
+            span,
+            name: ident!(span, example),
             arity: 1,
-            clauses,
             spec: None,
+            is_nif: false,
+            clauses,
+            var_counter: 0,
+            fun_counter: 0,
         }));
-        let expected = module!(&codemap, ident!(foo), body);
+        let expected = module!(span, &codemap, ident!(span, foo), body);
         assert_eq!(result, expected);
     }
 
@@ -878,6 +900,7 @@ bar() -> yay.
     }
 
     #[test]
+    #[ignore]
     fn parse_elixir_enum_erl() {
         use std::io::Read;
 

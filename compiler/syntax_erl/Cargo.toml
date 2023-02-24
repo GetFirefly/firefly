@@ -1,43 +1,44 @@
 [package]
 name = "firefly_syntax_erl"
-version = "0.1.0"
-authors = ["Paul Schoenfelder <paulschoenfelder@gmail.com>"]
-readme = "README.md"
-publish = false
-edition = "2021"
-license = "MIT OR Apache-2.0"
+description = "Provides the Firefly compiler with a frontend for Erlang sources"
+version.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+categories.workspace = true
+keywords.workspace = true
+license.workspace = true
+readme.workspace = true
+edition.workspace = true
+publish.workspace = true
 
 build = "build.rs"
 
 [dependencies]
+anyhow = { workspace = true, features = ["std"] }
+either.workspace = true
 firefly_beam = { path = "../../library/beam" }
-firefly_binary = { path = "../../library/binary" }
+firefly_binary = { path = "../../library/binary", features = ["std"] }
 firefly_diagnostics = { path = "../diagnostics" }
-firefly_intern = { path = "../intern" }
-firefly_number = { path = "../../library/number" }
+firefly_intern = { path = "../intern", features = ["std"] }
+firefly_number = { path = "../../library/number", features = ["std"] }
 firefly_pass = { path = "../pass" }
 firefly_parser = { path = "../parser" }
 firefly_syntax_base = { path = "../syntax_base" }
 firefly_syntax_core = { path = "../syntax_core" }
 firefly_syntax_pp = { path = "../syntax_pp" }
 firefly_util = { path = "../util" }
-
-anyhow = "1.0"
-either = "1.8"
-itertools = "0.10"
-lalrpop-util = "0.19"
-lazy_static = "1.4"
-log = "0.4"
-paste = "1.0"
+itertools.workspace = true
+lalrpop-util.workspace = true
+lazy_static.workspace = true
+log.workspace = true
+paste.workspace = true
+smallvec.workspace = true
 strsim = "0.10"
-thiserror = "1.0"
-
-[dependencies.smallvec]
-version = "1.9"
-features = ["union", "const_generics", "const_new", "specialization"]
+thiserror.workspace = true
 
 [dev-dependencies]
-pretty_assertions = "1.0"
+pretty_assertions.workspace = true
 
 [build-dependencies]
-lalrpop = "0.19"
+lalrpop.workspace = true

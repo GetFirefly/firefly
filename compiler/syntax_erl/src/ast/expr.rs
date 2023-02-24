@@ -4,9 +4,9 @@ use std::fmt;
 use std::hash::{Hash, Hasher};
 
 use firefly_binary::{BinaryEntrySpecifier, BitVec, Bitstring};
-use firefly_diagnostics::{SourceSpan, Spanned};
+use firefly_diagnostics::{SourceSpan, Span, Spanned};
 use firefly_intern::{symbols, Ident, Symbol};
-use firefly_number::{Float, Integer, Number};
+use firefly_number::{Float, Int, Number};
 use firefly_syntax_base::{self as syntax_base, Annotations, BinaryOp, FunctionName, UnaryOp};
 
 use super::{Arity, Fun, FunctionVar, Guard, Name, Type};
@@ -23,7 +23,7 @@ pub enum Expr {
     Literal(Literal),
     FunctionVar(FunctionVar),
     // Delayed substitution of macro
-    DelayedSubstitution(#[span] SourceSpan, DelayedSubstitution),
+    DelayedSubstitution(Span<DelayedSubstitution>),
     // The various list forms
     Cons(Cons),
     // Other data structures
@@ -193,16 +193,16 @@ impl From<Name> for Expr {
         }
     }
 }
-impl From<Arity> for Expr {
-    fn from(arity: Arity) -> Self {
-        match arity {
-            Arity::Int(i) => Self::Literal(Literal::Integer(SourceSpan::UNKNOWN, i.into())),
+impl From<Span<Arity>> for Expr {
+    fn from(arity: Span<Arity>) -> Self {
+        match arity.item {
+            Arity::Int(i) => Self::Literal(Literal::Integer(arity.span(), i.into())),
             Arity::Var(ident) => Self::Var(Var(ident)),
         }
     }
 }
-impl From<FunctionName> for Expr {
-    fn from(name: FunctionName) -> Self {
+impl From<Span<FunctionName>> for Expr {
+    fn from(name: Span<FunctionName>) -> Self {
         Self::FunctionVar(name.into())
     }
 }
@@ -457,7 +457,7 @@ pub enum Literal {
     Atom(Ident),
     String(Ident),
     Char(#[span] SourceSpan, char),
-    Integer(#[span] SourceSpan, Integer),
+    Integer(#[span] SourceSpan, Int),
     Float(#[span] SourceSpan, Float),
     Nil(#[span] SourceSpan),
     Cons(#[span] SourceSpan, Box<Literal>, Box<Literal>),
@@ -531,10 +531,10 @@ impl Literal {
         }
     }
 
-    pub fn as_integer(&self) -> Option<Integer> {
+    pub fn as_integer(&self) -> Option<Int> {
         match self {
             Self::Integer(_, i) => Some(i.clone()),
-            Self::Char(_, c) => Some(Integer::Small(*c as i64)),
+            Self::Char(_, c) => Some(Int::Small(*c as i64)),
             _ => None,
         }
     }
@@ -547,7 +547,7 @@ impl Literal {
                 Ok(s.as_str()
                     .get()
                     .chars()
-                    .map(|c| Literal::Integer(span, Integer::Small(c as i64)))
+                    .map(|c| Literal::Integer(span, Int::Small(c as i64)))
                     .collect())
             }
             Self::Cons(_, head, tail) => {
@@ -560,7 +560,7 @@ impl Literal {
                         Self::String(s) => {
                             let span = s.span;
                             for c in s.as_str().get().chars() {
-                                elements.push(Literal::Integer(span, Integer::Small(c as i64)));
+                                elements.push(Literal::Integer(span, Int::Small(c as i64)));
                             }
                         }
                         // End of list
@@ -613,7 +613,7 @@ impl TryInto<Number> for Literal {
         match self {
             Self::Integer(_, i) => Ok(i.into()),
             Self::Float(_, f) => Ok(f.into()),
-            Self::Char(_, c) => Ok(Number::Integer(Integer::Small(c as i64))),
+            Self::Char(_, c) => Ok(Number::Integer(Int::Small(c as i64))),
             other => Err(other),
         }
     }
@@ -689,13 +689,13 @@ impl PartialEq for Literal {
             (Self::String(_), _) => false,
             (Self::Char(_, x), Self::Char(_, y)) => x == y,
             (Self::Char(_, x), Self::Integer(_, y)) => {
-                let x = Integer::Small(*x as u32 as i64);
+                let x = Int::Small(*x as u32 as i64);
                 x.eq(y)
             }
             (Self::Char(_, _), _) => false,
             (Self::Integer(_, x), Self::Integer(_, y)) => x == y,
             (Self::Integer(_, x), Self::Char(_, y)) => {
-                let y = Integer::Small(*y as u32 as i64);
+                let y = Int::Small(*y as u32 as i64);
                 x.eq(&y)
             }
             (Self::Integer(_, _), _) => false,
@@ -729,15 +729,11 @@ impl PartialOrd for Literal {
         match (self, other) {
             (Self::Float(_, x), Self::Float(_, y)) => x.partial_cmp(y),
             (Self::Float(_, x), Self::Integer(_, y)) => x.partial_cmp(y),
-            (Self::Float(_, x), Self::Char(_, y)) => {
-                x.partial_cmp(&Integer::Small(*y as u32 as i64))
-            }
+            (Self::Float(_, x), Self::Char(_, y)) => x.partial_cmp(&Int::Small(*y as u32 as i64)),
             (Self::Float(_, _), _) => Some(Ordering::Less),
             (Self::Integer(_, x), Self::Integer(_, y)) => x.partial_cmp(y),
             (Self::Integer(_, x), Self::Float(_, y)) => x.partial_cmp(y),
-            (Self::Integer(_, x), Self::Char(_, y)) => {
-                x.partial_cmp(&Integer::Small(*y as u32 as i64))
-            }
+            (Self::Integer(_, x), Self::Char(_, y)) => x.partial_cmp(&Int::Small(*y as u32 as i64)),
             (Self::Integer(_, _), _) => Some(Ordering::Less),
             (Self::Char(_, x), Self::Integer(_, y)) => y.partial_cmp(x).map(|o| o.reverse()),
             (Self::Char(_, x), Self::Float(_, y)) => {
@@ -745,7 +741,7 @@ impl PartialOrd for Literal {
                 y.partial_cmp(&x).map(|o| o.reverse())
             }
             (Self::Char(_, x), Self::Char(_, y)) => y
-                .partial_cmp(&Integer::Small(*x as u32 as i64))
+                .partial_cmp(&Int::Small(*x as u32 as i64))
                 .map(|o| o.reverse()),
             (Self::Char(_, _), _) => Some(Ordering::Less),
             (Self::Atom(_), Self::Float(_, _))

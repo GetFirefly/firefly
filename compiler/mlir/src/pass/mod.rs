@@ -75,17 +75,3 @@ impl Drop for OwnedPass {
         unsafe { mlir_pass_destroy(self.0) }
     }
 }
-
-/// Register all MLIR built-in passes
-///
-/// NOTE: You should prefer to register passes individually, but this can be useful for dev/debugging
-pub fn register_all_passes() {
-    extern "C" {
-        #[link_name = "mlirRegisterAllPasses"]
-        fn mlir_register_all_passes();
-    }
-
-    unsafe {
-        mlir_register_all_passes();
-    }
-}

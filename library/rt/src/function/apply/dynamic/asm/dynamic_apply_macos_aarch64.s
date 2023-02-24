@@ -10,8 +10,9 @@ L_dyn_call_begin:
     ;   x29  <- frame pointer (optional)
     ;   x30  <- return address
     ;   x0   <- callee
-    ;   x1   <- argv
-    ;   x2   <- argc
+    ;   x1   <- process
+    ;   x2   <- argv (x1)
+    ;   x3   <- argc (x2)
     ;
     ; Save the parent base pointer for when control returns to this call frame.
     ; CFA directives will inform the unwinder to expect x29 at the bottom of the
@@ -26,18 +27,22 @@ L_dyn_call_begin:
     .cfi_offset w29, -16
 
     ; Save our callee and argv pointers, and argc, to scratch registers
+    ; Move the process argument to the first argument register, since it is not used after this
     mov   x9, x0
-    mov   x11, x1
-    mov   x12, x2
+    mov   x0, x1                ; process
+    mov   x11, x2               ; argv
+    mov   x12, x3               ; argc
 
     ; Determine if spills are needed
     ; In the common case in which they are not, we perform a tail call
-    cmp   x2, #9
+    ; NOTE: There are 8 parameter registers, and we always have at least one,
+    ; so if we have at least 8 term arguments, we have to spill
+    cmp   x12, #8
     b.hs  L_dyn_call_spill
 
-    ; Calculate the address of the jump table
-    adrp x0, L_dyn_call_jt@PAGE
-    add x0, x0, L_dyn_call_jt@PAGEOFF
+    ; Calculate the address of the jump table, use the x1 register as we no longer need it
+    adrp x1, L_dyn_call_jt@PAGE
+    add x1, x1, L_dyn_call_jt@PAGEOFF
 L_dyn_call_no_spill:
     ; We only reach this block if we had no arguments to spill, so
     ; we are not certain about which registers we need to assign. We
@@ -49,8 +54,8 @@ L_dyn_call_no_spill:
     ; This calculates the block which handles the specific number of registers we
     ; have arguments for, then we jump to that block
     adr     x13, L_dyn_call_no_spill
-    ldrsw   x14, [x0, x2, LSL#2]
-    add     x13, x13, x14
+    ldrsw   x14, [x1, x12, LSL#2] ; offset = addr_of_jt + (argc << 2)
+    add     x13, x13, x14         ; block = L_dyn_call_no_spill + offset
     br      x13
 
     ; All of these basic blocks perform a tail call. As such,
@@ -61,54 +66,47 @@ L_dyn_call_regs0:
     br  x9
 
 L_dyn_call_regs1:
-    ldr x0, [x11]
+    ; Term arguments begin at x1, as x0 holds the process reference
+    ldr x1, [x11]
     ldp x29, x30, [sp, #-16]
     br  x9
 
 L_dyn_call_regs2:
-    ldp x0, x1, [x11]
+    ldp x1, x2, [x11]
     ldp x29, x30, [sp, #-16]
     br  x9
 
 L_dyn_call_regs3:
-    ldp x0, x1, [x11]
-    ldr x2, [x11, #16]
+    ldp x1, x2, [x11]
+    ldr x3, [x11, #16]
     ldp x29, x30, [sp, #-16]
     br  x9
 
 L_dyn_call_regs4:
-    ldp x0, x1, [x11]
-    ldp x2, x3, [x11, #16]
+    ldp x1, x2, [x11]
+    ldp x3, x4, [x11, #16]
     ldp x29, x30, [sp, #-16]
     br  x9
 
 L_dyn_call_regs5:
-    ldp x0, x1, [x11]
-    ldp x2, x3, [x11, #16]
-    ldr x4, [x11, #32]
+    ldp x1, x2, [x11]
+    ldp x3, x4, [x11, #16]
+    ldr x5, [x11, #32]
     ldp x29, x30, [sp, #-16]
     br  x9
 
 L_dyn_call_regs6:
-    ldp x0, x1, [x11]
-    ldp x2, x3, [x11, #16]
-    ldp x4, x5, [x11, #32]
+    ldp x1, x2, [x11]
+    ldp x3, x4, [x11, #16]
+    ldp x5, x6, [x11, #32]
     ldp x29, x30, [sp, #-16]
     br  x9
 
 L_dyn_call_regs7:
-    ldp x0, x1, [x11]
-    ldp x2, x3, [x11, #16]
-    ldp x4, x5, [x11, #32]
-    ldr x6, [x11, #48]
-    ldp x29, x30, [sp, #-16]
-    br  x9
-
-L_dyn_call_regs8:
-    ldp x0, x1, [x11]
-    ldp x2, x3, [x11, #16]
-    ldp x4, x5, [x11, #32]
-    ldp x6, x7, [x11, #48]
+    ldp x1, x2, [x11]
+    ldp x3, x4, [x11, #16]
+    ldp x5, x6, [x11, #32]
+    ldr x7, [x11, #48]
     ldp x29, x30, [sp, #-16]
     br  x9
 
@@ -118,19 +116,14 @@ L_dyn_call_spill:
     ; We need to start by saving the stack space we stored the original frame pointer/return address in
     sub sp, sp, #16
 
-    ; Calculate spill count for later (rep uses rcx for the iteration count,
-    ; which in this case is the number of quadwords to copy)
+    ; Calculate spill count for later
     mov   x13, #0            ; zero out x13 to use as the loop index
-    sub   x14, x12, #8       ; subtract 8 from the argument count, to be the loop bound
+    sub   x14, x12, #7       ; subtract 7 from the argument count, to be the loop bound
 
     ; Calculate spill space (i.e. new bottom of stack), ensure it is 16-byte aligned, and allocate it
-    ;
-    ; x12 = 0 + (x14 * 8)
-    add  x12, xzr, x14,LSL#3
-    ; x12 = sp - x12
-    sub  x12, sp, x12
-    ; x12 = x12 & ~16
-    and  x12, x12, #-16
+    add  x12, xzr, x14,LSL#3    ; x12 = 0 + (x14 * 8)
+    sub  x12, sp, x12           ; x12 = sp - x12
+    and  x12, x12, #-16         ; x12 = x12 & ~16
     mov  sp, x12
 
 L_dyn_call_spill_loop:
@@ -156,10 +149,10 @@ L_dyn_call_spill_loop:
     b L_dyn_call_spill_loop
 L_dyn_call_spill_loop_end:
     ; We've spilled arguments, so we have at least 8 args
-    ldp x0, x1, [x11]
-    ldp x2, x3, [x11, #16]
-    ldp x4, x5, [x11, #32]
-    ldp x6, x7, [x11, #48]
+    ldp x1, x2, [x11]
+    ldp x3, x4, [x11, #16]
+    ldp x5, x6, [x11, #32]
+    ldr x7, [x11, #48]
 
 L_dyn_call_exec:
     ; If we spill arguments to the stack, we can't perform
@@ -198,7 +191,6 @@ L_dyn_call_jt:
     .long L_dyn_call_regs5-L_dyn_call_no_spill
     .long L_dyn_call_regs6-L_dyn_call_no_spill
     .long L_dyn_call_regs7-L_dyn_call_no_spill
-    .long L_dyn_call_regs8-L_dyn_call_no_spill
 
 
     ; The following is the LSDA metadata for exception handling

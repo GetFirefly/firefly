@@ -1,8 +1,16 @@
 [package]
 name = "firefly_mlir"
-version = "0.1.0"
-authors = ["Paul Schoenfelder <paulschoenfelder@fastmail.com>"]
-edition = "2021"
+description = "Provides bindings to MLIR and our custom dialects for use by the Firefly compiler"
+version.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+categories.workspace = true
+keywords.workspace = true
+license.workspace = true
+readme.workspace = true
+edition.workspace = true
+publish.workspace = true
 
 build = "build.rs"
 links = "mlir"
@@ -10,11 +18,10 @@ links = "mlir"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-anyhow = "1.0"
-thiserror = "1.0"
-firefly_binary = { path = "../../library/binary" }
-firefly_number = { path = "../../library/number" }
-firefly_intern = { path = "../intern" }
+anyhow = { workspace = true, features = ["std"] }
+firefly_binary = { path = "../../library/binary", features = ["std"] }
+firefly_number = { path = "../../library/number", features = ["std"] }
+firefly_intern = { path = "../intern", features = ["std"] }
 firefly_llvm = { path = "../llvm" }
 firefly_session = { path = "../session" }
 firefly_target = { path = "../target" }
@@ -22,11 +29,13 @@ firefly_util = { path = "../util" }
 firefly_pass = { path = "../pass" }
 firefly_diagnostics = { path = "../diagnostics" }
 firefly_compiler_macros = { path = "../macros" }
-paste = "1.0"
-rand = "0.8"
+paste.workspace = true
+rand.workspace = true
+thiserror.workspace = true
 
 [build-dependencies]
-anyhow = "1.0"
+anyhow = { workspace = true, features = ["std"] }
+cc = "1.0"
 cmake = "0.1"
-which = "4.0"
+which.workspace = true
 firefly_llvm = { path = "../llvm" }

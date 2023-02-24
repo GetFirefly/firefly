@@ -8,16 +8,19 @@ pub mod atoms {
 
 mod table;
 
-pub use self::table::AtomData;
+pub use self::table::{
+    with_atom_table, with_atom_table_readonly, AtomData, AtomTable, GlobalAtomTable,
+};
 
 use core::convert::AsRef;
 use core::fmt::{self, Debug, Display};
 use core::hash::{Hash, Hasher};
-use core::mem;
-use core::ptr::{self, NonNull};
+use core::ptr::NonNull;
+use core::slice;
 use core::str::{self, FromStr, Utf8Error};
 
 use firefly_binary::Encoding;
+use static_assertions::assert_eq_size;
 
 use super::OpaqueTerm;
 
@@ -25,7 +28,7 @@ use super::OpaqueTerm;
 pub const MAX_ATOM_LENGTH: usize = u16::max_value() as usize;
 
 /// Produced by operations which create atoms
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum AtomError {
     InvalidLength(usize),
     NonExistent,
@@ -59,21 +62,59 @@ impl Display for AtomError {
         }
     }
 }
-impl Eq for AtomError {}
-impl PartialEq for AtomError {
-    fn eq(&self, other: &AtomError) -> bool {
-        mem::discriminant(self) == mem::discriminant(other)
-    }
-}
 
 /// An atom is an interned string value with fast, constant-time equality comparison,
 /// can be encoded as an immediate value, and only requires allocation once over the lifetime
 /// of the program.
 #[repr(transparent)]
 #[derive(Copy, Clone, PartialEq, Eq)]
-pub struct Atom(*const AtomData);
+pub struct Atom(NonNull<AtomData>);
+
+assert_eq_size!(Atom, Option<Atom>);
+
 unsafe impl Send for Atom {}
 unsafe impl Sync for Atom {}
+impl firefly_system::sync::Atom for Atom {
+    type Repr = *mut AtomData;
+
+    #[inline]
+    fn pack(self) -> Self::Repr {
+        self.0.as_ptr()
+    }
+
+    #[inline]
+    fn unpack(raw: Self::Repr) -> Self {
+        Self(NonNull::new(raw).unwrap())
+    }
+}
+impl firefly_bytecode::Atom for Atom {
+    type Repr = AtomData;
+
+    #[inline]
+    fn as_bytes(&self) -> &[u8] {
+        self.as_str().as_bytes()
+    }
+    #[inline]
+    fn unpack(self) -> Self::Repr {
+        unsafe { *self.0.as_ptr() }
+    }
+    fn pack(raw: Self::Repr) -> Self {
+        let name = str::from_utf8(unsafe { slice::from_raw_parts(raw.ptr, raw.size) }).unwrap();
+        match name {
+            "false" => atoms::False,
+            "true" => atoms::True,
+            name => Self(unsafe { table::get_data_or_insert(name).unwrap() }),
+        }
+    }
+    #[inline]
+    fn into_raw_parts(data: Self::Repr) -> (*const u8, usize) {
+        (data.ptr, data.size)
+    }
+    #[inline]
+    unsafe fn from_raw_parts(ptr: *const u8, size: usize) -> Self::Repr {
+        AtomData { ptr, size }
+    }
+}
 impl Atom {
     /// Creates a new atom from a slice of bytes interpreted as Latin-1.
     ///
@@ -95,7 +136,7 @@ impl Atom {
             name => {
                 Self::validate(name)?;
                 if let Some(data) = table::get_data(name) {
-                    return Ok(Self(data.as_ptr() as *const AtomData));
+                    return Ok(Self(data));
                 }
                 Err(AtomError::NonExistent)
             }
@@ -139,7 +180,7 @@ impl Atom {
             "true" => atoms::True,
             name => {
                 let ptr = table::get_data_or_insert_static(name).unwrap();
-                Self(ptr.as_ptr() as *const AtomData)
+                Self(ptr)
             }
         }
     }
@@ -151,25 +192,25 @@ impl Atom {
 
     /// Converts this atom to a boolean
     ///
-    /// This function will panic if the atom is not a boolean value
+    /// This function will return true for any atom other than `false`
     pub fn as_boolean(self) -> bool {
-        debug_assert!(self.is_boolean());
         self != atoms::False
     }
 
     /// Gets the string value of this atom
     pub fn as_str(&self) -> &'static str {
         // SAFETY: Atom contents are validated when creating the raw atom data, so converting back to str is safe
-        match self {
-            &atoms::False => "false",
-            &atoms::True => "true",
-            _ => unsafe { (&*self.0).as_str().unwrap() },
-        }
+        unsafe { self.0.as_ref().as_str().unwrap() }
     }
 
     #[inline(always)]
-    pub(crate) unsafe fn as_ptr(&self) -> *const AtomData {
-        self.0
+    pub unsafe fn as_ptr(&self) -> *const AtomData {
+        self.0.as_ptr().cast_const()
+    }
+
+    #[inline]
+    pub unsafe fn from_raw(ptr: *const AtomData) -> Self {
+        Self(NonNull::new(ptr.cast_mut()).unwrap())
     }
 
     /// Returns true if this atom requires quotes when printing as an Erlang term
@@ -195,7 +236,7 @@ impl Atom {
         }
     }
 
-    fn validate(name: &str) -> Result<(), AtomError> {
+    pub fn validate(name: &str) -> Result<(), AtomError> {
         let len = name.len();
         if len > MAX_ATOM_LENGTH {
             return Err(AtomError::InvalidLength(len));
@@ -206,7 +247,7 @@ impl Atom {
 impl From<NonNull<AtomData>> for Atom {
     #[inline]
     fn from(ptr: NonNull<AtomData>) -> Self {
-        Self(ptr.as_ptr() as *const AtomData)
+        Self(ptr)
     }
 }
 impl From<bool> for Atom {
@@ -219,6 +260,16 @@ impl From<bool> for Atom {
         }
     }
 }
+impl From<firefly_bytecode::ErrorKind> for Atom {
+    fn from(kind: firefly_bytecode::ErrorKind) -> Self {
+        use firefly_bytecode::ErrorKind;
+        match kind {
+            ErrorKind::Error => atoms::Error,
+            ErrorKind::Exit => atoms::Exit,
+            ErrorKind::Throw => atoms::Throw,
+        }
+    }
+}
 impl TryFrom<&str> for Atom {
     type Error = AtomError;
 
@@ -228,11 +279,7 @@ impl TryFrom<&str> for Atom {
             "true" => Ok(atoms::True),
             s => {
                 Self::validate(s)?;
-                if let Some(data) = table::get_data(s) {
-                    return Ok(Self(data.as_ptr() as *const AtomData));
-                }
-                let ptr = unsafe { table::get_data_or_insert(s)? };
-                Ok(Self(ptr.as_ptr() as *const AtomData))
+                Ok(Self(unsafe { table::get_data_or_insert(s)? }))
             }
         }
     }
@@ -283,7 +330,7 @@ impl Ord for Atom {
 }
 impl Debug for Atom {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Atom({:p})", self.0)
+        write!(f, "Atom({} @ {:p})", self, self.0)
     }
 }
 impl fmt::Pointer for Atom {
@@ -326,7 +373,7 @@ impl Display for Atom {
 
 impl Hash for Atom {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        ptr::hash(self.0, state);
+        self.0.hash(state);
     }
 }
 

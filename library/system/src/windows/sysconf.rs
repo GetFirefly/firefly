@@ -1,19 +1,17 @@
 use core::mem;
 
-use lazy_static::lazy_static;
+use crate::sync::OnceLock;
 
-lazy_static! {
-    static ref SYSTEM_INFO: SystemInfo = SystemInfo::get();
-}
+static SYSTEM_INFO: OnceLock<SystemInfo> = OnceLock::new();
 
 #[inline]
 pub fn page_size() -> usize {
-    SYSTEM_INFO.page_size
+    SYSTEM_INFO.get_or_init(SystemInfo::get).page_size
 }
 
 #[inline]
 pub fn num_cpus() -> usize {
-    SYSTEM_INFO.num_cpus
+    SYSTEM_INFO.get_or_init(SystemInfo::get).num_cpus
 }
 
 /// A friendly representation of the Windows system information struct

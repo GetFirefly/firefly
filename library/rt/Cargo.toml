@@ -1,55 +1,51 @@
 [package]
 name = "firefly_rt"
 description = "The core runtime library, providing fundamental types and functionality"
-version = "0.1.0"
-authors = ["Paul Schoenfelder <paulschoenfelder@gmail.com>"]
-publish = false
-edition = "2021"
+version.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+categories.workspace = true
+keywords.workspace = true
+license.workspace = true
+readme.workspace = true
+edition.workspace = true
+publish.workspace = true
 
 [features]
-default = ["std"]
-std = ["anyhow/std", "backtrace/std", "num-bigint/std", "rpds/std", "termcolor", "firefly_binary/std", "firefly_alloc/std"]
-no_std = ["lazy_static/spin_no_std"]
+default = ["no_std"]
+std = ["dep:flurry", "dep:termcolor", "dep:libloading", "anyhow/std", "backtrace/std", "firefly_alloc/std", "firefly_binary/std", "firefly_number/std", "rpds/std"]
+no_std = ["dep:crossbeam-skiplist"]
+async = []
 
 [dependencies]
-cfg-if = "1.0"
-hashbrown = "0.12"
-lazy_static = "1.4"
+anyhow.workspace = true
+backtrace.workspace = true
+bitflags.workspace = true
+cfg-if.workspace = true
+crossbeam = "0.8"
+crossbeam-skiplist = { version = "0.1", optional = true }
 firefly_alloc = { path = "../alloc" }
 firefly_arena = { path = "../arena" }
 firefly_system = { path = "../system" }
-firefly_binary = { path = "../binary" }
-firefly_number = { path = "../number" }
-paste = "1.0"
+firefly_binary = { path = "../binary", default-features = false }
+firefly_bytecode = { path = "../bytecode" }
+firefly_number = { path = "../number", default-features = false }
+firefly_macros_seq = { path = "../../macros/seq" }
+flurry = { version = "0.4", optional = true }
+glidesort = { version = "0.1", features = ["unstable"] }
+hashbrown.workspace = true
+intrusive-collections.workspace = true
+libloading = { version = "0.7", optional = true }
+log.workspace = true
+rpds.workspace = true
+paste.workspace = true
 rustc-demangle = "0.1"
-seq-macro = "0.3"
-static_assertions = "1.1"
-
-[dependencies.anyhow]
-version = "1.0"
-default-features = false
-
-[dependencies.backtrace]
-version = "0.3"
-default-features = false
-
-[dependencies.num-bigint]
-version = "0.4"
-default-features = false
-
-[dependencies.num-traits]
-version = "0.2"
-default-features = false
-features = ["i128"]
-
-[dependencies.rpds]
-version = "0.11"
-default-features = false
-
-[dependencies.termcolor]
-version = "1.1"
-optional = true
+rustc-hash.workspace = true
+smallvec.workspace = true
+static_assertions.workspace = true
+termcolor = { version = "1.1", optional = true }
 
 [build-dependencies]
-toml = { version = "0.5", features = ["preserve_order"] }
-Inflector = "0.11"
+toml.workspace = true
+Inflector.workspace = true

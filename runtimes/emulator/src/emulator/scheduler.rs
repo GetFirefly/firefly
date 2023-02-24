@@ -3,7 +3,8 @@ use std::intrinsics::{likely, unlikely};
 use std::mem;
 use std::num::NonZeroU64;
 use std::ops::Deref;
-use std::ptr::{self, NonNull};
+use std::ptr::NonNull;
+use std::rc::Rc;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
@@ -42,6 +43,8 @@ use smallvec::{smallvec, SmallVec};
 use crate::queue::{Task, TaskQueue};
 
 use super::*;
+
+type HashSet<T> = std::collections::HashSet<T, std::hash::BuildHasherDefault<rustc_hash::FxHasher>>;
 
 impl Scheduler for Emulator {
     fn id(&self) -> SchedulerId {
@@ -538,8 +541,7 @@ impl Emulator {
                             process
                                 .stack
                                 .store(ARG0_REG + mfa.arity, atoms::Undef.into());
-                            init_op = Opcode::Raise(ops::Raise {
-                                kind: ErrorKind::Error,
+                            init_op = Opcode::Error1(ops::Error1 {
                                 reason: ARG0_REG + mfa.arity,
                             });
                             &init_op
@@ -1311,6 +1313,232 @@ impl Emulator {
         Trace::new(frames)
     }
 
+    fn parse_stacktrace(&self, framelist: Gc<Cons>) -> Result<Arc<Trace>, ()> {
+        use firefly_rt::backtrace::Frame;
+
+        let mut frames = Vec::with_capacity(10);
+        // Reconstruct a TraceFrame from each element in the frame list
+        for frame in framelist.iter() {
+            // Stack traces must be proper lists, with 2-,3-,or 4-tuple elements.
+            match frame.map_err(|_| ())? {
+                Term::Tuple(tuple) => {
+                    let module: Atom;
+                    let function: Atom;
+                    let arity: u8;
+                    //let args: Term;
+                    let extra_info: Term;
+                    match tuple.len() {
+                        4 => {
+                            // {Module, Function, Arity | Args, ExtraInfo}
+                            module = match tuple[0].into() {
+                                Term::Atom(m) => m,
+                                _ => return Err(()),
+                            };
+                            function = match tuple[1].into() {
+                                Term::Atom(f) => f,
+                                _ => return Err(()),
+                            };
+                            match tuple[2].into() {
+                                Term::Int(a) => {
+                                    arity = a.try_into().map_err(|_| ())?;
+                                    //args = Term::Nil;
+                                }
+                                Term::Nil => {
+                                    arity = 0;
+                                    //args = Term::Nil;
+                                }
+                                Term::Cons(cons) => {
+                                    let mut a = 0;
+                                    for maybe in cons.iter_raw() {
+                                        if maybe.is_err() {
+                                            return Err(());
+                                        }
+                                        a += 1;
+                                    }
+                                    arity = a;
+                                    //args = Term::Cons(cons);
+                                }
+                                _ => return Err(()),
+                            }
+                            extra_info = match tuple[3].into() {
+                                extra @ (Term::Nil | Term::Cons(_)) => extra,
+                                _ => return Err(()),
+                            };
+                        }
+                        3 => {
+                            // {Module, Function, Arity | Args} | {Fun, Args, ExtraInfo}
+                            if tuple[0].is_atom() {
+                                module = tuple[0].as_atom();
+                                if !tuple[1].is_atom() {
+                                    return Err(());
+                                }
+                                function = tuple[1].as_atom();
+                                match tuple[2].into() {
+                                    Term::Int(i) => {
+                                        arity = i.try_into().map_err(|_| ())?;
+                                        //args = Term::Nil;
+                                    }
+                                    Term::Nil => {
+                                        arity = 0;
+                                        //args = Term::Nil;
+                                    }
+                                    Term::Cons(cons) => {
+                                        let mut a = 0;
+                                        for arg in cons.iter_raw() {
+                                            if arg.is_err() {
+                                                return Err(());
+                                            }
+                                            a += 1;
+                                        }
+                                        arity = a;
+                                        //args = Term::Cons(cons);
+                                    }
+                                    _ => return Err(()),
+                                }
+                                extra_info = Term::Nil;
+                            } else {
+                                if let Term::Closure(fun) = tuple[0].into() {
+                                    let mfa = fun.mfa();
+                                    module = mfa.module;
+                                    function = mfa.function;
+                                    match tuple[1].into() {
+                                        _argv @ (Term::Nil | Term::Cons(_)) => {
+                                            arity = mfa.arity;
+                                            //args = argv;
+                                        }
+                                        Term::Int(i) => {
+                                            arity = i.try_into().map_err(|_| ())?;
+                                            //args = Term::Nil;
+                                        }
+                                        _ => return Err(()),
+                                    }
+                                } else {
+                                    return Err(());
+                                }
+                                extra_info = match tuple[2].into() {
+                                    extra @ (Term::Nil | Term::Cons(_)) => extra,
+                                    _ => return Err(()),
+                                };
+                            }
+                        }
+                        2 => {
+                            // {Fun, Arity | Args}
+                            if let Term::Closure(fun) = tuple[0].into() {
+                                let mfa = fun.mfa();
+                                module = mfa.module;
+                                function = mfa.function;
+                                match tuple[1].into() {
+                                    _argv @ (Term::Nil | Term::Cons(_)) => {
+                                        arity = mfa.arity;
+                                        //args = argv;
+                                    }
+                                    Term::Int(i) => {
+                                        arity = i.try_into().map_err(|_| ())?;
+                                        //args = Term::Nil;
+                                    }
+                                    _ => return Err(()),
+                                }
+                                extra_info = Term::Nil;
+                            } else {
+                                return Err(());
+                            }
+                        }
+                        _ => return Err(()),
+                    }
+
+                    let mfa = bc::ModuleFunctionArity {
+                        module,
+                        function,
+                        arity,
+                    };
+
+                    // Try to parse location information from the trace's extra info
+                    let mut files: HashSet<Rc<str>> = HashSet::default();
+                    let mut line: Option<u32> = None;
+                    let mut column: Option<u32> = None;
+                    let mut file: Option<Rc<str>> = None;
+                    if let Term::Cons(info) = extra_info {
+                        for item in info.iter() {
+                            if let Term::Tuple(meta) = item.map_err(|_| ())? {
+                                if meta.len() != 2 || !meta[0].is_atom() {
+                                    return Err(());
+                                }
+                                let key = meta[0].as_atom();
+                                if key == atoms::Line {
+                                    if let Term::Int(ln) = tuple[1].into() {
+                                        line = Some(ln.try_into().map_err(|_| ())?);
+                                        continue;
+                                    }
+                                } else if key == atoms::Column {
+                                    if let Term::Int(cn) = tuple[1].into() {
+                                        column = Some(cn.try_into().map_err(|_| ())?);
+                                        continue;
+                                    }
+                                } else if key == atoms::File {
+                                    match tuple[1].into() {
+                                        Term::Nil => {
+                                            file = None;
+                                            continue;
+                                        }
+                                        Term::Cons(chardata) => {
+                                            if let Some(f) = chardata.as_ref().to_string() {
+                                                file = match files.get(f.as_str()) {
+                                                    None => {
+                                                        let file: Rc<str> = f.into();
+                                                        files.insert(file.clone());
+                                                        Some(file)
+                                                    }
+                                                    Some(f) => Some(f.clone()),
+                                                };
+                                            }
+                                            continue;
+                                        }
+                                        _ => return Err(()),
+                                    }
+                                } else {
+                                    continue;
+                                }
+                            }
+                            return Err(());
+                        }
+                    }
+
+                    // Finally, reconstruct the Symbol using what data we have.
+                    //
+                    // If no extra info was present, use the source location of the function, if present
+                    //
+                    // Erlang traces with location info always have at least a line number, so we use that
+                    // as a signal that we have location info in the trace.
+                    let symbol = match line {
+                        None => {
+                            let symbol = self
+                                .code
+                                .function_by_mfa(&mfa)
+                                .map(|f| self.code.function_symbol(f.id()));
+                            match symbol {
+                                None => bc::Symbol::Erlang { mfa, loc: None },
+                                Some(sym) => sym,
+                            }
+                        }
+                        Some(line) => bc::Symbol::Erlang {
+                            mfa,
+                            loc: Some(bc::SourceLocation {
+                                file: file.unwrap_or_else(|| Rc::from("empty")),
+                                line,
+                                column: column.unwrap_or(0),
+                            }),
+                        },
+                    };
+                    let frame: Box<dyn Frame> = Box::new(symbol);
+                    frames.push(TraceFrame::from(frame))
+                }
+                _other => return Err(()),
+            }
+        }
+
+        Ok(Trace::new_with_term(frames, Term::Cons(framelist)))
+    }
+
     fn handle_error(&self, process: &mut ProcessLock) -> Action {
         assert_ne!(process.exception_info.reason, ErrorCode::Other(atoms::Trap));
         trace!(target: "process", "handling error: {:?}", &process.exception_info);
@@ -1581,6 +1809,8 @@ impl Inst for Opcode<Atom> {
             Self::ContinueExit(op) => op.dispatch(emulator, process),
             Self::Exit1(op) => op.dispatch(emulator, process),
             Self::Exit2(op) => op.dispatch(emulator, process),
+            Self::Error1(op) => op.dispatch(emulator, process),
+            Self::Throw1(op) => op.dispatch(emulator, process),
             Self::Halt(op) => op.dispatch(emulator, process),
             Self::BsInit(op) => op.dispatch(emulator, process),
             Self::BsPush(op) => op.dispatch(emulator, process),
@@ -3905,7 +4135,7 @@ impl Inst for ops::LandingPad {
         let value = process.exception_info.value;
         // Store the raw trace pointer as an encoded term, the StackTrace instruction reifies it
         let trace = match process.exception_info.trace.as_ref() {
-            None => OpaqueTerm::NIL,
+            None => OpaqueTerm::NONE,
             Some(arc) => OpaqueTerm::code(Arc::as_ptr(arc) as usize),
         };
         process.stack.store(self.kind, class.into());
@@ -3960,28 +4190,81 @@ impl Inst for ops::StackTrace {
         Action::Continue
     }
 }
-impl Inst for ops::Raise {
+impl Inst for ops::Error1 {
     #[inline]
     fn dispatch(&self, emulator: &Emulator, process: &mut ProcessLock) -> Action {
-        process.exception_info.flags = match self.kind {
-            ErrorKind::Error => ExceptionFlags::ERROR,
-            ErrorKind::Exit => ExceptionFlags::ERROR,
-            ErrorKind::Throw => ExceptionFlags::ERROR,
-        };
+        process.exception_info.flags = ExceptionFlags::ERROR;
         process.exception_info.value = process.stack.load(self.reason);
         process.exception_info.reason = match process.exception_info.value.into() {
             Term::Atom(a) => a.into(),
             Term::Tuple(tuple) => match tuple[0].into() {
                 Term::Atom(a) => a.into(),
-                _ => {
-                    let atom: Atom = self.kind.into();
-                    atom.into()
-                }
+                _ => atoms::Error.into(),
             },
+            _ => atoms::Error.into(),
+        };
+        emulator.handle_error(process)
+    }
+}
+impl Inst for ops::Throw1 {
+    #[inline]
+    fn dispatch(&self, emulator: &Emulator, process: &mut ProcessLock) -> Action {
+        process.exception_info.flags = ExceptionFlags::THROW;
+        let reason = process.stack.load(self.reason);
+        process.exception_info.value = reason;
+        process.exception_info.reason = match process.exception_info.value.into() {
+            Term::Atom(a) => a.into(),
+            Term::Tuple(tuple) => match tuple[0].into() {
+                Term::Atom(a) => a.into(),
+                _ => atoms::Throw.into(),
+            },
+            _ => atoms::Throw.into(),
+        };
+        emulator.handle_error(process)
+    }
+}
+impl Inst for ops::Raise {
+    #[inline]
+    fn dispatch(&self, emulator: &Emulator, process: &mut ProcessLock) -> Action {
+        let kind = process.stack.load(self.kind);
+        process.exception_info.flags = match kind.into() {
+            Term::Atom(a) if a == atoms::Throw => ExceptionFlags::THROW,
+            Term::Atom(a) if a == atoms::Error => ExceptionFlags::ERROR,
+            Term::Atom(a) if a == atoms::Exit => ExceptionFlags::EXIT,
             _ => {
-                let atom: Atom = self.kind.into();
-                atom.into()
+                // Invalid kind, cancel exception and return badarg value
+                process.stack.store(self.dest, atoms::Badarg.into());
+                return Action::Continue;
             }
+        };
+        process.exception_info.value = process.stack.load(self.reason);
+        let trace = self.trace.map(|t| process.stack.load(t).into());
+        match trace {
+            None | Some(Term::Nil) => {
+                process.exception_info.trace = None;
+            }
+            Some(Term::Cons(cons)) => {
+                if let Ok(trace) = emulator.parse_stacktrace(cons) {
+                    process.exception_info.trace = Some(trace);
+                } else {
+                    // Invalid trace, cancel exception and return badarg value
+                    process.stack.store(self.dest, atoms::Badarg.into());
+                    return Action::Continue;
+                }
+            }
+            Some(_) => {
+                // Invalid trace, cancel exception and return badarg value
+                process.stack.store(self.dest, atoms::Badarg.into());
+                return Action::Continue;
+            }
+        }
+        process.exception_info.reason = match process.exception_info.value.into() {
+            Term::Atom(a) => a.into(),
+            Term::Tuple(tuple) => match tuple[0].into() {
+                Term::Atom(a) => a.into(),
+                _ => kind.as_atom().into(),
+            },
+            _ => kind.as_atom().into(),
         };
         emulator.handle_error(process)
     }

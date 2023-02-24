@@ -32,6 +32,7 @@ futures.workspace = true
 intrusive-collections.workspace = true
 log.workspace = true
 smallvec = { version = "1.9", features = ["union", "const_generics", "const_new", "specialization", "write"] }
+rustc-hash.workspace = true
 
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
 signal-hook = "0.3"

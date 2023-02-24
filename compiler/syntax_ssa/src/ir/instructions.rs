@@ -343,6 +343,7 @@ pub enum Opcode {
     Error,
     Exit1,
     Exit2,
+    Raise,
 }
 impl Opcode {
     pub fn is_terminator(&self) -> bool {
@@ -363,7 +364,7 @@ impl Opcode {
 
     pub fn is_exception(&self) -> bool {
         match self {
-            Self::Halt | Self::Throw | Self::Error | Self::Exit1 => true,
+            Self::Halt | Self::Throw | Self::Error | Self::Exit1 | Self::Raise => true,
             _ => false,
         }
     }
@@ -467,6 +468,8 @@ impl Opcode {
             // Exit always has at least one argument, but may have two
             Self::Exit1 => 1,
             Self::Exit2 => 2,
+            // Raise always has at least 2 arguments
+            Self::Raise => 2,
             // Bitstring ops
             Self::BitsMatchSkip => 2,
             Self::BitsMatch | Self::BitsPush | Self::BitsFinish => 1,
@@ -578,6 +581,7 @@ impl fmt::Display for Opcode {
             Self::Error => f.write_str("error"),
             Self::Exit1 => f.write_str("exit1"),
             Self::Exit2 => f.write_str("exit2"),
+            Self::Raise => f.write_str("raise"),
             Self::NifStart => f.write_str("nif.start"),
         }
     }

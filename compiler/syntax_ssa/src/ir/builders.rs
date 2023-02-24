@@ -1067,6 +1067,18 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
             .0
     }
 
+    fn raise(mut self, kind: Value, reason: Value, trace: Value, span: SourceSpan) -> Value {
+        let mut vlist = ValueList::default();
+        {
+            let pool = &mut self.data_flow_graph_mut().value_lists;
+            vlist.push(kind, pool);
+            vlist.push(reason, pool);
+            vlist.push(trace, pool);
+        }
+        let (inst, dfg) = self.PrimOp(Opcode::Raise, Type::Unit, vlist, span);
+        dfg.first_result(inst)
+    }
+
     fn throw(mut self, reason: Value, span: SourceSpan) -> Inst {
         let mut vlist = ValueList::default();
         {

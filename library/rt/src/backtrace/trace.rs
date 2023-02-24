@@ -31,6 +31,15 @@ impl Trace {
         })
     }
 
+    #[inline]
+    pub fn new_with_term(frames: Vec<TraceFrame>, term: Term) -> Arc<Self> {
+        let fragment = TermFragment::new(term).unwrap();
+        Arc::new(Self {
+            frames,
+            fragment: UnsafeCell::new(Some(fragment)),
+        })
+    }
+
     #[cfg(feature = "std")]
     pub fn capture() -> Arc<Self> {
         // Allocates a new trace on the heap
@@ -69,17 +78,6 @@ impl Trace {
     #[cfg(not(feature = "std"))]
     pub fn capture() -> Arc<Self> {
         Self::new(Vec::new())
-    }
-
-    /// Used by `erlang:raise/3` when the caller can specify a constrained format of `Term` for
-    /// the `term` in this `Trace`.
-    pub fn from_term(term: Term) -> Arc<Self> {
-        let fragment = TermFragment::new(term).unwrap();
-
-        Arc::new(Self {
-            frames: Default::default(),
-            fragment: UnsafeCell::new(Some(fragment)),
-        })
     }
 
     /// Returns the set of native frames in the stack trace

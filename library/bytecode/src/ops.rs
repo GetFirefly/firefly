@@ -127,6 +127,8 @@ pub enum Opcode<A: Atom> {
     ContinueExit(ContinueExit),
     Exit1(Exit1),
     Exit2(Exit2),
+    Error1(Error1),
+    Throw1(Throw1),
     Halt(Halt),
     BsInit(BsInit),
     BsPush(BsPush),
@@ -1433,17 +1435,6 @@ pub struct StackTrace {
 }
 encoding_impl!(StackTrace, dest);
 
-/// Transfer control to the nearest continuation handler.
-///
-/// * `kind` describes the class of exception being raised
-/// * `reason` is a register holding the exception reason
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub struct Raise {
-    pub kind: ErrorKind,
-    pub reason: Register,
-}
-encoding_impl!(Raise, kind, reason);
-
 /// Sends `message` to `recipient`
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct SendOp {
@@ -1533,6 +1524,35 @@ pub struct Exit2 {
     pub reason: Register,
 }
 encoding_impl!(Exit2, dest, pid, reason);
+
+/// Raises an error with the given reason
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub struct Error1 {
+    pub reason: Register,
+}
+encoding_impl!(Error1, reason);
+
+/// Throws to the nearest catch handler with the given reason
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub struct Throw1 {
+    pub reason: Register,
+}
+encoding_impl!(Throw1, reason);
+
+/// Generates a user-defined exception
+///
+/// * `dest` holds the return value if an invalid argument is given
+/// * `kind` holds the kind of exception being raised
+/// * `reason` holds the exception reason
+/// * `trace` is optional, but holds the exception trace as an Erlang term
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub struct Raise {
+    pub dest: Register,
+    pub kind: Register,
+    pub reason: Register,
+    pub trace: Option<Register>,
+}
+encoding_impl!(Raise, dest, kind, reason, trace);
 
 /// Halts execution of the runtime with the given status/options
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -1811,19 +1831,21 @@ impl<A: Atom> Opcode<A> {
             Self::ContinueExit(_) => 105,
             Self::Exit1(_) => 106,
             Self::Exit2(_) => 107,
-            Self::Halt(_) => 108,
-            Self::BsInit(_) => 109,
-            Self::BsPush(_) => 110,
-            Self::BsFinish(_) => 111,
-            Self::BsMatchStart(_) => 112,
-            Self::BsMatch(_) => 113,
-            Self::BsMatchSkip(_) => 114,
-            Self::BsTestTail(_) => 115,
-            Self::FuncInfo(_) => 116,
-            Self::Identity(_) => 117,
-            Self::Spawn2(_) => 118,
-            Self::Spawn3(_) => 119,
-            Self::Spawn3Indirect(_) => 120,
+            Self::Error1(_) => 108,
+            Self::Throw1(_) => 109,
+            Self::Halt(_) => 110,
+            Self::BsInit(_) => 111,
+            Self::BsPush(_) => 112,
+            Self::BsFinish(_) => 113,
+            Self::BsMatchStart(_) => 114,
+            Self::BsMatch(_) => 115,
+            Self::BsMatchSkip(_) => 116,
+            Self::BsTestTail(_) => 117,
+            Self::FuncInfo(_) => 118,
+            Self::Identity(_) => 119,
+            Self::Spawn2(_) => 120,
+            Self::Spawn3(_) => 121,
+            Self::Spawn3Indirect(_) => 122,
         }
     }
 }
@@ -1939,19 +1961,21 @@ impl<A: Atom, T: AtomTable<Atom = A>> Decode<A, T> for Opcode<A> {
             105 => Ok(Self::ContinueExit(Decode::decode(reader)?)),
             106 => Ok(Self::Exit1(Decode::decode(reader)?)),
             107 => Ok(Self::Exit2(Decode::decode(reader)?)),
-            108 => Ok(Self::Halt(Decode::decode(reader)?)),
-            109 => Ok(Self::BsInit(Decode::decode(reader)?)),
-            110 => Ok(Self::BsPush(Decode::decode(reader)?)),
-            111 => Ok(Self::BsFinish(Decode::decode(reader)?)),
-            112 => Ok(Self::BsMatchStart(Decode::decode(reader)?)),
-            113 => Ok(Self::BsMatch(Decode::decode(reader)?)),
-            114 => Ok(Self::BsMatchSkip(Decode::decode(reader)?)),
-            115 => Ok(Self::BsTestTail(Decode::decode(reader)?)),
-            116 => Ok(Self::FuncInfo(Decode::decode(reader)?)),
-            117 => Ok(Self::Identity(Decode::decode(reader)?)),
-            118 => Ok(Self::Spawn2(Decode::decode(reader)?)),
-            119 => Ok(Self::Spawn3(Decode::decode(reader)?)),
-            120 => Ok(Self::Spawn3Indirect(Decode::decode(reader)?)),
+            108 => Ok(Self::Error1(Decode::decode(reader)?)),
+            109 => Ok(Self::Throw1(Decode::decode(reader)?)),
+            110 => Ok(Self::Halt(Decode::decode(reader)?)),
+            111 => Ok(Self::BsInit(Decode::decode(reader)?)),
+            112 => Ok(Self::BsPush(Decode::decode(reader)?)),
+            113 => Ok(Self::BsFinish(Decode::decode(reader)?)),
+            114 => Ok(Self::BsMatchStart(Decode::decode(reader)?)),
+            115 => Ok(Self::BsMatch(Decode::decode(reader)?)),
+            116 => Ok(Self::BsMatchSkip(Decode::decode(reader)?)),
+            117 => Ok(Self::BsTestTail(Decode::decode(reader)?)),
+            118 => Ok(Self::FuncInfo(Decode::decode(reader)?)),
+            119 => Ok(Self::Identity(Decode::decode(reader)?)),
+            120 => Ok(Self::Spawn2(Decode::decode(reader)?)),
+            121 => Ok(Self::Spawn3(Decode::decode(reader)?)),
+            122 => Ok(Self::Spawn3Indirect(Decode::decode(reader)?)),
             _ => Err(ReadError::Invalid),
         }
     }
@@ -2070,6 +2094,8 @@ impl<A: Atom> Encode<A> for Opcode<A> {
             Self::ContinueExit(op) => op.encode(writer),
             Self::Exit1(op) => op.encode(writer),
             Self::Exit2(op) => op.encode(writer),
+            Self::Error1(op) => op.encode(writer),
+            Self::Throw1(op) => op.encode(writer),
             Self::Halt(op) => op.encode(writer),
             Self::BsInit(op) => op.encode(writer),
             Self::BsPush(op) => op.encode(writer),

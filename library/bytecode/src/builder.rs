@@ -1240,10 +1240,6 @@ where
         dest
     }
 
-    pub fn build_raise(&mut self, kind: ErrorKind, reason: Register) {
-        self.push(Opcode::Raise(Raise { kind, reason }));
-    }
-
     pub fn build_send(&mut self, recipient: Register, message: Register) {
         self.push(Opcode::Send(SendOp { recipient, message }));
     }
@@ -1395,18 +1391,28 @@ where
         self.push(Opcode::Yield(Yield));
     }
 
-    pub fn build_throw(&mut self, reason: Register) {
+    pub fn build_raise(
+        &mut self,
+        kind: Register,
+        reason: Register,
+        trace: Option<Register>,
+    ) -> Register {
+        let dest = self.alloc_register();
         self.push(Opcode::Raise(Raise {
-            kind: ErrorKind::Throw,
+            dest,
+            kind,
             reason,
+            trace,
         }));
+        dest
+    }
+
+    pub fn build_throw(&mut self, reason: Register) {
+        self.push(Opcode::Throw1(Throw1 { reason }));
     }
 
     pub fn build_error(&mut self, reason: Register) {
-        self.push(Opcode::Raise(Raise {
-            kind: ErrorKind::Error,
-            reason,
-        }));
+        self.push(Opcode::Error1(Error1 { reason }));
     }
 
     pub fn build_exit1(&mut self, reason: Register) {

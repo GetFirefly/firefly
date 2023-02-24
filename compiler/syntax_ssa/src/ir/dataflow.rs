@@ -375,6 +375,10 @@ impl DataFlowGraph {
                     self.append_result(inst, Type::Term(TermType::Bool));
                     1
                 }
+                Opcode::Raise => {
+                    self.append_result(inst, Type::Term(TermType::Atom));
+                    1
+                }
                 _ => 0,
             }
         }

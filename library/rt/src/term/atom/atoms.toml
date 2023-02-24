@@ -54,6 +54,7 @@ try_clause = {}
 
 [common]
 big = {}
+column = {}
 emulator = {}
 erlang = {}
 error_logger = {}

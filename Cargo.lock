@@ -692,6 +692,7 @@ dependencies = [
  "intrusive-collections",
  "libc",
  "log",
+ "rustc-hash",
  "signal-hook",
  "smallvec",
  "tokio",

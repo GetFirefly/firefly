@@ -371,7 +371,6 @@ where
             op.kind, op.reason, op.trace, op.offset
         )),
         Opcode::StackTrace(op) => w.write_fmt(format_args!("stacktrace ${}", op.dest)),
-        Opcode::Raise(op) => w.write_fmt(format_args!("raise {}, ${}", op.kind, op.reason)),
         Opcode::Send(op) => w.write_fmt(format_args!("send ${}, ${}", op.recipient, op.message)),
         Opcode::RecvPeek(op) => {
             w.write_fmt(format_args!("recv_peek ${}, ${}", op.available, op.message))
@@ -397,6 +396,18 @@ where
             "exit2 ${}, ${}, ${}",
             op.dest, op.pid, op.reason
         )),
+        Opcode::Raise(op) => match op.trace {
+            Some(t) => w.write_fmt(format_args!(
+                "raise ${}, ${}, ${}, ${}",
+                op.dest, op.kind, op.reason, t
+            )),
+            None => w.write_fmt(format_args!(
+                "raise ${}, ${}, ${}",
+                op.dest, op.kind, op.reason
+            )),
+        },
+        Opcode::Error1(op) => w.write_fmt(format_args!("error1 ${}", op.reason)),
+        Opcode::Throw1(op) => w.write_fmt(format_args!("throw1 ${}", op.reason)),
         Opcode::Halt(op) => w.write_fmt(format_args!("halt ${}, ${}", op.status, op.options)),
         Opcode::BsInit(op) => w.write_fmt(format_args!("bs_init ${}", op.dest)),
         Opcode::BsPush(op) => {

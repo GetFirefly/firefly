@@ -31,7 +31,7 @@ mod writer;
 
 pub use self::atoms::{Atom, AtomTable, AtomicStr};
 pub use self::builder::{Block, BlockId, Builder, FunctionBuilder};
-pub use self::debuginfo::{DebugInfoTable, FileId, Location, LocationId, Symbol};
+pub use self::debuginfo::{DebugInfoTable, FileId, Location, LocationId, SourceLocation, Symbol};
 pub use self::ops::Opcode;
 pub use self::reader::{BytecodeReader, ReadError};
 #[cfg(any(test, feature = "std"))]

@@ -1197,6 +1197,12 @@ impl<'a> BytecodeBuilder<'a> {
                 self.values.insert(result, bin);
             }
             Opcode::EndCatch => builder.build_end_catch(),
+            Opcode::Raise => {
+                let trace = if args.len() == 3 { Some(args[2]) } else { None };
+                let badarg = builder.build_raise(args[0], args[1], trace);
+                let result = dfg.first_result(inst);
+                self.values.insert(result, badarg);
+            }
             Opcode::Throw => builder.build_throw(args[0]),
             Opcode::Error => builder.build_error(args[0]),
             Opcode::Exit1 => builder.build_exit1(args[0]),

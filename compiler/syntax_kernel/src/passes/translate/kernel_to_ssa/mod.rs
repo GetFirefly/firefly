@@ -1356,6 +1356,15 @@ impl<'m> LowerFunctionToSsa<'m> {
                     builder.define_var(bif.ret[0].as_var().map(|v| v.name()).unwrap(), reason);
                 }
             }
+            (symbols::Raise, _) => {
+                assert_eq!(bif.args.len(), 3);
+                assert!(bif.ret.len() <= 1);
+                let args = self.ssa_values(builder, bif.args).unwrap();
+                let badarg = builder.ins().raise(args[0], args[1], args[2], span);
+                if !bif.ret.is_empty() {
+                    builder.define_var(bif.ret[0].as_var().map(|v| v.name()).unwrap(), badarg);
+                }
+            }
             (op, _) if bif.op.is_exception_op() => unimplemented!("{:?}", op),
             _ => {
                 let callee = self.module.get_or_register_builtin(bif.op);

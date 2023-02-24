@@ -10,7 +10,7 @@ use std::sync::Arc;
 
 use firefly_alloc::fragment::HeapFragment;
 use firefly_alloc::heap::Heap;
-use firefly_bytecode::{self as bc, ops, ErrorKind, Function, Opcode, Register};
+use firefly_bytecode::{self as bc, ops, Function, Opcode, Register};
 use firefly_number::{Int, Number};
 use firefly_rt::backtrace::{Trace, TraceFrame};
 use firefly_rt::cmp::ExactEq;
@@ -40,7 +40,7 @@ use intrusive_collections::UnsafeRef;
 use log::{log_enabled, trace};
 use smallvec::{smallvec, SmallVec};
 
-use crate::queue::{Task, TaskQueue};
+use crate::queue::TaskQueue;
 
 use super::*;
 
@@ -142,15 +142,6 @@ const ARG0_REG: Register = 2;
 const MAX_REDUCTIONS: usize = 4000;
 const ERTS_SIGNAL_REDUCTIONS_COUNT_FACTOR: usize = 4;
 
-enum ScheduleAction {
-    /// Reschedule the current process
-    Reschedule,
-    /// Do not reschedule the current process, and drop our reference to it
-    Drop,
-    /// Stop the emulator due to an error
-    Err(EmulatorError),
-}
-
 impl Emulator {
     /// Run the scheduler core loop indefinitely or until an error occurs
     pub(super) fn run(&self) -> Result<(), EmulatorError> {
@@ -185,7 +176,6 @@ impl Emulator {
                     // When `process` is scheduled out, we break out of the `schedule` loop which
                     // drops us into the code which handles descheduling, after which we return to
                     // the caller as we've completed a single scheduling cycle
-                    let action = ScheduleAction::Reschedule;
                     'schedule: loop {
                         // Determine if this process should be scheduled and update its state if so
                         let mut status = process.status(Ordering::Acquire);
@@ -504,7 +494,7 @@ impl Emulator {
         // Resume executing user code in this process
         let mut reductions = process.reductions;
         trace!(target: "scheduler", "starting to execute process {}", process.pid());
-        let mut init_op = Opcode::NormalExit(ops::NormalExit);
+        let mut init_op;
         loop {
             // Load current opcode, and bump instruction pointer
             let op = {
@@ -576,15 +566,13 @@ impl Emulator {
                 }
                 Action::Suspend => {
                     reductions += process.reductions - reductions;
-                    let status =
-                        process.set_status_flags(StatusFlags::SUSPENDED, Ordering::Release);
+                    process.set_status_flags(StatusFlags::SUSPENDED, Ordering::Release);
                     let status =
                         process.remove_status_flags(StatusFlags::ACTIVE, Ordering::Release);
-                    trace!(target: "process", "suspending with status {:?}", status);
+                    trace!(target: "process", "suspending with status {:?}", status & !StatusFlags::ACTIVE);
                     break;
                 }
                 Action::Error(e) => return Err(e),
-                Action::Halt(status) => return Err(EmulatorError::Halt(status)),
             }
         }
 
@@ -606,7 +594,6 @@ impl Emulator {
         let mut count = 0;
         let proc = process.strong();
         let mut signals = proc.signals().lock();
-        let signal_flags = signals.flags();
 
         if status.contains(StatusFlags::EXITING) {
             // ?
@@ -650,7 +637,6 @@ impl Emulator {
                         | Monitor::FromExternalProcess { .. }
                         | Monitor::ToExternalProcess { .. } => {
                             assert!(!sig.monitor.is_target_linked());
-                            let sender = sig.sender;
                             let reason: Term = sig.reason.term.into();
                             drop(sig.monitor);
                             if let MonitorTreeEntry::Occupied(mut cursor) =
@@ -780,14 +766,14 @@ impl Emulator {
                                         }
                                     }
                                     match &monitor.monitor {
-                                        Monitor::LocalPort { ref origin, .. } => {
+                                        Monitor::LocalPort { .. } => {
                                             ty = atoms::Port;
                                         }
-                                        Monitor::LocalProcess { origin, .. }
-                                        | Monitor::ToExternalProcess { origin, .. } => {
+                                        Monitor::LocalProcess { .. }
+                                        | Monitor::ToExternalProcess { .. } => {
                                             ty = atoms::Process;
                                         }
-                                        Monitor::FromExternalProcess { ref origin, .. } => {
+                                        Monitor::FromExternalProcess { .. } => {
                                             ty = atoms::Process;
                                         }
                                         _ => panic!("unexpected monitor type"),
@@ -880,7 +866,7 @@ impl Emulator {
                     count += self.handle_unlink(process, sig.sender, sig.id);
                 }
                 Signal::UnlinkAck(sig) => {
-                    if let LinkTreeEntry::Occupied(mut entry) = process.links.entry(&sig.sender) {
+                    if let LinkTreeEntry::Occupied(entry) = process.links.entry(&sig.sender) {
                         let is_unlinking = entry.get().unlinking() == Some(sig.id);
                         if is_unlinking {
                             let link_entry = entry.remove();
@@ -1035,7 +1021,7 @@ impl Emulator {
     fn handle_exit_demonitor(
         &self,
         process: &mut ProcessLock,
-        reason: OpaqueTerm,
+        _reason: OpaqueTerm,
         monitor: Arc<MonitorEntry>,
     ) {
         match &monitor.monitor {
@@ -1120,7 +1106,6 @@ impl Emulator {
         mut signal: Box<SignalEntry>,
     ) -> (usize, bool) {
         let mut ignore = false;
-        let mut linked = false;
         let mut is_link_exit = false;
         let mut exit = false;
         let mut count = 1;
@@ -1134,8 +1119,6 @@ impl Emulator {
                 if let Some(entry) = process.links.unlink(&sender) {
                     if entry.unlinking().is_some() {
                         ignore = true;
-                    } else {
-                        linked = true;
                     }
                 } else {
                     ignore = true;
@@ -1155,10 +1138,6 @@ impl Emulator {
         }
 
         if !ignore {
-            if reason.is_none() {
-                ignore = true;
-            }
-
             if (is_link_exit || reason != atoms::Kill)
                 && process.flags.contains(ProcessFlags::TRAP_EXIT)
             {
@@ -1173,9 +1152,7 @@ impl Emulator {
                 unsafe {
                     signals.push_next_message(signal);
                 }
-            } else if reason == atoms::Normal && !normal_kills {
-                ignore = true;
-            } else {
+            } else if !(reason == atoms::Normal && !normal_kills) {
                 // terminate
                 exit = true;
                 if !is_link_exit && reason == atoms::Kill {
@@ -1193,6 +1170,7 @@ impl Emulator {
             }
             process.exception_info.value = reason.into();
             process.exception_info.flags = ExceptionFlags::EXIT;
+            process.exception_info.trace = None;
             process.stack.nocatch();
             process.ip = CONTINUE_EXIT_IP;
             process.set_status_flags(
@@ -1664,8 +1642,6 @@ enum Action {
     Suspend,
     /// This process was killed/terminated
     Killed,
-    /// This process initiated a system halt
-    Halt(u32),
     /// An error occurred during instruction dispatch
     Error(EmulatorError),
 }
@@ -2384,7 +2360,7 @@ impl Inst for ops::EnterNative {
                 let op = ops::Ret { reg: RETURN_REG };
                 op.dispatch(emulator, process)
             }
-            ErlangResult::Err(error) => emulator.handle_error(process),
+            ErlangResult::Err(_) => emulator.handle_error(process),
             ErlangResult::Exit => emulator.handle_error(process),
         }
     }
@@ -3778,7 +3754,7 @@ impl Inst for ops::Rem {
                 let r = Int::Big(r.inner().clone());
                 l % r
             }
-            (_int @ (Term::Int(_) | Term::BigInt(_)), other) => {
+            (_int @ (Term::Int(_) | Term::BigInt(_)), _other) => {
                 process.exception_info.flags = ExceptionFlags::ERROR;
                 process.exception_info.reason = atoms::Badarg.into();
                 process.exception_info.value = rhs;
@@ -4029,13 +4005,13 @@ impl Inst for ops::Divide {
 }
 impl Inst for ops::ListAppend {
     #[inline]
-    fn dispatch(&self, _emulator: &Emulator, process: &mut ProcessLock) -> Action {
+    fn dispatch(&self, _emulator: &Emulator, _process: &mut ProcessLock) -> Action {
         todo!()
     }
 }
 impl Inst for ops::ListRemove {
     #[inline]
-    fn dispatch(&self, _emulator: &Emulator, process: &mut ProcessLock) -> Action {
+    fn dispatch(&self, _emulator: &Emulator, _process: &mut ProcessLock) -> Action {
         todo!()
     }
 }
@@ -4420,7 +4396,7 @@ impl Inst for ops::RecvWait {
 }
 impl Inst for ops::RecvTimeout {
     #[inline(always)]
-    fn dispatch(&self, emulator: &Emulator, process: &mut ProcessLock) -> Action {
+    fn dispatch(&self, _emulator: &Emulator, process: &mut ProcessLock) -> Action {
         // We reach here when rescheduled after a RecvWait instruction, and we must update the process
         // based on how we were rescheduled
         let timed_out = process.flags.contains(ProcessFlags::TIMEOUT);
@@ -5091,7 +5067,7 @@ impl Inst for ops::BsMatchStart {
 impl Inst for ops::BsMatch {
     #[inline]
     fn dispatch(&self, emulator: &Emulator, process: &mut ProcessLock) -> Action {
-        use firefly_binary::{BinaryEntrySpecifier, Bitstring};
+        use firefly_binary::BinaryEntrySpecifier;
         use firefly_number::f16;
 
         let heap_top = process.heap.heap_top() as usize;

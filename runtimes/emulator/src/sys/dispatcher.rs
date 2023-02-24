@@ -4,7 +4,7 @@ use std::sync::atomic::{AtomicPtr, Ordering};
 use std::sync::{Arc, Weak};
 
 use firefly_rt::process::{signals::SignalEntry, Process};
-use firefly_rt::services::registry::{self, Registrant, WeakAddress};
+use firefly_rt::services::registry::{self, Registrant};
 use firefly_rt::services::system::{self, SystemDispatcher, SystemMessage};
 use firefly_rt::term::{atoms, OpaqueTerm, Term};
 
@@ -35,9 +35,9 @@ pub fn start() -> impl Future<Output = ()> + Send + 'static {
     let (sender, receiver) = mpsc::unbounded_channel();
 
     let dispatcher = AsyncSystemDispatcher::new(sender);
-    system::install_system_dispatcher(dispatcher.clone() as Arc<dyn SystemDispatcher>);
+    system::install_system_dispatcher(dispatcher as Arc<dyn SystemDispatcher>);
 
-    run(dispatcher, receiver)
+    run(receiver)
 }
 
 static SYSTEM_LOGGER: AtomicPtr<Process> = AtomicPtr::new(1usize as *mut Process);
@@ -207,10 +207,7 @@ impl ResolvedSystemLogger {
 }
 
 /// Runs the core system dispatcher loop, processing messages in the system message queue
-async fn run(
-    dispatcher: Arc<AsyncSystemDispatcher>,
-    mut receiver: mpsc::UnboundedReceiver<SystemMessage>,
-) {
+async fn run(mut receiver: mpsc::UnboundedReceiver<SystemMessage>) {
     let mut sys_logger = ResolvedSystemLogger::default();
     while let Some(message) = receiver.recv().await {
         match message {

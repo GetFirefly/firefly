@@ -1348,7 +1348,6 @@ impl<'m> LowerFunctionToSsa<'m> {
             }
             (symbols::NifError, _) => {
                 assert_eq!(bif.args.len(), 1);
-                std::dbg!(&bif.ret);
                 assert!(bif.ret.len() <= 1);
                 let reason = self.ssa_value(builder, bif.args.pop().unwrap())?;
                 builder.ins().error(reason, span);

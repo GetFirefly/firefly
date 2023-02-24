@@ -481,7 +481,6 @@ impl<'a> Iterator for Tracer<'a> {
                 self.max_frames -= 1;
                 let cp = self.stack[fp + CP_REG as usize];
                 let ret = if cp.is_none() { 0 } else { cp.as_code() };
-                std::dbg!(ret);
                 return Some(StackFrame {
                     ret,
                     fp,

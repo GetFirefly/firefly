@@ -12,7 +12,7 @@ use firefly_rt::function::ModuleFunctionArity;
 use firefly_rt::process::Process;
 use firefly_rt::scheduler::SchedulerId;
 use firefly_rt::services::{registry, timers};
-use firefly_rt::term::{atom, Atom, Cons, LayoutBuilder, OpaqueTerm, ReferenceId, Term};
+use firefly_rt::term::{atom, Atom, Cons, LayoutBuilder, ReferenceId, Term};
 
 use tokio::runtime::Handle;
 
@@ -24,7 +24,6 @@ use crate::queue::{LocalProcessQueue, RunQueue};
 pub enum EmulatorError {
     InvalidInit,
     SystemLimit,
-    Stop,
     Halt(u32),
 }
 
@@ -50,6 +49,7 @@ pub struct Emulator {
     /// A handle to the async runtime
     ///
     /// This should be used for scheduling tasks which aren't backed by a process
+    #[allow(unused)]
     handle: Handle,
     /// This is internal state to the scheduler, containing the value of the next unique reference id for this scheduler.
     reference_id: UnsafeCell<u64>,

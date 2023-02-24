@@ -141,7 +141,7 @@ pub fn main() -> i32 {
                 return ExitCode::FAILURE.report().to_i32();
             }
             Ok(result) => match result {
-                Ok(_) | Err(EmulatorError::Stop) => continue,
+                Ok(_) => continue,
                 Err(EmulatorError::Halt(0)) => {
                     // Give some time for any outstanding background tasks to clean up
                     runtime.shutdown_timeout(Duration::from_millis(50));
@@ -180,10 +180,7 @@ fn load_bytecode() -> Result<Arc<ByteCode<Atom, GlobalAtomTable>>, ReadError<Glo
         static BYTECODE_DATA: u8;
     }
 
-    let bytes = unsafe {
-        let size = BYTECODE_LEN;
-        slice::from_raw_parts(&BYTECODE_DATA, BYTECODE_LEN)
-    };
+    let bytes = unsafe { slice::from_raw_parts(&BYTECODE_DATA, BYTECODE_LEN) };
 
     let reader = BytecodeReader::new(bytes);
     reader.read().map(|code| Arc::new(code))

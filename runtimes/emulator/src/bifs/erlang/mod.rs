@@ -372,9 +372,3 @@ pub extern "C-unwind" fn puts(_process: &mut ProcessLock, printable: OpaqueTerm)
     stdout.write_all(bytes).unwrap();
     ErlangResult::Ok(true.into())
 }
-
-fn make_reason<R: Into<OpaqueTerm>>(process: &mut ProcessLock, tag: Atom, reason: R) -> OpaqueTerm {
-    Tuple::from_slice(&[tag.into(), reason.into()], process)
-        .unwrap()
-        .into()
-}

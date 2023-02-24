@@ -3,9 +3,9 @@ use std::ops::Deref;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
-use crossbeam::deque::{Injector, Steal, Stealer, Worker};
+use crossbeam::deque::{Injector, Steal, Worker};
 
-use firefly_rt::process::{Priority, Process, ProcessId, ProcessList};
+use firefly_rt::process::{Priority, Process, ProcessId};
 
 /// A `Task` is work which can be scheduled in a `TaskQueue`
 pub trait Task {
@@ -184,11 +184,6 @@ impl<Q: TaskQueue + Default> RunQueue<Q> {
     }
 }
 impl<Q: TaskQueue> RunQueue<Q> {
-    /// Push a task on the global queue
-    pub fn push_global(&self, task: <Q as TaskQueue>::Task) {
-        self.global.push(task);
-    }
-
     /// Steal tasks from the global queue into our local queues
     ///
     /// Returns `true` if there are tasks available after doing this.

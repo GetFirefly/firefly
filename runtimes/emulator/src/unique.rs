@@ -30,6 +30,7 @@ pub fn init(
 /// Get the next unique integer value from the global state
 ///
 /// If `positive` is true, the integer will be a positive value
+#[allow(unused)]
 pub fn get_unique_integer(positive: bool) -> Int {
     let value1 = unsafe { UNIQUE_DATA.w.fetch_add(1, Ordering::Acquire) };
     make_unique_integer(0, value1 as u64, positive)

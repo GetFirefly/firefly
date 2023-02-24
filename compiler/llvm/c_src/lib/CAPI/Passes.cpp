@@ -33,6 +33,7 @@
 #include <set>
 #include <stdio.h>
 #include <vector>
+#include <optional>
 
 using namespace llvm;
 
@@ -172,7 +173,7 @@ bool LLVMFireflyOptimize(LLVMModuleRef m, LLVMTargetMachineRef tm,
 
   // Enable standard instrumentation callbacks
   llvm::PassInstrumentationCallbacks pic;
-  llvm::StandardInstrumentations si(mod->getContext(), debug);
+  llvm::StandardInstrumentations si(debug);
   si.registerCallbacks(pic);
 
   auto *profiler = config.profiler;
@@ -182,7 +183,7 @@ bool LLVMFireflyOptimize(LLVMModuleRef m, LLVMTargetMachineRef tm,
   }
 
   // Populate the analysis managers with their respective passes
-  PassBuilder pb(targetMachine, tuningOpts, std::nullopt, &pic);
+  PassBuilder pb(targetMachine, tuningOpts, None, &pic);
 
   LoopAnalysisManager lam;
   FunctionAnalysisManager fam;
@@ -226,7 +227,7 @@ bool LLVMFireflyOptimize(LLVMModuleRef m, LLVMTargetMachineRef tm,
           /*compilerKernel=*/false, /*eagerChecks=*/true);
       optimizerLastEPCallbacks.push_back(
           [mso](ModulePassManager &pm, OptimizationLevel level) {
-            pm.addPass(llvm::MemorySanitizerPass(mso));
+            pm.addPass(llvm::ModuleMemorySanitizerPass(mso));
           });
     }
     if (sanitizer.thread) {
@@ -243,7 +244,7 @@ bool LLVMFireflyOptimize(LLVMModuleRef m, LLVMTargetMachineRef tm,
             llvm::AddressSanitizerOptions sanitizerOpts;
             sanitizerOpts.Recover = sanitizer.recover;
             sanitizerOpts.UseAfterScope = true;
-            pm.addPass(llvm::AddressSanitizerPass(sanitizerOpts));
+            pm.addPass(llvm::ModuleAddressSanitizerPass(sanitizerOpts));
           });
     }
   }

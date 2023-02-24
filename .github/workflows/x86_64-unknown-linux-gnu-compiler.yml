@@ -6,14 +6,13 @@ on:
     - '*.md'
 
 env:
-  TOOLCHAIN: nightly-2022-08-08
-  LLVM_RELEASE: firefly-15.0.0-dev_2022-08-27
-  LLVM_LINK_LLVM_DYLIB: ON
   FIREFLY_BUILD_TYPE: static
+  LLVM_LINK_LLVM_DYLIB: OFF
+  LLVM_VERSION: 15.0.7
+  TOOLCHAIN: nightly-2022-11-02
 
 jobs:
   compiler:
-    if: ${{ false }} # disabled
     runs-on: ubuntu-latest
 
     steps:
@@ -34,16 +33,19 @@ jobs:
           rm ninja-linux.zip
       - name: Install LLVM
         run: |
-          mkdir -p "$XDG_DATA_HOME/llvm/firefly"
-          cd "$XDG_DATA_HOME/llvm/firefly"
-          wget "https://github.com/getfirefly/llvm-project/releases/download/${LLVM_RELEASE}/clang+llvm-15.0.0-x86_64-linux-gnu.tar.gz"
-          tar -xz --strip-components 1 -f clang+llvm-15.0.0-x86_64-linux-gnu.tar.gz
-          rm clang+llvm-15.0.0-x86_64-linux-gnu.tar.gz
-          cd -
-      - name: Install Toolchain
-        run: |
-          rustup toolchain install ${TOOLCHAIN}
-          rustup default ${TOOLCHAIN}
+          wget https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          sudo ./llvm.sh "${LLVM_VERSION}"
+          if ! llvm-config --prefix; then
+            echo "$(llvm-config --prefix)"
+            exit 1
+          fi
+          echo "LLVM_PREFIX=$(llvm-config --prefix)" >> $GITHUB_ENV
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: ${{ env.TOOLCHAIN }}
+          override: true
       - name: Cache Cargo
         uses: actions/cache@v2
         with:
@@ -63,12 +65,25 @@ jobs:
           CC: clang
           CXX: clang++
         with:
-          toolchain: ${{ env.TOOLCHAIN }}
           command: make
           args: firefly
-      - name: Run lit tests
+      - name: Run compiler unit tests
         uses: actions-rs/cargo@v1
         with:
-          toolchain: ${{ env.TOOLCHAIN }}
+          command: test
+          args:
+          - "-p"
+          - "firefly_intern"
+          - "-p"
+          - "firefly_parser"
+          - "-p"
+          - "firefly_target"
+          - "-p"
+          - "firefly_syntax_erl"
+          - "-p"
+          - "firefly_syntax_pp"
+      - name: Run literate tests
+        uses: actions-rs/cargo@v1
+        with:
           command: make
           args: test-lit

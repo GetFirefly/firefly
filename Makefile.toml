@@ -79,14 +79,14 @@ RUST_BACKTRACE = { value = "${BACKTRACE_DEFAULT}", condition = { env_not_set = [
 GECKODRIVER_VERSION = "0.27.0"
 CHROMEDRIVER_VERSION = "85.0.4183.87"
 FIREFLY_BUILD_PROFILE = { source = "${CARGO_MAKE_PROFILE}", default_value = "dev", mapping = { "development" = "dev", "production" = "release" } }
-FIREFLY_BUILD_TYPE = { value = "dynamic", condition = { env_not_set = ["FIREFLY_BUILD_TYPE"] } }
+FIREFLY_BUILD_TYPE = { value = "static", condition = { env_not_set = ["FIREFLY_BUILD_TYPE"] } }
 FIREFLY_BUILD_LTO = { source = "${FIREFLY_BUILD_PROFILE}", default_value = "false", mapping = { "dev" = "false", "release" = "true" } }
 FIREFLY_LLVM_LTO = { source = "${FIREFLY_BUILD_LTO}", default_value = "OFF", mapping = { "false" = "OFF", "true" = "ON" } }
 FIREFLY_BIN_DIR = "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/bin"
 FIREFLY_INSTALL_DIR = "${FIREFLY_BIN_DIR}/${CARGO_MAKE_RUST_TARGET_TRIPLE}"
-LLVM_BUILD_STATIC = { source = "${FIREFLY_BUILD_TYPE}", default_value = "OFF", mapping = { "dynamic" = "OFF", "static" = "ON" } }
+LLVM_BUILD_STATIC = { source = "${FIREFLY_BUILD_TYPE}", default_value = "ON", mapping = { "dynamic" = "OFF", "static" = "ON" } }
 LLVM_USE_LIBCXX = { source = "${CARGO_MAKE_RUST_TARGET_VENDOR}", default_value = "OFF", mapping = { "apple" = "ON" } }
-LLVM_LINK_LLVM_DYLIB = { source = "${FIREFLY_BUILD_TYPE}", default_value = "ON", mapping = { "dynamic" = "ON", "static" = "OFF" } }
+LLVM_LINK_LLVM_DYLIB = { source = "${FIREFLY_BUILD_TYPE}", default_value = "OFF", mapping = { "dynamic" = "ON", "static" = "OFF" } }
 LLVM_USE_SANITIZER = { source = "${SANITIZER}", default_value = "", mapping = { "address" = "Address", "memory" = "Memory" }, condition = { env_set = ["SANITIZER"] } }
 
 [tasks.init]

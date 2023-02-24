@@ -5,13 +5,7 @@
 | wasm32  | unknown | unknown          | macOS | N/A          | [![wasm32-unknown-unknown (macOS)](https://github.com/GetFirefly/firefly/workflows/wasm32-unknown-unknown%20%28macOS%29/badge.svg?branch=develop)](https://github.com/GetFirefly/firefly/actions?query=workflow%3A%22wasm32-unknown-unknown%22+branch%3Adevelop) |
 | wasm32  | unknown | unknown          | Linux | N/A          | [![wasm32-unknown-unknown (Linux)](https://github.com/GetFirefly/firefly/workflows/wasm32-unknown-unknown%20(Linux)/badge.svg?branch=develop)](https://github.com/GetFirefly/firefly/actions?query=workflow%3A%22wasm32-unknown-unknown+%28Linux%29%22+branch%3Adevelop) |
 | x86_64  | apple   | darwin           | macOS | compiler     | [![x86_64-apple-darwin compiler](https://github.com/GetFirefly/firefly/workflows/x86_64-apple-darwin%20compiler/badge.svg?branch=develop)](https://github.com/GetFirefly/firefly/actions?query=workflow%3A%22x86_64-apple-darwin+compiler%22+branch%3Adevelop)
-| x86_64  | apple   | darwin           | macOS | libraries    | [![x86_64-apple-darwin Libraries](https://github.com/GetFirefly/firefly/workflows/x86_64-apple-darwin%20Libraries/badge.svg?branch=develop)](https://github.com/GetFirefly/firefly/actions?query=workflow%3A%22x86_64-apple-darwin+Libraries%22+branch%3Adevelop)
-| x86_64  | apple   | darwin           | macOS | firefly/otp    | [![x86_64-apple-darwin firefly/otp](https://github.com/GetFirefly/firefly/workflows/x86_64-apple-darwin%20firefly%2Fotp/badge.svg?branch=develop)](https://github.com/GetFirefly/firefly/actions?query=workflow%3A%22x86_64-apple-darwin+firefly%2Fotp%22+branch%3Adevelop)
-| x86_64  | apple   | darwin           | macOS | runtime full | [![x86_64-apple-darwin Runtime Full](https://github.com/GetFirefly/firefly/workflows/x86_64-apple-darwin%20Runtime%20Full/badge.svg?branch=develop)](https://github.com/GetFirefly/firefly/actions?query=workflow%3A%22x86_64-apple-darwin+Runtime+Full%22+branch%3Adevelop)
 | x86_64  | unknown | linux-gnu        | Linux | compiler     | [![x86_64-unknown-linux-gnu compiler](https://github.com/GetFirefly/firefly/workflows/x86_64-unknown-linux-gnu%20compiler/badge.svg?branch=develop)](https://github.com/GetFirefly/firefly/actions?query=workflow%3A%22x86_64-unknown-linux-gnu+compiler%22+branch%3Adevelop)
-| x86_64  | unknown | linux-gnu        | Linux | libraries    | [![x86_64-unknown-linux-gnu Libraries](https://github.com/GetFirefly/firefly/workflows/x86_64-unknown-linux-gnu%20Libraries/badge.svg?branch=develop)](https://github.com/GetFirefly/firefly/actions?query=workflow%3A%22x86_64-unknown-linux-gnu+Libraries%22+branch%3Adevelop)
-| x86_64  | unknown | linux-gnu        | Linux | firefly/otp    | [![x86_64-unknown-linux-gnu firefly/otp](https://github.com/GetFirefly/firefly/workflows/x86_64-unknown-linux-gnu%20firefly%2Fotp/badge.svg?branch=develop)](https://github.com/GetFirefly/firefly/actions?query=workflow%3A%22x86_64-unknown-linux-gnu+firefly%2Fotp%22+branch%3Adevelop)
-| x86_64  | unknown | linux-gnu        | Linux | runtime full | [![x86_64-unknown-linux-gnu Runtime Full](https://github.com/GetFirefly/firefly/workflows/x86_64-unknown-linux-gnu%20Runtime%20Full/badge.svg?branch=develop)](https://github.com/GetFirefly/firefly/actions?query=workflow%3A%22x86_64-unknown-linux-gnu+Runtime+Full%22+branch%3Adevelop)
 
 * [Getting Started](#getting-started)
   * [Installation](#install)
@@ -268,8 +262,8 @@ dependencies for the WebAssembly targets that we make use of.
     rustup default nightly
 
     # or, in case of issues, install the specific nightly to match our CI
-    rustup default nightly-2022-08-08
-    export CARGO_MAKE_TOOLCHAIN=nightly-2022-08-08
+    rustup default nightly-2022-11-02
+    export CARGO_MAKE_TOOLCHAIN=nightly-2022-11-02
 
 In order to run various build tasks in the project, you'll need the [cargo-make](https://github.com/sagiegurari/cargo-make) plugin for Cargo. You can install it with:
 
@@ -288,80 +282,54 @@ Next, for wasm32 support, you will need to install the `wasm32` targets for the 
 
 #### LLVM
 
-LLVM (with some patches of our own) is used internally for the final code generation stage. In order to build
-the compiler, you must have our LLVM installed somewhere locally. Typically, you'd need to build this yourself, which we have
-instructions for below; but we also produce prebuilt packages that have everything needed.
+LLVM is used internally for the final code generation stage. In order to build the compiler, 
+you must have our expected version of LLVM (currently LLVM 15) installed somewhere locally.
 
-##### Installing Prebuilt Distributions (Recommended)
+LLVM releases are posted [here](https://releases.llvm.org).
 
 ###### Linux (x86_64)
 
-The instructions below reference `$XDG_DATA_HOME` as an environment variable, it
-is recommended to export XDG variables in general, but if you have not, just
-replace the usages of `$XDG_DATA_HOME` below with `$HOME/.local/share`, which is
-the usual default for this XDG variable.
+Follow the install instructions [here](https://apt.llvm.org) for Debian or Ubuntu.
+For other distros, you are going to have to check whether our required LLVM version is
+available via your package manager, and either use that, or build LLVM from source. Ideally
+you won't need to do the latter, but you can also try slightly newer LLVM releases as well,
+if they are available, which may also work, but is not a supported configuration.
 
-    mkdir -p $XDG_DATA_HOME/llvm/firefly
-    cd $XDG_DATA_HOME/llvm/firefly
-    wget https://github.com/getfirefly/llvm-project/releases/download/firefly-15.0.0-dev_2022-08-27/clang+llvm-15.0.0-x86_64-linux-gnu.tar.gz
-    tar -xz --strip-components 1 -f clang+llvm-15.0.0-x86_64-linux-gnu.tar.gz
-    rm clang+llvm-15.0.0-x86_64-linux-gnu.tar.gz
-    cd -
+Once installed, make sure you export `LLVM_PREFIX` in your environment when working in the
+Firefly repo, e.g. building the compiler.
 
-###### macOS (arm64)
+###### macOS (arm64 and x86_64)
 
-    mkdir -p $XDG_DATA_HOME/llvm
+Go to the releases page mentioned above, and follow the download link to the GitHub releases page.
+From here, you'll want to select the `clang+llvm` package which matches your platform, then follow
+the instructions below. NOTE: The following instructions use the arm64 release for the example:
+
+    mkdir -p $XDG_DATA_HOME/llvm/
     cd $XDG_DATA_HOME/llvm/
-    wget https://github.com/GetFirefly/llvm-project/releases/download/firefly-15.0.0-dev_2022-08-27/clang+llvm-15.0.0-arm64-apple-darwin21.6.0.tar.gz
-    tar -xzf clang+llvm-15.0.0-arm64-apple-darwin21.6.0.tar.gz
-    rm clang+llvm-15.0.0-arm64-apple-darwin21.6.0.tar.gz
-    mv clang+llvm-15.0.0-arm64-apple-darwin21.6.0 firefly
+    wget 'https://github.com/llvm/llvm-project/releases/download/llvmorg-15.0.7/clang+llvm-15.0.7-arm64-apple-darwin22.0.tar.xz'
+    tar -xzf clang+llvm-15.0.7-arm64-apple-darwin22.0.tar.xz
+    mv clang+llvm-15.0.7-arm64-apple-darwin22.0.tar.xz firefly
+    rm clang+llvm-15.0.7-arm64-apple-darwin22.0.tar.gz
     cd -
-
-###### Other
-
-We don't yet provide prebuilt packages for other operating systems, you'll need
-to build from source following the directions below.
-
-##### Building From Source
-
-LLVM requires CMake, a C/C++ compiler, and Python. It is highly recommended that
-you also install [Ninja](https://ninja-build.org/) and
-[CCache](https://ccache.dev) to make the build significantly faster, especially
-on subsequent rebuilds. You can find all of these dependencies in your system
-package manager, including Homebrew on macOS.
-
-We have the build more or less fully automated, just three simple steps:
-
-    git clone https://github.com/GetFirefly/llvm-project
-    cd llvm-project
-    git checkout firefly
-    make llvm-shared
-
-This will install LLVM to `$XDG_DATA_HOME/llvm/firefly`, or
-`$HOME/.local/share/llvm/firefly`, if `$XDG_DATA_HOME` is not set. It assumes that Ninja and
-CCache are installed, but you can customize the `llvm` target in the `Makefile` to
-use `make` instead by removing `-G Ninja` from the invocation of `cmake`,
-likewise you can change the setting to use CCache by removing that option as well.
-
-**NOTE:** Building LLVM the first time will take a long time, so grab a coffee, smoke 'em if you got 'em, etc.
+    export LLVM_PREFIX="${XDG_DATA_HOME}/llvm/firefly"
 
 <a name="contrib-building-firefly"/>
 
 ### Building Firefly
 
-Once LLVM is installed/built, you can build the `firefly` executable!
+Once LLVM is installed, you can build the `firefly` executable!
 
-NOTE: Firefly has components that need to be compiled with clang; On Linux, the default compiler
-is generally gcc. Since our LLVM toolchain includes clang, simply export the following in your shell
-when compiling Firefly:
+NOTE: Firefly has components that need to be compiled with clang; On Linux, the default compiler is generally gcc. 
+You'll need to make sure to use `clang` instead. The LLVM toolchain should include clang, but you may
+need to install it separately from your package manager. Then, export the following environment variables
+when building Firefly:
 
     export CC=$XDG_DATA_HOME/llvm/firefly/bin/clang
     export CXX=$XDG_DATA_HOME/llvm/firefly/bin/clang++
 
 To build Firefly, run the following:
 
-    LLVM_PREFIX=$XDG_DATA_HOME/llvm/firefly FIREFLY_BUILD_TYPE=static cargo make firefly
+    LLVM_PREFIX=$XDG_DATA_HOME/llvm/firefly cargo make firefly
 
 NOTE: If you have .direnv installed, run `direnv allow` in the project root, and you can omit all
 of the above environment variables, and instead modify the `.envrc` file if needed.
@@ -388,73 +356,65 @@ have the `.exe` extension).
 
 Firefly is currently divided into three major components:
 
-- Compiler
-- Libraries
-- Runtimes
-
-There are some crates in the root of the project that are in the process of being cleaned up/removed,
-so for the most part, the crates in `compiler/`, `library/` and `runtimes/` are those of interest.
-
 #### Compiler
 
 The Firefly compiler is composed of many small components, but the few most interesting are:
 
-- `firefly_compiler`, handles orchestrating the compiler itself, if you are looking for the driver of the compiler,
-this is it.
-- `firefly_syntax_base`, contains common types and metadata used across multiple stages of the compiler
-- `firefly_syntax_erl`, contains the abstract syntax tree, grammar, parser, and passes for performing
-semantic analysis, transformations on the AST, and lowering to Core. This is the primary frontend
-of the compiler, as it handles with user-provided Erlang code.
-- `firefly_syntax_core`, defines an intermediate representation that is based on an extended lambda calculus form,
-this is where a number of initial normalizations/transformations occur and corresponds to Core Erlang in the BEAM
-compiler.
-- `firefly_syntax_kernel`, defines an intermediate representation that is tailored towards pattern match compilation
-and code generation, it is flat relative to Core, funs/closures have been lifted, all variables have been made unique
-within their containing function, pattern matching has been compiled, and all calls have been transformed into static
-form and candiates for tail call optimization have been identified.
-- `firefly_syntax_ssa`, defines an SSA intermediate representation that is used for code generation; once transformed
-into SSA, performing codegen is very straightforward.
-- `firefly_codegen`, handles code generation from our SSA IR using MLIR/LLVM, and also contains the code responsible for
-linking objects/libraries/executables.
+- `firefly` is the crate for the `firefly` executable itself, but it is largely empty, 
+most of the meat is in other crates
+- `compiler/driver`, handles driving the compiler, i.e. parsing arguments, handling commands, 
+and orchestrating tasks; it also defines the compiler pipeline. It currently also contains the
+passes which perform code generation.
+- `compiler/syntax_base`, contains common types and metadata used in many places across the compiler
+- `compiler/syntax_*`, these crates implement the frontend and middle-tier of the compiler.
+Each one provides an intermediate representation, semantic analysis, transforms to other representations,
+output to a textual format, and in some cases, parsing. 
+  * `syntax_erl` is the primary frontend of the compiler, which handles Erlang sources
+  * `syntax_pp`, is a frontend for Abstract Erlang Format, and converts to the AST from `syntax_erl`
+  * `syntax_core` is a high-level intermediate representation to which the AST is lowered after some initial
+  semantic analysis. Core is an extended form of lambda calculus, so is highly normalized, and is where we do
+  the remaining semantic analysis tasks. Core is also where comprehension and receive expressions are transformed
+  into their lower level representations. Core is logically split into two forms, "internal" and regular. The
+  internal form is used during initial lowering, before certain transformations have been applied. The regular form
+  of Core has certain properties which must be upheld, and the internal form does not enforce them.
+  * `syntax_kernel` is a specialized intermediate representation to which Core is lowered. It is completely flat,
+  i.e. no nested scopes, variables are unique, all function calls are resolved, dynamic apply is converted
+  to a call to `erlang:apply/2,3`, and all closures have been lifted. During the lowering from Core, pattern matching 
+  compilation is performed, and some liveness analysis is performed.
+  * `syntax_ssa` is a low-level SSA IR to which Kernel is lowered. While Kernel is flat, it is still expression based,
+  SSA breaks things down further into blocks, jumps, and instructions for a register-based machine.
+  From here, we can perform code generation either to native code, or bytecode.
+- `compiler/linker`, performs all the work needed to link generated code into objects/libraries/executables.
 
-The other crates are all important as well, but are much smaller and tailored to a specific task, and so
-should be straightforward to grasp their function.
+The remaining crates under `compiler/` are support crates of some kind.
 
 #### Libraries
 
 There are a number of core libraries that are used by the runtime, but are also in some cases shared
-with the compiler (namely `firefly_binary` and `firefly_number`). These are designed to either be optional
-components, or part of a tiered system of crates that build up functionality for the various runtime crates.
+with the compiler. These are designed to either be optional components, or part of a tiered system of 
+crates that build up functionality for the various runtime crates.
 
-- `firefly_system`, provides abstractions over platform-specific implementation details that most of the runtime
+- `library/system`, provides abstractions over platform-specific implementation details that most of the runtime
 code doesn't need to know about. This primarily handles unifying low-level platform APIs.
-- `firefly_alloc`, provides abstractions for memory allocation and types which are allocator-aware, this is where
-our GC primitives are defined, as well as useful constructs like heap fragments.
-- `firefly_rt`, this is the primary core runtime library, hence the name, and provides the implementations of all the
+- `library/alloc`, provides abstractions for memory management
+- `library/arena`, this is a helper crate that provides an implementation of both typed and untyped arenas
+- `library/rt`, this is the primary core runtime library, hence the name, and provides the implementations of all the
 term types and their native APIs, as well as establishing things like the calling convention for Erlang functions,
 exceptions and backtraces, and other universal runtime concerns that cannot be delegated to a higher-level runtime crate.
-- `firefly_arena`, this is a helper crate that provides an implementation of a typed arena used in both the runtime
-and the compiler.
-- `firefly_binary`, this crate provides all the pieces for implementing binaries/bitstrings, including pattern matching
+- `library/binary`, this crate provides all the pieces for implementing binaries/bitstrings, including pattern matching
 primitives and constructors.
-- `firefly_number`, this crate provides the internal implementation of numeric types for both the compiler and runtime
-- `firefly_beam`, this crate provides native APIs for working with BEAM files, largely unused at the moment
+- `library/number`, this crate provides the internal implementation of numeric types for both the compiler and runtime
+- `library/beam`, this crate provides native APIs for working with BEAM files
+- `library/bytecode`, this crate defines the opcodes for the bytecode emulator, as well as support for the binary bytecode format
 
 #### Runtimes
 
-The runtime is intended to be pluggable, but some parts are intended to always be included alongside those libraries:
+The runtime is intended to be pluggable, so it consists of a "wrapper" crate that provides the entry point
+for executables, and a specific runtime implementation. Currently there is only one of the latter.
 
-- `firefly_crt`, contains the primary entry point of Firefly-compiled executables, and is responsible
-for setting up the atom table, and the symbol table for dynamic dispatch.
-- `firefly_tiny`, contains our experimental runtime for development work
-
-We have more robust runtime libraries that much time was invested into, but those are currently being
-reworked now that the compiler is done:
-
-- `firefly_core`, contains functionality useful across high-level runtimes, e.g. timer wheels
-- `firefly_minimal`, a richer version of `firefly_tiny` used with a previous iteration of the compiler
-
-The above collection of libraries correspond to ERTS in the BEAM virtual machine.
+- `runtimes/crt`, plays the role of crt0 in our system, i.e. it provides the entry point, initializes
+the function and atom tables, and invokes the `main` function of the linked-in runtime.
+- `runtimes/emulator`, provides a runtime which operates on the output of the bytecode compiler
 
 <a name="contrib-changes"/>
 
@@ -498,22 +458,16 @@ platforms as well, by producing self-contained executables on platforms such as 
 
 Firefly is different than BEAM in the following ways:
 
-* It is an ahead-of-time compiler, rather than a virtual machine that operates
-  on bytecode
-* It has some additional restrictions to allow more powerful optimizations to
-  take place, in particular hot code reloading is not supported
-* The runtime library provided by Firefly is written in Rust, and while very
-  similar, differs in mostly transparent ways. One of the goals is to provide a
-  better foundation for learning how the BEAM runtime is implemented, and to take
-  advantage of Rust's more powerful static analysis to catch bugs early.
+* It supports compilation to standalone executables
 * It is designed to support targeting WebAssembly, as well as many other types of targets.
-
-The result of compiling a BEAM application via Firefly is a static executable. This differs
-significantly from how deployment on the BEAM works today (i.e. via OTP releases). While we
-sacrifice the ability to perform hot upgrades/downgrades, we make huge gains in cross-platform
-compatibility, and ease of use. Simply drop the executable on a compatible platform, and run it, no
-tools required, or special considerations during builds. This works the same way that building Rust
-or Go applications works today.
+* It is designed to support both ahead-of-time compilation to machine code, and compilation to bytecode
+* It sacrifices some features to enable additional optimizations, in particular we don't
+have plans currently to support hot code reloading.
+* It is written as a way to better understand the BEAM itself, and one of its goals
+is to provide a more accessible means of learning how the BEAM works internally, to
+the degree that we provide the same functionality as the BEAM. By implementing it in
+Rust, we also hope to learn how implementing something like the BEAM in a much more restrictive,
+but safe language impacts its development.
 
 <a name="goals"/>
 
@@ -522,7 +476,6 @@ or Go applications works today.
 - Support WebAssembly/embedded systems as a first-class platforms
 - Produce easy-to-deploy static executables as build artifacts
 - Integrate with tooling provided by BEAM languages
-- More efficient execution by removing the need for an interpreter at runtime
 - Feature parity with mainline OTP (with exception of the non-goals listed below)
 
 <a name="non-goals"/>
@@ -548,44 +501,41 @@ by its feature set.
 ### Compiler
 
 The compiler frontend accepts Erlang source files. This is parsed into an
-abstract syntax tree, then lowered through four middle tiers where different
-types of analysis, transformation, or optimization are performed:
+abstract syntax tree, then lowered through a set of intermediate representations
+where different types of analysis, transformation, or optimization are performed:
 
 - Core IR (similar to Core Erlang)
 - Kernel IR (similar to Kernel Erlang)
-- SSA IR (a transformation of Kernel IR in preparation for codegen)
-- MLIR (the final stage where optimizations and certain transformations occur)
+- SSA IR (a low-level representation used to prepare for code generation)
+- Bytecode/MLIR (where final optimizations and code generation are performed)
 
-The final stage of the compiler lowers MLIR to LLVM IR and then LLVM handles
-generating object files from that. Our linker then takes those object files and
-produces a shared library or executable (the default).
-
-In MLIR, and particularly during the lowering to LLVM IR, all high-level abstractions
-around certain operations are stripped away and platform-specific details take shape.
-For example, on x86_64/AArch64, hand-written assembly is used to perform extremely cheap
-stack switching by the scheduler, and to provide dynamic function application
-facilities for the implementation of `apply`.
+The final stage of the compiler depends on whether compiling to bytecode or native
+code, but in both cases the output produces LLVM IR that is then compiled to one
+or more object files, and linked via our linker into an executable.
 
 ### Runtime
 
-The runtime design is mostly the same as OTP, but we are not running an interpreter, instead the
-code is ahead-of-time compiled:
+The runtime design is mostly the same as OTP, but varies a bit on what type of codegen backend was used.
+In general though:
 
 - The entry point sets up the environment, and starts the scheduler
 - The scheduler is composed of one scheduler per thread
 - Each scheduler can steal work from other schedulers if it is short on work
 - Processes are spawned on the same scheduler as the process they are spawned from,
   but a scheduler is able to steal them away to load balance
-- I/O is asynchronous, with dedicated threads and an event loop for dispatch
+- I/O is asynchronous, and integrates with the signal management performed by the schedulers
 
-The initial version will be quite spartan, but this is so we can focus on getting the runtime
-behavior rock solid before we circle back to add in more capabilities.
+The initial version is quite spartan, but should be easy to grow now that we have some of the
+fundamentals built out.
 
 ### NIFs
 
-Currently it is straightforward to define NIFs in Rust without the overhead of erl_nif, but we don't
-yet have an abstraction that allows us to take existing NIFs designed around erl_nif and make them work.
-This is something in the pipeline, but is not yet a high priority for us.
+Currently it is straightforward to extend the runtime with native functions implemented in Rust,
+without all of the extra stuff that goes into port drivers and `erl_nif`. Currently we have some
+of the baseline infrastructure in place to support port drivers, but none of the necessary pieces
+to support `erl_nif` as of yet. We'll need to start adding some of that in short order however, so
+it is on our roadmap to support NIFs to at least a minimum degree needed for things required by
+the standard library.
 
 ## History
 

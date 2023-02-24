@@ -92,6 +92,11 @@ fn main() {
             continue;
         }
 
+        // Ignore -std=c++14 if present
+        if flag.starts_with("-std=c++") {
+            continue;
+        }
+
         shared_cxxflags.push(flag);
         cfg.flag(flag);
     }
@@ -141,6 +146,7 @@ fn main() {
        .static_flag(true)
        .cpp(true)
        .cpp_link_stdlib(None) // we handle this below
+       .flag("-std=c++17") // Force minimum required C++ version
        .compile("firefly_llvm_core");
 
     let (llvm_kind, llvm_link_arg) = detect_llvm_link();

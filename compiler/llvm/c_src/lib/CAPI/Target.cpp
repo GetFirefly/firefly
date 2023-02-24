@@ -143,10 +143,10 @@ LLVMTargetMachineRef LLVMFireflyCreateTargetMachine(TargetMachineConfig *conf,
   default:
     break;
   }
-  std::optional<llvm::CodeModel::Model> codeModel;
+  Optional<llvm::CodeModel::Model> codeModel;
   if (config.codeModel)
     codeModel = *config.codeModel;
-  std::optional<llvm::Reloc::Model> relocModel;
+  Optional<llvm::Reloc::Model> relocModel;
   if (config.relocModel)
     relocModel = *config.relocModel;
 
@@ -200,17 +200,41 @@ bool LLVMTargetMachineEmitToFileDescriptor(LLVMTargetMachineRef t,
   return false;
 }
 
-void LLVM_InitializeAllTargetInfos(void) { LLVMInitializeAllTargetInfos(); }
+void LLVM_InitializeAllTargetInfos(void) {
+  LLVMInitializeX86TargetInfo();
+  LLVMInitializeAArch64TargetInfo();
+  LLVMInitializeWebAssemblyTargetInfo();
+}
 
-void LLVM_InitializeAllTargets(void) { LLVMInitializeAllTargets(); }
+void LLVM_InitializeAllTargets(void) {
+  LLVMInitializeX86Target();
+  LLVMInitializeAArch64Target();
+  LLVMInitializeWebAssemblyTarget();
+}
 
-void LLVM_InitializeAllTargetMCs(void) { LLVMInitializeAllTargetMCs(); }
+void LLVM_InitializeAllTargetMCs(void) {
+  LLVMInitializeX86TargetMC();
+  LLVMInitializeAArch64TargetMC();
+  LLVMInitializeWebAssemblyTargetMC();
+}
 
-void LLVM_InitializeAllAsmPrinters(void) { LLVMInitializeAllAsmPrinters(); }
+void LLVM_InitializeAllAsmPrinters(void) {
+  LLVMInitializeX86AsmPrinter();
+  LLVMInitializeAArch64AsmPrinter();
+  LLVMInitializeWebAssemblyAsmPrinter();
+}
 
-void LLVM_InitializeAllAsmParsers(void) { LLVMInitializeAllAsmParsers(); }
+void LLVM_InitializeAllAsmParsers(void) {
+  LLVMInitializeX86AsmParser();
+  LLVMInitializeAArch64AsmParser();
+  LLVMInitializeWebAssemblyAsmParser();
+}
 
-void LLVM_InitializeAllDisassemblers(void) { LLVMInitializeAllDisassemblers(); }
+void LLVM_InitializeAllDisassemblers(void) {
+  LLVMInitializeX86Disassembler();
+  LLVMInitializeAArch64Disassembler();
+  LLVMInitializeWebAssemblyDisassembler();
+}
 
 /* These functions return true on failure. */
 LLVMBool LLVM_InitializeNativeTarget(void) {

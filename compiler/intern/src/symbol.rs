@@ -387,14 +387,12 @@ impl<'a> PartialEq<LocalInternedString> for &'a String {
         *self == other.string
     }
 }
-#[cfg(feature = "smallstr")]
-impl<const N: usize> PartialEq<LocalInternedString> for smallstr::SmallStr<[u8; N]> {
+impl<const N: usize> PartialEq<LocalInternedString> for smallstr::SmallString<[u8; N]> {
     fn eq(&self, other: &LocalInternedString) -> bool {
         self.as_str() == other.string
     }
 }
-#[cfg(feature = "smallstr")]
-impl<'a, const N: usize> PartialEq<LocalInternedString> for &'a smallstr::SmallStr<[u8; N]> {
+impl<'a, const N: usize> PartialEq<LocalInternedString> for &'a smallstr::SmallString<[u8; N]> {
     fn eq(&self, other: &LocalInternedString) -> bool {
         self.as_str() == other.string
     }
@@ -492,14 +490,12 @@ impl<'a> PartialEq<InternedString> for &'a String {
         other.with(|string| *self == string)
     }
 }
-#[cfg(feature = "smallstr")]
-impl<const N: usize> PartialEq<InternedString> for smallstr::SmallStr<[u8; N]> {
+impl<const N: usize> PartialEq<InternedString> for smallstr::SmallString<[u8; N]> {
     fn eq(&self, other: &InternedString) -> bool {
         other.with(|string| self.as_str() == string)
     }
 }
-#[cfg(feature = "smallstr")]
-impl<'a, const N: usize> PartialEq<InternedString> for &'a smallstr::SmallStr<[u8; N]> {
+impl<'a, const N: usize> PartialEq<InternedString> for &'a smallstr::SmallString<[u8; N]> {
     fn eq(&self, other: &InternedString) -> bool {
         other.with(|string| self.as_str() == string)
     }
@@ -509,10 +505,9 @@ impl From<InternedString> for String {
         val.as_str().get().to_string()
     }
 }
-#[cfg(feature = "smallstr")]
-impl<const N: usize> From<InternedString> for smallstr::SmallStr<[u8; N]> {
+impl<const N: usize> From<InternedString> for smallstr::SmallString<[u8; N]> {
     fn from(val: InternedString) -> Self {
-        smallstr::SmallStr::from_str(val.as_str().get())
+        smallstr::SmallString::from_str(val.as_str().get())
     }
 }
 impl fmt::Debug for InternedString {

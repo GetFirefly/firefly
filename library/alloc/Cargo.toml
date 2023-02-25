@@ -12,13 +12,6 @@ readme.workspace = true
 edition.workspace = true
 publish.workspace = true
 
-[features]
-default = []
-std = ["firefly_binary/std"]
-
 [dependencies]
-firefly_binary = { path = "../binary" }
 firefly_system = { path = "../system" }
 intrusive-collections.workspace = true
-static_assertions.workspace = true
-thiserror.workspace = true

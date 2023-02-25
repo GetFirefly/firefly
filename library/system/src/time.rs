@@ -396,6 +396,8 @@ pub fn instant_to_duration(instant: Instant) -> Duration {
     target_os = "watchos",
 ))]
 pub fn instant_to_duration(instant: Instant) -> Duration {
+    use core::sync::atomic::{AtomicU64, Ordering};
+
     #[repr(C)]
     #[derive(Copy, Clone, Default)]
     struct mach_timebase_info {

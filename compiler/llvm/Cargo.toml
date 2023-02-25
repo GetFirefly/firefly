@@ -30,7 +30,7 @@ firefly_profiling = { path = "../profiling" }
 fxhash.workspace = true
 paste.workspace = true
 thiserror.workspace = true
-zstd = "0.12"
+#zstd = "0.12"
 
 [build-dependencies]
 cc = "1.0"

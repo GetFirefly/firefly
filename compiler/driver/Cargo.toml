@@ -18,10 +18,7 @@ native-compilation = ["dep:firefly_mlir"]
 
 [dependencies]
 anyhow = { workspace = true, features = ["std"] }
-async-task = "1.3"
 clap.workspace = true
-crossbeam = "0.7"
-futures.workspace = true
 firefly_arena = { path = "../../library/arena" }
 firefly_beam = { path = "../../library/beam" }
 firefly_binary = { path = "../../library/binary" }
@@ -47,7 +44,6 @@ lazy_static.workspace = true
 log.workspace = true
 num_cpus = "1.0"
 parking_lot.workspace = true
-rand.workspace = true
 rayon = "1.6"
 rustc-hash.workspace = true
 smallvec.workspace = true

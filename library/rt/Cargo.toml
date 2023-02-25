@@ -14,7 +14,7 @@ publish.workspace = true
 
 [features]
 default = ["no_std"]
-std = ["dep:flurry", "dep:termcolor", "dep:libloading", "anyhow/std", "backtrace/std", "firefly_alloc/std", "firefly_binary/std", "firefly_number/std", "rpds/std"]
+std = ["dep:flurry", "dep:termcolor", "dep:libloading", "anyhow/std", "backtrace/std", "firefly_binary/std", "firefly_number/std"]
 no_std = ["dep:crossbeam-skiplist"]
 async = []
 
@@ -38,7 +38,6 @@ hashbrown.workspace = true
 intrusive-collections.workspace = true
 libloading = { version = "0.7", optional = true }
 log.workspace = true
-rpds.workspace = true
 paste.workspace = true
 rustc-demangle = "0.1"
 rustc-hash.workspace = true

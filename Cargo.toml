@@ -45,7 +45,6 @@ cranelift-entity = "0.81"
 dashmap = "4.0"
 either = "1.8"
 env_logger = "0.9"
-futures = "0.3"
 fxhash = "0.2"
 half = { version = "2.0", default-features = false, features = ["alloc", "num-traits", "use-intrinsics"] }
 hashbrown = { version = "0.12", features = ["nightly"] }

@@ -18,8 +18,6 @@
 #![feature(min_specialization)]
 
 extern crate alloc;
-#[cfg(feature = "std")]
-extern crate std;
 #[cfg(test)]
 extern crate test;
 

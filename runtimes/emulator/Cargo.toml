@@ -28,7 +28,6 @@ firefly_crt = { path = "../crt", default-features = false, features = ["std"] }
 firefly_system = { path = "../../library/system" }
 firefly_number = { path = "../../library/number", features = ["std"] }
 firefly_rt = { path = "../../library/rt", default-features = false, features = ["std"] }
-futures.workspace = true
 intrusive-collections.workspace = true
 log.workspace = true
 smallvec = { version = "1.9", features = ["union", "const_generics", "const_new", "specialization", "write"] }

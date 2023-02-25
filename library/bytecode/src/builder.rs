@@ -46,8 +46,10 @@ impl<A: Atom, T: AtomTable<Atom = A>> Builder<A, T> {
         let offset = self.code.next_instruction();
         let function = self.code.functions.define(mfa, offset)?;
         if let Some(loc) = loc {
-            self.code.set_function_location(function, loc);
-        }
+            self.code.set_function_location(function, loc)
+        } else {
+            None
+        };
         Ok(FunctionBuilder {
             builder: self,
             blocks: vec![],
@@ -149,7 +151,7 @@ impl<A: Atom, T: AtomTable<Atom = A>> Builder<A, T> {
     }
 
     #[inline]
-    pub fn set_function_location(&mut self, id: FunId, loc: Location) {
+    pub fn set_function_location(&mut self, id: FunId, loc: Location) -> Option<LocationId> {
         self.code.set_function_location(id, loc)
     }
 
@@ -186,6 +188,7 @@ pub struct Block<A: Atom> {
     args: Vec<Register>,
     offset: usize,
     code: Vec<Opcode<A>>,
+    locations: Vec<Option<LocationId>>,
 }
 impl<A: Atom> Block<A> {
     #[inline]
@@ -195,6 +198,7 @@ impl<A: Atom> Block<A> {
             args,
             offset: 0,
             code: vec![],
+            locations: vec![],
         }
     }
 
@@ -204,8 +208,9 @@ impl<A: Atom> Block<A> {
     }
 
     #[inline]
-    pub fn push(&mut self, op: Opcode<A>) {
+    pub fn push(&mut self, op: Opcode<A>, loc: Option<LocationId>) {
         self.code.push(op);
+        self.locations.push(loc);
     }
 
     #[inline(always)]
@@ -220,7 +225,7 @@ impl<A: Atom> Block<A> {
 }
 
 pub struct FunctionBuilder<'a, A: Atom, T: AtomTable<Atom = A>> {
-    builder: &'a mut Builder<A, T>,
+    pub builder: &'a mut Builder<A, T>,
     blocks: Vec<Block<A>>,
     current_block: BlockId,
     function: FunId,
@@ -288,7 +293,7 @@ where
     }
 
     #[inline]
-    pub fn set_function_location(&mut self, id: FunId, loc: Location) {
+    pub fn set_function_location(&mut self, id: FunId, loc: Location) -> Option<LocationId> {
         self.builder.set_function_location(id, loc)
     }
 
@@ -302,11 +307,6 @@ where
     }
 
     #[inline]
-    pub fn set_instruction_location(&mut self, ip: usize, loc: LocationId) {
-        self.builder.code.set_instruction_location(ip, loc)
-    }
-
-    #[inline]
     fn alloc_register(&mut self) -> Register {
         let next = self
             .registers
@@ -316,8 +316,8 @@ where
         next
     }
 
-    fn push(&mut self, op: Opcode<A>) {
-        self.current_block_mut().push(op);
+    fn push(&mut self, op: Opcode<A>, loc: Option<LocationId>) {
+        self.current_block_mut().push(op, loc);
     }
 
     #[inline]
@@ -356,77 +356,115 @@ where
     T: AtomTable<Atom = A>,
 {
     pub fn build_nop(&mut self) {
-        self.push(Opcode::Nop(Nop));
+        self.push(Opcode::Nop(Nop), None);
     }
 
-    pub fn build_ret(&mut self, reg: Register) {
-        self.push(Opcode::Ret(Ret { reg }));
+    pub fn build_ret(&mut self, reg: Register, loc: Option<LocationId>) {
+        self.push(Opcode::Ret(Ret { reg }), loc);
     }
 
-    pub fn build_br(&mut self, dest: BlockId, args: &[Register]) {
-        self.prepare_br_args(dest, args, None);
+    pub fn build_br(&mut self, dest: BlockId, args: &[Register], loc: Option<LocationId>) {
+        self.prepare_br_args(dest, args, None, loc);
 
         // NOTE: While building bytecode for a function, we store the target block id
         // as the offset, but then when finalizing the function we update the instruction
         // with the real offset in the bytecode where the target block is located
-        self.push(Opcode::Br(Br {
-            offset: dest as JumpOffset,
-        }));
+        self.push(
+            Opcode::Br(Br {
+                offset: dest as JumpOffset,
+            }),
+            loc,
+        );
     }
 
-    pub fn build_br_unless(&mut self, cond: Register, dest: BlockId, args: &[Register]) {
+    pub fn build_br_unless(
+        &mut self,
+        cond: Register,
+        dest: BlockId,
+        args: &[Register],
+        loc: Option<LocationId>,
+    ) {
         if !args.is_empty() {
             // We need to conditionally perform register moves based on `cond`, but this branch
             // will only be taken if the condition is _false_, so we need to invert the value
             // of `cond` so that our cmov instructions see `true` when the branch will be taken
             let is_false = self.alloc_register();
-            self.push(Opcode::Not(Not {
-                dest: is_false,
-                cond,
-            }));
-            self.prepare_br_args(dest, args, Some(is_false));
+            self.push(
+                Opcode::Not(Not {
+                    dest: is_false,
+                    cond,
+                }),
+                loc,
+            );
+            self.prepare_br_args(dest, args, Some(is_false), loc);
         }
 
         // NOTE: While building bytecode for a function, we store the target block id
         // as the offset, but then when finalizing the function we update the instruction
         // with the real offset in the bytecode where the target block is located
-        self.push(Opcode::Brz(Brz {
-            reg: cond,
-            offset: dest as JumpOffset,
-        }));
+        self.push(
+            Opcode::Brz(Brz {
+                reg: cond,
+                offset: dest as JumpOffset,
+            }),
+            loc,
+        );
     }
 
-    pub fn build_br_if(&mut self, cond: Register, dest: BlockId, args: &[Register]) {
-        self.prepare_br_args(dest, args, Some(cond));
+    pub fn build_br_if(
+        &mut self,
+        cond: Register,
+        dest: BlockId,
+        args: &[Register],
+        loc: Option<LocationId>,
+    ) {
+        self.prepare_br_args(dest, args, Some(cond), loc);
 
         // NOTE: While building bytecode for a function, we store the target block id
         // as the offset, but then when finalizing the function we update the instruction
         // with the real offset in the bytecode where the target block is located
-        self.push(Opcode::Brnz(Brnz {
-            reg: cond,
-            offset: dest as JumpOffset,
-        }));
+        self.push(
+            Opcode::Brnz(Brnz {
+                reg: cond,
+                offset: dest as JumpOffset,
+            }),
+            loc,
+        );
     }
 
-    pub fn build_br_eq(&mut self, reg: Register, imm: u32, dest: BlockId) {
+    pub fn build_br_eq(&mut self, reg: Register, imm: u32, dest: BlockId, loc: Option<LocationId>) {
         assert_ne!(dest, self.current_block);
 
-        self.push(Opcode::Breq(Breq {
-            reg,
-            imm,
-            offset: dest as JumpOffset,
-        }));
+        self.push(
+            Opcode::Breq(Breq {
+                reg,
+                imm,
+                offset: dest as JumpOffset,
+            }),
+            loc,
+        );
     }
 
-    pub fn build_switch(&mut self, reg: Register, arms: &[(u32, BlockId)]) {
+    pub fn build_switch(
+        &mut self,
+        reg: Register,
+        arms: &[(u32, BlockId)],
+        loc: Option<LocationId>,
+    ) {
         assert_ne!(arms.len(), 0);
 
         for (imm, dest) in arms.iter() {
-            self.build_br_eq(reg, *imm, *dest);
+            self.build_br_eq(reg, *imm, *dest, loc);
         }
     }
 
-    fn prepare_br_args(&mut self, dest: BlockId, mut args: &[Register], cond: Option<Register>) {
+    fn prepare_br_args(
+        &mut self,
+        dest: BlockId,
+        mut args: &[Register],
+        cond: Option<Register>,
+        loc: Option<LocationId>,
+    ) {
         if args.is_empty() {
             return;
         }
@@ -478,7 +516,7 @@ where
                 // would result in that value being clobbered, so we must introduce
                 // a temporary.
                 let tmp = self.alloc_register();
-                self.push(mov(src, tmp));
+                self.push(mov(src, tmp), loc);
                 deferred_moves.push(mov(tmp, dst));
                 continue;
             }
@@ -488,56 +526,77 @@ where
                 continue;
             }
 
-            self.push(mov(src, dst));
+            self.push(mov(src, dst), loc);
         }
 
         // Perform all the deferred moves now
-        self.current_block_mut()
-            .code
-            .extend_from_slice(deferred_moves.as_slice());
+        for mv in deferred_moves.drain(..) {
+            self.push(mv, loc);
+        }
     }
 
-    pub fn build_call_nif(&mut self, callee: FunId, args: &[Register]) -> Register {
+    pub fn build_call_nif(
+        &mut self,
+        callee: FunId,
+        args: &[Register],
+        loc: Option<LocationId>,
+    ) -> Register {
         let dest = self.alloc_register();
         // We need to reserve a register for the return address
         self.alloc_register();
         // Then reserve registers for the callee arguments and move their values into place
         for arg in args {
             let dest = self.alloc_register();
-            self.push(Opcode::Mov(Mov { dest, src: *arg }));
+            self.push(Opcode::Mov(Mov { dest, src: *arg }), loc);
         }
-        self.push(Opcode::CallNative(CallNative {
-            dest,
-            callee: callee as usize as *const (),
-            arity: args.len() as Arity,
-        }));
+        self.push(
+            Opcode::CallNative(CallNative {
+                dest,
+                callee: callee as usize as *const (),
+                arity: args.len() as Arity,
+            }),
+            loc,
+        );
         dest
     }
 
-    pub fn build_call(&mut self, callee: FunId, args: &[Register]) -> Register {
+    pub fn build_call(
+        &mut self,
+        callee: FunId,
+        args: &[Register],
+        loc: Option<LocationId>,
+    ) -> Register {
         let dest = self.alloc_register();
         // We need to reserve a register for the return address
         self.alloc_register();
         // Then reserve registers for the callee arguments and move their values into place
         for arg in args {
             let dest = self.alloc_register();
-            self.push(Opcode::Mov(Mov { dest, src: *arg }));
+            self.push(Opcode::Mov(Mov { dest, src: *arg }), loc);
         }
-        self.push(Opcode::CallStatic(CallStatic {
-            dest,
-            callee,
-            arity: args.len() as Arity,
-        }));
+        self.push(
+            Opcode::CallStatic(CallStatic {
+                dest,
+                callee,
+                arity: args.len() as Arity,
+            }),
+            loc,
+        );
         dest
     }
 
-    pub fn build_call_apply2(&mut self, callee: Register, argv: Register) -> Register {
+    pub fn build_call_apply2(
+        &mut self,
+        callee: Register,
+        argv: Register,
+        loc: Option<LocationId>,
+    ) -> Register {
         // Reserve space for the return value
         let dest = self.alloc_register();
         // We need to reserve a register for the return address
         self.alloc_register();
         // The remaining stack slots needed for the call are allocated at runtime
-        self.push(Opcode::CallApply2(CallApply2 { dest, callee, argv }));
+        self.push(Opcode::CallApply2(CallApply2 { dest, callee, argv }), loc);
         dest
     }
 
@@ -546,69 +605,106 @@ where
         module: Register,
         function: Register,
         argv: Register,
+        loc: Option<LocationId>,
     ) -> Register {
         // Reserve space for the return value
         let dest = self.alloc_register();
         // We need to reserve a register for the return address
         self.alloc_register();
         // The remaining stack slots needed for the call are allocated at runtime
-        self.push(Opcode::CallApply3(CallApply3 {
-            dest,
-            module,
-            function,
-            argv,
-        }));
+        self.push(
+            Opcode::CallApply3(CallApply3 {
+                dest,
+                module,
+                function,
+                argv,
+            }),
+            loc,
+        );
         dest
     }
 
-    pub fn build_call_indirect(&mut self, callee: Register, args: &[Register]) -> Register {
+    pub fn build_call_indirect(
+        &mut self,
+        callee: Register,
+        args: &[Register],
+        loc: Option<LocationId>,
+    ) -> Register {
         let dest = self.alloc_register();
         // We need to reserve a register for the return address
         self.alloc_register();
         // Then reserve registers for the callee arguments and move their values into place
         for arg in args {
             let dest = self.alloc_register();
-            self.push(Opcode::Mov(Mov { dest, src: *arg }));
+            self.push(Opcode::Mov(Mov { dest, src: *arg }), loc);
         }
-        self.push(Opcode::CallIndirect(CallIndirect {
-            dest,
-            callee,
-            arity: args.len() as Arity,
-        }));
+        self.push(
+            Opcode::CallIndirect(CallIndirect {
+                dest,
+                callee,
+                arity: args.len() as Arity,
+            }),
+            loc,
+        );
         dest
     }
 
-    pub fn build_enter(&mut self, callee: FunId, args: &[Register]) {
-        self.prepare_tail_call_args(args);
-        self.push(Opcode::EnterStatic(EnterStatic {
-            callee,
-            arity: args.len() as Arity,
-        }));
+    pub fn build_enter(&mut self, callee: FunId, args: &[Register], loc: Option<LocationId>) {
+        self.prepare_tail_call_args(args, loc);
+        self.push(
+            Opcode::EnterStatic(EnterStatic {
+                callee,
+                arity: args.len() as Arity,
+            }),
+            loc,
+        );
     }
 
-    pub fn build_enter_apply2(&mut self, callee: Register, argv: Register) {
+    pub fn build_enter_apply2(
+        &mut self,
+        callee: Register,
+        argv: Register,
+        loc: Option<LocationId>,
+    ) {
         // The remaining stack slots needed for the call are allocated at runtime
-        self.push(Opcode::EnterApply2(EnterApply2 { callee, argv }));
+        self.push(Opcode::EnterApply2(EnterApply2 { callee, argv }), loc);
     }
 
-    pub fn build_enter_apply3(&mut self, module: Register, function: Register, argv: Register) {
+    pub fn build_enter_apply3(
+        &mut self,
+        module: Register,
+        function: Register,
+        argv: Register,
+        loc: Option<LocationId>,
+    ) {
         // The remaining stack slots needed for the call are allocated at runtime
-        self.push(Opcode::EnterApply3(EnterApply3 {
-            module,
-            function,
-            argv,
-        }));
+        self.push(
+            Opcode::EnterApply3(EnterApply3 {
+                module,
+                function,
+                argv,
+            }),
+            loc,
+        );
     }
 
-    pub fn build_enter_indirect(&mut self, callee: Register, args: &[Register]) {
-        self.prepare_tail_call_args(args);
-        self.push(Opcode::EnterIndirect(EnterIndirect {
-            callee,
-            arity: args.len() as Arity,
-        }));
+    pub fn build_enter_indirect(
+        &mut self,
+        callee: Register,
+        args: &[Register],
+        loc: Option<LocationId>,
+    ) {
+        self.prepare_tail_call_args(args, loc);
+        self.push(
+            Opcode::EnterIndirect(EnterIndirect {
+                callee,
+                arity: args.len() as Arity,
+            }),
+            loc,
+        );
     }
 
-    fn prepare_tail_call_args(&mut self, mut args: &[Register]) {
+    fn prepare_tail_call_args(&mut self, mut args: &[Register], loc: Option<LocationId>) {
         if args.is_empty() {
             return;
         }
@@ -642,7 +738,7 @@ where
                 // would result in that value being clobbered, so we must introduce
                 // a temporary.
                 let tmp = self.alloc_register();
-                self.push(Opcode::Mov(Mov { dest: tmp, src }));
+                self.push(Opcode::Mov(Mov { dest: tmp, src }), loc);
                 deferred_moves.push(Opcode::Mov(Mov {
                     dest: dst,
                     src: tmp,
@@ -655,457 +751,596 @@ where
                 continue;
             }
 
-            self.push(Opcode::Mov(Mov { dest: dst, src }));
+            self.push(Opcode::Mov(Mov { dest: dst, src }), loc);
         }
 
         // Perform all the deferred moves now
-        self.current_block_mut()
-            .code
-            .extend_from_slice(deferred_moves.as_slice());
+        for mv in deferred_moves.drain(..) {
+            self.push(mv, loc);
+        }
     }
 
-    pub fn build_is_atom(&mut self, value: Register) -> Register {
+    pub fn build_is_atom(&mut self, value: Register, loc: Option<LocationId>) -> Register {
         let dest = self.alloc_register();
-        self.push(Opcode::IsAtom(IsAtom { dest, value }));
+        self.push(Opcode::IsAtom(IsAtom { dest, value }), loc);
         dest
     }
 
-    pub fn build_is_bool(&mut self, value: Register) -> Register {
+    pub fn build_is_bool(&mut self, value: Register, loc: Option<LocationId>) -> Register {
         let dest = self.alloc_register();
-        self.push(Opcode::IsBool(IsBool { dest, value }));
+        self.push(Opcode::IsBool(IsBool { dest, value }), loc);
         dest
     }
 
-    pub fn build_is_nil(&mut self, value: Register) -> Register {
+    pub fn build_is_nil(&mut self, value: Register, loc: Option<LocationId>) -> Register {
         let dest = self.alloc_register();
-        self.push(Opcode::IsNil(IsNil { dest, value }));
+        self.push(Opcode::IsNil(IsNil { dest, value }), loc);
         dest
     }
 
-    pub fn build_is_tuple(&mut self, value: Register, arity: Option<NonZeroU32>) -> Register {
+    pub fn build_is_tuple(
+        &mut self,
+        value: Register,
+        arity: Option<NonZeroU32>,
+        loc: Option<LocationId>,
+    ) -> Register {
         let dest = self.alloc_register();
-        self.push(Opcode::IsTuple(IsTuple { dest, value, arity }));
+        self.push(Opcode::IsTuple(IsTuple { dest, value, arity }), loc);
         dest
     }
 
-    pub fn build_is_tuple_fetch_arity(&mut self, value: Register) -> (Register, Register) {
+    pub fn build_is_tuple_fetch_arity(
+        &mut self,
+        value: Register,
+        loc: Option<LocationId>,
+    ) -> (Register, Register) {
         let dest = self.alloc_register();
         let arity = self.alloc_register();
-        self.push(Opcode::IsTupleFetchArity(IsTupleFetchArity {
-            dest,
-            arity,
-            value,
-        }));
+        self.push(
+            Opcode::IsTupleFetchArity(IsTupleFetchArity { dest, arity, value }),
+            loc,
+        );
         (dest, arity)
     }
 
-    pub fn build_is_map(&mut self, value: Register) -> Register {
+    pub fn build_is_map(&mut self, value: Register, loc: Option<LocationId>) -> Register {
         let dest = self.alloc_register();
-        self.push(Opcode::IsMap(IsMap { dest, value }));
+        self.push(Opcode::IsMap(IsMap { dest, value }), loc);
         dest
     }
 
-    pub fn build_is_cons(&mut self, value: Register) -> Register {
+    pub fn build_is_cons(&mut self, value: Register, loc: Option<LocationId>) -> Register {
         let dest = self.alloc_register();
-        self.push(Opcode::IsCons(IsCons { dest, value }));
+        self.push(Opcode::IsCons(IsCons { dest, value }), loc);
         dest
     }
 
-    pub fn build_is_list(&mut self, value: Register) -> Register {
+    pub fn build_is_list(&mut self, value: Register, loc: Option<LocationId>) -> Register {
         let dest = self.alloc_register();
-        self.push(Opcode::IsList(IsList { dest, value }));
+        self.push(Opcode::IsList(IsList { dest, value }), loc);
         dest
     }
 
-    pub fn build_is_int(&mut self, value: Register) -> Register {
+    pub fn build_is_int(&mut self, value: Register, loc: Option<LocationId>) -> Register {
         let dest = self.alloc_register();
-        self.push(Opcode::IsInt(IsInt { dest, value }));
+        self.push(Opcode::IsInt(IsInt { dest, value }), loc);
         dest
     }
 
-    pub fn build_is_float(&mut self, value: Register) -> Register {
+    pub fn build_is_float(&mut self, value: Register, loc: Option<LocationId>) -> Register {
         let dest = self.alloc_register();
-        self.push(Opcode::IsFloat(IsFloat { dest, value }));
+        self.push(Opcode::IsFloat(IsFloat { dest, value }), loc);
         dest
     }
 
-    pub fn build_is_number(&mut self, value: Register) -> Register {
+    pub fn build_is_number(&mut self, value: Register, loc: Option<LocationId>) -> Register {
         let dest = self.alloc_register();
-        self.push(Opcode::IsNumber(IsNumber { dest, value }));
+        self.push(Opcode::IsNumber(IsNumber { dest, value }), loc);
         dest
     }
 
-    pub fn build_is_pid(&mut self, value: Register) -> Register {
+    pub fn build_is_pid(&mut self, value: Register, loc: Option<LocationId>) -> Register {
         let dest = self.alloc_register();
-        self.push(Opcode::IsPid(IsPid { dest, value }));
+        self.push(Opcode::IsPid(IsPid { dest, value }), loc);
         dest
     }
 
-    pub fn build_is_port(&mut self, value: Register) -> Register {
+    pub fn build_is_port(&mut self, value: Register, loc: Option<LocationId>) -> Register {
         let dest = self.alloc_register();
-        self.push(Opcode::IsPort(IsPort { dest, value }));
+        self.push(Opcode::IsPort(IsPort { dest, value }), loc);
         dest
     }
 
-    pub fn build_is_reference(&mut self, value: Register) -> Register {
+    pub fn build_is_reference(&mut self, value: Register, loc: Option<LocationId>) -> Register {
         let dest = self.alloc_register();
-        self.push(Opcode::IsRef(IsRef { dest, value }));
+        self.push(Opcode::IsRef(IsRef { dest, value }), loc);
         dest
     }
 
-    pub fn build_is_binary(&mut self, value: Register) -> Register {
+    pub fn build_is_binary(&mut self, value: Register, loc: Option<LocationId>) -> Register {
         let dest = self.alloc_register();
-        self.push(Opcode::IsBinary(IsBinary {
-            dest,
-            value,
-            unit: 8,
-        }));
+        self.push(
+            Opcode::IsBinary(IsBinary {
+                dest,
+                value,
+                unit: 8,
+            }),
+            loc,
+        );
         dest
     }
 
-    pub fn build_is_bitstring(&mut self, value: Register) -> Register {
+    pub fn build_is_bitstring(&mut self, value: Register, loc: Option<LocationId>) -> Register {
         let dest = self.alloc_register();
-        self.push(Opcode::IsBinary(IsBinary {
-            dest,
-            value,
-            unit: 1,
-        }));
+        self.push(
+            Opcode::IsBinary(IsBinary {
+                dest,
+                value,
+                unit: 1,
+            }),
+            loc,
+        );
         dest
     }
 
-    pub fn build_is_function(&mut self, value: Register) -> Register {
+    pub fn build_is_function(&mut self, value: Register, loc: Option<LocationId>) -> Register {
         let dest = self.alloc_register();
-        self.push(Opcode::IsFunction(IsFunction { dest, value }));
+        self.push(Opcode::IsFunction(IsFunction { dest, value }), loc);
         dest
     }
 
-    pub fn build_nil(&mut self) -> Register {
+    pub fn build_nil(&mut self, loc: Option<LocationId>) -> Register {
         let dest = self.alloc_register();
-        self.push(Opcode::LoadNil(LoadNil { dest }));
+        self.push(Opcode::LoadNil(LoadNil { dest }), loc);
         dest
     }
 
-    pub fn build_bool(&mut self, value: bool) -> Register {
+    pub fn build_bool(&mut self, value: bool, loc: Option<LocationId>) -> Register {
         let dest = self.alloc_register();
-        self.push(Opcode::LoadBool(LoadBool { dest, value }));
+        self.push(Opcode::LoadBool(LoadBool { dest, value }), loc);
         dest
     }
 
-    pub fn build_atom(&mut self, value: &str) -> Register {
+    pub fn build_atom(&mut self, value: &str, loc: Option<LocationId>) -> Register {
         let dest = self.alloc_register();
         let atom = self.insert_atom(value);
-        self.push(Opcode::LoadAtom(LoadAtom { dest, value: atom }));
+        self.push(Opcode::LoadAtom(LoadAtom { dest, value: atom }), loc);
         dest
     }
 
-    pub fn build_int(&mut self, value: i64) -> Register {
+    pub fn build_int(&mut self, value: i64, loc: Option<LocationId>) -> Register {
         let dest = self.alloc_register();
-        self.push(Opcode::LoadInt(LoadInt { dest, value }));
+        self.push(Opcode::LoadInt(LoadInt { dest, value }), loc);
         dest
     }
 
-    pub fn build_bigint(&mut self, value: BigInt) -> Register {
+    pub fn build_bigint(&mut self, value: BigInt, loc: Option<LocationId>) -> Register {
         let dest = self.alloc_register();
-        self.push(Opcode::LoadBig(LoadBig { dest, value }));
+        self.push(Opcode::LoadBig(LoadBig { dest, value }), loc);
         dest
     }
 
-    pub fn build_float(&mut self, value: f64) -> Register {
+    pub fn build_float(&mut self, value: f64, loc: Option<LocationId>) -> Register {
         let dest = self.alloc_register();
-        self.push(Opcode::LoadFloat(LoadFloat { dest, value }));
+        self.push(Opcode::LoadFloat(LoadFloat { dest, value }), loc);
         dest
     }
 
-    pub fn build_utf8_binary(&mut self, value: &str) -> Register {
+    pub fn build_utf8_binary(&mut self, value: &str, loc: Option<LocationId>) -> Register {
         let dest = self.alloc_register();
         let bytes = value.as_bytes();
         let bin = self.insert_binary(bytes, Encoding::Utf8);
-        self.push(Opcode::LoadBinary(LoadBinary { dest, value: bin }));
+        self.push(Opcode::LoadBinary(LoadBinary { dest, value: bin }), loc);
         dest
     }
 
-    pub fn build_raw_binary(&mut self, value: &[u8]) -> Register {
+    pub fn build_raw_binary(&mut self, value: &[u8], loc: Option<LocationId>) -> Register {
         let dest = self.alloc_register();
         let bin = self.insert_binary(value, Encoding::Raw);
-        self.push(Opcode::LoadBinary(LoadBinary { dest, value: bin }));
+        self.push(Opcode::LoadBinary(LoadBinary { dest, value: bin }), loc);
         dest
     }
 
-    pub fn build_bitstring(&mut self, value: &[u8], trailing_bits: u8) -> Register {
+    pub fn build_bitstring(
+        &mut self,
+        value: &[u8],
+        trailing_bits: u8,
+        loc: Option<LocationId>,
+    ) -> Register {
         let dest = self.alloc_register();
         let bin = self.insert_bitstring(value, trailing_bits);
-        self.push(Opcode::LoadBitstring(LoadBitstring { dest, value: bin }));
+        self.push(
+            Opcode::LoadBitstring(LoadBitstring { dest, value: bin }),
+            loc,
+        );
         dest
     }
 
-    pub fn build_not(&mut self, value: Register) -> Register {
+    pub fn build_not(&mut self, value: Register, loc: Option<LocationId>) -> Register {
         let dest = self.alloc_register();
-        self.push(Opcode::Not(Not { dest, cond: value }));
+        self.push(Opcode::Not(Not { dest, cond: value }), loc);
         dest
     }
 
-    pub fn build_and(&mut self, lhs: Register, rhs: Register) -> Register {
+    pub fn build_and(&mut self, lhs: Register, rhs: Register, loc: Option<LocationId>) -> Register {
         let dest = self.alloc_register();
-        self.push(Opcode::And(And { dest, lhs, rhs }));
+        self.push(Opcode::And(And { dest, lhs, rhs }), loc);
         dest
     }
 
-    pub fn build_andalso(&mut self, lhs: Register, rhs: Register) -> Register {
+    pub fn build_andalso(
+        &mut self,
+        lhs: Register,
+        rhs: Register,
+        loc: Option<LocationId>,
+    ) -> Register {
         let dest = self.alloc_register();
-        self.push(Opcode::AndAlso(AndAlso { dest, lhs, rhs }));
+        self.push(Opcode::AndAlso(AndAlso { dest, lhs, rhs }), loc);
         dest
     }
 
-    pub fn build_or(&mut self, lhs: Register, rhs: Register) -> Register {
+    pub fn build_or(&mut self, lhs: Register, rhs: Register, loc: Option<LocationId>) -> Register {
         let dest = self.alloc_register();
-        self.push(Opcode::Or(Or { dest, lhs, rhs }));
+        self.push(Opcode::Or(Or { dest, lhs, rhs }), loc);
         dest
     }
 
-    pub fn build_orelse(&mut self, lhs: Register, rhs: Register) -> Register {
+    pub fn build_orelse(
+        &mut self,
+        lhs: Register,
+        rhs: Register,
+        loc: Option<LocationId>,
+    ) -> Register {
         let dest = self.alloc_register();
-        self.push(Opcode::OrElse(OrElse { dest, lhs, rhs }));
+        self.push(Opcode::OrElse(OrElse { dest, lhs, rhs }), loc);
         dest
     }
 
-    pub fn build_bnot(&mut self, rhs: Register) -> Register {
+    pub fn build_bnot(&mut self, rhs: Register, loc: Option<LocationId>) -> Register {
         let dest = self.alloc_register();
-        self.push(Opcode::Bnot(Bnot { dest, rhs }));
+        self.push(Opcode::Bnot(Bnot { dest, rhs }), loc);
         dest
     }
 
-    pub fn build_xor(&mut self, lhs: Register, rhs: Register) -> Register {
+    pub fn build_xor(&mut self, lhs: Register, rhs: Register, loc: Option<LocationId>) -> Register {
         let dest = self.alloc_register();
-        self.push(Opcode::Xor(Xor { dest, lhs, rhs }));
+        self.push(Opcode::Xor(Xor { dest, lhs, rhs }), loc);
         dest
     }
 
-    pub fn build_band(&mut self, lhs: Register, rhs: Register) -> Register {
+    pub fn build_band(
+        &mut self,
+        lhs: Register,
+        rhs: Register,
+        loc: Option<LocationId>,
+    ) -> Register {
         let dest = self.alloc_register();
-        self.push(Opcode::Band(Band { dest, lhs, rhs }));
+        self.push(Opcode::Band(Band { dest, lhs, rhs }), loc);
         dest
     }
 
-    pub fn build_bor(&mut self, lhs: Register, rhs: Register) -> Register {
+    pub fn build_bor(&mut self, lhs: Register, rhs: Register, loc: Option<LocationId>) -> Register {
         let dest = self.alloc_register();
-        self.push(Opcode::Bor(Bor { dest, lhs, rhs }));
+        self.push(Opcode::Bor(Bor { dest, lhs, rhs }), loc);
         dest
     }
 
-    pub fn build_bxor(&mut self, lhs: Register, rhs: Register) -> Register {
+    pub fn build_bxor(
+        &mut self,
+        lhs: Register,
+        rhs: Register,
+        loc: Option<LocationId>,
+    ) -> Register {
         let dest = self.alloc_register();
-        self.push(Opcode::Bxor(Bxor { dest, lhs, rhs }));
+        self.push(Opcode::Bxor(Bxor { dest, lhs, rhs }), loc);
         dest
     }
 
-    pub fn build_bsl(&mut self, value: Register, shift: Register) -> Register {
+    pub fn build_bsl(
+        &mut self,
+        value: Register,
+        shift: Register,
+        loc: Option<LocationId>,
+    ) -> Register {
         let dest = self.alloc_register();
-        self.push(Opcode::Bsl(Bsl { dest, value, shift }));
+        self.push(Opcode::Bsl(Bsl { dest, value, shift }), loc);
         dest
     }
 
-    pub fn build_bsr(&mut self, value: Register, shift: Register) -> Register {
+    pub fn build_bsr(
+        &mut self,
+        value: Register,
+        shift: Register,
+        loc: Option<LocationId>,
+    ) -> Register {
         let dest = self.alloc_register();
-        self.push(Opcode::Bsr(Bsr { dest, value, shift }));
+        self.push(Opcode::Bsr(Bsr { dest, value, shift }), loc);
         dest
     }
 
-    pub fn build_div(&mut self, value: Register, divisor: Register) -> Register {
+    pub fn build_div(
+        &mut self,
+        value: Register,
+        divisor: Register,
+        loc: Option<LocationId>,
+    ) -> Register {
         let dest = self.alloc_register();
-        self.push(Opcode::Div(Div {
-            dest,
-            value,
-            divisor,
-        }));
+        self.push(
+            Opcode::Div(Div {
+                dest,
+                value,
+                divisor,
+            }),
+            loc,
+        );
         dest
     }
 
-    pub fn build_rem(&mut self, value: Register, divisor: Register) -> Register {
+    pub fn build_rem(
+        &mut self,
+        value: Register,
+        divisor: Register,
+        loc: Option<LocationId>,
+    ) -> Register {
         let dest = self.alloc_register();
-        self.push(Opcode::Rem(Rem {
-            dest,
-            value,
-            divisor,
-        }));
+        self.push(
+            Opcode::Rem(Rem {
+                dest,
+                value,
+                divisor,
+            }),
+            loc,
+        );
         dest
     }
 
-    pub fn build_neg(&mut self, value: Register) -> Register {
+    pub fn build_neg(&mut self, value: Register, loc: Option<LocationId>) -> Register {
         let dest = self.alloc_register();
-        self.push(Opcode::Neg(Neg { dest, rhs: value }));
+        self.push(Opcode::Neg(Neg { dest, rhs: value }), loc);
         dest
     }
 
-    pub fn build_add(&mut self, lhs: Register, rhs: Register) -> Register {
+    pub fn build_add(&mut self, lhs: Register, rhs: Register, loc: Option<LocationId>) -> Register {
         let dest = self.alloc_register();
-        self.push(Opcode::Add(Add { dest, lhs, rhs }));
+        self.push(Opcode::Add(Add { dest, lhs, rhs }), loc);
         dest
     }
 
-    pub fn build_sub(&mut self, lhs: Register, rhs: Register) -> Register {
+    pub fn build_sub(&mut self, lhs: Register, rhs: Register, loc: Option<LocationId>) -> Register {
         let dest = self.alloc_register();
-        self.push(Opcode::Sub(Sub { dest, lhs, rhs }));
+        self.push(Opcode::Sub(Sub { dest, lhs, rhs }), loc);
         dest
     }
 
-    pub fn build_mul(&mut self, lhs: Register, rhs: Register) -> Register {
+    pub fn build_mul(&mut self, lhs: Register, rhs: Register, loc: Option<LocationId>) -> Register {
         let dest = self.alloc_register();
-        self.push(Opcode::Mul(Mul { dest, lhs, rhs }));
+        self.push(Opcode::Mul(Mul { dest, lhs, rhs }), loc);
         dest
     }
 
-    pub fn build_divide(&mut self, lhs: Register, rhs: Register) -> Register {
+    pub fn build_divide(
+        &mut self,
+        lhs: Register,
+        rhs: Register,
+        loc: Option<LocationId>,
+    ) -> Register {
         let dest = self.alloc_register();
-        self.push(Opcode::Divide(Divide { dest, lhs, rhs }));
+        self.push(Opcode::Divide(Divide { dest, lhs, rhs }), loc);
         dest
     }
 
-    pub fn build_list_append(&mut self, list: Register, rhs: Register) -> Register {
+    pub fn build_list_append(
+        &mut self,
+        list: Register,
+        rhs: Register,
+        loc: Option<LocationId>,
+    ) -> Register {
         let dest = self.alloc_register();
-        self.push(Opcode::ListAppend(ListAppend { dest, list, rhs }));
+        self.push(Opcode::ListAppend(ListAppend { dest, list, rhs }), loc);
         dest
     }
 
-    pub fn build_list_remove(&mut self, list: Register, rhs: Register) -> Register {
+    pub fn build_list_remove(
+        &mut self,
+        list: Register,
+        rhs: Register,
+        loc: Option<LocationId>,
+    ) -> Register {
         let dest = self.alloc_register();
-        self.push(Opcode::ListRemove(ListRemove { dest, list, rhs }));
+        self.push(Opcode::ListRemove(ListRemove { dest, list, rhs }), loc);
         dest
     }
 
-    pub fn build_eq(&mut self, lhs: Register, rhs: Register, strict: bool) -> Register {
+    pub fn build_eq(
+        &mut self,
+        lhs: Register,
+        rhs: Register,
+        strict: bool,
+        loc: Option<LocationId>,
+    ) -> Register {
         let dest = self.alloc_register();
-        self.push(Opcode::Eq(IsEq {
-            dest,
-            lhs,
-            rhs,
-            strict,
-        }));
+        self.push(
+            Opcode::Eq(IsEq {
+                dest,
+                lhs,
+                rhs,
+                strict,
+            }),
+            loc,
+        );
         dest
     }
 
-    pub fn build_neq(&mut self, lhs: Register, rhs: Register, strict: bool) -> Register {
+    pub fn build_neq(
+        &mut self,
+        lhs: Register,
+        rhs: Register,
+        strict: bool,
+        loc: Option<LocationId>,
+    ) -> Register {
         let dest = self.alloc_register();
-        self.push(Opcode::Neq(IsNeq {
-            dest,
-            lhs,
-            rhs,
-            strict,
-        }));
+        self.push(
+            Opcode::Neq(IsNeq {
+                dest,
+                lhs,
+                rhs,
+                strict,
+            }),
+            loc,
+        );
         dest
     }
 
-    pub fn build_gt(&mut self, lhs: Register, rhs: Register) -> Register {
+    pub fn build_gt(&mut self, lhs: Register, rhs: Register, loc: Option<LocationId>) -> Register {
         let dest = self.alloc_register();
-        self.push(Opcode::Gt(IsGt { dest, lhs, rhs }));
+        self.push(Opcode::Gt(IsGt { dest, lhs, rhs }), loc);
         dest
     }
 
-    pub fn build_gte(&mut self, lhs: Register, rhs: Register) -> Register {
+    pub fn build_gte(&mut self, lhs: Register, rhs: Register, loc: Option<LocationId>) -> Register {
         let dest = self.alloc_register();
-        self.push(Opcode::Gte(IsGte { dest, lhs, rhs }));
+        self.push(Opcode::Gte(IsGte { dest, lhs, rhs }), loc);
         dest
     }
 
-    pub fn build_lt(&mut self, lhs: Register, rhs: Register) -> Register {
+    pub fn build_lt(&mut self, lhs: Register, rhs: Register, loc: Option<LocationId>) -> Register {
         let dest = self.alloc_register();
-        self.push(Opcode::Lt(IsLt { dest, lhs, rhs }));
+        self.push(Opcode::Lt(IsLt { dest, lhs, rhs }), loc);
         dest
     }
 
-    pub fn build_lte(&mut self, lhs: Register, rhs: Register) -> Register {
+    pub fn build_lte(&mut self, lhs: Register, rhs: Register, loc: Option<LocationId>) -> Register {
         let dest = self.alloc_register();
-        self.push(Opcode::Lte(IsLte { dest, lhs, rhs }));
+        self.push(Opcode::Lte(IsLte { dest, lhs, rhs }), loc);
         dest
     }
 
-    pub fn build_cons(&mut self, head: Register, tail: Register) -> Register {
+    pub fn build_cons(
+        &mut self,
+        head: Register,
+        tail: Register,
+        loc: Option<LocationId>,
+    ) -> Register {
         let dest = self.alloc_register();
-        self.push(Opcode::Cons(Cons { dest, head, tail }));
+        self.push(Opcode::Cons(Cons { dest, head, tail }), loc);
         dest
     }
 
     // load the head and tail of a cons cell into `hd` and `tl` respectively
-    pub fn build_split(&mut self, list: Register) -> (Register, Register) {
+    pub fn build_split(&mut self, list: Register, loc: Option<LocationId>) -> (Register, Register) {
         let hd = self.alloc_register();
         let tl = self.alloc_register();
-        self.push(Opcode::Split(Split { hd, tl, list }));
+        self.push(Opcode::Split(Split { hd, tl, list }), loc);
         (hd, tl)
     }
 
-    pub fn build_head(&mut self, list: Register) -> Register {
+    pub fn build_head(&mut self, list: Register, loc: Option<LocationId>) -> Register {
         let dest = self.alloc_register();
-        self.push(Opcode::Head(Head { dest, list }));
+        self.push(Opcode::Head(Head { dest, list }), loc);
         dest
     }
 
-    pub fn build_tail(&mut self, list: Register) -> Register {
+    pub fn build_tail(&mut self, list: Register, loc: Option<LocationId>) -> Register {
         let dest = self.alloc_register();
-        self.push(Opcode::Tail(Tail { dest, list }));
+        self.push(Opcode::Tail(Tail { dest, list }), loc);
         dest
     }
 
-    pub fn build_closure(&mut self, function: FunId, env: &[Register]) -> Register {
+    pub fn build_closure(
+        &mut self,
+        function: FunId,
+        env: &[Register],
+        loc: Option<LocationId>,
+    ) -> Register {
         let dest = self.alloc_register();
         for value in env {
             let dest = self.alloc_register();
-            self.push(Opcode::Mov(Mov { dest, src: *value }));
+            self.push(Opcode::Mov(Mov { dest, src: *value }), loc);
         }
-        self.push(Opcode::Closure(Closure {
-            dest,
-            function,
-            arity: env.len() as Arity,
-        }));
+        self.push(
+            Opcode::Closure(Closure {
+                dest,
+                function,
+                arity: env.len() as Arity,
+            }),
+            loc,
+        );
         dest
     }
 
-    pub fn build_unpack_env(&mut self, fun: Register, index: usize) -> Register {
+    pub fn build_unpack_env(
+        &mut self,
+        fun: Register,
+        index: usize,
+        loc: Option<LocationId>,
+    ) -> Register {
         let dest = self.alloc_register();
-        self.push(Opcode::UnpackEnv(UnpackEnv {
-            dest,
-            fun,
-            index: index.try_into().unwrap(),
-        }));
+        self.push(
+            Opcode::UnpackEnv(UnpackEnv {
+                dest,
+                fun,
+                index: index.try_into().unwrap(),
+            }),
+            loc,
+        );
         dest
     }
 
-    pub fn build_tuple(&mut self, elements: &[Register]) -> Register {
+    pub fn build_tuple(&mut self, elements: &[Register], loc: Option<LocationId>) -> Register {
         let dest = self.alloc_register();
         for element in elements {
             let dest = self.alloc_register();
-            self.push(Opcode::Mov(Mov {
-                dest,
-                src: *element,
-            }));
+            self.push(
+                Opcode::Mov(Mov {
+                    dest,
+                    src: *element,
+                }),
+                loc,
+            );
         }
-        self.push(Opcode::Tuple(Tuple {
-            dest,
-            arity: elements.len() as Arity,
-        }));
+        self.push(
+            Opcode::Tuple(Tuple {
+                dest,
+                arity: elements.len() as Arity,
+            }),
+            loc,
+        );
         dest
     }
 
-    pub fn build_tuple_with_capacity(&mut self, arity: usize) -> Register {
+    pub fn build_tuple_with_capacity(&mut self, arity: usize, loc: Option<LocationId>) -> Register {
         let dest = self.alloc_register();
-        self.push(Opcode::TupleWithCapacity(TupleWithCapacity {
-            dest,
-            arity: arity as Arity,
-        }));
+        self.push(
+            Opcode::TupleWithCapacity(TupleWithCapacity {
+                dest,
+                arity: arity as Arity,
+            }),
+            loc,
+        );
         dest
     }
 
-    pub fn build_tuple_arity(&mut self, tuple: Register) -> Register {
+    pub fn build_tuple_arity(&mut self, tuple: Register, loc: Option<LocationId>) -> Register {
         let dest = self.alloc_register();
-        self.push(Opcode::TupleArity(TupleArity { dest, tuple }));
+        self.push(Opcode::TupleArity(TupleArity { dest, tuple }), loc);
         dest
     }
 
-    pub fn build_get_element(&mut self, tuple: Register, index: usize) -> Register {
+    pub fn build_get_element(
+        &mut self,
+        tuple: Register,
+        index: usize,
+        loc: Option<LocationId>,
+    ) -> Register {
         let dest = self.alloc_register();
-        self.push(Opcode::GetElement(GetElement {
-            dest,
-            tuple,
-            index: index.try_into().unwrap(),
-        }));
+        self.push(
+            Opcode::GetElement(GetElement {
+                dest,
+                tuple,
+                index: index.try_into().unwrap(),
+            }),
+            loc,
+        );
         dest
     }
 
@@ -1114,98 +1349,165 @@ where
         tuple: Register,
         index: usize,
         value: Register,
+        loc: Option<LocationId>,
     ) -> Register {
         let dest = self.alloc_register();
-        self.push(Opcode::SetElement(SetElement {
-            dest,
-            tuple,
-            index: index.try_into().unwrap(),
-            value,
-        }));
+        self.push(
+            Opcode::SetElement(SetElement {
+                dest,
+                tuple,
+                index: index.try_into().unwrap(),
+                value,
+            }),
+            loc,
+        );
         dest
     }
 
-    pub fn build_set_element_mut(&mut self, tuple: Register, index: usize, value: Register) {
-        self.push(Opcode::SetElementMut(SetElementMut {
-            tuple,
-            index: index.try_into().unwrap(),
-            value,
-        }));
+    pub fn build_set_element_mut(
+        &mut self,
+        tuple: Register,
+        index: usize,
+        value: Register,
+        loc: Option<LocationId>,
+    ) {
+        self.push(
+            Opcode::SetElementMut(SetElementMut {
+                tuple,
+                index: index.try_into().unwrap(),
+                value,
+            }),
+            loc,
+        );
     }
 
-    pub fn build_map(&mut self, capacity: usize) -> Register {
+    pub fn build_map(&mut self, capacity: usize, loc: Option<LocationId>) -> Register {
         let dest = self.alloc_register();
-        self.push(Opcode::Map(Map { dest, capacity }));
+        self.push(Opcode::Map(Map { dest, capacity }), loc);
         dest
     }
 
-    pub fn build_map_insert(&mut self, map: Register, key: Register, value: Register) -> Register {
+    pub fn build_map_insert(
+        &mut self,
+        map: Register,
+        key: Register,
+        value: Register,
+        loc: Option<LocationId>,
+    ) -> Register {
         let dest = self.alloc_register();
-        self.push(Opcode::MapPut(MapPut {
-            dest,
-            map,
-            key,
-            value,
-        }));
+        self.push(
+            Opcode::MapPut(MapPut {
+                dest,
+                map,
+                key,
+                value,
+            }),
+            loc,
+        );
         dest
     }
 
-    pub fn build_map_insert_mut(&mut self, map: Register, key: Register, value: Register) {
-        self.push(Opcode::MapPutMut(MapPutMut { map, key, value }));
+    pub fn build_map_insert_mut(
+        &mut self,
+        map: Register,
+        key: Register,
+        value: Register,
+        loc: Option<LocationId>,
+    ) {
+        self.push(Opcode::MapPutMut(MapPutMut { map, key, value }), loc);
     }
 
-    pub fn build_map_update(&mut self, map: Register, key: Register, value: Register) -> Register {
+    pub fn build_map_update(
+        &mut self,
+        map: Register,
+        key: Register,
+        value: Register,
+        loc: Option<LocationId>,
+    ) -> Register {
         let dest = self.alloc_register();
-        self.push(Opcode::MapUpdate(MapUpdate {
-            dest,
-            map,
-            key,
-            value,
-        }));
+        self.push(
+            Opcode::MapUpdate(MapUpdate {
+                dest,
+                map,
+                key,
+                value,
+            }),
+            loc,
+        );
         dest
     }
 
-    pub fn build_map_update_mut(&mut self, map: Register, key: Register, value: Register) {
-        self.push(Opcode::MapUpdateMut(MapUpdateMut { map, key, value }));
+    pub fn build_map_update_mut(
+        &mut self,
+        map: Register,
+        key: Register,
+        value: Register,
+        loc: Option<LocationId>,
+    ) {
+        self.push(Opcode::MapUpdateMut(MapUpdateMut { map, key, value }), loc);
     }
 
-    pub fn build_map_extend_insert(&mut self, map: Register, pairs: &[Register]) -> Register {
+    pub fn build_map_extend_insert(
+        &mut self,
+        map: Register,
+        pairs: &[Register],
+        loc: Option<LocationId>,
+    ) -> Register {
         let dest = self.alloc_register();
-        self.push(Opcode::MapExtendPut(MapExtendPut {
-            dest,
-            map,
-            pairs: pairs.to_vec(),
-        }));
+        self.push(
+            Opcode::MapExtendPut(MapExtendPut {
+                dest,
+                map,
+                pairs: pairs.to_vec(),
+            }),
+            loc,
+        );
         dest
     }
 
-    pub fn build_map_extend_update(&mut self, map: Register, pairs: &[Register]) -> Register {
+    pub fn build_map_extend_update(
+        &mut self,
+        map: Register,
+        pairs: &[Register],
+        loc: Option<LocationId>,
+    ) -> Register {
         let dest = self.alloc_register();
-        self.push(Opcode::MapExtendUpdate(MapExtendUpdate {
-            dest,
-            map,
-            pairs: pairs.to_vec(),
-        }));
+        self.push(
+            Opcode::MapExtendUpdate(MapExtendUpdate {
+                dest,
+                map,
+                pairs: pairs.to_vec(),
+            }),
+            loc,
+        );
         dest
     }
 
-    pub fn build_map_try_get(&mut self, map: Register, key: Register) -> (Register, Register) {
+    pub fn build_map_try_get(
+        &mut self,
+        map: Register,
+        key: Register,
+        loc: Option<LocationId>,
+    ) -> (Register, Register) {
         let is_err = self.alloc_register();
         let value = self.alloc_register();
-        self.push(Opcode::MapTryGet(MapTryGet {
-            is_err,
-            value,
-            map,
-            key,
-        }));
+        self.push(
+            Opcode::MapTryGet(MapTryGet {
+                is_err,
+                value,
+                map,
+                key,
+            }),
+            loc,
+        );
         (is_err, value)
     }
 
-    pub fn build_mov(&mut self, dest: Register, src: Register) {
-        self.push(Opcode::Mov(Mov { dest, src }));
+    pub fn build_mov(&mut self, dest: Register, src: Register, loc: Option<LocationId>) {
+        self.push(Opcode::Mov(Mov { dest, src }), loc);
     }
 
-    pub fn build_catch(&mut self, dest: BlockId) {
+    pub fn build_catch(&mut self, dest: BlockId, loc: Option<LocationId>) {
         let cp = self.alloc_register();
         let handler_args = self.block_args(dest);
         let kind;
@@ -1221,61 +1523,68 @@ where
             reason = handler_args[1];
             trace = handler_args[2];
         }
-        self.push(Opcode::Catch(Catch { cp }));
-        self.push(Opcode::LandingPad(LandingPad {
-            kind,
-            reason,
-            trace,
-            offset: dest as JumpOffset,
-        }));
+        self.push(Opcode::Catch(Catch { cp }), loc);
+        self.push(
+            Opcode::LandingPad(LandingPad {
+                kind,
+                reason,
+                trace,
+                offset: dest as JumpOffset,
+            }),
+            loc,
+        );
     }
 
-    pub fn build_end_catch(&mut self) {
-        self.push(Opcode::EndCatch(EndCatch));
+    pub fn build_end_catch(&mut self, loc: Option<LocationId>) {
+        self.push(Opcode::EndCatch(EndCatch), loc);
     }
 
-    pub fn build_stacktrace(&mut self) -> Register {
+    pub fn build_stacktrace(&mut self, loc: Option<LocationId>) -> Register {
         let dest = self.alloc_register();
-        self.push(Opcode::StackTrace(StackTrace { dest }));
+        self.push(Opcode::StackTrace(StackTrace { dest }), loc);
         dest
     }
 
-    pub fn build_send(&mut self, recipient: Register, message: Register) {
-        self.push(Opcode::Send(SendOp { recipient, message }));
+    pub fn build_send(&mut self, recipient: Register, message: Register, loc: Option<LocationId>) {
+        self.push(Opcode::Send(SendOp { recipient, message }), loc);
     }
 
     // Returns `(available, message)`
-    pub fn build_recv_peek(&mut self) -> (Register, Register) {
+    pub fn build_recv_peek(&mut self, loc: Option<LocationId>) -> (Register, Register) {
         let available = self.alloc_register();
         let message = self.alloc_register();
-        self.push(Opcode::RecvPeek(RecvPeek { available, message }));
+        self.push(Opcode::RecvPeek(RecvPeek { available, message }), loc);
         (available, message)
     }
 
-    pub fn build_recv_next(&mut self) {
-        self.push(Opcode::RecvNext(RecvNext));
+    pub fn build_recv_next(&mut self, loc: Option<LocationId>) {
+        self.push(Opcode::RecvNext(RecvNext), loc);
     }
 
-    pub fn build_recv_wait_timeout(&mut self, timeout: Register) -> Register {
+    pub fn build_recv_wait_timeout(
+        &mut self,
+        timeout: Register,
+        loc: Option<LocationId>,
+    ) -> Register {
         let dest = self.alloc_register();
-        self.push(Opcode::RecvWait(RecvWait { dest, timeout }));
-        self.push(Opcode::RecvTimeout(RecvTimeout { dest }));
+        self.push(Opcode::RecvWait(RecvWait { dest, timeout }), loc);
+        self.push(Opcode::RecvTimeout(RecvTimeout { dest }), loc);
         dest
     }
 
-    pub fn build_recv_pop(&mut self) {
-        self.push(Opcode::RecvPop(RecvPop));
+    pub fn build_recv_pop(&mut self, loc: Option<LocationId>) {
+        self.push(Opcode::RecvPop(RecvPop), loc);
     }
 
-    pub fn build_bs_init(&mut self) -> Register {
+    pub fn build_bs_init(&mut self, loc: Option<LocationId>) -> Register {
         let dest = self.alloc_register();
-        self.push(Opcode::BsInit(BsInit { dest }));
+        self.push(Opcode::BsInit(BsInit { dest }), loc);
         dest
     }
 
-    pub fn build_bs_finish(&mut self, builder: Register) -> Register {
+    pub fn build_bs_finish(&mut self, builder: Register, loc: Option<LocationId>) -> Register {
         let dest = self.alloc_register();
-        self.push(Opcode::BsFinish(BsFinish { dest, builder }));
+        self.push(Opcode::BsFinish(BsFinish { dest, builder }), loc);
         dest
     }
 
@@ -1285,26 +1594,37 @@ where
         value: Register,
         size: Option<Register>,
         spec: BinaryEntrySpecifier,
+        loc: Option<LocationId>,
     ) -> Register {
         let dest = self.alloc_register();
-        self.push(Opcode::BsPush(BsPush {
-            dest,
-            builder,
-            value,
-            size,
-            spec,
-        }));
+        self.push(
+            Opcode::BsPush(BsPush {
+                dest,
+                builder,
+                value,
+                size,
+                spec,
+            }),
+            loc,
+        );
         dest
     }
 
-    pub fn build_bs_match_start(&mut self, bin: Register) -> (Register, Register) {
+    pub fn build_bs_match_start(
+        &mut self,
+        bin: Register,
+        loc: Option<LocationId>,
+    ) -> (Register, Register) {
         let is_err = self.alloc_register();
         let context = self.alloc_register();
-        self.push(Opcode::BsMatchStart(BsMatchStart {
-            is_err,
-            context,
-            bin,
-        }));
+        self.push(
+            Opcode::BsMatchStart(BsMatchStart {
+                is_err,
+                context,
+                bin,
+            }),
+            loc,
+        );
         (is_err, context)
     }
 
@@ -1313,18 +1633,22 @@ where
         context: Register,
         size: Option<Register>,
         spec: BinaryEntrySpecifier,
+        loc: Option<LocationId>,
     ) -> (Register, Register, Register) {
         let is_err = self.alloc_register();
         let value = self.alloc_register();
         let next = self.alloc_register();
-        self.push(Opcode::BsMatch(BsMatch {
-            is_err,
-            value,
-            next,
-            context,
-            size,
-            spec,
-        }));
+        self.push(
+            Opcode::BsMatch(BsMatch {
+                is_err,
+                value,
+                next,
+                context,
+                size,
+                spec,
+            }),
+            loc,
+        );
         (is_err, value, next)
     }
 
@@ -1334,6 +1658,7 @@ where
         size: Register,
         spec: BinaryEntrySpecifier,
         value: Register,
+        loc: Option<LocationId>,
     ) -> (Register, Register) {
         let is_err = self.alloc_register();
         let next = self.alloc_register();
@@ -1365,30 +1690,41 @@ where
                 spec
             ),
         };
-        self.push(Opcode::BsMatchSkip(BsMatchSkip {
-            is_err,
-            next,
-            context,
-            ty,
-            size,
-            unit,
-            value,
-        }));
+        self.push(
+            Opcode::BsMatchSkip(BsMatchSkip {
+                is_err,
+                next,
+                context,
+                ty,
+                size,
+                unit,
+                value,
+            }),
+            loc,
+        );
         (is_err, next)
     }
 
-    pub fn build_bs_test_tail(&mut self, context: Register, size: usize) -> Register {
+    pub fn build_bs_test_tail(
+        &mut self,
+        context: Register,
+        size: usize,
+        loc: Option<LocationId>,
+    ) -> Register {
         let dest = self.alloc_register();
-        self.push(Opcode::BsTestTail(BsTestTail {
-            dest,
-            context,
-            size,
-        }));
+        self.push(
+            Opcode::BsTestTail(BsTestTail {
+                dest,
+                context,
+                size,
+            }),
+            loc,
+        );
         dest
     }
 
-    pub fn build_yield(&mut self) {
-        self.push(Opcode::Yield(Yield));
+    pub fn build_yield(&mut self, loc: Option<LocationId>) {
+        self.push(Opcode::Yield(Yield), loc);
     }
 
     pub fn build_raise(
@@ -1396,41 +1732,55 @@ where
         kind: Register,
         reason: Register,
         trace: Option<Register>,
+        loc: Option<LocationId>,
     ) -> Register {
         let dest = self.alloc_register();
-        self.push(Opcode::Raise(Raise {
-            dest,
-            kind,
-            reason,
-            trace,
-        }));
+        self.push(
+            Opcode::Raise(Raise {
+                dest,
+                kind,
+                reason,
+                trace,
+            }),
+            loc,
+        );
         dest
     }
 
-    pub fn build_throw(&mut self, reason: Register) {
-        self.push(Opcode::Throw1(Throw1 { reason }));
+    pub fn build_throw(&mut self, reason: Register, loc: Option<LocationId>) {
+        self.push(Opcode::Throw1(Throw1 { reason }), loc);
     }
 
-    pub fn build_error(&mut self, reason: Register) {
-        self.push(Opcode::Error1(Error1 { reason }));
+    pub fn build_error(&mut self, reason: Register, loc: Option<LocationId>) {
+        self.push(Opcode::Error1(Error1 { reason }), loc);
     }
 
-    pub fn build_exit1(&mut self, reason: Register) {
-        self.push(Opcode::Exit1(Exit1 { reason }));
+    pub fn build_exit1(&mut self, reason: Register, loc: Option<LocationId>) {
+        self.push(Opcode::Exit1(Exit1 { reason }), loc);
     }
 
-    pub fn build_exit2(&mut self, pid: Register, reason: Register) -> Register {
+    pub fn build_exit2(
+        &mut self,
+        pid: Register,
+        reason: Register,
+        loc: Option<LocationId>,
+    ) -> Register {
         let dest = self.alloc_register();
-        self.push(Opcode::Exit2(Exit2 { dest, pid, reason }));
+        self.push(Opcode::Exit2(Exit2 { dest, pid, reason }), loc);
         dest
     }
 
-    pub fn build_halt(&mut self, status: Option<Register>, options: Option<Register>) {
+    pub fn build_halt(
+        &mut self,
+        status: Option<Register>,
+        options: Option<Register>,
+        loc: Option<LocationId>,
+    ) {
         let status = match status {
             Some(reg) => reg,
             None => {
                 let dest = self.alloc_register();
-                self.push(Opcode::LoadInt(LoadInt { dest, value: 0 }));
+                self.push(Opcode::LoadInt(LoadInt { dest, value: 0 }), loc);
                 dest
             }
         };
@@ -1438,33 +1788,47 @@ where
             Some(reg) => reg,
             None => {
                 let dest = self.alloc_register();
-                self.push(Opcode::LoadNil(LoadNil { dest }));
+                self.push(Opcode::LoadNil(LoadNil { dest }), loc);
                 dest
             }
         };
-        self.push(Opcode::Halt(Halt { status, options }));
+        self.push(Opcode::Halt(Halt { status, options }), loc);
     }
 
-    pub fn build_self(&mut self) -> Register {
+    pub fn build_self(&mut self, loc: Option<LocationId>) -> Register {
         let dest = self.alloc_register();
-        self.push(Opcode::Identity(Identity { dest }));
+        self.push(Opcode::Identity(Identity { dest }), loc);
         dest
     }
 
-    pub fn build_spawn2(&mut self, fun: Register, opts: SpawnOpts) -> Register {
+    pub fn build_spawn2(
+        &mut self,
+        fun: Register,
+        opts: SpawnOpts,
+        loc: Option<LocationId>,
+    ) -> Register {
         let dest = self.alloc_register();
-        self.push(Opcode::Spawn2(Spawn2 { dest, fun, opts }));
+        self.push(Opcode::Spawn2(Spawn2 { dest, fun, opts }), loc);
         dest
     }
 
-    pub fn build_spawn3(&mut self, fun: FunId, args: Register, opts: SpawnOpts) -> Register {
+    pub fn build_spawn3(
+        &mut self,
+        fun: FunId,
+        args: Register,
+        opts: SpawnOpts,
+        loc: Option<LocationId>,
+    ) -> Register {
         let dest = self.alloc_register();
-        self.push(Opcode::Spawn3(Spawn3 {
-            dest,
-            fun,
-            args,
-            opts,
-        }));
+        self.push(
+            Opcode::Spawn3(Spawn3 {
+                dest,
+                fun,
+                args,
+                opts,
+            }),
+            loc,
+        );
         dest
     }
 
@@ -1474,15 +1838,19 @@ where
         function: Register,
         args: Register,
         opts: SpawnOpts,
+        loc: Option<LocationId>,
     ) -> Register {
         let dest = self.alloc_register();
-        self.push(Opcode::Spawn3Indirect(Spawn3Indirect {
-            dest,
-            module,
-            function,
-            args,
-            opts,
-        }));
+        self.push(
+            Opcode::Spawn3Indirect(Spawn3Indirect {
+                dest,
+                module,
+                function,
+                args,
+                opts,
+            }),
+            loc,
+        );
         dest
     }
 }
@@ -1511,7 +1879,36 @@ where
         let mut block_offset = function_offset + 1;
         for block in self.blocks.iter_mut() {
             block.offset = block_offset;
+            // Append code
             self.builder.code.code.append(&mut block.code);
+            // Insert corresponding debug info by calculating ranges of instructions covered by the same location
+            let mut range_loc = None;
+            let mut range_start = block_offset;
+            for (i, loc) in block.locations.iter().copied().enumerate() {
+                match loc {
+                    None => {
+                        if let Some(prev_id) = range_loc {
+                            self.builder
+                                .code
+                                .set_instruction_location(range_start, prev_id);
+                        }
+                        range_start = range_start + i;
+                        range_loc = None;
+                    }
+                    Some(id) => {
+                        if let Some(prev_id) = range_loc {
+                            if prev_id == id {
+                                continue;
+                            }
+                            self.builder
+                                .code
+                                .set_instruction_location(range_start, prev_id);
+                        }
+                        range_start = range_start + i;
+                        range_loc = Some(id);
+                    }
+                }
+            }
             block_offset = self.builder.next_instruction();
         }
 

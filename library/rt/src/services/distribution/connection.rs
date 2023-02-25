@@ -39,6 +39,7 @@ pub enum ConnectionError {
 
 intrusive_adapter!(pub NodeConnectionAdapter = Arc<NodeConnection>: NodeConnection { link: LinkedListAtomicLink });
 
+#[allow(unused)]
 pub type NodeConnectionList = LinkedList<NodeConnectionAdapter>;
 
 /// This structure represents the connection backing a [`Node`],
@@ -52,6 +53,7 @@ pub type NodeConnectionList = LinkedList<NodeConnectionAdapter>;
 /// If a connection is lost, the node connection is what tracks the links/monitors
 /// to trigger, and attempts to reconnect on failure, triggering any node monitors
 /// which are set on this node.
+#[allow(unused)]
 pub struct NodeConnection {
     link: LinkedListAtomicLink,
     /// Unique identifier for this connection, incremented on every connection

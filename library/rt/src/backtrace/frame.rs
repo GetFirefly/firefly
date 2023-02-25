@@ -6,6 +6,7 @@ use core::cell::UnsafeCell;
 use firefly_system::sync::OnceLock;
 
 use super::{Symbol, Symbolication};
+use crate::term::OpaqueTerm;
 
 #[cfg(feature = "std")]
 /// The current working directory in which the executable is running
@@ -19,6 +20,8 @@ pub trait Frame {
     /// This function should resolve a frame to its symbolicated form,
     /// i.e. mfa+file+line
     fn resolve(&self) -> Option<Symbolication>;
+    /// Returns the argument list term, if present in the frame metadata
+    fn args(&self) -> Option<OpaqueTerm>;
 }
 
 #[cfg(feature = "std")]
@@ -60,6 +63,11 @@ impl Frame for backtrace::Frame {
 
         result
     }
+
+    #[inline(always)]
+    fn args(&self) -> Option<OpaqueTerm> {
+        None
+    }
 }
 impl Frame for firefly_bytecode::Symbol<crate::term::Atom> {
     fn resolve(&self) -> Option<Symbolication> {
@@ -93,6 +101,34 @@ impl Frame for firefly_bytecode::Symbol<crate::term::Atom> {
             )),
         }
     }
+
+    #[inline(always)]
+    fn args(&self) -> Option<OpaqueTerm> {
+        None
+    }
+}
+
+/// This type is used to embellish a frame that has extra info, with that info
+pub struct FrameWithExtraInfo<T: Frame> {
+    pub frame: T,
+    pub args: OpaqueTerm,
+}
+impl<F: Frame> FrameWithExtraInfo<F> {
+    #[inline]
+    pub fn new(frame: F, args: OpaqueTerm) -> Box<Self> {
+        Box::new(Self { frame, args })
+    }
+}
+impl<F: Frame> Frame for FrameWithExtraInfo<F> {
+    #[inline]
+    fn resolve(&self) -> Option<Symbolication> {
+        self.frame.resolve()
+    }
+
+    #[inline]
+    fn args(&self) -> Option<OpaqueTerm> {
+        Some(self.args)
+    }
 }
 
 /// This struct wraps the underlying concrete representation of a stack frame
@@ -105,7 +141,7 @@ impl Frame for firefly_bytecode::Symbol<crate::term::Atom> {
 /// unnecessary overhead accessing it. Should the guarantees change around concurrent access,
 /// this will need to be changed to some other Sync type like `RefCell`.
 pub struct TraceFrame {
-    frame: Box<dyn Frame>,
+    pub(crate) frame: Box<dyn Frame>,
     symbol: UnsafeCell<Option<Symbolication>>,
 }
 impl TraceFrame {

@@ -310,7 +310,7 @@ impl fmt::Display for OpaqueTerm {
             TermType::Match => write!(f, "{:?}", unsafe {
                 &*(self.as_ptr() as *const MatchContext)
             }),
-            term => {
+            _ => {
                 let t: Term = (*self).into();
                 write!(f, "{}", &t)
             }
@@ -556,7 +556,6 @@ impl OpaqueTerm {
                                             Tag::Reference => TermType::Reference,
                                             Tag::Binary | Tag::Slice => TermType::Binary,
                                             Tag::Match => TermType::Match,
-                                            _ => TermType::Invalid,
                                         };
                                     } else {
                                         // This term is forwarded
@@ -564,7 +563,7 @@ impl OpaqueTerm {
                                     }
                                 }
                             }
-                            _invalid => TermType::Invalid,
+                            _ => TermType::Invalid,
                         }
                     }
                     _ => TermType::Float,

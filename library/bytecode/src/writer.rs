@@ -33,6 +33,7 @@ impl<'a, A: Atom> BytecodeWriter<'a, A> {
         self.write_atoms(code)?;
         self.write_binaries(code)?;
         self.write_functions(code)?;
+        self.write_debug_info(code)?;
         self.write_code(code)
     }
 
@@ -51,7 +52,14 @@ impl<'a, A: Atom> BytecodeWriter<'a, A> {
         self.writer.write_all(&code.binaries.len().to_be_bytes())?;
         // 4. Write size of functions table (number of functions)
         self.writer.write_all(&code.functions.len().to_be_bytes())?;
-        // 5. Write size of code (number of instructions)
+        // 5. Write size of debug info (number of files, number of locations, number of offsets)
+        self.writer
+            .write_all(&code.debug_info.files.len().to_be_bytes())?;
+        self.writer
+            .write_all(&code.debug_info.locations.len().to_be_bytes())?;
+        self.writer
+            .write_all(&code.debug_info.offsets.len().to_be_bytes())?;
+        // 6. Write size of code (number of instructions)
         self.writer.write_all(&code.code.len().to_be_bytes())
     }
 
@@ -110,6 +118,39 @@ impl<'a, A: Atom> BytecodeWriter<'a, A> {
         // no instruction fixups are required
         for function in code.functions.iter() {
             Function::encode(function, self)?;
+        }
+
+        Ok(())
+    }
+
+    pub(crate) fn write_debug_info<'code, T>(
+        &mut self,
+        code: &'code ByteCode<A, T>,
+    ) -> std::io::Result<()>
+    where
+        T: AtomTable<Atom = A>,
+    {
+        // Write files
+        self.scratch.clear();
+
+        for file in code.debug_info.files.iter() {
+            let bytes = file.as_bytes();
+            self.scratch.extend_from_slice(bytes);
+            self.write_integer(bytes.len())?;
+        }
+        self.writer.write_all(self.scratch.as_slice())?;
+
+        // Write locations
+        for loc in code.debug_info.locations.iter() {
+            self.write_integer(loc.file)?;
+            self.write_integer(loc.line)?;
+            self.write_integer(loc.column)?;
+        }
+
+        // Write offsets
+        for (offset, location_id) in code.debug_info.offsets.iter() {
+            self.write_integer(*offset)?;
+            self.write_integer(*location_id)?;
         }
 
         Ok(())

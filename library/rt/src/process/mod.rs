@@ -362,9 +362,13 @@ pub struct Process {
     /// There are a few fields following this one which contain other process flags not tracked
     /// in this bitset, which are read-only by anyone, but may only be modified by the process.
     pub status: Atomic<StatusFlags>,
+    #[allow(unused)]
     error_handler: Atomic<Atom>,
+    #[allow(unused)]
     fullsweep_after: Atomic<Option<NonZeroUsize>>,
+    #[allow(unused)]
     min_heap_size: Atomic<Option<NonZeroUsize>>,
+    #[allow(unused)]
     min_bin_vheap_size: Atomic<Option<NonZeroUsize>>,
     max_heap_size: Atomic<MaxHeapSize>,
     /// The mailbox/signal queue for this process
@@ -1360,7 +1364,7 @@ impl<'a> ProcessLock<'a> {
         // Calculate memory usage after collection
         let new_mature_size = unsafe { self.guard.heap.mature().heap_top().sub_ptr(prev_old_top) };
         let heap_used = self.guard.heap.immature().heap_used();
-        let size_after = new_mature_size + heap_used;
+        //let size_after = new_mature_size + heap_used;
         let needed_after = heap_used + needed;
         let heap_size = self.guard.heap.immature().heap_size();
         let mature_heap_size = self.guard.heap.mature().heap_size();

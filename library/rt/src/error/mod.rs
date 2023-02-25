@@ -38,7 +38,7 @@ bitflags::bitflags! {
         const EXTENDED = 1 << 10;
 
         /// A bitmask for the exception class
-        const CLASS_MASK = Self::ERROR.bits | Self::EXIT.bits | Self::THROW.bits;
+        const CLASS_MASK = Self::IS_ERROR.bits | Self::IS_EXIT.bits | Self::IS_THROW.bits;
         /// A bitmask for the exception bits which are valid on primary exceptions
         const PRIMARY_MASK = Self::PANIC.bits | Self::THROWN.bits | Self::LOG.bits | Self::NATIVE.bits;
         /// Default flags for primary exceptions
@@ -186,14 +186,11 @@ impl ExceptionInfo {
     }
 
     pub fn class(&self) -> Option<ExceptionClass> {
-        const ERROR: u32 = ExceptionFlags::IS_ERROR.bits;
-        const EXIT: u32 = ExceptionFlags::IS_EXIT.bits;
-        const THROW: u32 = ExceptionFlags::IS_THROW.bits;
         let class = self.flags & ExceptionFlags::CLASS_MASK;
-        match class.bits() {
-            ERROR => Some(ExceptionClass::Error),
-            EXIT => Some(ExceptionClass::Exit),
-            THROW => Some(ExceptionClass::Throw),
+        match class {
+            ExceptionFlags::IS_ERROR => Some(ExceptionClass::Error),
+            ExceptionFlags::IS_EXIT => Some(ExceptionClass::Exit),
+            ExceptionFlags::IS_THROW => Some(ExceptionClass::Throw),
             _ => None,
         }
     }

@@ -158,7 +158,7 @@ pub fn garbage_collect(process: &mut ProcessLock, roots: RootSet) -> Result<(), 
                 reductions
             );
             // If this GC consumed the remaining reductions, yield, otherwise continue
-            let flags = process.remove_status_flags(StatusFlags::GC, Ordering::Relaxed);
+            process.remove_status_flags(StatusFlags::GC, Ordering::Relaxed);
             process.reductions += reductions;
             Ok(())
         }

@@ -242,7 +242,7 @@ impl Registry {
     }
 
     /// Returns the number of registered names in the registry
-    pub fn registered_names<'g>(&'g self, guard: &'g NameTableGuard<'_>) -> usize {
+    pub fn registered_names<'g>(&'g self, _guard: &'g NameTableGuard<'_>) -> usize {
         self.names.len()
     }
 }

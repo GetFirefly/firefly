@@ -1,3 +1,4 @@
+use alloc::rc::Rc;
 use alloc::vec::Vec;
 use core::fmt;
 use core::mem;
@@ -72,11 +73,15 @@ where
         let num_atoms: usize = self.read_integer()?;
         let num_binaries: usize = self.read_integer()?;
         let num_functions: usize = self.read_integer()?;
+        let num_debug_files: usize = self.read_integer()?;
+        let num_debug_locations: usize = self.read_integer()?;
+        let num_debug_offsets: usize = self.read_integer()?;
         let num_instructions: usize = self.read_integer()?;
 
         self.read_atoms(num_atoms)?;
         self.read_binaries(num_binaries)?;
         self.read_functions(num_functions)?;
+        self.read_debug_info(num_debug_files, num_debug_locations, num_debug_offsets)?;
         self.read_code(num_instructions)?;
 
         Ok(self.code)
@@ -153,6 +158,55 @@ where
                 }
             }
             self.code.functions.load(function);
+        }
+
+        Ok(())
+    }
+
+    pub(crate) fn read_debug_info(
+        &mut self,
+        num_files: usize,
+        num_locs: usize,
+        num_offsets: usize,
+    ) -> Result<(), ReadError<T>> {
+        use super::debuginfo::{FileId, Location, LocationId};
+
+        // Read filenames
+        let sizes_size = mem::size_of::<usize>() * num_files;
+        let mut size_data = self.read_bytes(sizes_size)?;
+        for index in 0..num_files {
+            let (size_bytes, rest) = size_data.split_at(mem::size_of::<usize>());
+            size_data = rest;
+            let size = usize::from_be_bytes(size_bytes.try_into().unwrap());
+            let bytes = self.read_bytes(size)?;
+            let file: Rc<str> = Rc::from(str::from_utf8(bytes).unwrap());
+            self.code.debug_info.files.push(file.clone());
+            self.code
+                .debug_info
+                .files_to_id
+                .insert(file, index as FileId);
+        }
+
+        // Read locations
+        for id in 0..num_locs {
+            let file: FileId = self.read_integer()?;
+            let line: u32 = self.read_integer()?;
+            let column: u32 = self.read_integer()?;
+
+            let loc = Location { file, line, column };
+            self.code.debug_info.locations.push(loc);
+            self.code
+                .debug_info
+                .locations_to_id
+                .insert(loc, id as LocationId);
+        }
+
+        // Read offsets
+        for _ in 0..num_offsets {
+            let offset: usize = self.read_integer()?;
+            let location_id: LocationId = self.read_integer()?;
+            assert!((location_id as usize) < self.code.debug_info.locations.len());
+            self.code.debug_info.offsets.insert(offset, location_id);
         }
 
         Ok(())

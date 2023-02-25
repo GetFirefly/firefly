@@ -32,7 +32,7 @@ pub struct SourceLocation {
 }
 
 /// A compressed version of [`SourceLocation`] used by [`DebugInfoTable`]
-#[derive(Copy, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct Location {
     pub file: FileId,
     pub line: u32,
@@ -45,13 +45,13 @@ pub struct Location {
 #[derive(Default)]
 pub struct DebugInfoTable {
     // Only store filenames once
-    files: Vec<Rc<str>>,
-    files_to_id: BTreeMap<Rc<str>, FileId>,
+    pub(crate) files: Vec<Rc<str>>,
+    pub(crate) files_to_id: BTreeMap<Rc<str>, FileId>,
     // Only store unique source locations once
-    locations: Vec<Location>,
-    locations_to_id: HashMap<Location, LocationId>,
+    pub(crate) locations: Vec<Location>,
+    pub(crate) locations_to_id: HashMap<Location, LocationId>,
     // Maps ranges of instruction offsets to source locations
-    offsets: BTreeMap<usize, LocationId>,
+    pub(crate) offsets: BTreeMap<usize, LocationId>,
 }
 impl DebugInfoTable {
     pub fn append(&mut self, other: &Self, ix_offset: usize) {

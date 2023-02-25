@@ -865,10 +865,13 @@ impl<A: Atom, T: AtomTable<Atom = A>> ByteCode<A, T> {
     }
 
     /// Set the source location for the given [`FunId`]
-    pub fn set_function_location(&mut self, id: FunId, loc: Location) {
+    pub fn set_function_location(&mut self, id: FunId, loc: Location) -> Option<LocationId> {
         if let Function::Bytecode { offset, .. } = self.functions.get(id) {
             let id = self.debug_info.get_or_insert_location(loc);
             self.debug_info.register_offset(*offset, id);
+            Some(id)
+        } else {
+            None
         }
     }
 

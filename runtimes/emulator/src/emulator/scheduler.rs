@@ -1292,7 +1292,7 @@ impl Emulator {
     }
 
     fn parse_stacktrace(&self, framelist: Gc<Cons>) -> Result<Arc<Trace>, ()> {
-        use firefly_rt::backtrace::Frame;
+        use firefly_rt::backtrace::{Frame, FrameWithExtraInfo};
 
         let mut frames = Vec::with_capacity(10);
         // Reconstruct a TraceFrame from each element in the frame list
@@ -1303,7 +1303,7 @@ impl Emulator {
                     let module: Atom;
                     let function: Atom;
                     let arity: u8;
-                    //let args: Term;
+                    let args: Term;
                     let extra_info: Term;
                     match tuple.len() {
                         4 => {
@@ -1319,11 +1319,11 @@ impl Emulator {
                             match tuple[2].into() {
                                 Term::Int(a) => {
                                     arity = a.try_into().map_err(|_| ())?;
-                                    //args = Term::Nil;
+                                    args = Term::Nil;
                                 }
                                 Term::Nil => {
                                     arity = 0;
-                                    //args = Term::Nil;
+                                    args = Term::Nil;
                                 }
                                 Term::Cons(cons) => {
                                     let mut a = 0;
@@ -1334,7 +1334,7 @@ impl Emulator {
                                         a += 1;
                                     }
                                     arity = a;
-                                    //args = Term::Cons(cons);
+                                    args = Term::Cons(cons);
                                 }
                                 _ => return Err(()),
                             }
@@ -1354,11 +1354,11 @@ impl Emulator {
                                 match tuple[2].into() {
                                     Term::Int(i) => {
                                         arity = i.try_into().map_err(|_| ())?;
-                                        //args = Term::Nil;
+                                        args = Term::Nil;
                                     }
                                     Term::Nil => {
                                         arity = 0;
-                                        //args = Term::Nil;
+                                        args = Term::Nil;
                                     }
                                     Term::Cons(cons) => {
                                         let mut a = 0;
@@ -1369,7 +1369,7 @@ impl Emulator {
                                             a += 1;
                                         }
                                         arity = a;
-                                        //args = Term::Cons(cons);
+                                        args = Term::Cons(cons);
                                     }
                                     _ => return Err(()),
                                 }
@@ -1380,13 +1380,13 @@ impl Emulator {
                                     module = mfa.module;
                                     function = mfa.function;
                                     match tuple[1].into() {
-                                        _argv @ (Term::Nil | Term::Cons(_)) => {
+                                        argv @ (Term::Nil | Term::Cons(_)) => {
                                             arity = mfa.arity;
-                                            //args = argv;
+                                            args = argv;
                                         }
                                         Term::Int(i) => {
                                             arity = i.try_into().map_err(|_| ())?;
-                                            //args = Term::Nil;
+                                            args = Term::Nil;
                                         }
                                         _ => return Err(()),
                                     }
@@ -1406,13 +1406,13 @@ impl Emulator {
                                 module = mfa.module;
                                 function = mfa.function;
                                 match tuple[1].into() {
-                                    _argv @ (Term::Nil | Term::Cons(_)) => {
+                                    argv @ (Term::Nil | Term::Cons(_)) => {
                                         arity = mfa.arity;
-                                        //args = argv;
+                                        args = argv;
                                     }
                                     Term::Int(i) => {
                                         arity = i.try_into().map_err(|_| ())?;
-                                        //args = Term::Nil;
+                                        args = Term::Nil;
                                     }
                                     _ => return Err(()),
                                 }
@@ -1507,7 +1507,7 @@ impl Emulator {
                             }),
                         },
                     };
-                    let frame: Box<dyn Frame> = Box::new(symbol);
+                    let frame: Box<dyn Frame> = FrameWithExtraInfo::new(symbol, args.into());
                     frames.push(TraceFrame::from(frame))
                 }
                 _other => return Err(()),
@@ -1605,6 +1605,10 @@ impl Emulator {
     fn terminate_process(&self, process: &mut ProcessLock, reason: OpaqueTerm) -> Action {
         const EXIT_FORMAT: &'static str = "Error in process ~p with exit value:~n~p~n";
         trace!(target: "process", "terminating process with reason {}", reason);
+
+        if log_enabled!(target: "process", log::Level::Info) {
+            firefly_rt::error::printer::print(process).unwrap();
+        }
 
         if process.exception_info.flags.contains(ExceptionFlags::LOG) {
             let mut pid = process.pid();

@@ -9,7 +9,7 @@ env:
   FIREFLY_BUILD_TYPE: static
   LLVM_LINK_LLVM_DYLIB: OFF
   LLVM_VERSION: 15.0.7
-  TOOLCHAIN: nightly-2022-11-02
+  CARGO_MAKE_TOOLCHAIN: nightly-2022-11-02
 
 jobs:
   compiler:
@@ -44,7 +44,7 @@ jobs:
       - name: Install Rust
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: ${{ env.TOOLCHAIN }}
+          toolchain: ${{ env.CARGO_MAKE_TOOLCHAIN }}
           override: true
       - name: Cache Cargo
         uses: actions/cache@v2
@@ -52,11 +52,11 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-          key: ${{ github.workflow }}-${{ github.job }}-toolchain-${{ env.TOOLCHAIN }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ github.workflow }}-${{ github.job }}-toolchain-${{ env.CARGO_MAKE_TOOLCHAIN }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - name: Install cargo-make
         uses: actions-rs/cargo@v1
         with:
-          toolchain: ${{ env.TOOLCHAIN }}
+          toolchain: ${{ env.CARGO_MAKE_TOOLCHAIN }}
           command: install
           args: cargo-make
       - name: Build Compiler
@@ -71,17 +71,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args:
-          - "-p"
-          - "firefly_intern"
-          - "-p"
-          - "firefly_parser"
-          - "-p"
-          - "firefly_target"
-          - "-p"
-          - "firefly_syntax_erl"
-          - "-p"
-          - "firefly_syntax_pp"
+          args: "-p firefly_intern -p firefly_parser -p firefly_target -p firefly_syntax_erl -p firefly_syntax_pp"
       - name: Run literate tests
         uses: actions-rs/cargo@v1
         with:

@@ -417,7 +417,7 @@ pub fn instant_to_duration(instant: Instant) -> Duration {
     static INFO_BITS: AtomicU64 = AtomicU64::new(0);
 
     // Load the conversion info
-    let mut info = Default::default();
+    let mut info = mach_timebase_info::default();
     let info_bits = INFO_BITS.load(Ordering::Relaxed);
     if info_bits != 0 {
         info.numer = info_bits as u32;
@@ -433,14 +433,14 @@ pub fn instant_to_duration(instant: Instant) -> Duration {
     }
 
     // Get the raw instant value
-    let value = mem::transmute::<Instant, Repr>(instant).t;
+    let value = unsafe { mem::transmute::<Instant, Repr>(instant).t };
     // Convert it to nanoseconds and return as a Duration
     let nanos = {
         let numer = info.numer as u64;
         let denom = info.denom as u64;
-        let q = value / info.denom;
-        let r = value % info.denom;
-        q * info.numer + r * info.numer / info.denom
+        let q = value / denom;
+        let r = value % denom;
+        q * numer + r * numer / denom
     };
 
     Duration::new(nanos / (1_000_000_000), (nanos % 1_000_000_000) as u32)

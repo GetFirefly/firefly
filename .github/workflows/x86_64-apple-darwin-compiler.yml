@@ -7,7 +7,7 @@ env:
   FIREFLY_BUILD_TYPE: static
   LLVM_LINK_LLVM_DYLIB: OFF
   LLVM_VERSION: 15.0.7
-  CARGO_MAKE_TOOLCHAIN: nightly-2022-11-02
+  CARGO_MAKE_TOOLCHAIN: nightly-2023-02-07
 
 jobs:
   compiler:

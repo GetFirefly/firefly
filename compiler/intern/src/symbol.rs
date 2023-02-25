@@ -537,16 +537,11 @@ mod tests {
         assert_eq!(i.intern("cat"), Symbol::new(1));
         // dog is still at zero
         assert_eq!(i.intern("dog"), Symbol::new(0));
-        assert_eq!(i.gensym("zebra"), Symbol::new(SymbolIndex::MAX_AS_U32));
-        // gensym of same string gets new number:
-        assert_eq!(i.gensym("zebra"), Symbol::new(SymbolIndex::MAX_AS_U32 - 1));
-        // gensym of *existing* string gets new number:
-        assert_eq!(i.gensym("dog"), Symbol::new(SymbolIndex::MAX_AS_U32 - 2));
     }
 
     #[test]
     fn interned_keywords_no_gaps() {
-        let mut i = Interner::fresh();
+        let mut i = Interner::new();
         // Should already be interned with matching indexes
         for (sym, s) in symbols::__SYMBOLS {
             assert_eq!(i.intern(&s), *sym)

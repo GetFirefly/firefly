@@ -8,9 +8,9 @@ on:
 env:
   FIREFLY_BUILD_TYPE: static
   LLVM_LINK_LLVM_DYLIB: OFF
-  LLVM_VERSION: 15
+  LLVM_VERSION: "15"
   LLVM_PREFIX: /usr/lib/llvm-15
-  CARGO_MAKE_TOOLCHAIN: nightly-2022-11-02
+  CARGO_MAKE_TOOLCHAIN: nightly-2023-02-07
 
 jobs:
   compiler:
@@ -21,11 +21,6 @@ jobs:
       - name: Setup Env
         run: |
           echo "$(whoami)"
-          if [ -z "${XDG_DATA_HOME}" ]; then
-            sudo mkdir -p $HOME/.local/share/llvm
-            sudo chown -R runner $HOME/.local/share/llvm
-            echo "XDG_DATA_HOME=$HOME/.local/share" >> $GITHUB_ENV
-          fi
           echo "$PWD/bin" >> $GITHUB_PATH
       - name: Install Ninja
         run: |
@@ -37,11 +32,11 @@ jobs:
           wget https://apt.llvm.org/llvm.sh
           chmod +x llvm.sh
           sudo ./llvm.sh "${LLVM_VERSION}"
-          if ! llvm-config --prefix; then
-            echo "$(llvm-config --prefix)"
+          apt-get install -y "llvm-${LLVM_VERSION}" "libllvm${LLVM_VERSION}" "llvm-${LLVM_VERSION}-dev" "libmlir-${LLVM_VERSION}-dev"
+          if ! "${LLVM_PREFIX}/bin/llvm-config" --prefix; then
+            echo "$("${LLVM_PREFIX}/bin/llvm-config" --prefix)"
             exit 1
           fi
-          echo "LLVM_PREFIX=$(llvm-config --prefix)" >> $GITHUB_ENV
       - name: Install Rust
         uses: actions-rs/toolchain@v1
         with:

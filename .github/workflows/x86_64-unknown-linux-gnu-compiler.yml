@@ -37,9 +37,9 @@ jobs:
             echo "$("${LLVM_PREFIX}/bin/llvm-config" --prefix)"
             exit 1
           fi
-          echo "${LLVM_PREFIX}/bin/llvm-config" --cxxflags
-          echo "${LLVM_PREFIX}/bin/llvm-config" --ldflags
-          echo "${LLVM_PREFIX}/bin/llvm-config" --host-target
+          echo "$("${LLVM_PREFIX}/bin/llvm-config" --cxxflags)"
+          echo "$("${LLVM_PREFIX}/bin/llvm-config" --ldflags)"
+          echo "$("${LLVM_PREFIX}/bin/llvm-config" --host-target)"
       - name: Install Rust
         uses: actions-rs/toolchain@v1
         with:

@@ -2921,7 +2921,11 @@ impl<'p> TranslateAst<'p> {
             body: vec![IExpr::PrimOp(IPrimOp::new(
                 span,
                 symbols::Raise,
-                vec![IExpr::Var(value.clone()), IExpr::Var(info.clone())],
+                vec![
+                    IExpr::Var(tag.clone()),
+                    IExpr::Var(value.clone()),
+                    IExpr::Var(info.clone()),
+                ],
             ))],
         });
         let handler = IExpr::Case(ICase {
@@ -3041,7 +3045,11 @@ impl<'p> TranslateAst<'p> {
         after.push(IExpr::PrimOp(IPrimOp::new(
             span,
             symbols::Raise,
-            vec![IExpr::Var(info.clone()), IExpr::Var(value.clone())],
+            vec![
+                IExpr::Var(tag.clone()),
+                IExpr::Var(info.clone()),
+                IExpr::Var(value.clone()),
+            ],
         )));
         let handler = IExpr::Case(ICase {
             span,

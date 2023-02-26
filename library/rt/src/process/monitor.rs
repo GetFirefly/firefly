@@ -400,7 +400,9 @@ pub struct LocalMonitorInfo {
     ///
     /// When a monitor message is sent to a process, it looks like so:
     ///
+    /// ```erlang
     ///     {'DOWN', MonitorRef, Type, From, Payload}
+    /// ```
     ///
     /// Where `'DOWN'` is the tag for the message. When a custom tag is used, it replaces
     /// that default tag with whatever term was given. This is typically used to enable a

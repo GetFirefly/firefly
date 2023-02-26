@@ -1,4 +1,4 @@
-%% RUN: @firefly compile -C no_default_init --bin -o @tempfile @file && @tempfile
+%% RUN: @firefly compile --bin -o @tempfile @file && @tempfile
 
 %% CHECK: 3628800
 -module(init).

@@ -15,7 +15,7 @@ use crate::term::{BinaryData, Boxable, Header, LayoutBuilder, OpaqueTerm, Tag, T
 /// and produced by binary matching intrinsics, it is equivalent to a multi-value
 /// return with 3 values, and is used like so in generated code:
 ///
-/// ```ignore
+/// ```text,ignore
 /// let (is_err, term_or_err, match_ctx) = bs_match(...);
 /// if is_err {
 ///   let error = cast term_or_err as *mut Exception

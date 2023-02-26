@@ -25,7 +25,7 @@ pub extern "C-unwind" fn reverse(
                     ListBuilder::new(process)
                 } else if tail.is_nonempty_list() {
                     let tail = unsafe { Gc::from_raw(tail.as_ptr() as *mut Cons) };
-                    ListBuilder::append(tail, process)
+                    ListBuilder::prepend(tail, process)
                 } else {
                     ListBuilder::new_improper(tail, process)
                 };
@@ -33,7 +33,6 @@ pub extern "C-unwind" fn reverse(
                     match item {
                         Ok(term) => {
                             if let Err(_) = unsafe { builder.push_unsafe(term) } {
-                                // TODO: Perform gc if allocation fails
                                 let mut roots = RootSet::default();
                                 roots += &mut list as *mut _;
                                 roots += &mut tail as *mut _;

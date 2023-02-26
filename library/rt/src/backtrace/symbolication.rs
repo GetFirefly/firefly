@@ -221,7 +221,7 @@ pub const MAX_FILENAME_LEN: usize = 120;
 ///
 /// Each frame looks like:
 ///
-/// ```ignore
+/// ```erlang,ignore
 ///     {module, function, arity, [{file, "path/to/file"}, {line, 1}]}
 /// ```
 ///
@@ -229,7 +229,7 @@ pub const MAX_FILENAME_LEN: usize = 120;
 /// classes of errors like function_clause errors. In this case, one frame will look
 /// like so:
 ///
-/// ```ignore
+/// ```erlang,ignore
 ///     {module, function, [..args], [{file, "path/to/file"}, {line, 1}]}
 /// ```
 ///
@@ -238,7 +238,7 @@ pub const MAX_FILENAME_LEN: usize = 120;
 /// To calculate the total heap needed to allocate all of the terms, we define a heap
 /// layout something like the following:
 ///
-/// ```ignore
+/// ```text,ignore
 /// struct Frames {
 ///   list: [Cons<Frame>; NUM_FRAMES], // the cons cells for each frame, references `data`
 ///   data: [Frame; NUM_FRAMES], // the data for each frame

@@ -1341,7 +1341,8 @@ impl<'a> ProcessLock<'a> {
         let mature_available = self.guard.heap.mature().heap_available();
         if has_mature && mature_size > mature_available {
             log::trace!(target: "gc", "insufficient space on target mature heap (only {} available), full sweep required", mature_available);
-            return Err(GcError::FullsweepRequired);
+            // Switch to a full collection
+            return self.gc_full(needed, roots);
         }
 
         let prev_old_top = self.guard.heap.mature().heap_top();

@@ -1,4 +1,4 @@
-%% RUN: @firefly compile -C no_default_init --bin -o @tempfile @file && @tempfile hello world
+%% RUN: @firefly compile --bin -o @tempfile @file && @tempfile hello world
 -module(init).
 
 -export([boot/1]).

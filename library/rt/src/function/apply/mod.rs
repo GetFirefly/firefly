@@ -23,6 +23,7 @@ use crate::term::{Atom, OpaqueTerm};
 
 use super::{ErlangResult, FunctionSymbol, ModuleFunctionArity};
 
+#[cfg(all(feature = "std", any(unix, windows)))]
 const BIFS: &'static [&'static str] = &[
     "erlang:++/2",
     "erlang:--/2",

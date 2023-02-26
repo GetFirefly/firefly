@@ -289,6 +289,7 @@ impl TimerWheel {
     ///
     /// This function returns true if a cycle was completed in the process of advancing the wheel.
     #[cfg(test)]
+    #[allow(unused)]
     pub fn skip(&mut self) -> bool {
         match self.skippable() {
             // If this wheel is empty, we treat it as if we've completed a full cycle
@@ -814,6 +815,7 @@ impl HierarchicalTimerWheel {
     ///
     /// If the wheel is empty, this function will leave the wheel time reset to the beginning of a new cycle.
     #[cfg(test)]
+    #[allow(unused)]
     pub fn skip(&mut self) {
         if !self.wheels[Self::SOON].skip() {
             return;

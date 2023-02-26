@@ -155,12 +155,13 @@ const SPECIAL_TAG: u64 = NAN;
 const NEG_INTEGER_TAG: u64 = INTEGER_TAG | SIGN_BIT;
 // This constant represents the total number of bits that a small integer can fill
 const INT_BITSIZE: usize = INTEGER_TAG.trailing_zeros() as usize;
+
 // This constant has all of the usable unsigned bits of an integer value set
 #[cfg(test)]
 const UNSIGNED_BITS: u64 = !(NEG_INTEGER_TAG);
 // This is the largest negative value allowed in an immediate integer
 #[cfg(test)]
-const MIN_SMALL: i64 = !INTEGER_TAG as i64;
+const MIN_SMALL: i64 = !UNSIGNED_BITS as i64;
 // This is the largest positive value allowed in an immediate integer
 #[cfg(test)]
 const MAX_SMALL: i64 = UNSIGNED_BITS as i64;

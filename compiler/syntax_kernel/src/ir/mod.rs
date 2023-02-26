@@ -126,7 +126,7 @@ impl fmt::Debug for Expr {
             Self::Break(expr) => write!(f, "{:#?}", expr),
             Self::Return(expr) => write!(f, "{:#?}", expr),
             Self::Values(expr) => write!(f, "{:#?}", expr),
-            Self::Local(name) => write!(f, "{}", &name.item),
+            Self::Local(name) => write!(f, "Local({})", &name.item),
             Self::Remote(expr) => write!(f, "{:#?}", expr),
         }
     }

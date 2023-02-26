@@ -114,12 +114,14 @@ pub struct StackOverflowError;
 ///
 /// Call frames are laid out as follows, where the address on the left is relative to the frame pointer (fp):
 ///
+/// ```text,ignore
 ///     N+1 | NONE           <- sp
 ///     N   | ARGN
 ///     .   |
 ///     2   | ARG0
 ///     1   | RETURN_ADDRESS
 ///     0   | RETURN_VALUE   <- fp
+/// ```
 ///
 /// The first call frame in the call stack has a null return address, which is what signals that control
 /// has reached the bottom of the call stack, and that the currently executing process should exit normally.

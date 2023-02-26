@@ -206,7 +206,9 @@ enum Args<'a, T> {
 
 /// Sends a message of the following format to the `error_logger` process:
 ///
+/// ```erlang
 ///     {log, Level, Format, Args, #{gl => Gl, pid => Pid, time => Time, error_logger => #{Tag => Level, emulator => true}}}
+/// ```
 ///
 /// Where:
 ///

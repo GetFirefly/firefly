@@ -21,7 +21,7 @@ impl<'a, H: ?Sized + Heap> ListBuilder<'a, H> {
         }
     }
 
-    pub fn append(tail: Gc<Cons>, heap: &'a H) -> Self {
+    pub fn prepend(tail: Gc<Cons>, heap: &'a H) -> Self {
         Self {
             heap,
             tail: Some(tail),

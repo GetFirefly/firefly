@@ -15,7 +15,6 @@ use anyhow::{anyhow, Context};
 use cc::windows_registry;
 use log::info;
 use tempfile::Builder as TempFileBuilder;
-use thiserror::private::PathAsDisplay;
 
 use firefly_diagnostics::Severity;
 use firefly_session::filesearch;
@@ -97,8 +96,8 @@ pub fn link_binary(
     fs::create_dir_all(output_file_parent.as_path()).with_context(|| {
         format!(
             "Could not create parent directories ({}) of file ({})",
-            output_file_parent.as_display(),
-            output_file.as_display()
+            output_file_parent.display(),
+            output_file.display()
         )
     })?;
 
@@ -130,7 +129,7 @@ pub fn link_binary(
         diagnostics.note(format!(
             "Generated artifact of {} bytes: {}",
             file_size,
-            output_file.as_display()
+            output_file.display()
         ));
     }
 

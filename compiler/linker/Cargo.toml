@@ -22,7 +22,7 @@ firefly_target = { path = "../target" }
 firefly_util = { path = "../util" }
 libc = { workspace = true, features = ["std"] }
 log.workspace = true
-tempfile = "3.3"
+tempfile = "3.4"
 thiserror.workspace = true
 
 [build-dependencies]

@@ -252,7 +252,7 @@ impl DataFlowGraph {
                     let ty = lhs_ty
                         .as_term()
                         .unwrap()
-                        .coerce_to_numeric_with(rhs_ty.as_term().unwrap());
+                        .coerce_to_numeric_with(rhs_ty.as_term().unwrap_or(TermType::Any));
                     self.append_result(inst, Type::Term(ty));
                     1
                 }

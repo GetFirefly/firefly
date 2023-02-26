@@ -79,7 +79,7 @@ use firefly_intern::Ident;
 /// information in a record so that we can remove `X` from the known
 /// variables when rewriting the body of the fun.
 ///
-#[derive(Clone, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct Known {
     base: Vector<RedBlackTreeSet<Ident>>,
     ks: RedBlackTreeSet<Ident>,
@@ -157,9 +157,19 @@ impl Known {
 
     /// Update the known variables to only the set of variables that
     /// should be known when entering the fun.
-    pub fn known_in_fun(&self) -> Self {
+    pub fn known_in_fun(&self, name: Option<Ident>) -> Self {
         if self.base.is_empty() || self.prev_ks.is_empty() {
-            return self.clone();
+            if let Some(name) = name {
+                let mut ks = self.ks.clone();
+                ks.insert_mut(name);
+                return Self {
+                    base: self.base.clone(),
+                    ks,
+                    prev_ks: self.prev_ks.clone(),
+                };
+            } else {
+                return self.clone();
+            }
         }
 
         // Within a group of bodies that see the same bindings, calculate
@@ -181,6 +191,9 @@ impl Known {
         }
         for id in base.iter() {
             ks.insert_mut(*id);
+        }
+        if let Some(name) = name {
+            ks.insert_mut(name);
         }
         Self {
             base: Vector::new(),

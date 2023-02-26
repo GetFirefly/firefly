@@ -65,7 +65,7 @@ impl Pass for RewriteExports {
                 Ok(fun)
             }
             Ok((box Expr::Fun(fun), _, _)) => Ok(fun),
-            Ok(_) => panic!("unexpected expr result, expected fun"),
+            Ok(ref expr) => panic!("unexpected expr result, expected fun: {:#?}", expr),
             Err(reason) => Err(reason),
         }
     }

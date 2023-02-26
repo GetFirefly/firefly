@@ -478,13 +478,17 @@ impl AnnotateVariableUsage {
                     vs
                 });
                 let known1 = if let Some(name) = name.as_ref() {
-                    let ks = avs.remove(name);
-                    known.union(&ks)
+                    if avs.contains(name) {
+                        known.clone()
+                    } else {
+                        let ks = rbt_set![*name];
+                        known.union(&ks)
+                    }
                 } else {
                     known.clone()
                 };
                 let known2 = known1.union(&avs);
-                let known_in_fun = known2.known_in_fun();
+                let known_in_fun = known2.known_in_fun(name);
                 let clauses = self.ufun_clauses(clauses, known_in_fun.clone())?;
                 let fail = self.ufun_clause(*fun.fail, known_in_fun)?;
                 let used_in_clauses = sets::used_in_any(clauses.iter());

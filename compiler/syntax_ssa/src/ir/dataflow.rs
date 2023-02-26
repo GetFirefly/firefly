@@ -334,7 +334,11 @@ impl DataFlowGraph {
                     self.append_result(inst, Type::Term(TermType::Tuple(None)));
                     1
                 }
-                Opcode::Map | Opcode::MapPut | Opcode::MapUpdate => {
+                Opcode::Map
+                | Opcode::MapPut
+                | Opcode::MapUpdate
+                | Opcode::MapExtendPut
+                | Opcode::MapExtendUpdate => {
                     self.append_result(inst, Type::Term(TermType::Map));
                     1
                 }

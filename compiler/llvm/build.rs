@@ -189,12 +189,12 @@ fn main() {
                 continue;
             };
 
-            // Don't need or want this library, but LLVM's CMake build system
+            // Don't need or want these libraries, but LLVM's CMake build system
             // doesn't provide a way to disable it, so filter it here even though we
-            // may or may not have built it. We don't reference anything from this
-            // library and it otherwise may just pull in extra dependencies on
+            // may or may not have built it. We don't reference anything from these
+            // libraries and it otherwise may just pull in extra dependencies on
             // libedit which we don't want
-            if name == "LLVMLineEditor" {
+            if name == "LLVMLineEditor" || name == "Polly" || name == "PollyISL" {
                 continue;
             }
 

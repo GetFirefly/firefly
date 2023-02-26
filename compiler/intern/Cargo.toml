@@ -20,6 +20,7 @@ firefly_diagnostics = { path = "../diagnostics" }
 firefly_diagnostics_macros = { path = "../diagnostics_macros" }
 firefly_system = { path = "../../library/system" }
 smallstr.workspace = true
+smallvec.workspace = true
 
 [build-dependencies]
 toml.workspace = true

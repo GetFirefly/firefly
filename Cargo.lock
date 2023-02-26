@@ -605,6 +605,7 @@ dependencies = [
  "firefly_diagnostics_macros",
  "firefly_system",
  "smallstr",
+ "smallvec",
  "toml",
 ]
 

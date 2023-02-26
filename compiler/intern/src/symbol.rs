@@ -387,12 +387,14 @@ impl<'a> PartialEq<LocalInternedString> for &'a String {
         *self == other.string
     }
 }
-impl<const N: usize> PartialEq<LocalInternedString> for smallstr::SmallString<[u8; N]> {
+impl<A: smallvec::Array<Item = u8>> PartialEq<LocalInternedString> for smallstr::SmallString<A> {
     fn eq(&self, other: &LocalInternedString) -> bool {
         self.as_str() == other.string
     }
 }
-impl<'a, const N: usize> PartialEq<LocalInternedString> for &'a smallstr::SmallString<[u8; N]> {
+impl<'a, A: smallvec::Array<Item = u8>> PartialEq<LocalInternedString>
+    for &'a smallstr::SmallString<A>
+{
     fn eq(&self, other: &LocalInternedString) -> bool {
         self.as_str() == other.string
     }
@@ -490,12 +492,12 @@ impl<'a> PartialEq<InternedString> for &'a String {
         other.with(|string| *self == string)
     }
 }
-impl<const N: usize> PartialEq<InternedString> for smallstr::SmallString<[u8; N]> {
+impl<A: smallvec::Array<Item = u8>> PartialEq<InternedString> for smallstr::SmallString<A> {
     fn eq(&self, other: &InternedString) -> bool {
         other.with(|string| self.as_str() == string)
     }
 }
-impl<'a, const N: usize> PartialEq<InternedString> for &'a smallstr::SmallString<[u8; N]> {
+impl<'a, A: smallvec::Array<Item = u8>> PartialEq<InternedString> for &'a smallstr::SmallString<A> {
     fn eq(&self, other: &InternedString) -> bool {
         other.with(|string| self.as_str() == string)
     }

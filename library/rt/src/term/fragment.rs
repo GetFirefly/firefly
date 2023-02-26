@@ -28,9 +28,9 @@ impl TermFragment {
         } else {
             let layout = term.layout();
             let fragment = HeapFragment::new(layout, None)?;
-            let term = unsafe { term.unsafe_clone_to_heap(fragment.as_ref()) };
+            let opaque = unsafe { term.unsafe_move_to_heap(fragment.as_ref()) };
             Ok(Self {
-                term: term.into(),
+                term: opaque,
                 fragment: Some(fragment),
             })
         }
@@ -60,14 +60,42 @@ impl Drop for TermFragment {
         use firefly_alloc::heap::Heap;
 
         // If a heap fragment was required, reap it of dead references and drop
-        if let Some(fragment) = self.fragment {
+        if let Some(fragment_ptr) = self.fragment.take() {
             unsafe {
-                let range = fragment.as_ref().used_range();
+                let range = fragment_ptr.as_ref().used_range();
                 range.reap();
-                ptr::drop_in_place(fragment.as_ptr());
+                ptr::drop_in_place(fragment_ptr.as_ptr());
             }
         } else {
             self.term.maybe_decrement_refcount();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use alloc::sync::Arc;
+
+    use crate::term::{BinaryData, ListBuilder};
+    use firefly_alloc::heap::FixedSizeHeap;
+
+    use super::*;
+
+    #[test]
+    fn term_fragment_integration_test() {
+        let fragment = TermFragment::new(Term::Nil).unwrap();
+        drop(fragment);
+
+        let heap = FixedSizeHeap::<256>::default();
+        let mut builder = ListBuilder::new(&heap);
+        let bin1 = BinaryData::from_str("testing");
+        builder.push(Term::RcBinary(bin1.clone())).unwrap();
+        let bin2 = BinaryData::from_small_str("hello", &heap).unwrap();
+        builder.push(Term::HeapBinary(bin2)).unwrap();
+        let term = builder.finish().map(Term::Cons).unwrap();
+        let fragment = TermFragment::new(term).unwrap();
+        assert_eq!(Arc::strong_count(&bin1), 2);
+        drop(fragment);
+        assert_eq!(Arc::strong_count(&bin1), 1);
     }
 }

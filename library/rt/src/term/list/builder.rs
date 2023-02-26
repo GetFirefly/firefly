@@ -38,7 +38,7 @@ impl<'a, H: ?Sized + Heap> ListBuilder<'a, H> {
     }
 
     pub fn push(&mut self, value: Term) -> Result<(), AllocError> {
-        let value = value.clone_to_heap(self.heap)?;
+        let value = value.move_to_heap(self.heap)?;
         unsafe { self.push_unsafe(value) }
     }
 

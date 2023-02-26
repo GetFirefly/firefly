@@ -1080,6 +1080,51 @@ impl Boxable for SmallMap {
         }
     }
 }
+impl SmallMap {
+    pub unsafe fn unsafe_move_to_heap<H: ?Sized + Heap>(&self, heap: &H) -> Gc<Self> {
+        use crate::term::Cons;
+
+        let ptr = self as *const Self;
+        if heap.contains(ptr.cast()) {
+            unsafe { Gc::from_raw(ptr.cast_mut()) }
+        } else {
+            let size = self.size();
+            let capacity = self.capacity();
+            let mut map = Self::with_capacity_in(size, heap).unwrap();
+            for (i, k) in self.keys().iter().copied().enumerate() {
+                if k.is_rc() {
+                    *map.kv.get_unchecked_mut(i) = k;
+                } else if k.is_nonempty_list() {
+                    let mut cons = Gc::from_raw(k.as_ptr() as *mut Cons);
+                    let moved = cons.unsafe_move_to_heap(heap);
+                    *map.kv.get_unchecked_mut(i) = moved.into();
+                } else if k.is_gcbox() || k.is_tuple() {
+                    let term: Term = k.into();
+                    let moved = term.unsafe_move_to_heap(heap);
+                    *map.kv.get_unchecked_mut(i) = moved.into();
+                } else {
+                    *map.kv.get_unchecked_mut(i) = k;
+                }
+            }
+            for (i, v) in self.values().iter().copied().enumerate() {
+                if v.is_rc() {
+                    *map.kv.get_unchecked_mut(capacity + i) = v;
+                } else if v.is_nonempty_list() {
+                    let mut cons = Gc::from_raw(v.as_ptr() as *mut Cons);
+                    let moved = cons.unsafe_move_to_heap(heap);
+                    *map.kv.get_unchecked_mut(capacity + i) = moved.into();
+                } else if v.is_gcbox() || v.is_tuple() {
+                    let term: Term = v.into();
+                    let moved = term.unsafe_move_to_heap(heap);
+                    *map.kv.get_unchecked_mut(capacity + i) = moved.into();
+                } else {
+                    *map.kv.get_unchecked_mut(capacity + i) = v;
+                }
+            }
+            map
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {

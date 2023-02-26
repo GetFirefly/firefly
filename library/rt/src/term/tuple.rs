@@ -207,6 +207,39 @@ impl Boxable for Tuple {
         }
     }
 }
+impl Tuple {
+    pub unsafe fn unsafe_move_to_heap<H: ?Sized + Heap>(&self, heap: &H) -> Gc<Self> {
+        use crate::term::Cons;
+
+        let ptr = self as *const Self;
+        if heap.contains(ptr.cast()) {
+            Gc::from_raw(ptr.cast_mut())
+        } else {
+            let mut cloned = Self::new_in(self.len(), heap).unwrap();
+            let elements = cloned.as_mut_slice();
+            for (i, element) in self.elements.iter().copied().enumerate() {
+                if element.is_rc() {
+                    *elements.get_unchecked_mut(i) = element;
+                    continue;
+                }
+                if element.is_nonempty_list() {
+                    let mut list = Gc::from_raw(element.as_ptr() as *mut Cons);
+                    let moved = list.unsafe_move_to_heap(heap);
+                    *elements.get_unchecked_mut(i) = moved.into();
+                    continue;
+                }
+                if element.is_gcbox() || element.is_tuple() {
+                    let term: Term = element.into();
+                    let moved = term.unsafe_move_to_heap(heap);
+                    *elements.get_unchecked_mut(i) = moved.into();
+                    continue;
+                }
+                *elements.get_unchecked_mut(i) = element;
+            }
+            cloned
+        }
+    }
+}
 impl AsRef<[OpaqueTerm]> for Tuple {
     fn as_ref(&self) -> &[OpaqueTerm] {
         &self.elements

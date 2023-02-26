@@ -142,8 +142,13 @@ impl Cons {
     /// If the list is proper, all elements will be `Ok`, otherwise, the last element produced
     /// will be `Err`.
     #[inline]
-    pub fn iter_raw(&self) -> iter::IterRaw<'_> {
-        iter::IterRaw::new(self)
+    pub fn iter_raw(&self) -> iter::RawIter<'_> {
+        iter::RawIter::new(self)
+    }
+
+    #[inline]
+    pub fn iter_mut<'a, 'b: 'a>(&'b mut self) -> iter::CellsIter<'a> {
+        iter::CellsIter::new(self)
     }
 
     /// Returns true if this cell is the head of a proper list.

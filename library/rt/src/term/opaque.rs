@@ -1344,7 +1344,7 @@ impl firefly_system::sync::Atom for OpaqueTerm {
 
 #[cfg(test)]
 mod tests {
-    use std::assert_matches::assert_matches;
+    use core::assert_matches::assert_matches;
 
     use alloc::alloc::Layout;
     use alloc::boxed::Box;
@@ -2021,7 +2021,8 @@ mod tests {
         let heap = FixedSizeHeap::<128>::default();
 
         let mut boxed = Map::with_capacity_in(1, &heap).unwrap();
-        assert_eq!(boxed.size(), 1);
+        assert_eq!(boxed.size(), 0);
+        assert_eq!(boxed.capacity(), 1);
         boxed.put_mut(Term::Int(1), Term::Atom(atoms::True));
         // Save the raw pointer
         let (ptr, metadata) = boxed.to_raw_parts();

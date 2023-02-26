@@ -64,12 +64,38 @@ impl Iterator for Iter<'_> {
     }
 }
 
-pub struct IterRaw<'a> {
+pub struct CellsIter<'a> {
+    current: Option<&'a mut Cons>,
+}
+impl<'a> CellsIter<'a> {
+    pub(super) fn new(cons: &'a mut Cons) -> Self {
+        Self {
+            current: Some(cons),
+        }
+    }
+}
+impl core::iter::FusedIterator for CellsIter<'_> {}
+
+impl<'a> Iterator for CellsIter<'a> {
+    type Item = &'a mut Cons;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let cell = self.current.take()?;
+
+        if cell.tail.is_nonempty_list() {
+            self.current = Some(unsafe { &mut *(cell.tail.as_ptr() as *mut Cons) });
+        }
+
+        Some(cell)
+    }
+}
+
+pub struct RawIter<'a> {
     head: Option<Result<OpaqueTerm, OpaqueTerm>>,
     tail: Option<OpaqueTerm>,
     _marker: PhantomData<&'a Cons>,
 }
-impl IterRaw<'_> {
+impl RawIter<'_> {
     pub(super) fn new(cons: &Cons) -> Self {
         Self {
             head: Some(Ok(cons.head)),
@@ -79,9 +105,9 @@ impl IterRaw<'_> {
     }
 }
 
-impl core::iter::FusedIterator for IterRaw<'_> {}
+impl core::iter::FusedIterator for RawIter<'_> {}
 
-impl Iterator for IterRaw<'_> {
+impl Iterator for RawIter<'_> {
     type Item = Result<OpaqueTerm, OpaqueTerm>;
 
     fn next(&mut self) -> Option<Self::Item> {

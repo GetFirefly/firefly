@@ -2,6 +2,7 @@ use alloc::alloc::{AllocError, Allocator, Global, Layout};
 use alloc::boxed::Box;
 use core::cell::UnsafeCell;
 use core::cmp;
+use core::fmt;
 use core::ops::Range;
 use core::ptr::{self, NonNull};
 
@@ -65,7 +66,19 @@ pub struct HeapFragment {
     /// e.g. when the fragment is unused, `top == raw.base`
     top: UnsafeCell<*mut u8>,
     /// An optional destructor for this fragment
-    destructor: Option<Box<dyn FnMut(NonNull<u8>)>>,
+    destructor: Option<NonNull<dyn FnMut(NonNull<u8>)>>,
+}
+impl fmt::Debug for HeapFragment {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("HeapFragment")
+            .field("raw", &self.raw)
+            .field("top", &format_args!("{:p}", self.top.get()))
+            .field(
+                "destructor",
+                &format_args!("{:?}", self.destructor.map(|ptr| ptr.as_ptr())),
+            )
+            .finish()
+    }
 }
 impl HeapFragment {
     /// Returns the pointer to the data region of this fragment
@@ -92,7 +105,7 @@ impl HeapFragment {
                 link: LinkedListLink::new(),
                 raw: RawFragment { layout, base },
                 top: UnsafeCell::new(base.as_ptr()),
-                destructor,
+                destructor: destructor.map(|d| NonNull::new_unchecked(Box::into_raw(d))),
             });
             Ok(NonNull::new_unchecked(header))
         }
@@ -109,32 +122,33 @@ impl HeapFragment {
     {
         assert!(self.destructor.is_none());
 
-        self.destructor = Some(Box::new(destructor));
+        let destructor = Box::new(destructor);
+        self.destructor = Some(unsafe { NonNull::new_unchecked(Box::into_raw(destructor)) });
     }
 }
 impl Drop for HeapFragment {
     fn drop(&mut self) {
         assert!(!self.link.is_linked());
         // Check if this fragment needs to have a destructor run
-        if let Some(ref mut destructor) = self.destructor {
-            destructor(self.raw.base);
+        if let Some(mut destructor) = self.destructor.take() {
+            let dtor = unsafe { destructor.as_mut() };
+            dtor(self.raw.base);
+            unsafe {
+                ptr::drop_in_place(dtor);
+            }
         }
 
         // Deallocate the memory backing this fragment
         let (layout, _offset) = Layout::new::<Self>().extend(self.raw.layout()).unwrap();
         unsafe {
             let ptr = NonNull::new_unchecked(self as *const _ as *mut u8);
+
             Global.deallocate(ptr, layout);
         }
     }
 }
 unsafe impl Allocator for HeapFragment {
     fn allocate(&self, layout: Layout) -> Result<NonNull<[u8]>, AllocError> {
-        assert!(
-            self.destructor.is_none(),
-            "it is not permitted to allocate into a heap with a destructor"
-        );
-
         let layout = layout.pad_to_align();
         let size = layout.size();
 
@@ -212,5 +226,68 @@ impl Heap for HeapFragment {
     #[inline]
     fn heap_end(&self) -> *mut u8 {
         self.raw.as_ptr_range().end
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use core::sync::atomic::{AtomicU8, Ordering};
+
+    use super::*;
+
+    #[test]
+    fn heap_fragment_integration_test() {
+        static COUNTER: AtomicU8 = AtomicU8::new(0);
+
+        struct Drops(usize);
+        impl Drop for Drops {
+            fn drop(&mut self) {
+                COUNTER.fetch_add(self.0.try_into().unwrap(), Ordering::Relaxed);
+            }
+        }
+
+        let layout = Layout::new::<[Drops; 3]>();
+        let destructor = Box::new(|ptr: NonNull<u8>| {
+            let ptr = ptr.cast::<[Drops; 3]>();
+            unsafe {
+                core::ptr::drop_in_place(ptr.as_ptr());
+            }
+        });
+        let fragment_ptr = HeapFragment::new(layout, Some(destructor)).unwrap();
+        let fragment = unsafe { fragment_ptr.as_ref() };
+        let data_ptr: NonNull<u8> = fragment.allocate(layout).unwrap().cast();
+        unsafe {
+            let array_ptr = data_ptr.cast::<[Drops; 3]>().as_ptr();
+            array_ptr.write([Drops(1), Drops(2), Drops(3)]);
+            core::ptr::drop_in_place(fragment_ptr.as_ptr());
+        }
+
+        let count = COUNTER.load(Ordering::Relaxed);
+        assert_eq!(count, 6);
+    }
+
+    #[test]
+    fn heap_fragment_no_destructor_integration_test() {
+        static COUNTER: AtomicU8 = AtomicU8::new(0);
+
+        struct Drops(usize);
+        impl Drop for Drops {
+            fn drop(&mut self) {
+                COUNTER.fetch_add(self.0.try_into().unwrap(), Ordering::Relaxed);
+            }
+        }
+
+        let layout = Layout::new::<[Drops; 3]>();
+        let fragment_ptr = HeapFragment::new(layout, None).unwrap();
+        let fragment = unsafe { fragment_ptr.as_ref() };
+        let data_ptr: NonNull<u8> = fragment.allocate(layout).unwrap().cast();
+        unsafe {
+            let array_ptr = data_ptr.cast::<[Drops; 3]>().as_ptr();
+            array_ptr.write([Drops(1), Drops(2), Drops(3)]);
+            core::ptr::drop_in_place(fragment_ptr.as_ptr());
+        }
+
+        let count = COUNTER.load(Ordering::Relaxed);
+        assert_eq!(count, 0);
     }
 }

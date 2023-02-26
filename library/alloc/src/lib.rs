@@ -16,8 +16,11 @@
 #![feature(unsize)]
 // For specializing the WriteCloneIntoRaw trait
 #![feature(min_specialization)]
+#![cfg_attr(test, feature(test))]
 
 extern crate alloc;
+#[cfg(test)]
+extern crate std;
 #[cfg(test)]
 extern crate test;
 

@@ -270,6 +270,35 @@ impl Boxable for Closure {
         }
     }
 }
+impl Closure {
+    pub unsafe fn unsafe_move_to_heap<H: ?Sized + Heap>(&self, heap: &H) -> Gc<Self> {
+        use crate::term::Cons;
+
+        let ptr = self as *const Self;
+        if heap.contains(ptr.cast()) {
+            unsafe { Gc::from_raw(ptr.cast_mut()) }
+        } else {
+            let mut cloned = Self::clone_from(self, heap).unwrap();
+            let target_env = cloned.env_mut();
+            for (i, term) in self.env().iter().copied().enumerate() {
+                if term.is_rc() {
+                    *target_env.get_unchecked_mut(i) = term;
+                } else if term.is_nonempty_list() {
+                    let mut cons = Gc::from_raw(term.as_ptr() as *mut Cons);
+                    let moved = cons.unsafe_move_to_heap(heap);
+                    *target_env.get_unchecked_mut(i) = moved.into();
+                } else if term.is_gcbox() || term.is_tuple() {
+                    let term: Term = term.into();
+                    let moved = term.unsafe_move_to_heap(heap);
+                    *target_env.get_unchecked_mut(i) = moved.into();
+                } else {
+                    *target_env.get_unchecked_mut(i) = term;
+                }
+            }
+            cloned
+        }
+    }
+}
 
 seq!(A in 0..10 {
     #(

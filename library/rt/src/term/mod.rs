@@ -293,6 +293,14 @@ impl Term {
         Ok(unsafe { self.unsafe_clone_to_heap(heap) })
     }
 
+    pub fn move_to_heap<H: ?Sized + Heap>(self, heap: &H) -> Result<OpaqueTerm, AllocError> {
+        let layout = self.layout_excluding_heap(heap);
+        if heap.heap_available() < layout.size() {
+            return Err(AllocError);
+        }
+        Ok(unsafe { self.unsafe_move_to_heap(heap) })
+    }
+
     pub unsafe fn unsafe_clone_to_heap<H: ?Sized + Heap>(&self, heap: &H) -> Self {
         match self {
             term @ (Self::None
@@ -324,6 +332,52 @@ impl Term {
                 }
             }
             Self::ConstantBinary(bytes) => Self::ConstantBinary(bytes),
+        }
+    }
+
+    pub unsafe fn unsafe_move_to_heap<H: ?Sized + Heap>(self, heap: &H) -> OpaqueTerm {
+        match self {
+            term @ (Self::None
+            | Self::Catch(_)
+            | Self::Code(_)
+            | Self::Nil
+            | Self::Bool(_)
+            | Self::Atom(_)
+            | Self::Int(_)
+            | Self::Float(_)
+            | Self::ConstantBinary(_)) => term.into(),
+            Self::Cons(mut boxed) => boxed.unsafe_move_to_heap(heap).into(),
+            Self::BigInt(boxed) => {
+                let cloned = boxed.deref().unsafe_clone_to_heap(heap);
+                core::ptr::drop_in_place(boxed.as_non_null_ptr().as_ptr());
+                cloned.into()
+            }
+            Self::Tuple(boxed) => boxed.deref().unsafe_move_to_heap(heap).into(),
+            Self::Map(boxed) => boxed.deref().unsafe_move_to_heap(heap).into(),
+            Self::Closure(boxed) => boxed.deref().unsafe_move_to_heap(heap).into(),
+            Self::Pid(boxed) => {
+                let cloned = boxed.deref().unsafe_clone_to_heap(heap);
+                core::ptr::drop_in_place(boxed.as_non_null_ptr().as_ptr());
+                cloned.into()
+            }
+            port @ Self::Port(_) => port.into(),
+            Self::Reference(boxed) => {
+                let cloned: Gc<Reference> = boxed.deref().unsafe_clone_to_heap(heap).into();
+                core::ptr::drop_in_place(boxed.as_non_null_ptr().as_ptr());
+                cloned.into()
+            }
+            Self::HeapBinary(boxed) => boxed.deref().unsafe_clone_to_heap(heap).into(),
+            rc @ Self::RcBinary(_) => rc.into(),
+            Self::RefBinary(boxed) => {
+                if heap.contains(Gc::as_ptr(&boxed).cast()) || boxed.is_owner_refcounted() {
+                    return Self::RefBinary(boxed).into();
+                } else {
+                    let byte_size = boxed.byte_size();
+                    let mut cloned = Gc::<BinaryData>::with_capacity_in(byte_size, heap).unwrap();
+                    cloned.copy_from_selection(boxed.as_selection());
+                    Self::HeapBinary(cloned).into()
+                }
+            }
         }
     }
 }

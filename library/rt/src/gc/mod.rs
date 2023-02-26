@@ -230,8 +230,8 @@ fn system_limit_exceeded(msg: &str) -> ! {
 }
 
 #[cfg(not(feature = "std"))]
-fn system_limit_exceeded(msg: &str) -> ! {
-    core::intrinsics::abort!();
+fn system_limit_exceeded(_msg: &str) -> ! {
+    core::intrinsics::abort();
 }
 
 /// Calculates the reduction count cost of a collection using a rough heuristic

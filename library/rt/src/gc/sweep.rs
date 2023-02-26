@@ -45,6 +45,8 @@ impl Sweep<()> for Root {
         match *self {
             Self::Raw(ptr) => {
                 let mut opaque = unsafe { *ptr };
+                // Reference-counted terms must have their ref count incremented
+                opaque.maybe_increment_refcount();
                 // Skip all non-boxed or reference-counted types
                 if !opaque.is_gcbox() && !opaque.is_cons_or_tuple() {
                     trace!(target: "gc", "skipping opaque root: {}", opaque);
@@ -66,7 +68,7 @@ impl Sweep<()> for Root {
             Self::Term(ptr) => {
                 let term = unsafe { &mut *ptr };
                 // Skip all non-boxed or reference-counted types
-                if !term.is_box() || term.is_refcounted() {
+                if !term.is_box() {
                     trace!(target: "gc", "skipping term root: {}", term);
                     return Ok(Move::Skipped);
                 }
@@ -491,8 +493,10 @@ impl Sweep for OpaqueTerm {
     where
         C: CollectionType,
     {
-        // Reference-counted values, and any special/immediate values can be returned unchanged
         let this = *self;
+        // Reference-counted terms must have their ref count incremented
+        this.maybe_increment_refcount();
+        // Reference-counted values, and any special/immediate values can be returned unchanged
         if this.is_rc() || !this.is_box() || this.is_literal() {
             return Ok(Move::Ok {
                 to: this,

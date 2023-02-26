@@ -73,4 +73,43 @@ impl Cons {
             builder.finish().unwrap()
         }
     }
+
+    pub unsafe fn unsafe_move_to_heap<H: ?Sized + Heap>(&mut self, heap: &H) -> Gc<Self> {
+        use smallvec::SmallVec;
+
+        let ptr = self as *const Self;
+        if heap.contains(ptr.cast()) {
+            unsafe { Gc::from_raw(ptr.cast_mut()) }
+        } else {
+            let mut items = SmallVec::<[OpaqueTerm; 4]>::new();
+            let mut improper = None;
+            for cell in self.iter_mut() {
+                let is_improper = !cell.tail.is_nonempty_list();
+                let head = cell.head;
+                if head.is_rc() {
+                    items.push(head);
+                } else if head.is_nonempty_list() {
+                    let cons = unsafe { &mut *(head.as_ptr() as *mut Cons) };
+                    let moved = cons.unsafe_move_to_heap(heap);
+                    items.push(moved.into());
+                } else if head.is_gcbox() || head.is_tuple() {
+                    let term: Term = head.into();
+                    let moved = term.unsafe_move_to_heap(heap);
+                    items.push(moved);
+                } else if is_improper {
+                    improper = Some(head);
+                } else {
+                    items.push(head);
+                }
+            }
+            let mut builder = match improper {
+                None => ListBuilder::new(heap),
+                Some(term) => ListBuilder::new_improper(term, heap),
+            };
+            for item in items.drain(..).rev() {
+                builder.push_unsafe(item).unwrap();
+            }
+            builder.finish().unwrap()
+        }
+    }
 }

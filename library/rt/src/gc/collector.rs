@@ -139,7 +139,7 @@ impl HeapRange {
 
     #[inline]
     pub fn skip(&mut self, n: usize) {
-        let end = unsafe { self.start.add(n) };
+        let end = unsafe { self.start.add(n - 1) };
         if end >= self.end {
             self.start = self.end;
         } else {
@@ -148,7 +148,7 @@ impl HeapRange {
     }
 
     pub fn skip_bytes(&mut self, n: usize) {
-        let end = unsafe { self.start.byte_add(n) };
+        let end = unsafe { self.start.sub(1).byte_add(n) };
         if end >= self.end {
             self.start = self.end;
         } else {
@@ -498,7 +498,7 @@ mod tests {
                 .unwrap(),
         )
         .unwrap();
-        let cons = list.finish().unwrap();
+        list.finish().unwrap();
 
         let mut iter = HeapIter::from(&heap);
 

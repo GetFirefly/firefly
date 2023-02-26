@@ -1135,22 +1135,20 @@ impl<'m> LowerFunctionToSsa<'m> {
                         .set_var_type(var, Type::Term(TermType::Fun(Some(Box::new(callee_type)))));
                 }
             }
-            (symbols::MakeFun, _) => {
-                assert_eq!(
-                    bif.args.len(),
-                    3,
-                    "expected make_fun bif to have three arguments"
-                );
-                let callee = self.module.get_or_register_builtin(bif.op);
-                let args = self.ssa_values(builder, bif.args)?;
-                let inst = builder.ins().call(callee, args.as_slice(), span);
-                let result = builder.first_result(inst);
+            (symbols::MakeFun, [KExpr::Remote(k::Remote::Static(name)), ..]) => {
+                let callee = builder.get_or_register_callee(name.item);
+                let callee_type = builder.func.dfg.callee_signature(callee).get_type().clone();
+                let env = self.ssa_values(builder, bif.args.split_off(1))?;
+                let inst = builder.ins().make_fun(callee, env.as_slice(), span);
+                let fun = builder.first_result(inst);
                 if !bif.ret.is_empty() {
                     let var = bif.ret[0].as_var().map(|v| v.name()).unwrap();
-                    builder.define_var(var, result);
-                    builder.set_var_type(var, Type::Term(TermType::Fun(None)));
+                    builder.define_var(var, fun);
+                    builder
+                        .set_var_type(var, Type::Term(TermType::Fun(Some(Box::new(callee_type)))));
                 }
             }
+            (symbols::MakeFun, _) => panic!("unexpected make_fun bif arguments: {:#?}", &bif.args),
             (symbols::UnpackEnv, _) => {
                 assert_eq!(
                     bif.args.len(),

@@ -47,6 +47,9 @@ jobs:
           tar -xzf "clang+llvm-${LLVM_VERSION}-x86_64-apple-darwin21.0.tar.xz"
           mv "clang+llvm-${LLVM_VERSION}-x86_64-apple-darwin21.0" firefly
           popd
+          echo ~/.local/share/llvm/firefly/bin/llvm-config --cxxflags
+          echo ~/.local/share/llvm/firefly/bin/llvm-config --ldflags
+          echo ~/.local/share/llvm/firefly/bin/llvm-config --host-target
       - name: Set LLVM_PREFIX
         run: echo "LLVM_PREFIX=$HOME/.local/share/llvm/firefly" >> $GITHUB_ENV
       - name: Install Ninja

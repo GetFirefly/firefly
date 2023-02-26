@@ -252,16 +252,3 @@ LLVMBool LLVM_InitializeNativeAsmPrinter(void) {
 LLVMBool LLVM_InitializeNativeDisassembler(void) {
   return LLVMInitializeNativeDisassembler();
 }
-
-LLVMTargetDataRef LLVMCreateTargetDataLayout(LLVMTargetMachineRef T) {
-  return wrap(new DataLayout(unwrap(T)->createDataLayout()));
-}
-
-void LLVMDisposeTargetMachine(LLVMTargetMachineRef T) { delete unwrap(T); }
-
-char *LLVMGetHostCPUName(void) { return strdup(sys::getHostCPUName().data()); }
-
-char *LLVMGetTargetMachineTriple(LLVMTargetMachineRef T) {
-  std::string StringRep = unwrap(T)->getTargetTriple().str();
-  return strdup(StringRep.c_str());
-}

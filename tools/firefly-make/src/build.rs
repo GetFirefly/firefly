@@ -476,7 +476,7 @@ pub fn run(config: &Config) -> anyhow::Result<()> {
 
     println!("Installing runtime libraries..");
 
-    let firefly_libs = &["firefly_emulator"];
+    let firefly_libs = &["firefly_emulator", "unwind"];
     for lib in firefly_libs.iter().copied() {
         if let Some(files) = deps.get(lib) {
             for file in files.iter() {

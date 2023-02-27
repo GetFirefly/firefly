@@ -146,17 +146,24 @@ impl ProjectInfo {
             .map(|t| t.dir.clone())
             .unwrap_or_else(|| options.host_tlib_path.dir.clone());
         let prefix = &options.target.options.staticlib_prefix;
-        info.used_deps
-            .push(match options.target.options.panic_strategy {
-                PanicStrategy::Abort => Dependency {
+        match options.target.options.panic_strategy {
+            PanicStrategy::Abort => {
+                info.used_deps.push(Dependency {
                     name: Symbol::intern("panic_abort"),
                     source: Some(fireflylib_dir.join(&format!("{}panic_abort.rlib", prefix))),
-                },
-                PanicStrategy::Unwind => Dependency {
+                });
+            }
+            PanicStrategy::Unwind => {
+                info.used_deps.push(Dependency {
                     name: Symbol::intern("panic_unwind"),
                     source: Some(fireflylib_dir.join(&format!("{}panic_unwind.rlib", prefix))),
-                },
-            });
+                });
+                info.used_deps.push(Dependency {
+                    name: Symbol::intern("unwind"),
+                    source: Some(fireflylib_dir.join(&format!("{}unwind.rlib", prefix))),
+                });
+            }
+        }
         if options.target.options.is_like_wasm {
             info.used_deps.push(Dependency {
                 name: Symbol::intern("firefly_emulator"),

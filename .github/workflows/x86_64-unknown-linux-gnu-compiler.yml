@@ -32,7 +32,7 @@ jobs:
           wget https://apt.llvm.org/llvm.sh
           chmod +x llvm.sh
           sudo ./llvm.sh "${LLVM_VERSION}"
-          sudo apt-get install -y "llvm-${LLVM_VERSION}" "libllvm${LLVM_VERSION}" "llvm-${LLVM_VERSION}-dev" "libmlir-${LLVM_VERSION}-dev"
+          sudo apt-get install -y "llvm-${LLVM_VERSION}" "libllvm${LLVM_VERSION}" "llvm-${LLVM_VERSION}-dev" "libmlir-${LLVM_VERSION}-dev" "libunwind-${LLVM_VERSION}-dev" "llvm-${LLVM_VERSION}-runtime"
           if ! "${LLVM_PREFIX}/bin/llvm-config" --prefix; then
             echo "$("${LLVM_PREFIX}/bin/llvm-config" --prefix)"
             exit 1

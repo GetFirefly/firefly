@@ -208,20 +208,31 @@ impl ProjectInfo {
             platform_libs.extend_from_slice(&[
                 ("execinfo", NativeLibraryKind::Unspecified),
                 ("pthread", NativeLibraryKind::Unspecified),
+                ("gcc_s", NativeLibraryKind::Unspecified),
             ]);
         } else if target_os == "netbsd" {
             platform_libs.extend_from_slice(&[
                 ("pthread", NativeLibraryKind::Unspecified),
                 ("rt", NativeLibraryKind::Unspecified),
+                ("gcc_s", NativeLibraryKind::Unspecified),
             ]);
-        } else if target_os == "dragonfly" || target_os == "openbsd" {
-            platform_libs.extend_from_slice(&[("pthread", NativeLibraryKind::Unspecified)]);
+        } else if target_os == "dragonfly" {
+            platform_libs.extend_from_slice(&[
+                ("pthread", NativeLibraryKind::Unspecified),
+                ("gcc_pic", NativeLibraryKind::Unspecified),
+            ]);
+        } else if target_os == "openbsd" {
+            platform_libs.extend_from_slice(&[
+                ("pthread", NativeLibraryKind::Unspecified),
+                ("c++abi", NativeLibraryKind::Unspecified),
+            ]);
         } else if target_os == "solaris" {
             platform_libs.extend_from_slice(&[
                 ("socket", NativeLibraryKind::Unspecified),
                 ("posix4", NativeLibraryKind::Unspecified),
                 ("pthread", NativeLibraryKind::Unspecified),
                 ("resolv", NativeLibraryKind::Unspecified),
+                ("gcc_s", NativeLibraryKind::Unspecified),
             ]);
         } else if target_os == "illumos" {
             platform_libs.extend_from_slice(&[
@@ -232,6 +243,7 @@ impl ProjectInfo {
                 ("nsl", NativeLibraryKind::Unspecified),
                 // Use libumem for the (malloc-compatible) allocator
                 ("umem", NativeLibraryKind::Unspecified),
+                ("gcc_s", NativeLibraryKind::Unspecified),
             ]);
         } else if target_os == "macos" {
             platform_libs.extend_from_slice(&[
@@ -258,12 +270,24 @@ impl ProjectInfo {
             ]);
         } else if target_os == "linux" && target_env == "uclibc" {
             platform_libs.extend_from_slice(&[("dl", NativeLibraryKind::Unspecified)]);
+            if !options.crt_static(Some(options.project_type)) {
+                platform_libs.extend_from_slice(&[("gcc_s", NativeLibraryKind::Unspecified)]);
+            }
         } else if target_os == "linux" && target_env == "gnu" {
             platform_libs.extend_from_slice(&[
                 ("m", NativeLibraryKind::Unspecified),
                 ("dl", NativeLibraryKind::Unspecified),
                 ("pthread", NativeLibraryKind::Unspecified),
             ]);
+            if !options.crt_static(Some(options.project_type)) {
+                platform_libs.extend_from_slice(&[("gcc_s", NativeLibraryKind::Unspecified)]);
+            }
+        } else if target_os == "linux" && target_env == "musl" {
+            if !options.crt_static(Some(options.project_type)) {
+                platform_libs.extend_from_slice(&[("gcc_s", NativeLibraryKind::Unspecified)]);
+            } else {
+                platform_libs.extend_from_slice(&[("unwind", NativeLibraryKind::Unspecified)]);
+            }
         }
 
         for (name, kind) in platform_libs.drain(..) {

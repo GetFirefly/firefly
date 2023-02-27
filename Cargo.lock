@@ -480,7 +480,6 @@ dependencies = [
  "firefly_util",
  "human-panic",
  "log",
- "unwind",
 ]
 
 [[package]]

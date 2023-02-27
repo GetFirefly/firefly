@@ -457,7 +457,7 @@ pub fn run(config: &Config) -> anyhow::Result<()> {
 
     println!("Installing runtime dependencies..");
 
-    let rustlibs = &["libpanic_abort", "libpanic_unwind"];
+    let rustlibs = &["libpanic_abort", "libpanic_unwind", "libunwind"];
     let walker = WalkDir::new(config.toolchain_target_dir().join("lib")).into_iter();
     for entry in walker.filter_entry(|e| is_dir_or_matching_rlib(e, rustlibs)) {
         let entry = entry.unwrap();
@@ -476,7 +476,7 @@ pub fn run(config: &Config) -> anyhow::Result<()> {
 
     println!("Installing runtime libraries..");
 
-    let firefly_libs = &["firefly_emulator", "unwind"];
+    let firefly_libs = &["firefly_emulator"];
     for lib in firefly_libs.iter().copied() {
         if let Some(files) = deps.get(lib) {
             for file in files.iter() {

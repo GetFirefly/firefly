@@ -29,4 +29,3 @@ log.workspace = true
 [build-dependencies]
 firefly_crt = { path = "../runtimes/crt" }
 firefly_emulator = { path = "../runtimes/emulator" }
-unwind = { path = "../compiler/unwind" }

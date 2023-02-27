@@ -10,11 +10,12 @@ __firefly_dynamic_apply:
     # At this point, the following registers are bound:
     #
     #   rdi <- callee
-    #   rsi <- argv
-    #   rdx <- argc
+    #   rsi <- process
+    #   rdx <- argv
+    #   rcx <- argc
     #
     # Save the parent base pointer for when control returns to this call frame.
-    # CFA directives will inform the unwinder to expect %rbp at the bottom of the
+    # CFA directives will inform the unwinder to expect rbp at the bottom of the
     # stack for this frame, so this should be the last value on the stack in the caller
     push rbp
     .cfi_def_cfa_offset 16
@@ -22,14 +23,16 @@ __firefly_dynamic_apply:
     mov  rbp, rsp
     .cfi_def_cfa_register rbp
 
-    # Save our callee and argv pointers, and argc
-    mov    r10, rdi
-    mov    r11, rsi
-    mov    rax, rdx
+    # Pin callee pointer to r10
+    mov  r10, rdi
+    # Pin the argv pointer to r11
+    mov  r11, rdx
+    # The process pointer needs to be in rdi
+    mov  rdi, rsi
 
     # Determine if spills are needed
     # In the common case in which they are not, we perform a tail call
-    cmp  rdx, 7
+    cmp  rcx, 6
     ja .L_dyn_call_spill
     
 .L_dyn_call_no_spill:
@@ -37,14 +40,12 @@ __firefly_dynamic_apply:
     # we are not certain about which registers we need to assign. We
     # simply check for each register whether this a corresponding argument,
     # and if so, we assign it.
-    #
-    # Sure would be nice if we had the equivalent of LDM from ARM
 
     # Calculate offset in jump table to block which handles the specific
     # number of registers we have arguments for, then jump to that block
-    lea    rcx, [rip + .L_dyn_call_jt]
-    mov    rcx, [rcx + rdx * 8]
-    jmp    rcx
+    lea  rcx, [rip + .L_dyn_call_jt]
+    mov  rax, [rcx + 8*rax]
+    jmp  rax
 
     # All of these basic blocks perform a tail call. As such,
     # the unwinder will skip over this frame should the callee
@@ -54,58 +55,58 @@ __firefly_dynamic_apply:
     jmp r10
 
 .L_dyn_call_regs1:
-    mov rdi, [r11]
+    mov rsi, [r11]
     pop rbp
     jmp r10
 
 .L_dyn_call_regs2:
-    mov rdi, [r11]
-    mov rsi, [r11 + 8]
-    pop rbp
-    jmp r10
+    mov  rsi, [r11]
+    mov  rdx, [r11 + 8]
+    pop  rbp
+    jmp  r10
 
 .L_dyn_call_regs3:
-    mov rdi, [r11]
-    mov rsi, [r11 + 8]
-    mov rdx, [r11 + 16]
-    pop rbp
-    jmp r10
+    mov  rsi, [r11]
+    mov  rdx, [r11 + 8]
+    mov  rcx, [r11 + 16]
+    pop  rbp
+    jmp  r10
 
 .L_dyn_call_regs4:
-    mov rdi, [r11]
-    mov rsi, [r11 + 8]
-    mov rdx, [r11 + 16]
-    mov rcx, [r11 + 24]
-    pop rbp
-    jmp r10
+    mov  rsi, [r11]
+    mov  rdx, [r11 + 8]
+    mov  rcx, [r11 + 16]
+    mov  r8, [r11 + 24]
+    pop  rbp
+    jmp  r10
 
 .L_dyn_call_regs5:
-    mov rdi, [r11]
-    mov rsi, [r11 + 8]
-    mov rdx, [r11 + 16]
-    mov rcx, [r11 + 24]
-    mov r8,  [r11 + 32]
-    pop rbp
-    jmp r10
-
-.L_dyn_call_regs6:
-    mov rdi, [r11]
-    mov rsi, [r11 + 8]
-    mov rdx, [r11 + 16]
-    mov rcx, [r11 + 24]
-    mov r8, [r11 + 32]
-    mov r9, [r11 + 40]
-    pop rbp
-    jmp r10
+    mov  rsi, [r11]
+    mov  rdx, [r11 + 8]
+    mov  rcx, [r11 + 16]
+    mov  r8, [r11 + 24]
+    mov  r9, [r11 + 32]
+    pop  rbp
+    jmp  r10
 
 .L_dyn_call_spill:
     # If we hit this block, we have identified that there are
     # arguments to spill. We perform some setup for the actual
     # spilling, which is a loop built on `rep movsq`
+    #
+    # At this point, the following registers are occupied/hold these values:
+    #
+    #  r10 <- callee
+    #  rdi <- process
+    #  r11 <- argv
+    #  rcx <- argc
 
-    # Calculate spill count for later (rep uses rcx for the iteration count,
+    # rcx, rdi, and rsi are used by `rep movsq`, so save them temporarily
+    mov  r8, rcx
+    mov  r9, rdi
+
+    # Calculate spill count for later (rep uses rcx for the iteration count `i`,
     # which in this case is the number of quadwords to copy)
-    mov  rcx, rdx
     sub  rcx, 6
 
     # Calculate spill space, and ensure it is rounded up to the nearest 16 bytes.
@@ -116,21 +117,22 @@ __firefly_dynamic_apply:
     sub rsp, rax
 
     # load source pointer (last item of argv)
-    lea rsi, [r11 + rdx * 8 + -8]
+    lea rsi, [r11 + r8 * 8 - 8]
     # load destination pointer (top of spill region)
-    lea rdi, [rsp + rcx * 8 + -8]
-    # copy rcx quadwords from rsi to rdi, in reverse
+    lea rdi, [rsp + rcx * 8 - 8]
+    # copy `i` quadwords from source to destination, in reverse
     std
     rep movsq
     cld
 
-    # We've spilled arguments, so we have at least 6 args
-    mov  rdi, [r11]
-    mov  rsi, [r11 + 8]
-    mov  rdx, [r11 + 16]
-    mov  rcx, [r11 + 24]
-    mov  r8,  [r11 + 32]
-    mov  r9,  [r11 + 40]
+    # We've spilled arguments, so we have at least 6 args, move them into their
+    # final destination registers in preparation for the call
+    mov  rdi, r9
+    mov  rsi, [r11]
+    mov  rdx, [r11 + 8]
+    mov  rcx, [r11 + 16]
+    mov  r8,  [r11 + 24]
+    mov  r9,  [r11 + 32]
 
 .L_dyn_call_exec:
     # If we spill arguments to the stack, we can't perform
@@ -167,7 +169,6 @@ __firefly_dynamic_apply:
     .quad .L_dyn_call_regs3
     .quad .L_dyn_call_regs4
     .quad .L_dyn_call_regs5
-    .quad .L_dyn_call_regs6
     .size .L_dyn_call_jt, 48
 
     # The following is the LSDA metadata for exception handling

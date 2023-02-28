@@ -43,6 +43,7 @@ __firefly_dynamic_apply:
 
     # Calculate offset in jump table to block which handles the specific
     # number of registers we have arguments for, then jump to that block
+    mov  rax, rcx
     lea  rcx, [rip + .L_dyn_call_jt]
     mov  rax, [rcx + 8*rax]
     jmp  rax

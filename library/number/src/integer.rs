@@ -45,7 +45,7 @@ impl Int {
 
     pub fn abs(&self) -> Self {
         match self {
-            Self::Small(num) => Self::Small((*num).abs()),
+            Self::Small(num) => Self::new((*num).abs()),
             Self::Big(num) => Self::Big(num.abs()),
         }
     }
@@ -1021,7 +1021,7 @@ impl From<BigInt> for Int {
     #[inline]
     fn from(i: BigInt) -> Self {
         match i.to_i64() {
-            Some(n) if n <= Self::MAX_SMALL || n >= Self::MIN_SMALL => Self::Small(n),
+            Some(n) if n <= Self::MAX_SMALL && n >= Self::MIN_SMALL => Self::Small(n),
             Some(_) | None => Self::Big(i),
         }
     }

@@ -5,8 +5,6 @@ edition = "2021"
 version = "One"
 emit_mode = "Files"
 make_backup = false
-report_todo = "Never"
-report_fixme = "Never"
 ignore = []
 skip_children = false
 hide_parse_errors = false
@@ -49,7 +47,6 @@ format_macro_bodies = true
 
 # Imports
 
-merge_imports = false
 imports_indent = "Block"
 imports_layout = "Mixed"
 reorder_imports = true

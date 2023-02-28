@@ -179,21 +179,41 @@ impl Pass for LowerBytecode {
             global
         };
 
+        let mut is_empty = true;
         for function in module.functions.iter() {
             match function {
                 Function::Bytecode {
                     is_nif: true, mfa, ..
                 } => {
+                    is_empty = false;
                     insert_dispatch_table_entry(mfa);
                 }
                 Function::Bytecode { .. } => continue,
                 Function::Bif { mfa, .. } => {
+                    is_empty = false;
                     insert_dispatch_table_entry(mfa);
                 }
                 Function::Native { name, .. } => {
                     builder.build_external_function(name.as_bytes(), void_function_type);
                 }
             }
+        }
+
+        // Make sure we have at least one function in the dispatch table
+        //
+        // This is very much an edge case, but linking will fail for the crt crate
+        // on platforms other than macOS if we don't have anything in the section
+        if is_empty {
+            // We choose to use `erlang:display/1` here, since:
+            //
+            // * It is a BIF
+            // * It is always natively-implemented
+            // * It is almost always in real programs anyway
+            insert_dispatch_table_entry(&ModuleFunctionArity {
+                module: "erlang".into(),
+                function: "display".into(),
+                arity: 1,
+            });
         }
 
         // Insert a global constant value containing the size of the bytecode in bytes

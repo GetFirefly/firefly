@@ -349,6 +349,47 @@ where
     pub fn finish(self) {}
 }
 
+pub struct JumpTableBuilder<'a, 'b, A, T>
+where
+    A: Atom,
+    T: AtomTable<Atom = A>,
+{
+    builder: &'b mut FunctionBuilder<'a, A, T>,
+    arg: Register,
+    loc: Option<LocationId>,
+    entries: Vec<(u32, BlockId)>,
+}
+impl<'a, 'b, A, T> JumpTableBuilder<'a, 'b, A, T>
+where
+    A: Atom,
+    T: AtomTable<Atom = A>,
+{
+    pub fn entry(&mut self, imm: u32, dest: BlockId) {
+        self.entries.push((imm, dest));
+    }
+
+    pub fn finish(mut self, default: BlockId, args: &[Register]) {
+        self.builder.push(
+            Opcode::JumpTable(JumpTable {
+                reg: self.arg,
+                len: self.entries.len() as u8,
+            }),
+            self.loc,
+        );
+        for (imm, dest) in self.entries.drain(..) {
+            assert_ne!(dest, self.builder.current_block);
+            self.builder.push(
+                Opcode::JumpTableEntry(JumpTableEntry {
+                    imm,
+                    offset: dest as JumpOffset,
+                }),
+                self.loc,
+            )
+        }
+        self.builder.build_br(default, args, self.loc);
+    }
+}
+
 // Builders
 impl<'a, A, T> FunctionBuilder<'a, A, T>
 where
@@ -432,29 +473,16 @@ where
         );
     }
 
-    pub fn build_br_eq(&mut self, reg: Register, imm: u32, dest: BlockId, loc: Option<LocationId>) {
-        assert_ne!(dest, self.current_block);
-
-        self.push(
-            Opcode::Breq(Breq {
-                reg,
-                imm,
-                offset: dest as JumpOffset,
-            }),
-            loc,
-        );
-    }
-
-    pub fn build_switch(
-        &mut self,
-        reg: Register,
-        arms: &[(u32, BlockId)],
+    pub fn build_jump_table<'b, 'c: 'b>(
+        &'c mut self,
+        arg: Register,
         loc: Option<LocationId>,
-    ) {
-        assert_ne!(arms.len(), 0);
-
-        for (imm, dest) in arms.iter() {
-            self.build_br_eq(reg, *imm, *dest, loc);
+    ) -> JumpTableBuilder<'a, 'b, A, T> {
+        JumpTableBuilder {
+            builder: self,
+            arg,
+            loc,
+            entries: vec![],
         }
     }
 
@@ -508,7 +536,8 @@ where
             let dst = dsts[index];
             index += 1;
 
-            // The destination register is clobbered if a subsequent move relies on it as the source register.
+            // The destination register is clobbered if a subsequent move relies on it as the source
+            // register.
             let is_clobbered = rest.contains(&dst);
 
             if is_clobbered {
@@ -566,23 +595,26 @@ where
         args: &[Register],
         loc: Option<LocationId>,
     ) -> Register {
-        let dest = self.alloc_register();
-        // We need to reserve a register for the return address
-        self.alloc_register();
-        // Then reserve registers for the callee arguments and move their values into place
-        for arg in args {
-            let dest = self.alloc_register();
-            self.push(Opcode::Mov(Mov { dest, src: *arg }), loc);
+        match self.builder.code.function_by_id(callee) {
+            Function::Native { .. } => self.build_call_nif(callee, args, loc),
+            Function::Bytecode { mfa, .. } | Function::Bif { mfa, .. } => {
+                assert_eq!(
+                    mfa.arity as usize,
+                    args.len(),
+                    "incorrect number of arguments for callee"
+                );
+                let dest = self.alloc_register();
+                // We need to reserve a register for the return address
+                self.alloc_register();
+                // Then reserve registers for the callee arguments and move their values into place
+                for arg in args {
+                    let dest = self.alloc_register();
+                    self.push(Opcode::Mov(Mov { dest, src: *arg }), loc);
+                }
+                self.push(Opcode::CallStatic(CallStatic { dest, callee }), loc);
+                dest
+            }
         }
-        self.push(
-            Opcode::CallStatic(CallStatic {
-                dest,
-                callee,
-                arity: args.len() as Arity,
-            }),
-            loc,
-        );
-        dest
     }
 
     pub fn build_call_apply2(
@@ -650,10 +682,25 @@ where
     }
 
     pub fn build_enter(&mut self, callee: FunId, args: &[Register], loc: Option<LocationId>) {
+        match self.builder.code.function_by_id(callee) {
+            Function::Native { .. } => self.build_enter_nif(callee, args, loc),
+            Function::Bytecode { mfa, .. } | Function::Bif { mfa, .. } => {
+                assert_eq!(
+                    mfa.arity as usize,
+                    args.len(),
+                    "incorrect number of arguments for callee"
+                );
+                self.prepare_tail_call_args(args, loc);
+                self.push(Opcode::EnterStatic(EnterStatic { callee }), loc);
+            }
+        }
+    }
+
+    pub fn build_enter_nif(&mut self, callee: FunId, args: &[Register], loc: Option<LocationId>) {
         self.prepare_tail_call_args(args, loc);
         self.push(
-            Opcode::EnterStatic(EnterStatic {
-                callee,
+            Opcode::EnterNative(EnterNative {
+                callee: callee as usize as *const (),
                 arity: args.len() as Arity,
             }),
             loc,
@@ -730,7 +777,8 @@ where
             let dst = dsts[index];
             index += 1;
 
-            // The destination register is clobbered if a subsequent move relies on it as the source register.
+            // The destination register is clobbered if a subsequent move relies on it as the source
+            // register.
             let is_clobbered = rest.contains(&dst);
 
             if is_clobbered {
@@ -1881,7 +1929,8 @@ where
             block.offset = block_offset;
             // Append code
             self.builder.code.code.append(&mut block.code);
-            // Insert corresponding debug info by calculating ranges of instructions covered by the same location
+            // Insert corresponding debug info by calculating ranges of instructions covered by the
+            // same location
             let mut range_loc = None;
             let mut range_start = block_offset;
             for (i, loc) in block.locations.iter().copied().enumerate() {
@@ -1921,7 +1970,7 @@ where
                 Opcode::Br(Br { ref mut offset })
                 | Opcode::Brz(Brz { ref mut offset, .. })
                 | Opcode::Brnz(Brnz { ref mut offset, .. })
-                | Opcode::Breq(Breq { ref mut offset, .. })
+                | Opcode::JumpTableEntry(JumpTableEntry { ref mut offset, .. })
                 | Opcode::LandingPad(LandingPad { ref mut offset, .. }) => {
                     // Locate the offset of the block this instruction occurs in,
                     // and determine the relative offset to the first instruction in
@@ -1936,7 +1985,8 @@ where
                             .unwrap();
                         *offset = -relative;
                     } else {
-                        // The current block occurs before the target block, so this is a forwards jump
+                        // The current block occurs before the target block, so this is a forwards
+                        // jump
                         let relative = target_block_offset as isize - ip as isize;
                         *offset = relative.try_into().unwrap()
                     }

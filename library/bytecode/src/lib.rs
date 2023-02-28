@@ -66,7 +66,8 @@ pub(crate) type HashMap<K, V> =
 /// depend on the `firefly_rt` crate directly
 #[repr(C, align(16))]
 pub struct BinaryData {
-    /// * `0111111111111xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxTTTT11` = Header (canonical NaN + 0x03 + 4-bit tag + 45-bit arity val)
+    /// * `0111111111111xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxTTTT11` = Header (canonical
+    ///   NaN + 0x03 + 4-bit tag + 45-bit arity val)
     pub header: u64,
     pub data: [u8],
 }
@@ -186,7 +187,8 @@ pub enum Function<A: Atom> {
         /// The arity of the callee
         arity: u8,
     },
-    /// An Erlang built-in, i.e. a natively-implemented function using the Erlang calling convention
+    /// An Erlang built-in, i.e. a natively-implemented function using the Erlang calling
+    /// convention
     Bif {
         id: FunId,
         /// When converted to a string, this should be the name of a native function
@@ -296,7 +298,8 @@ impl<A: Atom> Function<A> {
         }
     }
 
-    /// Returns the [`ModuleFunctionArity`] for this function, if it is an Erlang function (built-in or bytecoded)
+    /// Returns the [`ModuleFunctionArity`] for this function, if it is an Erlang function (built-in
+    /// or bytecoded)
     #[inline]
     pub fn mfa(&self) -> Option<&ModuleFunctionArity<A>> {
         match self {
@@ -475,11 +478,7 @@ impl<A: Atom, T: AtomTable<Atom = A>> ByteCode<A, T> {
         // which should now have known jump targets. This is an optimization.
         for op in original.iter_mut() {
             match op {
-                Opcode::CallStatic(CallStatic {
-                    callee,
-                    dest,
-                    arity,
-                }) => {
+                Opcode::CallStatic(CallStatic { callee, dest }) => {
                     let fun = self.functions.get(*callee);
                     match fun {
                         Function::Bytecode {
@@ -495,8 +494,7 @@ impl<A: Atom, T: AtomTable<Atom = A>> ByteCode<A, T> {
                         Function::Bytecode { mfa, .. } => {
                             return Err(InvalidBytecodeError::IncompleteFunction(*mfa));
                         }
-                        Function::Native { arity: a, .. } => {
-                            assert_eq!(arity, a);
+                        Function::Native { arity, .. } => {
                             let callee = *callee;
                             *op = Opcode::CallNative(CallNative {
                                 dest: *dest,
@@ -507,7 +505,7 @@ impl<A: Atom, T: AtomTable<Atom = A>> ByteCode<A, T> {
                         _ => continue,
                     }
                 }
-                Opcode::EnterStatic(EnterStatic { callee, arity }) => {
+                Opcode::EnterStatic(EnterStatic { callee }) => {
                     let fun = self.functions.get(*callee);
                     match fun {
                         Function::Bytecode {
@@ -520,8 +518,7 @@ impl<A: Atom, T: AtomTable<Atom = A>> ByteCode<A, T> {
                         Function::Bytecode { mfa, .. } => {
                             return Err(InvalidBytecodeError::IncompleteFunction(*mfa));
                         }
-                        Function::Native { arity: a, .. } => {
-                            assert_eq!(arity, a);
+                        Function::Native { arity, .. } => {
                             let callee = *callee;
                             *op = Opcode::EnterNative(EnterNative {
                                 callee: callee as usize as *const (),
@@ -583,17 +580,14 @@ impl<A: Atom, T: AtomTable<Atom = A>> ByteCode<A, T> {
                 Opcode::CallStatic(CallStatic {
                     ref mut callee,
                     dest,
-                    arity,
                 }) => {
                     let new_callee = remap_callee(*callee, current_module.index);
                     match self.functions.get(new_callee) {
                         Function::Bytecode {
                             is_nif: false,
                             offset,
-                            mfa,
                             ..
                         } if *offset > 0 => {
-                            assert_eq!(*arity, mfa.arity);
                             *op = Opcode::Call(Call {
                                 dest: *dest,
                                 offset: *offset,
@@ -602,8 +596,7 @@ impl<A: Atom, T: AtomTable<Atom = A>> ByteCode<A, T> {
                         Function::Bytecode { mfa, .. } => {
                             return Err(InvalidBytecodeError::IncompleteFunction(*mfa));
                         }
-                        Function::Native { arity: a, .. } => {
-                            assert_eq!(arity, a);
+                        Function::Native { arity, .. } => {
                             *op = Opcode::CallNative(CallNative {
                                 dest: *dest,
                                 callee: new_callee as usize as *const (),
@@ -615,26 +608,20 @@ impl<A: Atom, T: AtomTable<Atom = A>> ByteCode<A, T> {
                         }
                     }
                 }
-                Opcode::EnterStatic(EnterStatic {
-                    ref mut callee,
-                    arity,
-                }) => {
+                Opcode::EnterStatic(EnterStatic { ref mut callee }) => {
                     let new_callee = remap_callee(*callee, current_module.index);
                     match self.functions.get(new_callee) {
                         Function::Bytecode {
                             is_nif: false,
                             offset,
-                            mfa,
                             ..
                         } if *offset > 0 => {
-                            assert_eq!(*arity, mfa.arity);
                             *op = Opcode::Enter(Enter { offset: *offset });
                         }
                         Function::Bytecode { mfa, .. } => {
                             return Err(InvalidBytecodeError::IncompleteFunction(*mfa));
                         }
-                        Function::Native { arity: a, .. } => {
-                            assert_eq!(arity, a);
+                        Function::Native { arity, .. } => {
                             *op = Opcode::EnterNative(EnterNative {
                                 callee: new_callee as usize as *const (),
                                 arity: *arity,
@@ -680,7 +667,8 @@ impl<A: Atom, T: AtomTable<Atom = A>> ByteCode<A, T> {
 
     /// Inserts binary data into this bytecode's binary table
     ///
-    /// This is the only way to get a valid [`BinaryData`] pointer for use in building a bytecode module
+    /// This is the only way to get a valid [`BinaryData`] pointer for use in building a bytecode
+    /// module
     pub fn insert_binary(&mut self, bytes: &[u8], encoding: Encoding) -> *const BinaryData {
         let data = self
             .binaries
@@ -691,7 +679,8 @@ impl<A: Atom, T: AtomTable<Atom = A>> ByteCode<A, T> {
 
     /// Inserts bitstring data into this bytecode's binary table
     ///
-    /// This is the only way to get a valid [`BinaryData`] pointer for use in building a bytecode module
+    /// This is the only way to get a valid [`BinaryData`] pointer for use in building a bytecode
+    /// module
     pub fn insert_bitstring(&mut self, bytes: &[u8], trailing_bits: usize) -> *const BinaryData {
         let flags = BinaryFlags::new(bytes.len(), Encoding::Raw).with_trailing_bits(trailing_bits);
         let data = self.binaries.get_data_or_insert(flags, bytes);
@@ -701,8 +690,8 @@ impl<A: Atom, T: AtomTable<Atom = A>> ByteCode<A, T> {
 
     /// Defines a new bytecode function with the given MFA.
     ///
-    /// This function will return an error if an attempt is made to define a function more than once, or
-    /// an attempt is made to define a function which has the same signature as a BIF.
+    /// This function will return an error if an attempt is made to define a function more than
+    /// once, or an attempt is made to define a function which has the same signature as a BIF.
     pub fn define_function(
         &mut self,
         mfa: ModuleFunctionArity<A>,
@@ -711,14 +700,17 @@ impl<A: Atom, T: AtomTable<Atom = A>> ByteCode<A, T> {
         self.functions.define(mfa, offset)
     }
 
-    /// Gets the [`FunId`] assigned to function `mfa`, or defines a new bytecode function with that name.
+    /// Gets the [`FunId`] assigned to function `mfa`, or defines a new bytecode function with that
+    /// name.
     ///
-    /// If you want to make sure the function doesn't exist yet, use `function_by_mfa` to look it up first.
+    /// If you want to make sure the function doesn't exist yet, use `function_by_mfa` to look it up
+    /// first.
     pub fn get_or_define_function(&mut self, mfa: ModuleFunctionArity<A>) -> FunId {
         self.functions.get_or_define(mfa)
     }
 
-    /// Same as `get_or_define_function`, but for built-in functions that don't have bytecode instructions.
+    /// Same as `get_or_define_function`, but for built-in functions that don't have bytecode
+    /// instructions.
     pub fn get_or_define_bif(&mut self, mfa: ModuleFunctionArity<A>) -> FunId {
         self.functions.get_or_define_bif(mfa)
     }
@@ -824,7 +816,8 @@ impl<A: Atom, T: AtomTable<Atom = A>> ByteCode<A, T> {
     ///
     /// This function always returns `None` for natively-implemented functions.
     ///
-    /// NOTE: This function will panic in debug mode if the instruction pointer given is out of bounds
+    /// NOTE: This function will panic in debug mode if the instruction pointer given is out of
+    /// bounds
     pub fn instruction_symbol(&self, ip: usize) -> Option<Symbol<A>> {
         debug_assert!(ip < self.code.len());
 
@@ -891,7 +884,8 @@ impl<A: Atom, T: AtomTable<Atom = A>> ByteCode<A, T> {
         self.debug_info.get_or_insert_file(file)
     }
 
-    /// Insert a source location in the debug info, returning a `LocationId` for use with `set_instruction_location`
+    /// Insert a source location in the debug info, returning a `LocationId` for use with
+    /// `set_instruction_location`
     #[inline]
     pub fn get_or_insert_location(&mut self, loc: Location) -> LocationId {
         self.debug_info.get_or_insert_location(loc)
@@ -964,7 +958,8 @@ impl AtomTable for LocalAtomTable {
 }
 impl LocalAtomTable {
     // This function is used to insert new atoms in the table during runtime
-    // SAFETY: `name` must have been checked as not existing while holding the current mutable reference.
+    // SAFETY: `name` must have been checked as not existing while holding the current mutable
+    // reference.
     unsafe fn insert(&mut self, name: &str) -> Result<AtomicStr, ()> {
         use core::intrinsics::unlikely;
 
@@ -1056,7 +1051,8 @@ impl BinaryTable {
     }
 
     // This function is used to insert new atoms in the table during runtime
-    // SAFETY: `name` must have been checked as not existing while holding the current mutable reference.
+    // SAFETY: `name` must have been checked as not existing while holding the current mutable
+    // reference.
     unsafe fn insert(&mut self, flags: BinaryFlags, bytes: &[u8]) -> NonNull<BinaryData> {
         let empty = ptr::from_raw_parts::<BinaryData>(ptr::null() as *const (), bytes.len());
         let layout = unsafe { Layout::for_value_raw(empty) };
@@ -1165,7 +1161,8 @@ impl<A: Atom> FunctionTable<A> {
 
     /// Get a function by symbol name as a string
     ///
-    /// Only native functions are registered this way currently, use `get_by_mfa` for Erlang functions
+    /// Only native functions are registered this way currently, use `get_by_mfa` for Erlang
+    /// functions
     #[inline]
     pub fn find_by_name(&self, name: A) -> Option<&Function<A>> {
         self.id_by_name.get(&name).copied().map(|id| self.get(id))

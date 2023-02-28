@@ -56,18 +56,32 @@ where
             w.write_fmt(format_args!("cmov ${}, ${}, ${}", op.cond, op.dest, op.src))
         }
         Opcode::Ret(op) => w.write_fmt(format_args!("ret ${}", op.reg)),
-        Opcode::Br(op) => w.write_fmt(format_args!("br {}", op.offset)),
-        Opcode::Brz(op) => w.write_fmt(format_args!("brz ${}, {}", op.reg, op.offset)),
-        Opcode::Brnz(op) => w.write_fmt(format_args!("brnz ${}, {}", op.reg, op.offset)),
-        Opcode::Breq(op) => {
-            w.write_fmt(format_args!("breq {}, ${}, {}", op.imm, op.reg, op.offset))
-        }
+        Opcode::Br(op) => w.write_fmt(format_args!(
+            "br {}",
+            offset.checked_add_signed(op.offset as isize).unwrap()
+        )),
+        Opcode::Brz(op) => w.write_fmt(format_args!(
+            "brz ${}, {}",
+            op.reg,
+            offset.checked_add_signed(op.offset as isize).unwrap()
+        )),
+        Opcode::Brnz(op) => w.write_fmt(format_args!(
+            "brnz ${}, {}",
+            op.reg,
+            offset.checked_add_signed(op.offset as isize).unwrap()
+        )),
+        Opcode::JumpTable(op) => w.write_fmt(format_args!("jt ${} # len={}", op.reg, op.len)),
+        Opcode::JumpTableEntry(op) => w.write_fmt(format_args!(
+            "jt.entry {}, {}",
+            op.imm,
+            offset.checked_add_signed(op.offset as isize).unwrap()
+        )),
         Opcode::Call(op) => {
             let f = module.function_by_ip(op.offset);
             let mfa = f.mfa().unwrap();
             w.write_fmt(format_args!(
-                "call ${}, {} # target={}",
-                op.dest, op.offset, mfa
+                "call ${}, {} # offset={}",
+                op.dest, mfa, op.offset
             ))
         }
         Opcode::CallApply2(op) => w.write_fmt(format_args!(
@@ -98,9 +112,9 @@ where
                     "call.static ${}, {} # is_bif=true",
                     op.dest, mfa
                 )),
-                Function::Native { name, .. } => w.write_fmt(format_args!(
+                Function::Native { name, arity, .. } => w.write_fmt(format_args!(
                     "call.static ${}, {}/{} # is_nif=true",
-                    op.dest, name, op.arity
+                    op.dest, name, arity
                 )),
             }
         }
@@ -111,7 +125,7 @@ where
         Opcode::Enter(op) => {
             let f = module.function_by_ip(op.offset);
             let mfa = f.mfa().unwrap();
-            w.write_fmt(format_args!("enter {} # mfa={}", op.offset, mfa))
+            w.write_fmt(format_args!("enter {} # offset={}", mfa, op.offset))
         }
         Opcode::EnterApply2(op) => {
             w.write_fmt(format_args!("enter.apply2 ${}, ${}", op.callee, op.argv))
@@ -138,9 +152,9 @@ where
                 Function::Bif { mfa, .. } => {
                     w.write_fmt(format_args!("enter.static {} # is_bif=true", mfa))
                 }
-                Function::Native { name, .. } => w.write_fmt(format_args!(
+                Function::Native { name, arity, .. } => w.write_fmt(format_args!(
                     "enter.static {}/{} # is_nif=true",
-                    name, op.arity
+                    name, arity
                 )),
             }
         }
@@ -368,7 +382,10 @@ where
         Opcode::EndCatch(_) => w.write_str("end_catch"),
         Opcode::LandingPad(op) => w.write_fmt(format_args!(
             "landing_pad ${}, ${}, ${}, {}",
-            op.kind, op.reason, op.trace, op.offset
+            op.kind,
+            op.reason,
+            op.trace,
+            offset.checked_add_signed(op.offset as isize).unwrap()
         )),
         Opcode::StackTrace(op) => w.write_fmt(format_args!("stacktrace ${}", op.dest)),
         Opcode::Send(op) => w.write_fmt(format_args!("send ${}, ${}", op.recipient, op.message)),

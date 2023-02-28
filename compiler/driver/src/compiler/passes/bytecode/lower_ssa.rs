@@ -329,7 +329,8 @@ impl<'a> BytecodeBuilder<'a> {
             builder.mark_as_nif();
         }
 
-        // Build lookup map for syntax_ssa blocks to bytecode blocks, creating the blocks in the process
+        // Build lookup map for syntax_ssa blocks to bytecode blocks, creating the blocks in the
+        // process
         self.blocks.extend(function.dfg.blocks().map(|(b, _data)| {
             let arity = function.dfg.block_param_types(b).len() as u8;
             let bc_block = builder.create_block(arity);
@@ -488,13 +489,12 @@ impl<'a> BytecodeBuilder<'a> {
         let loc = self.location_id_from_span(builder, span);
         let arg = self.values[&op.arg];
 
+        let mut jt = builder.build_jump_table(arg, loc);
         for (value, dest) in op.arms.iter() {
             let dest = self.blocks[dest];
-            builder.build_br_eq(arg, *value, dest, loc);
+            jt.entry(*value, dest);
         }
-
-        let default = self.blocks[&op.default];
-        builder.build_br(default, &[], loc);
+        jt.finish(self.blocks[&op.default], &[]);
 
         Ok(())
     }

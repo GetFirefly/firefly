@@ -1,11 +1,7 @@
 # Firefly - A new compiler and runtime for BEAM languages
 
-| Machine | Vendor  | Operating System | Host  |Subgroup      | Status |
-|---------|---------|------------------|-------|--------------|--------|
-| wasm32  | unknown | unknown          | macOS | N/A          | [![wasm32-unknown-unknown (macOS)](https://github.com/GetFirefly/firefly/workflows/wasm32-unknown-unknown%20%28macOS%29/badge.svg?branch=develop)](https://github.com/GetFirefly/firefly/actions?query=workflow%3A%22wasm32-unknown-unknown%22+branch%3Adevelop) |
-| wasm32  | unknown | unknown          | Linux | N/A          | [![wasm32-unknown-unknown (Linux)](https://github.com/GetFirefly/firefly/workflows/wasm32-unknown-unknown%20(Linux)/badge.svg?branch=develop)](https://github.com/GetFirefly/firefly/actions?query=workflow%3A%22wasm32-unknown-unknown+%28Linux%29%22+branch%3Adevelop) |
-| x86_64  | apple   | darwin           | macOS | compiler     | [![x86_64-apple-darwin compiler](https://github.com/GetFirefly/firefly/workflows/x86_64-apple-darwin%20compiler/badge.svg?branch=develop)](https://github.com/GetFirefly/firefly/actions?query=workflow%3A%22x86_64-apple-darwin+compiler%22+branch%3Adevelop)
-| x86_64  | unknown | linux-gnu        | Linux | compiler     | [![x86_64-unknown-linux-gnu compiler](https://github.com/GetFirefly/firefly/workflows/x86_64-unknown-linux-gnu%20compiler/badge.svg?branch=develop)](https://github.com/GetFirefly/firefly/actions?query=workflow%3A%22x86_64-unknown-linux-gnu+compiler%22+branch%3Adevelop)
+[![x86_64-apple-darwin](https://github.com/GetFirefly/firefly/workflows/x86_64-apple-darwin%20compiler/badge.svg?branch=develop)](https://github.com/GetFirefly/firefly/actions?query=workflow%3A%22x86_64-apple-darwin+compiler%22+branch%3Adevelop)
+[![x86_64-unknown-linux-gnu](https://github.com/GetFirefly/firefly/workflows/x86_64-unknown-linux-gnu%20compiler/badge.svg?branch=develop)](https://github.com/GetFirefly/firefly/actions?query=workflow%3A%22x86_64-unknown-linux-gnu+compiler%22+branch%3Adevelop)
 
 * [Getting Started](#getting-started)
   * [Installation](#install)

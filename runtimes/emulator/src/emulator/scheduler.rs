@@ -250,8 +250,9 @@ impl Emulator {
                                         .flags()
                                         .contains(SignalQueueFlags::FLUSHING)
                                 {
-                                    // We are active, i.e. have erlang work to do, and have no dirty work
-                                    // and are not flushing. Limit the amount of signal handling work we do.
+                                    // We are active, i.e. have erlang work to do, and have no dirty
+                                    // work and are not
+                                    // flushing. Limit the amount of signal handling work we do.
                                     signal_reductions = MAX_REDUCTIONS / 40;
                                 }
                                 match self.handle_signals(
@@ -283,8 +284,9 @@ impl Emulator {
                                 // GC is normally never delayed when a process is scheduled out,
                                 // but if it happens, we are not allowed to execute system tasks.
                                 //
-                                // Execution of system tasks is also not allowed if a BIF is flushing signals,
-                                // since there are system tasks that might need to fetch from the outer
+                                // Execution of system tasks is also not allowed if a BIF is
+                                // flushing signals, since there are
+                                // system tasks that might need to fetch from the outer
                                 // signal queue.
                                 if !process.flags.contains(ProcessFlags::DELAY_GC)
                                     && !process
@@ -458,8 +460,9 @@ impl Emulator {
                         self.timers.borrow_mut().tick();
                     }
 
-                    // TODO: Handle other auxiliary work on a periodic basis, say every 2 * MAX_REDUCTIONS
-                    // Things include timers (handled above), ports, async tasks, etc.
+                    // TODO: Handle other auxiliary work on a periodic basis, say every 2 *
+                    // MAX_REDUCTIONS Things include timers (handled above),
+                    // ports, async tasks, etc.
 
                     // We return true to indicate we are ready to resume immediately
                     return Ok(true);
@@ -522,7 +525,6 @@ impl Emulator {
                             init_op = Opcode::CallStatic(ops::CallStatic {
                                 dest: RETURN_REG,
                                 callee: fun.id(),
-                                arity: mfa.arity,
                             });
                             &init_op
                         }
@@ -647,14 +649,16 @@ impl Emulator {
                                 assert!(reason.is_immediate());
                                 let flags = monitor.flags();
                                 if flags.contains(MonitorFlags::SPAWN_PENDING) {
-                                    // Create a spawn_request() error message and replace the signal with it
-                                    // Should only happens when connection breaks;
+                                    // Create a spawn_request() error message and replace the signal
+                                    // with it Should only
+                                    // happens when connection breaks;
                                     assert_eq!(reason, atoms::Noconnection);
                                     if flags.intersects(
                                         MonitorFlags::SPAWN_ABANDONED
                                             | MonitorFlags::SPAWN_NO_REPLY_ERROR,
                                     ) {
-                                        // Operation has been abandoned or error message has been disabled..
+                                        // Operation has been abandoned or error message has been
+                                        // disabled..
                                         cursor.remove();
                                         continue;
                                     }
@@ -1483,10 +1487,12 @@ impl Emulator {
 
                     // Finally, reconstruct the Symbol using what data we have.
                     //
-                    // If no extra info was present, use the source location of the function, if present
+                    // If no extra info was present, use the source location of the function, if
+                    // present
                     //
-                    // Erlang traces with location info always have at least a line number, so we use that
-                    // as a signal that we have location info in the trace.
+                    // Erlang traces with location info always have at least a line number, so we
+                    // use that as a signal that we have location info in the
+                    // trace.
                     let symbol = match line {
                         None => {
                             let symbol = self
@@ -1688,7 +1694,8 @@ impl Inst for Opcode<Atom> {
             Self::Br(op) => op.dispatch(emulator, process),
             Self::Brz(op) => op.dispatch(emulator, process),
             Self::Brnz(op) => op.dispatch(emulator, process),
-            Self::Breq(op) => op.dispatch(emulator, process),
+            Self::JumpTable(op) => op.dispatch(emulator, process),
+            Self::JumpTableEntry(op) => op.dispatch(emulator, process),
             Self::Call(op) => op.dispatch(emulator, process),
             Self::CallApply2(op) => op.dispatch(emulator, process),
             Self::CallApply3(op) => op.dispatch(emulator, process),
@@ -1880,21 +1887,46 @@ impl Inst for ops::Brnz {
         }
     }
 }
-impl Inst for ops::Breq {
+impl Inst for ops::JumpTable {
+    #[inline(always)]
+    fn dispatch(&self, emulator: &Emulator, process: &mut ProcessLock) -> Action {
+        match process.stack.load(self.reg).into() {
+            Term::Int(value) => {
+                let val = value as u32;
+
+                let len = self.len as usize;
+                let arms = &emulator.code.code[process.ip..(process.ip + len)];
+                for (i, arm) in arms.iter().enumerate() {
+                    let Opcode::JumpTableEntry(ops::JumpTableEntry { imm, offset }) = arm else { unreachable!() };
+                    if val.eq(imm) {
+                        process.ip = process
+                            .ip
+                            .checked_add_signed(*offset as isize + i as isize)
+                            .unwrap();
+                        return Action::Continue;
+                    }
+                }
+
+                // If we reach here, none of the arms matched, jump to next instruction
+                // after the last jump table entry. We have to subtract one from the table
+                // length because on entry the instruction pointer is already pointing to
+                // the first entry.
+                process.ip += len - 1;
+                Action::Continue
+            }
+            other => panic!("expected integer immediate, but got `{}`", &other),
+        }
+    }
+}
+/// This instruction should never be dispatched, but if it is, treat it as an unconditional branch
+impl Inst for ops::JumpTableEntry {
     #[inline(always)]
     fn dispatch(&self, _emulator: &Emulator, process: &mut ProcessLock) -> Action {
-        if let Term::Int(value) = process.stack.load(self.reg).into() {
-            let imm = self.imm as i64;
-            if value == imm {
-                process.ip = process
-                    .ip
-                    .checked_add_signed(self.offset as isize - 1)
-                    .unwrap();
-            }
-            Action::Continue
-        } else {
-            unreachable!()
-        }
+        process.ip = process
+            .ip
+            .checked_add_signed(self.offset as isize - 1)
+            .unwrap();
+        Action::Continue
     }
 }
 impl Inst for ops::Call {
@@ -2029,7 +2061,6 @@ impl Inst for ops::CallApply3 {
                         let op = ops::CallStatic {
                             dest: self.dest,
                             callee: id,
-                            arity: arity as u8,
                         };
                         op.dispatch(emulator, process)
                     }
@@ -2104,14 +2135,13 @@ impl Inst for ops::CallStatic {
                 op.dispatch(emulator, process)
             }
             Function::Bytecode { mfa, offset, .. } => {
-                assert_eq!(mfa.arity, self.arity);
                 let mfa = (*mfa).into();
                 // Try to call the native implementation
                 match function::find_symbol(&mfa) {
                     Some(symbol) => {
                         let op = ops::CallNative {
                             dest: self.dest,
-                            arity: self.arity,
+                            arity: mfa.arity,
                             callee: symbol as *const (),
                         };
                         op.dispatch(emulator, process)
@@ -2126,13 +2156,12 @@ impl Inst for ops::CallStatic {
                     }
                 }
             }
-            Function::Native { name, arity: a, .. } => {
-                assert_eq!(self.arity, *a);
+            Function::Native { name, arity, .. } => {
                 match function::find_native_symbol::<DynamicCallee>(name.as_str().as_bytes()) {
                     Ok(symbol) => {
                         let op = ops::CallNative {
                             dest: self.dest,
-                            arity: self.arity,
+                            arity: *arity,
                             callee: unsafe {
                                 mem::transmute::<DynamicCallee, *const ()>(*symbol.deref())
                             },
@@ -2154,7 +2183,7 @@ impl Inst for ops::CallStatic {
                     Some(symbol) => {
                         let op = ops::CallNative {
                             dest: self.dest,
-                            arity: self.arity,
+                            arity: mfa.arity,
                             callee: symbol as *const (),
                         };
                         op.dispatch(emulator, process)
@@ -2324,10 +2353,7 @@ impl Inst for ops::EnterApply3 {
                     }
                     Some(id) => {
                         // Convert to a EnterStatic
-                        let op = ops::EnterStatic {
-                            callee: id,
-                            arity: arity as u8,
-                        };
+                        let op = ops::EnterStatic { callee: id };
                         op.dispatch(emulator, process)
                     }
                 }
@@ -2385,13 +2411,12 @@ impl Inst for ops::EnterStatic {
                 op.dispatch(emulator, process)
             }
             Function::Bytecode { mfa, offset, .. } => {
-                assert_eq!(mfa.arity, self.arity);
                 let mfa = (*mfa).into();
                 match function::find_symbol(&mfa) {
                     Some(symbol) => {
                         let op = ops::EnterNative {
                             callee: symbol as *const (),
-                            arity: self.arity,
+                            arity: mfa.arity,
                         };
                         op.dispatch(emulator, process)
                     }
@@ -2402,14 +2427,14 @@ impl Inst for ops::EnterStatic {
                     }
                 }
             }
-            Function::Native { name, .. } => {
+            Function::Native { name, arity, .. } => {
                 match function::find_native_symbol::<DynamicCallee>(name.as_str().as_bytes()) {
                     Ok(symbol) => {
                         let op = ops::EnterNative {
                             callee: unsafe {
                                 mem::transmute::<DynamicCallee, *const ()>(*symbol.deref())
                             },
-                            arity: self.arity,
+                            arity: *arity,
                         };
                         op.dispatch(emulator, process)
                     }
@@ -2423,13 +2448,12 @@ impl Inst for ops::EnterStatic {
                 }
             }
             Function::Bif { mfa, .. } => {
-                assert_eq!(mfa.arity, self.arity);
                 let mfa = (*mfa).into();
                 match function::find_symbol(&mfa) {
                     Some(symbol) => {
                         let op = ops::EnterNative {
                             callee: symbol as *const (),
-                            arity: self.arity,
+                            arity: mfa.arity,
                         };
                         op.dispatch(emulator, process)
                     }
@@ -2455,7 +2479,8 @@ impl Inst for ops::CallIndirect {
                 let is_thin = fun.is_thin();
                 let expected_arity = (!is_thin as u8) + self.arity;
                 if fun.arity == expected_arity {
-                    // If the callee is a proper closure, we need to introduce the closure argument at the end
+                    // If the callee is a proper closure, we need to introduce the closure argument
+                    // at the end
                     if !is_thin {
                         process.stack.store(self.dest + 2 + self.arity, callee);
                     }
@@ -4331,11 +4356,13 @@ impl Inst for ops::RecvWait {
         // or until timeout.
         //
         // If it times out, control falls through to the next instruction which is the RecvTimeout
-        // instruction. If a message is received it skips over it to the next instruction following the timout.
+        // instruction. If a message is received it skips over it to the next instruction following
+        // the timout.
         //
         // `dest` will be set to a boolean indicating whether or not the receive timed out
         // `timeout` is the timeout value to use, may either be the atom `infinity` or an integer
-        // When this op is encountered, the ReceiveContext should have already been initialized by RecvPeek
+        // When this op is encountered, the ReceiveContext should have already been initialized by
+        // RecvPeek
         let timeout_value = process.stack.load(self.timeout);
         let timeout = match timeout_value.into() {
             Term::Atom(a) if a == atoms::Infinity => Ok(Timeout::INFINITY),
@@ -4345,7 +4372,8 @@ impl Inst for ops::RecvWait {
 
         // Handle the unlikely case of an invalid timeout value
         if unlikely(timeout.is_err()) {
-            // Invalid receive timeout, so cancel the receive attempt and raise a timeout_value error
+            // Invalid receive timeout, so cancel the receive attempt and raise a timeout_value
+            // error
             process.exception_info.flags = ExceptionFlags::ERROR;
             process.exception_info.reason = atoms::TimeoutValue.into();
             process.exception_info.value = timeout_value;
@@ -4370,15 +4398,17 @@ impl Inst for ops::RecvWait {
                 Action::Continue
             }
             ProcessTimer::None if timeout == Timeout::INFINITY => {
-                // Update the process flags to indicate that this process is no longer active and is suspended
+                // Update the process flags to indicate that this process is no longer active and is
+                // suspended
                 process.set_status_flags(StatusFlags::SUSPENDED, Ordering::Release);
-                // The process will go back in the scheduler queue, but won't do anything but handle signals
-                // until a message is received.
+                // The process will go back in the scheduler queue, but won't do anything but handle
+                // signals until a message is received.
                 Action::Suspend
             }
             ProcessTimer::None => {
-                // Otherwise, we register a new timeout timer for this process, and suspend until either the timeout
-                // wakes the process, or we are rescheduled due to receipt of a message
+                // Otherwise, we register a new timeout timer for this process, and suspend until
+                // either the timeout wakes the process, or we are rescheduled due
+                // to receipt of a message
                 match emulator.timeout_after(process, timeout) {
                     Ok(_) => {
                         process.set_status_flags(StatusFlags::SUSPENDED, Ordering::Release);
@@ -4401,8 +4431,8 @@ impl Inst for ops::RecvWait {
 impl Inst for ops::RecvTimeout {
     #[inline(always)]
     fn dispatch(&self, _emulator: &Emulator, process: &mut ProcessLock) -> Action {
-        // We reach here when rescheduled after a RecvWait instruction, and we must update the process
-        // based on how we were rescheduled
+        // We reach here when rescheduled after a RecvWait instruction, and we must update the
+        // process based on how we were rescheduled
         let timed_out = process.flags.contains(ProcessFlags::TIMEOUT);
         process.stack.store(self.dest, timed_out.into());
         Action::Continue
@@ -4476,8 +4506,8 @@ impl Inst for ops::ContinueExit {
             match process.continue_exit {
                 ContinueExitPhase::Timers => {
                     // if process.bif_timers {
-                    //     cost = erts_cancel_bif_timers(process, process.bif_timers, process.reductions);
-                    //     process.reductions += cost;
+                    //     cost = erts_cancel_bif_timers(process, process.bif_timers,
+                    // process.reductions);     process.reductions += cost;
                     //     if process.reductions >= MAX_REDUCTIONS { Action::Yield }
                     //     process.bif_timers = null;
                     // }
@@ -4497,7 +4527,8 @@ impl Inst for ops::ContinueExit {
                 ContinueExitPhase::CleanSysTasks => {
                     process.flags.remove(ProcessFlags::DISABLE_GC);
                     // check if there are delayed gc tasks and move them to front of sys task queue
-                    // if there are, unset StatusFlags::DELAYED_SYS and set StatusFlags::ACTIVE_SYS | StatusFlags::SYS_TASKS
+                    // if there are, unset StatusFlags::DELAYED_SYS and set StatusFlags::ACTIVE_SYS
+                    // | StatusFlags::SYS_TASKS
                     process.continue_exit = ContinueExitPhase::Free;
                 }
                 ContinueExitPhase::Free => {
@@ -4900,8 +4931,9 @@ impl Inst for ops::BsPush {
                 }
             }
             BinaryEntrySpecifier::Binary { unit } => {
-                // Size must be a non-negative integer, or None to represent pushing all of the source value into the destination buffer
-                // Term must be a bitstring/binary
+                // Size must be a non-negative integer, or None to represent pushing all of the
+                // source value into the destination buffer Term must be a
+                // bitstring/binary
                 let term: Term = value.into();
                 match term.as_bitstring() {
                     // Push all of a binary
@@ -5075,9 +5107,10 @@ impl Inst for ops::BsMatch {
         use firefly_number::f16;
 
         let heap_top = process.heap.heap_top() as usize;
-        // We perform matching with a stack copy of the context since we don't want to mutate the original
-        // If the match is unsuccessful, we simply discard it; but if it is successful, we store it
-        // on the process heap and use it for subsequent dependent matching operations
+        // We perform matching with a stack copy of the context since we don't want to mutate the
+        // original If the match is unsuccessful, we simply discard it; but if it is
+        // successful, we store it on the process heap and use it for subsequent dependent
+        // matching operations
         let context_term = process.stack.load(self.context);
         assert!(context_term.is_match_context());
         let original_context = unsafe { Gc::from_raw(context_term.as_ptr() as *mut MatchContext) };

@@ -14,7 +14,7 @@ use firefly_bytecode::{self as bc, ops, Function, Opcode, Register};
 use firefly_number::{Int, Number};
 use firefly_rt::backtrace::{Trace, TraceFrame};
 use firefly_rt::cmp::ExactEq;
-use firefly_rt::error::{ErrorCode, ExceptionFlags};
+use firefly_rt::error::{ErrorCode, ExceptionFlags, ExceptionInfo};
 use firefly_rt::function::{self, DynamicCallee, ErlangResult, ModuleFunctionArity};
 use firefly_rt::gc::{self, Gc};
 use firefly_rt::process::link::{Link, LinkEntry, LinkTreeEntry};
@@ -23,7 +23,8 @@ use firefly_rt::process::signals::{
     self, Message, Signal, SignalEntry, SignalQueueFlags, SignalQueueLock,
 };
 use firefly_rt::process::{
-    ContinueExitPhase, Process, ProcessFlags, ProcessLock, ProcessTimer, StatusFlags,
+    ContinueExitPhase, Process, ProcessFlags, ProcessLock, ProcessTimer, SpawnOpts, StatusFlags,
+    ARG0_REG, CP_REG, RETURN_REG,
 };
 use firefly_rt::scheduler::{Scheduler, SchedulerId};
 use firefly_rt::services::error_logger;
@@ -86,49 +87,85 @@ impl Scheduler for Emulator {
     }
 
     /// Spawn a new process with the given module/function/arguments
-    fn spawn3(
+    fn spawn(
         &self,
-        parent: Pid,
-        group_leader: Pid,
+        parent: &mut ProcessLock,
         mfa: ModuleFunctionArity,
         args: &[OpaqueTerm],
-    ) -> Pid {
+        opts: SpawnOpts,
+    ) -> (Arc<Process>, Option<Gc<Reference>>) {
+        use firefly_rt::process::monitor::LocalMonitorInfo;
+
+        let spawn_async = opts.spawn_async;
+        let monitor = opts.monitor;
+        let link = opts.link;
+        let spawn_ref_id = self.next_reference_id();
+        let spawn_ref;
+        if opts.monitor.map(|mo| mo.alias.is_some()).unwrap_or(false) {
+            spawn_ref =
+                Some(Gc::new_in(Reference::new_pid(spawn_ref_id, parent.pid()), parent).unwrap());
+        } else if opts.monitor.is_some() {
+            spawn_ref = Some(Gc::new_in(Reference::new(spawn_ref_id), parent).unwrap());
+        } else {
+            spawn_ref = None;
+        }
+
+        if log_enabled!(target: "scheduler", log::Level::Trace) {
+            let argv = args
+                .iter()
+                .map(|a| format!("{}", a))
+                .collect::<SmallVec<[String; 4]>>();
+            let argv_formatted = argv.join(",");
+            trace!(target: "scheduler", "spawning process with mfa {} and args [{}], link={}, monitor={}", &mfa, argv_formatted, monitor.is_some(), link);
+        }
+
         let proc = Process::new(
             self.id(),
-            Some(parent),
-            Some(group_leader),
+            Some(parent.pid()),
+            Some(
+                parent
+                    .group_leader()
+                    .cloned()
+                    .unwrap_or_else(|| parent.pid()),
+            ),
             mfa,
             args,
             self.injector.clone(),
+            opts,
         );
+
+        {
+            let mut spawned = proc.lock();
+            if link {
+                let link = LinkEntry::new(Link::LocalProcess {
+                    origin: parent.id(),
+                    target: spawned.id(),
+                });
+                assert!(parent.links.link(link.clone()).is_ok());
+                assert!(spawned.links.linked_by(link).is_ok());
+            }
+
+            if let Some(monitor_opts) = monitor {
+                let monitor = MonitorEntry::new(Monitor::LocalProcess {
+                    origin: parent.id(),
+                    target: spawned.id(),
+                    info: LocalMonitorInfo {
+                        reference: spawn_ref_id,
+                        name_or_tag: TermFragment::new(monitor_opts.tag.into()).unwrap(),
+                    },
+                });
+                monitor.set_flags(monitor_opts.flags);
+                parent.monitored.insert(monitor.clone());
+                spawned.monitored_by.push_back(monitor);
+            }
+            assert!(!spawn_async, "asynchronous spawns are not implemented yet");
+        }
 
         registry::register_process(proc.clone());
 
-        let pid = proc.pid();
+        self.runq.push(proc.clone());
 
-        self.runq.push(proc);
-
-        pid
-    }
-
-    /// Spawn a new process with the given closure
-    fn spawn2(&self, parent: Pid, group_leader: Pid, fun: Gc<Closure>) -> Pid {
-        let proc = Process::new(
-            self.id(),
-            Some(parent),
-            Some(group_leader),
-            fun.mfa(),
-            &[fun.into()],
-            self.injector.clone(),
-        );
-
-        registry::register_process(proc.clone());
-
-        let pid = proc.pid();
-
-        self.runq.push(proc);
-
-        pid
+        (proc, spawn_ref)
     }
 
     fn reschedule(&self, process: Arc<Process>) {
@@ -136,10 +173,7 @@ impl Scheduler for Emulator {
     }
 }
 
-const RETURN_REG: Register = 0;
-const CP_REG: Register = 1;
-const ARG0_REG: Register = 2;
-const MAX_REDUCTIONS: usize = 4000;
+const MAX_REDUCTIONS: usize = Process::MAX_REDUCTIONS;
 const ERTS_SIGNAL_REDUCTIONS_COUNT_FACTOR: usize = 4;
 
 impl Emulator {
@@ -529,14 +563,89 @@ impl Emulator {
                             &init_op
                         }
                         None => {
+                            // Check if this is a call to erlang:apply/2 or /3
                             process.ip = NORMAL_EXIT_IP;
-                            process
-                                .stack
-                                .store(ARG0_REG + mfa.arity, atoms::Undef.into());
-                            init_op = Opcode::Error1(ops::Error1 {
-                                reason: ARG0_REG + mfa.arity,
-                            });
-                            &init_op
+                            if mfa.module == atoms::Erlang && mfa.function == atoms::Apply {
+                                match mfa.arity {
+                                    2 => {
+                                        let initial_args = process.initial_arguments();
+                                        match initial_args {
+                                            Some(Term::Tuple(argv))
+                                                if argv.len() == mfa.arity as usize =>
+                                            {
+                                                process.stack.store(ARG0_REG, argv[0]);
+                                                process.stack.store(ARG0_REG + 1, argv[1]);
+                                                init_op = Opcode::CallApply2(ops::CallApply2 {
+                                                    dest: RETURN_REG,
+                                                    callee: ARG0_REG,
+                                                    argv: ARG0_REG + 1,
+                                                });
+                                                &init_op
+                                            }
+                                            _ => {
+                                                // Raise badarg
+                                                process.stack.store(
+                                                    ARG0_REG + mfa.arity as Register,
+                                                    atoms::Badarg.into(),
+                                                );
+                                                init_op = Opcode::Error1(ops::Error1 {
+                                                    reason: ARG0_REG + mfa.arity as Register,
+                                                });
+                                                &init_op
+                                            }
+                                        }
+                                    }
+                                    3 => {
+                                        let initial_args = process.initial_arguments();
+                                        match initial_args {
+                                            Some(Term::Tuple(argv))
+                                                if argv.len() == mfa.arity as usize =>
+                                            {
+                                                process.stack.store(ARG0_REG, argv[0]);
+                                                process.stack.store(ARG0_REG + 1, argv[1]);
+                                                process.stack.store(ARG0_REG + 2, argv[2]);
+                                                init_op = Opcode::CallApply3(ops::CallApply3 {
+                                                    dest: RETURN_REG,
+                                                    module: ARG0_REG,
+                                                    function: ARG0_REG + 1,
+                                                    argv: ARG0_REG + 2,
+                                                });
+                                                &init_op
+                                            }
+                                            _ => {
+                                                // Raise badarg
+                                                process.stack.store(
+                                                    ARG0_REG + mfa.arity as Register,
+                                                    atoms::Badarg.into(),
+                                                );
+                                                init_op = Opcode::Error1(ops::Error1 {
+                                                    reason: ARG0_REG + mfa.arity as Register,
+                                                });
+                                                &init_op
+                                            }
+                                        }
+                                    }
+                                    _ => {
+                                        process.stack.store(
+                                            ARG0_REG + mfa.arity as Register,
+                                            atoms::Undef.into(),
+                                        );
+                                        init_op = Opcode::Error1(ops::Error1 {
+                                            reason: ARG0_REG + mfa.arity as Register,
+                                        });
+                                        &init_op
+                                    }
+                                }
+                            } else {
+                                // Raise undef
+                                process
+                                    .stack
+                                    .store(ARG0_REG + mfa.arity as Register, atoms::Undef.into());
+                                init_op = Opcode::Error1(ops::Error1 {
+                                    reason: ARG0_REG + mfa.arity as Register,
+                                });
+                                &init_op
+                            }
                         }
                     }
                 }
@@ -584,7 +693,7 @@ impl Emulator {
         Ok(())
     }
 
-    fn handle_signals(
+    pub(crate) fn handle_signals(
         &self,
         process: &mut ProcessLock,
         status: &mut StatusFlags,
@@ -1643,7 +1752,7 @@ impl Emulator {
 
 #[derive(Debug)]
 #[repr(u8)]
-enum Action {
+pub enum Action {
     /// This process should continue executing
     Continue,
     /// This process should be rescheduled for later
@@ -1680,6 +1789,7 @@ trait Inst {
 const GC: ops::GarbageCollect = ops::GarbageCollect { fullsweep: false };
 const NORMAL_EXIT_IP: usize = 1;
 const CONTINUE_EXIT_IP: usize = 2;
+const TRAP_IP: usize = 4;
 
 impl Inst for Opcode<Atom> {
     fn dispatch(&self, emulator: &Emulator, process: &mut ProcessLock) -> Action {
@@ -1790,6 +1900,7 @@ impl Inst for Opcode<Atom> {
             Self::RecvWait(op) => op.dispatch(emulator, process),
             Self::RecvTimeout(op) => op.dispatch(emulator, process),
             Self::RecvPop(op) => op.dispatch(emulator, process),
+            Self::Await(op) => op.dispatch(emulator, process),
             Self::Yield(op) => op.dispatch(emulator, process),
             Self::GarbageCollect(op) => op.dispatch(emulator, process),
             Self::NormalExit(op) => op.dispatch(emulator, process),
@@ -1811,6 +1922,7 @@ impl Inst for Opcode<Atom> {
             Self::Spawn2(op) => op.dispatch(emulator, process),
             Self::Spawn3(op) => op.dispatch(emulator, process),
             Self::Spawn3Indirect(op) => op.dispatch(emulator, process),
+            Self::Trap(op) => op.dispatch(emulator, process),
         }
     }
 }
@@ -2101,7 +2213,40 @@ impl Inst for ops::CallNative {
                 let op = ops::Ret { reg: RETURN_REG };
                 op.dispatch(emulator, process)
             }
-            ErlangResult::Err(_) | ErlangResult::Exit => emulator.handle_error(process),
+            ErlangResult::Err | ErlangResult::Exit => emulator.handle_error(process),
+            ErlangResult::Await(generator) => {
+                // We're blocked on some generator which needs to be run to completion
+                process.awaiting = Some(Box::into_inner(generator));
+                Action::Yield
+            }
+            ErlangResult::Trap(mfa) => {
+                // The native function is trapping, so we are playing the
+                // role of a trampoline here and tail calling the trap function.
+                //
+                // The trapping NIF/BIF will have already placed the callee arguments
+                // on the stack in their appropriate argument slots, so we need only
+                // dispatch the call itself. However we must also handle the case where
+                // the desired callee doesn't exist, however unlikely that may be.
+                //
+                // To ensure we yield to the scheduler if we're out of reductions, we
+                // dispatch to the callee via the `Trap` instruction, but first we must
+                // store the callee function id in the process state.
+                let mfa = (*mfa).into();
+                match emulator.code.function_by_mfa(&mfa).map(|fun| fun.id()) {
+                    Some(callee) => {
+                        process.trap = Some(callee);
+                        process.ip = TRAP_IP;
+                        Action::Continue
+                    }
+                    None => {
+                        process.exception_info.flags = ExceptionFlags::ERROR;
+                        process.exception_info.reason = atoms::Undef.into();
+                        process.exception_info.value = atoms::Undef.into();
+                        process.exception_info.trace = None;
+                        emulator.handle_error(process)
+                    }
+                }
+            }
         }
     }
 }
@@ -2390,8 +2535,30 @@ impl Inst for ops::EnterNative {
                 let op = ops::Ret { reg: RETURN_REG };
                 op.dispatch(emulator, process)
             }
-            ErlangResult::Err(_) => emulator.handle_error(process),
-            ErlangResult::Exit => emulator.handle_error(process),
+            ErlangResult::Err | ErlangResult::Exit => emulator.handle_error(process),
+            ErlangResult::Await(generator) => {
+                // See the comment in CallNative regarding awaits
+                process.awaiting = Some(Box::into_inner(generator));
+                Action::Yield
+            }
+            ErlangResult::Trap(mfa) => {
+                // See the comment in CallNative regarding traps
+                let mfa = (*mfa).into();
+                match emulator.code.function_by_mfa(&mfa).map(|fun| fun.id()) {
+                    Some(callee) => {
+                        process.trap = Some(callee);
+                        process.ip = TRAP_IP;
+                        Action::Continue
+                    }
+                    None => {
+                        process.exception_info.flags = ExceptionFlags::ERROR;
+                        process.exception_info.reason = atoms::Undef.into();
+                        process.exception_info.value = atoms::Undef.into();
+                        process.exception_info.trace = None;
+                        emulator.handle_error(process)
+                    }
+                }
+            }
         }
     }
 }
@@ -2482,7 +2649,9 @@ impl Inst for ops::CallIndirect {
                     // If the callee is a proper closure, we need to introduce the closure argument
                     // at the end
                     if !is_thin {
-                        process.stack.store(self.dest + 2 + self.arity, callee);
+                        process
+                            .stack
+                            .store(self.dest + 2 + self.arity as Register, callee);
                     }
                     if fun.is_native() {
                         let op = ops::CallNative {
@@ -2527,7 +2696,9 @@ impl Inst for ops::EnterIndirect {
                 let expected_arity = (!is_thin as u8) + self.arity;
                 if fun.arity == expected_arity {
                     if !is_thin {
-                        process.stack.store(ARG0_REG + self.arity, callee);
+                        process
+                            .stack
+                            .store(ARG0_REG + self.arity as Register, callee);
                     }
                     if fun.is_native() {
                         let op = ops::EnterNative {
@@ -2600,17 +2771,16 @@ impl Inst for ops::IsTupleFetchArity {
     fn dispatch(&self, _emulator: &Emulator, process: &mut ProcessLock) -> Action {
         let term = process.stack.load(self.value);
         match term.tuple_size() {
-            ErlangResult::Ok(arity) => {
+            Ok(arity) => {
                 process.stack.store(self.dest, OpaqueTerm::TRUE);
                 process
                     .stack
                     .store(self.arity, Term::Int(arity as i64).into());
             }
-            ErlangResult::Err(_) => {
+            Err(_) => {
                 process.stack.store(self.dest, OpaqueTerm::FALSE);
                 process.stack.store(self.arity, OpaqueTerm::NONE);
             }
-            ErlangResult::Exit => unreachable!(),
         }
         Action::Continue
     }
@@ -2715,12 +2885,31 @@ impl Inst for ops::IsBinary {
 }
 impl Inst for ops::IsFunction {
     #[inline(always)]
-    fn dispatch(&self, _emulator: &Emulator, process: &mut ProcessLock) -> Action {
-        let is_fun = match process.stack.load(self.value).r#typeof() {
-            TermType::Closure => OpaqueTerm::TRUE,
-            _ => OpaqueTerm::FALSE,
-        };
-        process.stack.store(self.dest, is_fun);
+    fn dispatch(&self, emulator: &Emulator, process: &mut ProcessLock) -> Action {
+        let fun_term = process.stack.load(self.value);
+        match fun_term.into() {
+            Term::Closure(_) if self.arity.is_none() => {
+                process.stack.store(self.dest, true.into());
+            }
+            Term::Closure(fun) => {
+                let arity_term = process.stack.load(self.arity.unwrap());
+                match arity_term.into() {
+                    Term::Int(i) if i >= 0 => {
+                        process
+                            .stack
+                            .store(self.dest, (fun.arity as i64 == i).into());
+                    }
+                    _ => {
+                        process.exception_info = ExceptionInfo::error(atoms::Badarg.into());
+                        process.exception_info.value = arity_term;
+                        return emulator.handle_error(process);
+                    }
+                }
+            }
+            _ => {
+                process.stack.store(self.dest, false.into());
+            }
+        }
         Action::Continue
     }
 }
@@ -3009,7 +3198,7 @@ impl Inst for ops::TupleArity {
     #[inline(always)]
     fn dispatch(&self, _emulator: &Emulator, process: &mut ProcessLock) -> Action {
         match process.stack.load(self.tuple).tuple_size() {
-            ErlangResult::Ok(arity) => {
+            Ok(arity) => {
                 process
                     .stack
                     .store(self.dest, Term::Int(arity as i64).into());
@@ -4113,9 +4302,8 @@ impl Inst for ops::IsLte {
 impl Inst for ops::Catch {
     #[inline(always)]
     fn dispatch(&self, _emulator: &Emulator, process: &mut ProcessLock) -> Action {
-        let cp = OpaqueTerm::catch(process.ip);
-        process.stack.store(self.cp, cp);
-        process.stack.enter_catch(self.cp);
+        let cp = process.ip;
+        process.stack.enter_catch(cp);
         // Skip over the LandingPad instruction, since that is only used as
         // the continuation for any exceptions which are raised.
         process.ip += 1;
@@ -4132,6 +4320,11 @@ impl Inst for ops::EndCatch {
 impl Inst for ops::LandingPad {
     #[inline(always)]
     fn dispatch(&self, _emulator: &Emulator, process: &mut ProcessLock) -> Action {
+        // When we enter a landing pad, we must pop the catch mark
+        // from the stack, as it is left in place until the exception
+        // is caught. There is no EndCatch on the exceptional path.
+        process.stack.exit_catch();
+
         let class = process
             .exception_info
             .class()
@@ -4458,6 +4651,44 @@ impl Inst for ops::RecvPop {
             }
         }
         Action::Continue
+    }
+}
+
+impl Inst for ops::Await {
+    #[inline]
+    fn dispatch(&self, emulator: &Emulator, process: &mut ProcessLock) -> Action {
+        use firefly_rt::process::GeneratorState;
+
+        // We should have a generator ready to poll
+        let mut generator = process.awaiting.take().unwrap();
+        match generator.resume(process) {
+            GeneratorState::Yielded(_) => {
+                // Yield back to the scheduler for now
+                //
+                // NOTE: We do not mark the process as suspended currently because
+                // we are still ironing out how to best implement a Waker for arbitrary
+                // NIFs/BIFs. For now, we consider the overhead of scheduling a process
+                // to poll a generator that is just going to yield cheap enough that it
+                // isn't important.
+                process.awaiting = Some(generator);
+                Action::Yield
+            }
+            GeneratorState::Completed(Ok(result)) => {
+                process.stack.store(RETURN_REG, result.into());
+                let op = ops::Ret { reg: RETURN_REG };
+                op.dispatch(emulator, process)
+            }
+            GeneratorState::Completed(Err(_)) => emulator.handle_error(process),
+        }
+    }
+}
+impl Inst for ops::Trap {
+    #[inline(always)]
+    fn dispatch(&self, emulator: &Emulator, process: &mut ProcessLock) -> Action {
+        let op = ops::EnterStatic {
+            callee: process.trap.take().unwrap(),
+        };
+        op.dispatch(emulator, process)
     }
 }
 impl Inst for ops::Yield {
@@ -5672,7 +5903,7 @@ impl Inst for ops::FuncInfo {
             }
         }
         // Write NONE to all of the slots not occupied by arguments
-        process.stack.zero(ARG0_REG + self.arity);
+        process.stack.zero(ARG0_REG + self.arity as Register);
         if log_enabled!(target: "process", log::Level::Trace) {
             let fun = emulator.code.function_by_id(self.id);
             let argv = process
@@ -5712,82 +5943,92 @@ impl Inst for ops::Identity {
     }
 }
 impl Inst for ops::Spawn2 {
-    #[inline(always)]
+    #[inline]
     fn dispatch(&self, emulator: &Emulator, process: &mut ProcessLock) -> Action {
-        use firefly_bytecode::ops::SpawnOpts;
-        assert_eq!(self.opts, SpawnOpts::empty());
+        let link = self.opts.contains(ops::SpawnOpts::LINK);
+        let monitor = self.opts.contains(ops::SpawnOpts::MONITOR);
+
+        let mut layout = LayoutBuilder::new();
+        layout.build_pid();
+        if monitor {
+            layout.build_reference();
+            layout.build_tuple(2);
+        }
+        let needed = layout.finish().size();
         let heap_available = process.heap.heap_available();
-        if heap_available < mem::size_of::<Pid>() {
-            process.gc_needed = mem::size_of::<Pid>();
+        if heap_available < needed {
+            process.gc_needed = needed;
             process.ip -= 1;
             return GC.dispatch(emulator, process);
         }
-        let fun = process.stack.load(self.fun);
-        match fun.into() {
+
+        let fun_term = process.stack.load(self.fun);
+        match fun_term.into() {
             Term::Closure(fun) => {
-                let parent = process.pid();
-                let group_leader = match process.group_leader() {
-                    None => parent.clone(),
-                    Some(gl) => gl.clone(),
-                };
-                let pid = emulator.spawn2(parent, group_leader, fun);
-                let pid = Gc::new_in(pid, process).unwrap();
-                process.stack.store(self.dest, pid.into());
+                let mut spawn_opts = SpawnOpts::default();
+                spawn_opts.link = link;
+                if monitor {
+                    spawn_opts.monitor = Some(Default::default());
+                }
+                match emulator.spawn(process, fun.mfa(), &[fun_term], spawn_opts) {
+                    (spawned, Some(spawn_ref)) => {
+                        let pid = Gc::new_in(spawned.pid(), process).unwrap();
+                        let tuple =
+                            Tuple::from_slice(&[pid.into(), spawn_ref.into()], process).unwrap();
+                        process.stack.store(self.dest, tuple.into());
+                    }
+                    (spawned, None) => {
+                        let pid = Gc::new_in(spawned.pid(), process).unwrap();
+                        process.stack.store(self.dest, pid.into());
+                    }
+                }
                 Action::Continue
             }
             _ => {
                 process.exception_info.flags = ExceptionFlags::ERROR;
                 process.exception_info.reason = atoms::Badarg.into();
-                process.exception_info.value = fun;
-                process.exception_info.args = Some(fun);
+                process.exception_info.value = fun_term;
+                process.exception_info.args = Some(fun_term);
                 emulator.handle_error(process)
             }
         }
     }
 }
 impl Inst for ops::Spawn3 {
-    #[inline(always)]
+    #[inline]
     fn dispatch(&self, emulator: &Emulator, process: &mut ProcessLock) -> Action {
-        use firefly_bytecode::ops::SpawnOpts;
-        assert_eq!(self.opts, SpawnOpts::empty());
         let mfa = emulator.code.function_by_id(self.fun).mfa().unwrap();
+        let link = self.opts.contains(ops::SpawnOpts::LINK);
+        let monitor = self.opts.contains(ops::SpawnOpts::MONITOR);
+
+        let mut layout = LayoutBuilder::new();
+        layout.build_pid();
+        if monitor {
+            layout.build_reference();
+            layout.build_tuple(2);
+        }
+        let needed = layout.finish().size();
         let heap_available = process.heap.heap_available();
-        if heap_available < mem::size_of::<Pid>() {
-            process.gc_needed = mem::size_of::<Pid>();
+        if heap_available < needed {
+            process.gc_needed = needed;
             process.ip -= 1;
             return GC.dispatch(emulator, process);
         }
-        let parent = process.pid();
-        let group_leader = match process.group_leader() {
-            None => parent.clone(),
-            Some(gl) => gl.clone(),
-        };
+
         let arglist = process.stack.load(self.args);
-        let mut arity = 0;
-        let args_start =
-            (process.stack.stack_pointer() - process.stack.frame_pointer()) as Register;
+        let mut argv = SmallVec::<[OpaqueTerm; 6]>::default();
         match arglist.into() {
             Term::Nil => (),
             Term::Cons(cons) => {
-                for (i, result) in cons.iter_raw().enumerate() {
+                for result in cons.iter_raw() {
                     if result.is_err() {
-                        unsafe {
-                            process.stack.dealloc(arity as usize);
-                        }
                         process.exception_info.flags = ExceptionFlags::ERROR;
                         process.exception_info.reason = atoms::Badarg.into();
                         process.exception_info.value = arglist;
                         process.exception_info.trace = None;
                         return emulator.handle_error(process);
                     }
-                    arity += 1;
-                    unsafe {
-                        process.stack.alloca(1);
-                    }
-                    let reg = args_start + (i as Register);
-                    process
-                        .stack
-                        .store(reg, unsafe { result.unwrap_unchecked() });
+                    argv.push(unsafe { result.unwrap_unchecked() });
                 }
             }
             _ => {
@@ -5797,58 +6038,74 @@ impl Inst for ops::Spawn3 {
                 return emulator.handle_error(process);
             }
         }
-        let args = process.stack.select_registers(args_start, arity);
-        let pid = emulator.spawn3(parent, group_leader, (*mfa).into(), args);
-        let pid = Gc::new_in(pid, process).unwrap();
-        process.stack.store(self.dest, pid.into());
+
+        let mut spawn_opts = SpawnOpts::default();
+        spawn_opts.link = link;
+        if monitor {
+            spawn_opts.monitor = Some(Default::default());
+        }
+        match emulator.spawn(process, (*mfa).into(), argv.as_slice(), spawn_opts) {
+            (spawned, Some(spawn_ref)) => {
+                let pid = Gc::new_in(spawned.pid(), process).unwrap();
+                let tuple = Tuple::from_slice(&[pid.into(), spawn_ref.into()], process).unwrap();
+                process.stack.store(self.dest, tuple.into());
+            }
+            (spawned, None) => {
+                let pid = Gc::new_in(spawned.pid(), process).unwrap();
+                process.stack.store(self.dest, pid.into());
+            }
+        }
         Action::Continue
     }
 }
 impl Inst for ops::Spawn3Indirect {
-    #[inline(always)]
+    #[inline]
     fn dispatch(&self, emulator: &Emulator, process: &mut ProcessLock) -> Action {
-        use firefly_bytecode::ops::SpawnOpts;
-        assert_eq!(self.opts, SpawnOpts::empty());
+        let link = self.opts.contains(ops::SpawnOpts::LINK);
+        let monitor = self.opts.contains(ops::SpawnOpts::MONITOR);
+
+        let mut layout = LayoutBuilder::new();
+        layout.build_pid();
+        if monitor {
+            layout.build_reference();
+            layout.build_tuple(2);
+        }
+        let needed = layout.finish().size();
+        let heap_available = process.heap.heap_available();
+        if heap_available < needed {
+            process.gc_needed = needed;
+            process.ip -= 1;
+            return GC.dispatch(emulator, process);
+        }
+
         let module = process.stack.load(self.module);
-        if module.is_atom() {
+        if !module.is_atom() {
             process.exception_info.flags = ExceptionFlags::ERROR;
             process.exception_info.reason = atoms::Badarg.into();
             process.exception_info.value = module;
             return emulator.handle_error(process);
         }
         let function = process.stack.load(self.function);
-        if function.is_atom() {
+        if !function.is_atom() {
             process.exception_info.flags = ExceptionFlags::ERROR;
             process.exception_info.reason = atoms::Badarg.into();
             process.exception_info.value = function;
             return emulator.handle_error(process);
         }
         let arglist = process.stack.load(self.args);
-        let mut arity = 0;
-        let args_start =
-            (process.stack.stack_pointer() - process.stack.frame_pointer()) as Register;
+        let mut argv = SmallVec::<[OpaqueTerm; 6]>::default();
         match arglist.into() {
             Term::Nil => (),
             Term::Cons(cons) => {
-                for (i, result) in cons.iter_raw().enumerate() {
+                for result in cons.iter_raw() {
                     if result.is_err() {
-                        unsafe {
-                            process.stack.dealloc(arity as usize);
-                        }
                         process.exception_info.flags = ExceptionFlags::ERROR;
                         process.exception_info.reason = atoms::Badarg.into();
                         process.exception_info.value = arglist;
                         process.exception_info.trace = None;
                         return emulator.handle_error(process);
                     }
-                    arity += 1;
-                    unsafe {
-                        process.stack.alloca(1);
-                    }
-                    let reg = args_start + (i as Register);
-                    process
-                        .stack
-                        .store(reg, unsafe { result.unwrap_unchecked() });
+                    argv.push(unsafe { result.unwrap_unchecked() });
                 }
             }
             _ => {
@@ -5858,27 +6115,28 @@ impl Inst for ops::Spawn3Indirect {
                 return emulator.handle_error(process);
             }
         }
-        let heap_available = process.heap.heap_available();
-        if heap_available < mem::size_of::<Pid>() {
-            process.gc_needed = mem::size_of::<Pid>();
-            process.ip -= 1;
-            return GC.dispatch(emulator, process);
-        }
+
         let mfa = ModuleFunctionArity {
             module: module.as_atom(),
             function: function.as_atom(),
-            arity,
+            arity: argv.len() as u8,
         };
-
-        let parent = process.pid();
-        let group_leader = match process.group_leader() {
-            None => parent.clone(),
-            Some(gl) => gl.clone(),
-        };
-        let args = process.stack.select_registers(args_start, arity as usize);
-        let pid = emulator.spawn3(parent, group_leader, mfa, args);
-        let pid = Gc::new_in(pid, process).unwrap();
-        process.stack.store(self.dest, pid.into());
+        let mut spawn_opts = SpawnOpts::default();
+        spawn_opts.link = link;
+        if monitor {
+            spawn_opts.monitor = Some(Default::default());
+        }
+        match emulator.spawn(process, mfa, argv.as_slice(), spawn_opts) {
+            (spawned, Some(spawn_ref)) => {
+                let pid = Gc::new_in(spawned.pid(), process).unwrap();
+                let tuple = Tuple::from_slice(&[pid.into(), spawn_ref.into()], process).unwrap();
+                process.stack.store(self.dest, tuple.into());
+            }
+            (spawned, None) => {
+                let pid = Gc::new_in(spawned.pid(), process).unwrap();
+                process.stack.store(self.dest, pid.into());
+            }
+        }
         Action::Continue
     }
 }

@@ -8,7 +8,7 @@ use alloc::sync::Arc;
 use core::fmt;
 
 use crate::backtrace::Trace;
-use crate::term::{atoms, Atom, OpaqueTerm};
+use crate::term::{atoms, Atom, OpaqueTerm, Term};
 
 bitflags::bitflags! {
     /// These flags are used to by [`Process`] to track and control the behaviour
@@ -132,6 +132,44 @@ impl Into<Atom> for ErrorCode {
     }
 }
 
+#[derive(Copy, Clone)]
+pub struct ExceptionCause {
+    cause: OpaqueTerm,
+    module: Atom,
+    function: Atom,
+}
+impl fmt::Debug for ExceptionCause {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("ExceptionCause")
+            .field("cause", &format_args!("{}", self.cause))
+            .field("module", &self.module)
+            .field("function", &self.function)
+            .finish()
+    }
+}
+impl TryFrom<Term> for ExceptionCause {
+    type Error = ();
+
+    fn try_from(term: Term) -> Result<Self, Self::Error> {
+        match term {
+            Term::Map(map) => {
+                let Some(cause) = map.get(atoms::Cause) else { return Err(()); };
+                let Some(module) = map.get(atoms::Module) else { return Err(()); };
+                let Some(function) = map.get(atoms::Function) else { return Err(()); };
+                if !module.is_atom() || !function.is_atom() {
+                    return Err(());
+                }
+                Ok(Self {
+                    cause,
+                    module: module.as_atom(),
+                    function: function.as_atom(),
+                })
+            }
+            _ => Err(()),
+        }
+    }
+}
+
 /// Represents metadata about an active exception occurring in a process
 pub struct ExceptionInfo {
     pub flags: ExceptionFlags,
@@ -139,6 +177,7 @@ pub struct ExceptionInfo {
     pub value: OpaqueTerm,
     pub args: Option<OpaqueTerm>,
     pub trace: Option<Arc<Trace>>,
+    pub cause: Option<ExceptionCause>,
 }
 impl fmt::Debug for ExceptionInfo {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -150,6 +189,7 @@ impl fmt::Debug for ExceptionInfo {
                 "args",
                 &format_args!("{}", self.args.unwrap_or(OpaqueTerm::NIL)),
             )
+            .field("cause", &self.cause)
             .finish()
     }
 }
@@ -161,10 +201,30 @@ impl Default for ExceptionInfo {
             value: OpaqueTerm::NIL,
             args: None,
             trace: None,
+            cause: None,
         }
     }
 }
 impl ExceptionInfo {
+    pub fn error(value: OpaqueTerm) -> Self {
+        let reason = match value.into() {
+            Term::Atom(a) => a.into(),
+            Term::Tuple(tuple) => match tuple[0].into() {
+                Term::Atom(a) => a.into(),
+                _ => atoms::Error.into(),
+            },
+            _ => atoms::Error.into(),
+        };
+        Self {
+            flags: ExceptionFlags::ERROR,
+            reason,
+            value,
+            args: None,
+            trace: None,
+            cause: None,
+        }
+    }
+
     #[inline]
     pub fn is_empty(&self) -> bool {
         self.flags.is_empty()

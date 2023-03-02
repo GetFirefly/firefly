@@ -76,7 +76,8 @@ impl Pass for KernelToSsa {
             functions.push((id, signature));
         }
 
-        // For every function in the module, run a function-local pass which produces the function body
+        // For every function in the module, run a function-local pass which produces the function
+        // body
         for (i, function) in module.functions.drain(..).enumerate() {
             let (id, sig) = functions.get(i).unwrap();
             let mut pass = LowerFunctionToSsa {
@@ -228,7 +229,8 @@ impl<'m> LowerFunctionToSsa<'m> {
                 assert_eq!(args.len(), 1);
                 let value = self.ssa_value(builder, args.pop().unwrap())?;
                 if builder.is_current_block_terminated() {
-                    // We may generate redundant return expressions due to exception bifs, elide them
+                    // We may generate redundant return expressions due to exception bifs, elide
+                    // them
                     Ok(())
                 } else {
                     builder.ins().ret(value, span);
@@ -716,7 +718,8 @@ impl<'m> LowerFunctionToSsa<'m> {
         let tuple = builder.ins().cast(tuple, ty, span);
         // Fetch the tag element of the tuple
         let elem = builder.ins().get_element_imm(tuple, 0, span);
-        // Compare the fetched tag to the expected tag, branching to the fail block if there is a mismatch
+        // Compare the fetched tag to the expected tag, branching to the fail block if there is a
+        // mismatch
         let tag = builder.ins().atom(tag, span);
         let has_tag = builder.ins().eq_exact(elem, tag, span);
         builder.ins().br_unless(has_tag, fail, &[], span);
@@ -787,7 +790,8 @@ impl<'m> LowerFunctionToSsa<'m> {
                     v @ KExpr::Var(_) => {
                         let callee = self.ssa_value(builder, v)?;
                         let args = self.ssa_values(builder, call.args)?;
-                        // The callee is known statically to be a fun, so we can use the optimized call path
+                        // The callee is known statically to be a fun, so we can use the optimized
+                        // call path
                         builder
                             .ins()
                             .call_indirect(callee, CallConv::Erlang, args.as_slice(), span)
@@ -871,13 +875,14 @@ impl<'m> LowerFunctionToSsa<'m> {
                 // Optimize the case where we know that the callee is a fun that we just created
                 let mut args = self.ssa_values(builder, call.args)?;
                 if is_closure {
-                    // The callee is known statically to be a fun, so we can use the optimized call path
+                    // The callee is known statically to be a fun, so we can use the optimized call
+                    // path
                     builder
                         .ins()
                         .enter_indirect(callee, CallConv::Erlang, args.as_slice(), span)
                 } else {
-                    // The callee is either not a fun at all, or we are unable to verify, use the safe path by
-                    // converting this to a call to apply/2
+                    // The callee is either not a fun at all, or we are unable to verify, use the
+                    // safe path by converting this to a call to apply/2
                     let apply2 = FunctionName::new(symbols::Erlang, symbols::Apply, 2);
                     let apply2 = self.module.get_or_register_builtin(apply2);
                     let argv = args.drain(..).rfold(builder.ins().nil(span), |tail, hd| {
@@ -941,7 +946,8 @@ impl<'m> LowerFunctionToSsa<'m> {
                 Ok(())
             }
             _ => {
-                // This bif is fallible, and may have side effects, so must be treated like a standard call
+                // This bif is fallible, and may have side effects, so must be treated like a
+                // standard call
                 assert!(bif.ret.len() <= 1);
                 let callee = self.module.get_or_register_builtin(bif.op);
                 let args = self.ssa_values(builder, bif.args)?;
@@ -1050,11 +1056,13 @@ impl<'m> LowerFunctionToSsa<'m> {
                     .ins()
                     .is_type(Type::Term(TermType::Tuple(None)), args[0], span)
             }
-            symbols::IsFunction if bif.op.arity == 1 => {
-                builder
+            symbols::IsFunction => match bif.op.arity {
+                1 => builder
                     .ins()
-                    .is_type(Type::Term(TermType::Fun(None)), args[0], span)
-            }
+                    .is_type(Type::Term(TermType::Fun(None)), args[0], span),
+                2 => builder.ins().is_function_with_arity(args[0], args[1], span),
+                _ => unimplemented!("invalid type types bif: {}", &bif.op),
+            },
             symbols::IsRecord => panic!("expected is_record to be handled in lower_bif"),
             _ => unimplemented!("unsupported type test {}", &bif.op),
         };
@@ -1120,7 +1128,8 @@ impl<'m> LowerFunctionToSsa<'m> {
         let span = bif.span();
         match (bif.op.function, bif.args.as_slice()) {
             (symbols::MakeFun, [KExpr::Local(local), ..]) => {
-                // make_fun/2 requires special handling to convert to its corresponding core instruction
+                // make_fun/2 requires special handling to convert to its corresponding core
+                // instruction
                 let callee = builder
                     .get_callee(local.item)
                     .expect("undefined local function reference");
@@ -1204,7 +1213,8 @@ impl<'m> LowerFunctionToSsa<'m> {
                 let trace = builder.ins().stacktrace(raw_stk, span);
                 builder.define_var(bif.ret[0].as_var().map(|v| v.name()).unwrap(), trace);
             }
-            // The nif_start instruction is simply a marker for now, we don't have any reason to emit it to SSA
+            // The nif_start instruction is simply a marker for now, we don't have any reason to
+            // emit it to SSA
             (symbols::NifStart, _) => {
                 assert_eq!(
                     bif.args.len(),
@@ -1220,7 +1230,8 @@ impl<'m> LowerFunctionToSsa<'m> {
             // MatchFail is a special exception builtin that requires some extra treatment
             (symbols::MatchFail, _) => {
                 // If this is a function or case clause error, the arity is dynamic, but we need
-                // to convert the argument list into an appropriate form for calling erlang:match_fail/2
+                // to convert the argument list into an appropriate form for calling
+                // erlang:match_fail/2
                 match bif.args[0].as_atom() {
                     Some(symbols::FunctionClause) => {
                         let mut args = self.ssa_values(builder, bif.args)?;
@@ -1319,10 +1330,26 @@ impl<'m> LowerFunctionToSsa<'m> {
                 }
             }
             (symbols::Error, _) => {
-                assert_eq!(bif.args.len(), 1);
+                assert!(!bif.args.is_empty());
                 assert!(bif.ret.len() <= 1);
-                let reason = self.ssa_value(builder, bif.args.pop().unwrap())?;
-                builder.ins().error(reason, span);
+                let args = self.ssa_values(builder, bif.args).unwrap();
+                let reason = args[0];
+                match args.len() {
+                    1 => {
+                        builder.ins().error(reason, span);
+                    }
+                    2 => {
+                        let kind = builder.ins().atom(symbols::Error, span);
+                        builder.ins().raise(kind, reason, args[1], span);
+                    }
+                    3 => {
+                        let kind = builder.ins().atom(symbols::Error, span);
+                        builder
+                            .ins()
+                            .raise_with_opts(kind, reason, args[1], args[2], span);
+                    }
+                    _ => panic!("invalid error bif: {}", &bif.op),
+                }
                 if !bif.ret.is_empty() {
                     builder.define_var(bif.ret[0].as_var().map(|v| v.name()).unwrap(), reason);
                 }
@@ -1500,33 +1527,39 @@ impl<'m> LowerFunctionToSsa<'m> {
         let reason = builder.append_block_param(handler_block, Type::Term(TermType::Any), span);
         let trace = builder.append_block_param(handler_block, Type::Term(TermType::Any), span);
 
-        // The result block is where the fork in control is rejoined, it receives a single block argument which is
-        // either the normal return value, or the caught/wrapped exception value
+        // The result block is where the fork in control is rejoined, it receives a single block
+        // argument which is either the normal return value, or the caught/wrapped exception
+        // value
         let result_block = builder.create_block();
         let result = builder.append_block_param(result_block, Type::Term(TermType::Any), span);
         builder.define_var(ret, result);
 
         // The exit block handles wrapping exit/error reasons in the {'EXIT', Reason} tuple
-        // It receives a single block argument which corresponds to `Reason` in the previous sentence.
+        // It receives a single block argument which corresponds to `Reason` in the previous
+        // sentence.
         let exit_block = builder.create_block();
         let exit_reason = builder.append_block_param(exit_block, Type::Term(TermType::Any), span);
 
         builder.switch_to_block(handler_block);
-        // Throws are the most common, and require no special handling, so we jump straight to the result block for them
+        // Throws are the most common, and require no special handling, so we jump straight to the
+        // result block for them
         let is_throw = builder
             .ins()
             .eq_exact_imm(kind, symbols::Throw.into(), span);
         builder.ins().br_if(is_throw, result_block, &[reason], span);
-        // Exits are the next simplest, as we just wrap the reason in a tuple, so we jump straight to the exit block
+        // Exits are the next simplest, as we just wrap the reason in a tuple, so we jump straight
+        // to the exit block
         let is_exit = builder.ins().eq_exact_imm(kind, symbols::Exit.into(), span);
         builder.ins().br_if(is_exit, exit_block, &[reason], span);
-        // We have to construct a new error reason, and then jump to the exit block to wrap it in the exit tuple
+        // We have to construct a new error reason, and then jump to the exit block to wrap it in
+        // the exit tuple
         let error_reason = builder.ins().tuple_imm(2, span);
         let error_reason = builder.ins().set_element_mut(error_reason, 0, reason, span);
         let error_reason = builder.ins().set_element_mut(error_reason, 1, trace, span);
         builder.ins().br(exit_block, &[error_reason], span);
 
-        // In the exit block, we need just to construct the {'EXIT', Reason} tuple, and then jump to the result block
+        // In the exit block, we need just to construct the {'EXIT', Reason} tuple, and then jump to
+        // the result block
         builder.switch_to_block(exit_block);
         let wrapped_reason = builder.ins().tuple_imm(2, span);
         let wrapped_reason =

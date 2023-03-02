@@ -106,6 +106,25 @@ impl Signal {
             _ => false,
         }
     }
+
+    #[inline]
+    pub fn monitor(monitor: Arc<MonitorEntry>) -> Box<SignalEntry> {
+        SignalEntry::new(Self::Monitor(Monitor { monitor }))
+    }
+
+    #[inline]
+    pub fn unlink(sender: WeakAddress, id: NonZeroU64) -> Box<SignalEntry> {
+        SignalEntry::new(Self::Unlink(Unlink { sender, id }))
+    }
+
+    #[inline]
+    pub fn is_alive(sender: Pid, reference: Reference) -> Box<SignalEntry> {
+        SignalEntry::new(Self::IsAlive(IsAlive { sender, reference }))
+    }
+
+    pub fn flush(ty: FlushType) -> Box<SignalEntry> {
+        SignalEntry::new(Self::Flush(Flush { sender: None, ty }))
+    }
 }
 impl DynSignal for Signal {
     fn sender(&self) -> Option<WeakAddress> {
@@ -425,7 +444,8 @@ struct InTransitQueue {
     nonmessage_slots: AtomicUsize,
     /// The number of signals in-transit
     ///
-    /// This is used to help provide statistics upon request about the size of a processes' message queue
+    /// This is used to help provide statistics upon request about the size of a processes' message
+    /// queue
     len: AtomicUsize,
 }
 impl InTransitQueue {
@@ -511,8 +531,8 @@ impl<'a> SignalQueueLock<'a> {
         self.queue.is_empty()
     }
 
-    /// This corresponds to the recv_peek and recv_next primops, called when entering a new receive block,
-    /// and on each consecutive iteration of the search through the message queue.
+    /// This corresponds to the recv_peek and recv_next primops, called when entering a new receive
+    /// block, and on each consecutive iteration of the search through the message queue.
     ///
     /// If there is no current receive cursor set, the first thing we do is set it to the start
     /// of the inner queue.
@@ -520,9 +540,9 @@ impl<'a> SignalQueueLock<'a> {
     /// If the inner queue has messages, we ensure the cursor points to the next unseen message in
     /// the queue, and return `Ok`.
     ///
-    /// If the inner queue is empty, or we've reached the end of the queue, we take a moment to try and
-    /// find more messages in the buffers of the in-transit queue. If no messages can be found, this
-    /// function returns `Err`.
+    /// If the inner queue is empty, or we've reached the end of the queue, we take a moment to try
+    /// and find more messages in the buffers of the in-transit queue. If no messages can be
+    /// found, this function returns `Err`.
     pub fn try_receive(&mut self) -> Result<(), ()> {
         // Get a cursor to the next unseen element
         let cursor = self.queue.cursor();
@@ -672,10 +692,10 @@ impl<'a> SignalQueueLock<'a> {
 
     /// This function is used to remove the next non-message signal from the queue.
     ///
-    /// If there are no non-message signals available in the received queue, and `local_only` is `false`,
-    /// this function will, much like `try_receive`, flush buffers from the in-transit queue in an effort
-    /// to get more. Unlike `try_receive` however, only buffers containing non-message signals
-    /// are flushed.
+    /// If there are no non-message signals available in the received queue, and `local_only` is
+    /// `false`, this function will, much like `try_receive`, flush buffers from the in-transit
+    /// queue in an effort to get more. Unlike `try_receive` however, only buffers containing
+    /// non-message signals are flushed.
     ///
     /// If no non-message signals are available, this function returns `None`.
     pub fn pop_signal(&mut self, local_only: bool) -> Option<Box<SignalEntry>> {
@@ -695,7 +715,8 @@ impl<'a> SignalQueueLock<'a> {
         }
     }
 
-    /// Takes the next signal from the queue, pulling from the message queue if no non-message signals are present
+    /// Takes the next signal from the queue, pulling from the message queue if no non-message
+    /// signals are present
     pub fn pop(&mut self) -> Option<Box<SignalEntry>> {
         match self.queue.received.signals.pop_front() {
             None => self.queue.received.messages.pop_front(),
@@ -830,7 +851,6 @@ impl SignalQueue {
     /// Returns `Ok(true)` if successful and the signal was a message.
     /// Returns `Ok(false)` if successful and the signal was _not_ a message.
     /// Returs `Err` if the signal is rejected by the receiving process (i.e. it is exiting)
-    ///
     pub(super) fn push(&self, signal: Box<SignalEntry>) -> SendResult {
         let is_message = signal.is_message();
         let sender = signal.sender().unwrap_or(WeakAddress::System);
@@ -850,10 +870,12 @@ impl SignalQueue {
         let nonmessage_slots_before;
         if !is_message {
             if buffer.signals.is_empty() {
-                // We're inserting a non-message signal and no non-message signals were in the buffer before.
-                // This means we have to update the non-message status of this buffer.
+                // We're inserting a non-message signal and no non-message signals were in the
+                // buffer before. This means we have to update the non-message
+                // status of this buffer.
                 //
-                // Acquire ordering is used to avoid reordering with a store when enqueing signals below
+                // Acquire ordering is used to avoid reordering with a store when enqueing signals
+                // below
                 nonmessage_slots_before = self
                     .in_transit
                     .nonmessage_slots

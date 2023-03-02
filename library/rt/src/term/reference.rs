@@ -38,16 +38,17 @@ pub enum ReferenceType {
     /// as references. These can then be used to call a variety of special BIF/NIF functions for
     /// interacting with values of the underlying type.
     ///
-    /// Magic values must be allocated via `Arc` and castable to `dyn Any + Send + Sync` for the following reasons:
+    /// Magic values must be allocated via `Arc` and castable to `dyn Any + Send + Sync` for the
+    /// following reasons:
     ///
     /// * We need the ability to represent any type via magic, safely
     /// * A raw pointer would prevent reference-counted values from being tracked properly
-    /// * We can't guarantee that a reference won't be interacted with from multiple threads at the same time,
-    /// or sent between threads. So it is not safe to use a different container than `Arc`, or omit the
-    /// `Send` and `Sync` traits.
+    /// * We can't guarantee that a reference won't be interacted with from multiple threads at the
+    ///   same time, or sent between threads. So it is not safe to use a different container than
+    ///   `Arc`, or omit the `Send` and `Sync` traits.
     ///
-    /// If a value can't meet the above criteria, it can't be stored as magic directly, and you will likely need
-    /// some intermediate type to use as the magic data.
+    /// If a value can't meet the above criteria, it can't be stored as magic directly, and you
+    /// will likely need some intermediate type to use as the magic data.
     Magic(Arc<dyn Any + Send + Sync>),
     #[allow(unused)]
     External(Arc<Node>),
@@ -104,10 +105,11 @@ impl Reference {
     /// Create a new magic ref from the given reference id and raw pointer
     ///
     /// The pointer must be to a type that implements `Any`, so that it can be safely downcast
-    /// to a type later on. It is best if magic references are "owned" by some type which understands
-    /// what type the magic reference should be, as there could be any number of underlying types allocated
-    /// in magic references throughout the system. For example, in the distribution system, connections are
-    /// associated with magic references so that they can be returned as handles to Erlang code.
+    /// to a type later on. It is best if magic references are "owned" by some type which
+    /// understands what type the magic reference should be, as there could be any number of
+    /// underlying types allocated in magic references throughout the system. For example, in
+    /// the distribution system, connections are associated with magic references so that they
+    /// can be returned as handles to Erlang code.
     ///
     /// NOTE: This function will panic if the given reference id is not a magic reference id
     pub fn new_magic(id: ReferenceId, ptr: Arc<dyn Any + Send + Sync>) -> Self {
@@ -258,7 +260,8 @@ pub struct ReferenceId([u32; REF_NUMBERS]);
 impl ReferenceId {
     /// Generates the next available global reference id
     ///
-    /// You should prefer to request references from a scheduler, but in some cases that isn't possible
+    /// You should prefer to request references from a scheduler, but in some cases that isn't
+    /// possible
     pub fn next() -> Self {
         use core::sync::atomic::Ordering;
         static COUNTER: OnceLock<AtomicU64> = OnceLock::new();
@@ -285,11 +288,13 @@ impl ReferenceId {
     /// # SAFETY
     ///
     /// Callers _must_ ensure that the `id` value they provide is unique for a given scheduler id.
-    /// References are supposed to be globally unique, so failing to uphold this invariant will result
-    /// in potentially duplicate references being generated which are supposed to mean different things.
+    /// References are supposed to be globally unique, so failing to uphold this invariant will
+    /// result in potentially duplicate references being generated which are supposed to mean
+    /// different things.
     pub const unsafe fn new(scheduler_id: SchedulerId, id: u64) -> Self {
-        // Don't use thread id in the first 18-bit word, since the hash/phash/phash2 bifs only hash on that word,
-        // which would result in poor hash values. Instead, shuffle the bits a bit.
+        // Don't use thread id in the first 18-bit word, since the hash/phash/phash2 bifs only hash
+        // on that word, which would result in poor hash values. Instead, shuffle the bits a
+        // bit.
         Self([
             (id & (REF_MASK as u64)) as u32,
             (id & (NUM_MASK as u64)) as u32 | (scheduler_id.as_u16() as u32 & THR_ID_MASK),
@@ -329,7 +334,8 @@ impl ReferenceId {
         id_hi | id_lo
     }
 
-    /// Produces a pseudo-random initial reference id seed value based on the current monotonic time.
+    /// Produces a pseudo-random initial reference id seed value based on the current monotonic
+    /// time.
     ///
     /// This is based on the ERTS implementation in `erl_bif_unique.h`
     ///
@@ -347,9 +353,9 @@ impl ReferenceId {
 }
 impl Display for ReferenceId {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let r0 = self.0[1];
-        let r1 = self.0[2];
-        let r2 = self.0[3];
+        let r0 = self.0[0];
+        let r1 = self.0[1];
+        let r2 = self.0[2];
         write!(f, "{}.{}.{}", r0, r1, r2)
     }
 }

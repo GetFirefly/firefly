@@ -14,13 +14,13 @@ where
         return Ok(());
     }
 
-    let mut current_function = module.function_by_ip(3);
+    let mut current_function = module.function_by_ip(5);
     w.write_fmt(format_args!(
         "fun {}: # offset={}",
         current_function.mfa().unwrap(),
         3
     ))?;
-    for (ip, op) in module.code.iter().enumerate().skip(3) {
+    for (ip, op) in module.code.iter().enumerate().skip(5) {
         let f = module.function_by_ip(ip);
         if f.offset() != current_function.offset() {
             current_function = f;
@@ -398,6 +398,8 @@ where
         }
         Opcode::RecvTimeout(op) => w.write_fmt(format_args!("recv_timeout ${}", op.dest)),
         Opcode::RecvPop(_) => w.write_str("recv_pop"),
+        Opcode::Await(_) => w.write_str("await"),
+        Opcode::Trap(_) => w.write_str("trap"),
         Opcode::Yield(_) => w.write_str("yield"),
         Opcode::GarbageCollect(op) => {
             if op.fullsweep {

@@ -6,9 +6,9 @@ use firefly_system::sync::{OnceLock, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 use crate::function::ModuleFunctionArity;
 use crate::gc::Gc;
-use crate::process::Process;
+use crate::process::{Process, ProcessLock, SpawnOpts};
 use crate::services::timers::{Timer, TimerError};
-use crate::term::{Closure, OpaqueTerm, Pid, ReferenceId};
+use crate::term::{OpaqueTerm, Reference, ReferenceId};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SchedulerId(u16);
@@ -104,21 +104,21 @@ pub trait Scheduler: Send + Sync {
 
     /// Spawn a new process with the given module/function/arguments
     ///
-    /// The spawned process will exit with an error if the given MFA is invalid,
-    /// or the arguments are incorrect for the callee.
-    fn spawn3(
+    /// The spawned process will exit with an error if the given MFA is invalid, or the arguments
+    /// are incorrect for the callee.
+    ///
+    /// The result contains a reference to the spawned process, and if being monitored, the monitor
+    /// reference.
+    ///
+    /// NOTE: Callers must ensure there is sufficient space on the process heap for the
+    /// monitor ref if applicable. If not, this function will panic.
+    fn spawn(
         &self,
-        parent: Pid,
-        group_leader: Pid,
+        parent: &mut ProcessLock,
         mfa: ModuleFunctionArity,
         args: &[OpaqueTerm],
-    ) -> Pid;
-
-    /// Spawn a new process with the given closure
-    ///
-    /// The spawned process will exit with an error if the closure arity is non-zero
-    /// (not counting the implicit closure argument itself).
-    fn spawn2(&self, parent: Pid, group_leader: Pid, fun: Gc<Closure>) -> Pid;
+        opts: SpawnOpts,
+    ) -> (Arc<Process>, Option<Gc<Reference>>);
 
     /// Reschedules `process` using this scheduler's run queue
     fn reschedule(&self, process: Arc<Process>);
@@ -282,7 +282,8 @@ impl SchedulerSet {
 
     /// Releases a previously assigned scheduler identifier, `id`.
     ///
-    /// This is only safe to call when an id has been assigned, but is not actively used by an online scheduler
+    /// This is only safe to call when an id has been assigned, but is not actively used by an
+    /// online scheduler
     pub unsafe fn release(&mut self, id: SchedulerId) {
         let id = id.as_u16() as usize;
         assert!(
@@ -305,7 +306,8 @@ impl SchedulerSet {
 
     /// Like `release`, but for cases in which the scheduler was online and is now terminating.
     ///
-    /// This marks the scheduler as offline, frees the scheduler id, and drops the reference we hold.
+    /// This marks the scheduler as offline, frees the scheduler id, and drops the reference we
+    /// hold.
     pub unsafe fn remove(&mut self, id: SchedulerId) {
         let id = id.as_u16() as usize;
         assert!(
@@ -331,7 +333,8 @@ impl SchedulerSet {
 
     /// Retrieves the scheduler with the given identifier
     ///
-    /// This function will panic if the scheduler id is invalid, or if the requested scheduler is not online
+    /// This function will panic if the scheduler id is invalid, or if the requested scheduler is
+    /// not online
     pub fn fetch(&self, id: SchedulerId) -> Arc<dyn Scheduler> {
         let id = id.as_u16() as usize;
         assert!(

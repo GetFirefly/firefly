@@ -49,7 +49,7 @@ use core::str;
 use firefly_arena::DroplessArena;
 use firefly_binary::{BinaryFlags, Encoding};
 
-pub type Register = u8;
+pub type Register = u16;
 pub type Immediate = i16;
 pub type JumpOffset = i16;
 pub type Arity = u8;
@@ -349,8 +349,6 @@ pub enum InvalidBytecodeError<A: Atom> {
     IncompleteFunction(ModuleFunctionArity<A>),
     /// An attempt to define a function body twice was made.
     DuplicateDefinition(ModuleFunctionArity<A>),
-    /// An attempt to define a function body for a bif was made.
-    ConflictsWithBif(ModuleFunctionArity<A>),
 }
 
 /// This structure represents a single translation unit of bytecode, i.e. it
@@ -1241,7 +1239,24 @@ impl<A: Atom> FunctionTable<A> {
                         Err(InvalidBytecodeError::DuplicateDefinition(mfa))
                     }
                     Function::Native { .. } => Err(InvalidBytecodeError::DuplicateDefinition(mfa)),
-                    Function::Bif { .. } => Err(InvalidBytecodeError::ConflictsWithBif(mfa)),
+                    // When a BIF definition occurs, we replace the function type with the Bytecode
+                    // type, but always set the `is_nif` flag to true, as in the usual case, the BIF
+                    // definition in the module is a wrapper for the natively-implemented BIF
+                    // function.
+                    //
+                    // At runtime, if the native symbol doesn't exist, this will dispatch to the
+                    // bytecoded function
+                    Function::Bif { mfa, .. } => {
+                        let mfa = *mfa;
+                        *fun = Function::Bytecode {
+                            id,
+                            mfa,
+                            offset,
+                            is_nif: true,
+                            frame_size: 0,
+                        };
+                        Ok(id)
+                    }
                 }
             }
         }

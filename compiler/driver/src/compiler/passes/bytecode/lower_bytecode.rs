@@ -139,45 +139,51 @@ impl Pass for LowerBytecode {
                 void_ptr_type.base(),
             ],
         );
-        let mut insert_dispatch_table_entry = |mfa: &ModuleFunctionArity<AtomicStr>| {
-            if let Some(gv) = mapped_functions.get(mfa) {
-                return *gv;
-            }
-            let module = insert_atom_table_entry(mfa.module);
-            let function = insert_atom_table_entry(mfa.function);
-            let name = mfa.to_string();
-            let pointee = builder.build_external_function(name.as_str(), void_function_type);
-            let mut hasher = rustc_hash::FxHasher::default();
-            hasher.write(name.as_bytes());
-            let hash = hasher.finish();
-            let dispatch_entry_name = format!("firefly_dispatch_{:x}", hash);
-            let section_name = if self.options.target.options.is_like_osx {
-                "__DATA,__dispatch"
-            } else {
-                "__dispatch"
+        let mut insert_dispatch_table_entry =
+            |mfa: &ModuleFunctionArity<AtomicStr>, linkage: Linkage| {
+                if let Some(gv) = mapped_functions.get(mfa) {
+                    return *gv;
+                }
+                let module = insert_atom_table_entry(mfa.module);
+                let function = insert_atom_table_entry(mfa.function);
+                let name = mfa.to_string();
+                let pointee = builder.build_function_with_attrs(
+                    name.as_str(),
+                    void_function_type,
+                    linkage,
+                    &[],
+                );
+                let mut hasher = rustc_hash::FxHasher::default();
+                hasher.write(name.as_bytes());
+                let hash = hasher.finish();
+                let dispatch_entry_name = format!("firefly_dispatch_{:x}", hash);
+                let section_name = if self.options.target.options.is_like_osx {
+                    "__DATA,__dispatch"
+                } else {
+                    "__dispatch"
+                };
+                let global = builder
+                    .define_global(&dispatch_entry_name, dispatch_entry_type)
+                    .unwrap();
+                global.set_linkage(Linkage::LinkOnceODR);
+                global.set_alignment(8);
+                global.set_section(section_name);
+
+                let arity = builder.build_constant_uint(i8_type, mfa.arity as u64);
+                let entry = builder.build_constant_named_struct(
+                    dispatch_entry_type,
+                    &[
+                        module.try_into().unwrap(),
+                        function.try_into().unwrap(),
+                        arity.into(),
+                        pointee.into(),
+                    ],
+                );
+
+                global.set_initializer(entry);
+                mapped_functions.insert(*mfa, global);
+                global
             };
-            let global = builder
-                .define_global(&dispatch_entry_name, dispatch_entry_type)
-                .unwrap();
-            global.set_linkage(Linkage::LinkOnceODR);
-            global.set_alignment(8);
-            global.set_section(section_name);
-
-            let arity = builder.build_constant_uint(i8_type, mfa.arity as u64);
-            let entry = builder.build_constant_named_struct(
-                dispatch_entry_type,
-                &[
-                    module.try_into().unwrap(),
-                    function.try_into().unwrap(),
-                    arity.into(),
-                    pointee.into(),
-                ],
-            );
-
-            global.set_initializer(entry);
-            mapped_functions.insert(*mfa, global);
-            global
-        };
 
         let mut is_empty = true;
         for function in module.functions.iter() {
@@ -186,14 +192,19 @@ impl Pass for LowerBytecode {
                     is_nif: true, mfa, ..
                 } => {
                     is_empty = false;
-                    insert_dispatch_table_entry(mfa);
+                    // We must weakly link the native symbol, because the bytecode definition is
+                    // used when the native version isn't available
+                    insert_dispatch_table_entry(mfa, Linkage::ExternalWeak);
                 }
                 Function::Bytecode { .. } => continue,
                 Function::Bif { mfa, .. } => {
                     is_empty = false;
-                    insert_dispatch_table_entry(mfa);
+                    // All BIFs must be available at link time
+                    insert_dispatch_table_entry(mfa, Linkage::External);
                 }
                 Function::Native { name, .. } => {
+                    // All referenced native symbols without a bytecode definition must also be
+                    // available at link time
                     builder.build_external_function(name.as_bytes(), void_function_type);
                 }
             }
@@ -209,11 +220,14 @@ impl Pass for LowerBytecode {
             // * It is a BIF
             // * It is always natively-implemented
             // * It is almost always in real programs anyway
-            insert_dispatch_table_entry(&ModuleFunctionArity {
-                module: "erlang".into(),
-                function: "display".into(),
-                arity: 1,
-            });
+            insert_dispatch_table_entry(
+                &ModuleFunctionArity {
+                    module: "erlang".into(),
+                    function: "display".into(),
+                    arity: 1,
+                },
+                Linkage::External,
+            );
         }
 
         // Insert a global constant value containing the size of the bytecode in bytes

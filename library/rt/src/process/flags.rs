@@ -1,6 +1,8 @@
 use core::mem;
 use core::num::NonZeroUsize;
 
+use crate::term::{atoms, OpaqueTerm, Term};
+
 /// Represents what priority queue a given process resides in
 #[derive(Debug, Copy, Clone, Default, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(u8)]
@@ -10,6 +12,22 @@ pub enum Priority {
     Normal = 1,
     High = 1 << 1,
     Max = 1 << 2,
+}
+impl TryFrom<Term> for Priority {
+    type Error = ();
+
+    fn try_from(term: Term) -> Result<Self, Self::Error> {
+        match term {
+            Term::Atom(a) => match a {
+                a if a == atoms::Low => Ok(Self::Low),
+                a if a == atoms::Normal => Ok(Self::Normal),
+                a if a == atoms::High => Ok(Self::High),
+                a if a == atoms::Max => Ok(Self::Max),
+                _ => Err(()),
+            },
+            _ => Err(()),
+        }
+    }
 }
 
 /// This represents the current `max_heap_size` configuration of a process
@@ -46,6 +64,46 @@ impl Default for MaxHeapSize {
             size: None,
             kill: true,
             error_logger: true,
+        }
+    }
+}
+impl TryFrom<Term> for MaxHeapSize {
+    type Error = ();
+
+    fn try_from(term: Term) -> Result<Self, Self::Error> {
+        match term {
+            Term::Int(i) if i >= 0 => Ok(Self {
+                size: NonZeroUsize::new(i.try_into().map_err(|_| ())?),
+                kill: true,
+                error_logger: true,
+            }),
+            Term::Map(opts) => {
+                let mut max_heap_size = Self::default();
+                if let Some(v) = opts.get(atoms::Size) {
+                    match v.into() {
+                        Term::Int(i) if i >= 0 => {
+                            max_heap_size.size = NonZeroUsize::new(i.try_into().map_err(|_| ())?);
+                        }
+                        _ => return Err(()),
+                    }
+                }
+                if let Some(v) = opts.get(atoms::Kill) {
+                    max_heap_size.kill = match v {
+                        OpaqueTerm::TRUE => true,
+                        OpaqueTerm::FALSE => false,
+                        _ => return Err(()),
+                    };
+                }
+                if let Some(v) = opts.get(atoms::ErrorLogger) {
+                    max_heap_size.error_logger = match v {
+                        OpaqueTerm::TRUE => true,
+                        OpaqueTerm::FALSE => false,
+                        _ => return Err(()),
+                    };
+                }
+                Ok(max_heap_size)
+            }
+            _ => Err(()),
         }
     }
 }

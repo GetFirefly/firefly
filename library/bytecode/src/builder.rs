@@ -20,20 +20,26 @@ impl<A: Atom, T: AtomTable<Atom = A>> Builder<A, T> {
         // * Nop
         // * NormalExit
         // * ContinueExit
+        // * Await
+        // * Trap
         // * ...
         //
         // The `Nop` is used as an invalid instruction pointer/address, which will
         // fall through to a normal exit when it is executed. This is used when a
         // process runs out of code to trigger a normal exit, as its instruction pointer
         // will be set to 0. Once the `NormalExit` is executed, its next instruction
-        // will be the `ContinueExit`, which will never be changed once hit.
+        // will be the `ContinueExit`, which will never be changed once hit. Other
+        // non-normal exits will set the instruction pointer to the ContinueExit
+        // instruction for the same reason. `Await` and `Trap` are placed after these
+        // so that control only reaches them when we set the instruction pointer to them
+        // explicitly.
         //
-        // Other non-normal exits will set the instruction pointer to the ContinueExit
-        // instruction for the same reason.
         if code.code.is_empty() {
             code.code.push(Opcode::Nop(Nop));
             code.code.push(Opcode::NormalExit(NormalExit));
             code.code.push(Opcode::ContinueExit(ContinueExit));
+            code.code.push(Opcode::Await(Await));
+            code.code.push(Opcode::Trap(Trap));
         }
         Self { code }
     }
@@ -311,7 +317,7 @@ where
         let next = self
             .registers
             .checked_add(1)
-            .expect("no more registers available, only 254 are available per-function");
+            .expect("no more registers available, only 65,536 are available per-function");
         self.registers = next;
         next
     }
@@ -764,7 +770,7 @@ where
         // if the move will clobber the source of a subsequent move, and if so, we
         // allocate a temporary register, move into that, and then after all the
         // non-temp moves have been executed, we move the temps to their final destination
-        let dsts = (2u8..(args.len() as u8 + 2))
+        let dsts = ((2 as Register)..(args.len() as Register + 2))
             .into_iter()
             .collect::<SmallVec<[_; 4]>>();
 
@@ -931,9 +937,14 @@ where
         dest
     }
 
-    pub fn build_is_function(&mut self, value: Register, loc: Option<LocationId>) -> Register {
+    pub fn build_is_function(
+        &mut self,
+        value: Register,
+        arity: Option<Register>,
+        loc: Option<LocationId>,
+    ) -> Register {
         let dest = self.alloc_register();
-        self.push(Opcode::IsFunction(IsFunction { dest, value }), loc);
+        self.push(Opcode::IsFunction(IsFunction { dest, value, arity }), loc);
         dest
     }
 
@@ -1780,6 +1791,7 @@ where
         kind: Register,
         reason: Register,
         trace: Option<Register>,
+        opts: Option<Register>,
         loc: Option<LocationId>,
     ) -> Register {
         let dest = self.alloc_register();
@@ -1789,6 +1801,7 @@ where
                 kind,
                 reason,
                 trace,
+                opts,
             }),
             loc,
         );

@@ -174,18 +174,6 @@ impl<'a> BytecodeBuilder<'a> {
                         invalid = true;
                         continue;
                     }
-                    InvalidBytecodeError::ConflictsWithBif(mfa) => {
-                        self.diagnostics
-                            .diagnostic(Severity::Error)
-                            .with_message(format!("cannot define functions which override bifs"))
-                            .with_primary_label(
-                                f.span(),
-                                format!("this function would override {:?}", &mfa),
-                            )
-                            .emit();
-                        invalid = true;
-                        continue;
-                    }
                     _ => unreachable!(),
                 }
             }
@@ -533,7 +521,11 @@ impl<'a> BytecodeBuilder<'a> {
             Type::Term(TermType::Reference) => builder.build_is_reference(input, loc),
             Type::Term(TermType::Port) => builder.build_is_port(input, loc),
             Type::Term(TermType::Pid) => builder.build_is_pid(input, loc),
-            Type::Term(TermType::Fun(_)) => builder.build_is_function(input, loc),
+            Type::Term(TermType::Fun(None)) => builder.build_is_function(input, None, loc),
+            Type::Term(TermType::Fun(Some(fun))) => {
+                let arity = builder.build_int(fun.arity() as i64, loc);
+                builder.build_is_function(input, Some(arity), loc)
+            }
             Type::Term(ty) => unimplemented!("no support for type checks of {:?}", ty),
             ty => panic!("unsupported type check for {:?}", ty),
         };
@@ -696,46 +688,6 @@ impl<'a> BytecodeBuilder<'a> {
                                 args[1],
                                 args[2],
                                 SpawnOpts::LINK,
-                                loc,
-                            );
-                            return Ok(());
-                        }
-                        _ => unreachable!(),
-                    },
-                    (symbols::SpawnMonitor, 1) => match op.op {
-                        Opcode::Call => {
-                            let results = dfg.inst_results(inst);
-                            assert_eq!(results.len(), 1);
-                            let pid = builder.build_spawn2(args[0], SpawnOpts::MONITOR, loc);
-                            self.values.insert(results[0], pid);
-                            return Ok(());
-                        }
-                        Opcode::Enter => {
-                            builder.build_spawn2(args[0], SpawnOpts::MONITOR, loc);
-                            return Ok(());
-                        }
-                        _ => unreachable!(),
-                    },
-                    (symbols::SpawnMonitor, 3) => match op.op {
-                        Opcode::Call => {
-                            let results = dfg.inst_results(inst);
-                            assert_eq!(results.len(), 1);
-                            let pid = builder.build_spawn3_indirect(
-                                args[0],
-                                args[1],
-                                args[2],
-                                SpawnOpts::MONITOR,
-                                loc,
-                            );
-                            self.values.insert(results[0], pid);
-                            return Ok(());
-                        }
-                        Opcode::Enter => {
-                            builder.build_spawn3_indirect(
-                                args[0],
-                                args[1],
-                                args[2],
-                                SpawnOpts::MONITOR,
                                 loc,
                             );
                             return Ok(());
@@ -1166,6 +1118,11 @@ impl<'a> BytecodeBuilder<'a> {
                 self.values.insert(results[0], is_tuple);
                 self.values.insert(results[1], arity);
             }
+            Opcode::IsFunctionWithArity => {
+                let is_function = builder.build_is_function(args[0], Some(args[1]), loc);
+                let result = dfg.first_result(inst);
+                self.values.insert(result, is_function);
+            }
             Opcode::MapPut => {
                 let updated = builder.build_map_insert(args[0], args[1], args[2], loc);
                 let result = dfg.first_result(inst);
@@ -1232,7 +1189,8 @@ impl<'a> BytecodeBuilder<'a> {
             Opcode::EndCatch => builder.build_end_catch(loc),
             Opcode::Raise => {
                 let trace = if args.len() == 3 { Some(args[2]) } else { None };
-                let badarg = builder.build_raise(args[0], args[1], trace, loc);
+                let opts = if args.len() == 4 { Some(args[3]) } else { None };
+                let badarg = builder.build_raise(args[0], args[1], trace, opts, loc);
                 let result = dfg.first_result(inst);
                 self.values.insert(result, badarg);
             }

@@ -7,8 +7,8 @@
 //! in order to perform operations against it.
 //!
 //! This module provides a variety of convenience functions for interacting with the registry, but
-//! you can also take a look at the [`Registry`] struct docs as well (in the std implementation), which
-//! explains the semantics of how those functions work.
+//! you can also take a look at the [`Registry`] struct docs as well (in the std implementation),
+//! which explains the semantics of how those functions work.
 
 cfg_if::cfg_if! {
     if #[cfg(feature = "std")] {
@@ -28,6 +28,7 @@ use core::ptr;
 
 use firefly_system::sync::OnceLock;
 
+use crate::error::ExceptionFlags;
 use crate::function::ErlangResult;
 use crate::gc::Gc;
 use crate::process::{Process, ProcessId, ProcessLock};
@@ -378,10 +379,94 @@ pub fn unregister_name(name: Registrant) {
     with_name_table(|registry, guard| registry.unregister_name(name, guard))
 }
 
+/// Registers `name` to the process or port referenced by `id`.
+///
+/// Returns `true` if the registration was successful.
+///
+/// Raises `badarg` if:
+///
+/// * The name is invalid (not an atom, or the atom 'undefined')
+/// * The process/port does not exist
+/// * The process/port already have a registered name
+/// * The name is already registered to someone else
+#[export_name = "erlang:register/2"]
+pub extern "C-unwind" fn register2(
+    process: &mut ProcessLock,
+    name: OpaqueTerm,
+    id: OpaqueTerm,
+) -> ErlangResult {
+    if !name.is_atom() || name == atoms::Undefined {
+        process.exception_info.flags = ExceptionFlags::ERROR;
+        process.exception_info.reason = atoms::Badarg.into();
+        process.exception_info.value = name;
+        process.exception_info.trace = None;
+        return ErlangResult::Err;
+    }
+    let name = name.as_atom();
+
+    match id.into() {
+        Term::Pid(pid) => {
+            if let Some(p) = get_by_pid(&pid) {
+                if register_name(name, p.into()).is_ok() {
+                    return ErlangResult::Ok(true.into());
+                }
+            }
+        }
+        Term::Port(port) => {
+            if let Some(p) = get_by_port_id(port.id()) {
+                if register_name(name, p.into()).is_ok() {
+                    return ErlangResult::Ok(true.into());
+                }
+            }
+        }
+        _ => (),
+    }
+    process.exception_info.flags = ExceptionFlags::ERROR;
+    process.exception_info.reason = atoms::Badarg.into();
+    process.exception_info.value = id;
+    process.exception_info.trace = None;
+    ErlangResult::Err
+}
+
+/// Unregisters `name` from whichever registrant it belongs to.
+///
+/// Returns `true` if the name was registered.
+///
+/// Raises `badarg` if the name was not registered.
+#[export_name = "erlang:unregister/1"]
+pub extern "C-unwind" fn unregister1(process: &mut ProcessLock, name: OpaqueTerm) -> ErlangResult {
+    if !name.is_atom() {
+        process.exception_info.flags = ExceptionFlags::ERROR;
+        process.exception_info.reason = atoms::Badarg.into();
+        process.exception_info.value = name;
+        process.exception_info.trace = None;
+        return ErlangResult::Err;
+    }
+    let name = name.as_atom();
+
+    let exists = with_name_table(|registry, guard| {
+        if let Some(registrant) = registry.get_by_name(name, guard) {
+            registry.unregister_name(registrant, guard);
+            true
+        } else {
+            false
+        }
+    });
+
+    if exists {
+        ErlangResult::Ok(true.into())
+    } else {
+        process.exception_info.flags = ExceptionFlags::ERROR;
+        process.exception_info.reason = atoms::Badarg.into();
+        process.exception_info.value = name.into();
+        process.exception_info.trace = None;
+        ErlangResult::Err
+    }
+}
+
 /// Returns the pid or port with name `name`
 #[export_name = "erlang:whereis/1"]
 pub extern "C-unwind" fn whereis(process: &mut ProcessLock, name: OpaqueTerm) -> ErlangResult {
-    use crate::error::ExceptionFlags;
     use crate::gc;
 
     if let Term::Atom(name) = name.into() {
@@ -405,7 +490,7 @@ pub extern "C-unwind" fn whereis(process: &mut ProcessLock, name: OpaqueTerm) ->
         process.exception_info.reason = atoms::Badarg.into();
         process.exception_info.value = name;
         process.exception_info.trace = None;
-        ErlangResult::Err(())
+        ErlangResult::Err
     }
 }
 

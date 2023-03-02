@@ -6,7 +6,6 @@
 use core::ptr::NonNull;
 
 use crate::cmp::ExactEq;
-use crate::function::ErlangResult;
 use crate::term::{OpaqueTerm, Term, TermType};
 
 #[inline]
@@ -30,7 +29,12 @@ pub extern "C" fn is_list(value: OpaqueTerm) -> bool {
 #[inline]
 #[export_name = "__firefly_builtin_is_binary"]
 pub extern "C" fn is_binary(value: OpaqueTerm) -> bool {
-    value.r#typeof() == TermType::Binary
+    let term: Term = value.into();
+    if let Some(bin) = term.as_bitstring() {
+        bin.is_binary()
+    } else {
+        false
+    }
 }
 
 #[inline]
@@ -48,10 +52,20 @@ pub extern "C" fn is_number(value: OpaqueTerm) -> bool {
     value.is_number()
 }
 
+#[derive(Copy, Clone)]
+#[repr(u8)]
+pub enum IsTupleResult {
+    Ok(u32) = 0,
+    Err(u32) = 1,
+}
+
 #[inline]
 #[export_name = "__firefly_builtin_is_tuple"]
-pub extern "C" fn is_tuple(value: OpaqueTerm) -> ErlangResult<u32, u32> {
-    value.tuple_size().map_err(|_| 0)
+pub extern "C" fn is_tuple(value: OpaqueTerm) -> IsTupleResult {
+    value
+        .tuple_size()
+        .map(IsTupleResult::Ok)
+        .unwrap_or(IsTupleResult::Err(0))
 }
 
 #[inline]

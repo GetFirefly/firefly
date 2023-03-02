@@ -9,8 +9,9 @@ pub type LocationId = u32;
 
 /// This corresponds to `firefly_rt::backtrace::Symbol` and `firefly_rt::backtrace::Symbolication`
 ///
-/// This is used to provide a nice API for symbolication without having to depend on `firefly_rt` directly
-#[derive(Clone)]
+/// This is used to provide a nice API for symbolication without having to depend on `firefly_rt`
+/// directly
+#[derive(Debug, Clone)]
 pub enum Symbol<A: Atom> {
     /// This is a normal Erlang function implemented in bytecode
     Erlang {
@@ -24,7 +25,7 @@ pub enum Symbol<A: Atom> {
 }
 
 /// This is used to represent source locations for debug info generically
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct SourceLocation {
     pub file: Rc<str>,
     pub line: u32,

@@ -349,6 +349,12 @@ pub unsafe extern "C-unwind" fn init(
         let arity = symbol.arity;
         let callee = symbol.ptr;
 
+        // If the callee pointer is null, then this was a weakly linked symbol,
+        // and the native implementation is not available.
+        if callee.is_null() {
+            continue;
+        }
+
         let layout = Layout::new::<ModuleFunctionArity>();
         let ptr = table.arena.alloc_raw(layout) as *mut ModuleFunctionArity;
         ptr.write(ModuleFunctionArity {

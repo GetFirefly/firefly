@@ -77,7 +77,8 @@ pub enum ExprError {
     BadSegmentSize(SourceSpan),
 }
 
-/// This pass transforms a Core IR function into its Kernel IR form for further analysis and eventual lowering to SSA IR
+/// This pass transforms a Core IR function into its Kernel IR form for further analysis and
+/// eventual lowering to SSA IR
 pub struct CoreToKernel {
     diagnostics: Arc<DiagnosticsHandler>,
 }
@@ -531,7 +532,8 @@ impl<'p> TranslateCore<'p> {
             }) => {
                 match call_type(&module, &function, args.as_slice()) {
                     CallType::Error => {
-                        // Invalid module/function, must rewrite as a call to apply/3 and let it fail at runtime
+                        // Invalid module/function, must rewrite as a call to apply/3 and let it
+                        // fail at runtime
                         let argv = make_clist(args);
                         let mut mfa = Vec::with_capacity(3);
                         mfa.push(module);
@@ -710,7 +712,8 @@ impl<'p> TranslateCore<'p> {
         }
     }
 
-    /// Implement letrec in the traditional way as a local function for each definition in the letrec
+    /// Implement letrec in the traditional way as a local function for each definition in the
+    /// letrec
     fn letrec_local_function(
         &mut self,
         span: SourceSpan,
@@ -1391,7 +1394,6 @@ impl<'p> TranslateCore<'p> {
     ///  have a normalized view of literal integers, allowing us to generate
     ///  more literals and group more clauses. Those integers may be "squeezed"
     ///  later into the largest integer possible.
-    ///
     fn build_bin_seg(
         &mut self,
         span: SourceSpan,
@@ -1493,7 +1495,8 @@ impl MatchGroupKey {
                 keys.sort();
                 Self::Map(keys)
             }
-            _ => unimplemented!(),
+            Expr::Alias(IAlias { ref pattern, .. }) => MatchGroupKey::from(pattern, clause),
+            other => unimplemented!("{:#?}", &other),
         }
     }
 }
@@ -3145,8 +3148,8 @@ impl<'p> TranslateCore<'p> {
             // variables). The transformation works like this:
             //
             // 1. Rewrite the function signature to expect a closure as an extra trailing argument
-            // 2. Inject the unpack_env primop in the function entry for each free variable to extract
-            // it from the closure argument
+            // 2. Inject the unpack_env primop in the function entry for each free variable to
+            // extract it from the closure argument
             for (
                 name,
                 IFun {
@@ -3157,7 +3160,8 @@ impl<'p> TranslateCore<'p> {
                 },
             ) in lr.defs.drain(..)
             {
-                // Perform the usual rewrite, then wrap the body to contain the unpack_env instructions
+                // Perform the usual rewrite, then wrap the body to contain the unpack_env
+                // instructions
                 let (body, _) = self.ubody(body, Brk::Return)?;
                 let (name, body) = if free_vars.is_empty() {
                     let name = FunctionName::new_local(name.name(), vars.len() as u8);
@@ -3188,8 +3192,9 @@ impl<'p> TranslateCore<'p> {
     ) -> Expr {
         assert_ne!(free.len(), 0);
 
-        // We create a chained series of calls to unpack_env/2, in reverse, with appropriate rets for each free variable
-        // This will result in the correct sequence of instructions when lowered
+        // We create a chained series of calls to unpack_env/2, in reverse, with appropriate rets
+        // for each free variable This will result in the correct sequence of instructions
+        // when lowered
         let env_arity = free.len();
         let mut body = body;
         for i in (0..env_arity).rev() {

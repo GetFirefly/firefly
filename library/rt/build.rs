@@ -81,14 +81,14 @@ fn generate_symbols_rs(symbols: Vec<Symbol>) -> std::io::Result<()> {
     file.write_all(b"use core::ptr::NonNull;\n")?;
     file.write_all(b"use super::{Atom, AtomData};\n")?;
 
-    // Symbol data declarations
+    // All other symbol data declarations
     for symbol in symbols.iter() {
         write!(
             &mut file,
             r#"
 pub const {0}_VALUE: &'static [u8] = b"{1}";
 
-#[cfg_attr(target_os = "macos", link_section = "__DATA,atoms")]
+#[cfg_attr(target_os = "macos", link_section = "__DATA,__atoms")]
 #[cfg_attr(all(linux, not(target_os = "macos")), link_section = "__atoms")]
 #[export_name = "atom_{1}"]
 #[linkage = "linkonce_odr"]

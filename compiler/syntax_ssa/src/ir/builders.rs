@@ -690,6 +690,22 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
         dfg.first_result(inst)
     }
 
+    fn is_function_with_arity(mut self, value: Value, arity: Value, span: SourceSpan) -> Value {
+        let mut vlist = ValueList::default();
+        {
+            let pool = &mut self.data_flow_graph_mut().value_lists;
+            vlist.push(value, pool);
+            vlist.push(arity, pool);
+        }
+        let (inst, dfg) = self.PrimOp(
+            Opcode::IsFunctionWithArity,
+            Type::Term(TermType::Bool),
+            vlist,
+            span,
+        );
+        dfg.first_result(inst)
+    }
+
     fn is_tuple_fetch_arity(mut self, value: Value, span: SourceSpan) -> (Value, Value) {
         let mut vlist = ValueList::default();
         {
@@ -1074,6 +1090,26 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
             vlist.push(kind, pool);
             vlist.push(reason, pool);
             vlist.push(trace, pool);
+        }
+        let (inst, dfg) = self.PrimOp(Opcode::Raise, Type::Unit, vlist, span);
+        dfg.first_result(inst)
+    }
+
+    fn raise_with_opts(
+        mut self,
+        kind: Value,
+        reason: Value,
+        trace: Value,
+        opts: Value,
+        span: SourceSpan,
+    ) -> Value {
+        let mut vlist = ValueList::default();
+        {
+            let pool = &mut self.data_flow_graph_mut().value_lists;
+            vlist.push(kind, pool);
+            vlist.push(reason, pool);
+            vlist.push(trace, pool);
+            vlist.push(opts, pool);
         }
         let (inst, dfg) = self.PrimOp(Opcode::Raise, Type::Unit, vlist, span);
         dfg.first_result(inst)

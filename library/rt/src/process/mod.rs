@@ -1,9 +1,11 @@
 mod flags;
+mod generator;
 mod heap;
 mod id;
 pub mod link;
 pub mod monitor;
 pub mod signals;
+mod spawn;
 mod stack;
 
 use alloc::alloc::{AllocError, Allocator, Layout};
@@ -12,12 +14,13 @@ use alloc::fmt;
 use alloc::sync::{Arc, Weak};
 use core::assert_matches::assert_matches;
 use core::cell::UnsafeCell;
+use core::cmp;
 use core::convert::AsRef;
 use core::mem;
-use core::num::NonZeroUsize;
+use core::num::{NonZeroU64, NonZeroUsize};
 use core::ops::{Deref, DerefMut};
 use core::ptr::NonNull;
-use core::sync::atomic::Ordering;
+use core::sync::atomic::{AtomicUsize, Ordering};
 
 use firefly_alloc::fragment::HeapFragmentList;
 use firefly_alloc::heap::Heap;
@@ -40,13 +43,15 @@ use crate::term::{
 };
 
 pub use self::flags::{MaxHeapSize, Priority, ProcessFlags, StatusFlags};
+pub use self::generator::{Continuation, ContinuationResult, Generator, GeneratorState};
 pub use self::heap::ProcessHeap;
 pub use self::id::{ProcessId, ProcessIdError};
-pub use self::stack::{ProcessStack, StackFrame};
+pub use self::spawn::*;
+pub use self::stack::{ProcessStack, Register, StackFrame, ARG0_REG, CP_REG, RETURN_REG};
 
 use self::link::LinkTree;
 use self::monitor::{MonitorList, MonitorTree};
-use self::signals::{Message, SendResult, Signal, SignalEntry, SignalQueue};
+use self::signals::{FlushType, Message, SendResult, Signal, SignalEntry, SignalQueue};
 
 /// A convenient type alias for the intrusive linked list type which is used by schedulers
 pub type ProcessList = LinkedList<ProcessAdapter>;
@@ -129,14 +134,22 @@ pub struct SchedulerData {
     pub gc_needed: usize,
     /// The percentage of used to unused space at which a collection is triggered
     pub gc_threshold: f64,
+    /// The number of minor collections that have occurred since the last full sweep
+    pub gc_count: usize,
     /// The number of schedules remaining for a low priority process
     pub schedule_count: u8,
+    /// A unique number counter for this process
+    pub uniq: NonZeroU64,
     /// The set of internal process flags which are controlled by the scheduler
     pub flags: ProcessFlags,
     /// If `timer` is set, this field holds the reference for the timer
     pub timer_ref: ReferenceId,
     /// Used to reschedule the process when suspended
     pub injector: Arc<Injector<Arc<Process>>>,
+    /// Used to handle yielding BIFs/NIFs
+    pub awaiting: Option<Generator>,
+    /// Stores the target of the trap instruction
+    pub trap: Option<firefly_bytecode::FunId>,
     /// This field represents metadata about the current exception and how it should be handled.
     ///
     /// For exceptions which have already been allocated, the `current_exception` field holds
@@ -157,10 +170,11 @@ pub struct SchedulerData {
     /// that frame.
     ///
     /// Each call which conceptually grows the stack will reserve at least as many stack slots
-    /// as are required by the callee, which may trigger the underlying stack memory to be reallocated.
+    /// as are required by the callee, which may trigger the underlying stack memory to be
+    /// reallocated.
     ///
-    /// The stack is the primary source of roots for garbage collection, in addition to `initial_arguments`,
-    /// and the process dictionary.
+    /// The stack is the primary source of roots for garbage collection, in addition to
+    /// `initial_arguments`, and the process dictionary.
     pub stack: ProcessStack,
     /// The heap for this process
     pub heap: SemispaceProcessHeap,
@@ -208,7 +222,6 @@ impl SchedulerData {
 /// This type provides APIs for accessing fields of `Process` which are not directly
 /// protected by the lock, but which are implicitly owned by the holder of a `ProcessLock`.
 /// These fields cannot be otherwise read.
-///
 pub struct ProcessLock<'a> {
     process: &'a Process,
     guard: MutexGuard<'a, SchedulerData>,
@@ -297,11 +310,11 @@ pub struct Process {
     ///
     /// Attempting to modify the link inappropriately will result in a panic. This is because
     /// the link does not allow modification while it is active, triggering a panic when an attempt
-    /// to do so occurs. It is not guaranteed that this panic will happen in the non-owning context,
-    /// as schedulers _do_ temporarily remove processes from their queues during execution of those
-    /// processes, and then re-insert them in the queue after - should the link have been stolen in
-    /// the interim, the owning scheduler may be the one to panic. Needless to say, incorrect usage
-    /// will not go unnoticed.
+    /// to do so occurs. It is not guaranteed that this panic will happen in the non-owning
+    /// context, as schedulers _do_ temporarily remove processes from their queues during
+    /// execution of those processes, and then re-insert them in the queue after - should the
+    /// link have been stolen in the interim, the owning scheduler may be the one to panic.
+    /// Needless to say, incorrect usage will not go unnoticed.
     ///
     /// This field is the only scheduler-owned field which is not protected by the main lock
     link: LinkedListAtomicLink,
@@ -312,7 +325,8 @@ pub struct Process {
     scheduler_id: Atomic<SchedulerId>,
     /// This field represents the main process lock.
     ///
-    /// The data it contains is owned by, and must only by modified by, a specific scheduler instance.
+    /// The data it contains is owned by, and must only by modified by, a specific scheduler
+    /// instance.
     scheduler_data: Mutex<SchedulerData>,
     /// The unique process id of the current process
     ///
@@ -364,21 +378,21 @@ pub struct Process {
     pub status: Atomic<StatusFlags>,
     #[allow(unused)]
     error_handler: Atomic<Atom>,
+    fullsweep_after: AtomicUsize,
+    min_heap_size: Option<NonZeroUsize>,
     #[allow(unused)]
-    fullsweep_after: Atomic<Option<NonZeroUsize>>,
-    #[allow(unused)]
-    min_heap_size: Atomic<Option<NonZeroUsize>>,
-    #[allow(unused)]
-    min_bin_vheap_size: Atomic<Option<NonZeroUsize>>,
+    min_bin_vheap_size: Option<NonZeroUsize>,
     max_heap_size: Atomic<MaxHeapSize>,
     /// The mailbox/signal queue for this process
     ///
-    /// The signal queue is a thread-safe structure which internally maintains multiple queues for in-transit
-    /// and recieved signals (including messages) for this process. It handles prioritization automatically,
-    /// and provides support for stateful receives (i.e. cursor into the queue, etc).
+    /// The signal queue is a thread-safe structure which internally maintains multiple queues for
+    /// in-transit and recieved signals (including messages) for this process. It handles
+    /// prioritization automatically, and provides support for stateful receives (i.e. cursor
+    /// into the queue, etc).
     ///
-    /// Signals can be enqueued by any process at any time, which will place them in-transit. From there,
-    /// the receiving process moves them into its internal queue and begins handling them one-by-one.
+    /// Signals can be enqueued by any process at any time, which will place them in-transit. From
+    /// there, the receiving process moves them into its internal queue and begins handling
+    /// them one-by-one.
     pub signals: SignalQueue,
 }
 impl fmt::Debug for Process {
@@ -407,6 +421,8 @@ unsafe impl Send for Process {}
 unsafe impl Sync for Process {}
 
 impl Process {
+    pub const MAX_REDUCTIONS: usize = 4000;
+
     pub fn new(
         scheduler_id: SchedulerId,
         parent: Option<Pid>,
@@ -414,12 +430,19 @@ impl Process {
         initial_call: ModuleFunctionArity,
         initial_arguments: &[OpaqueTerm],
         injector: Arc<Injector<Arc<Process>>>,
+        opts: SpawnOpts,
     ) -> Arc<Self> {
         let id = ProcessId::next();
 
         // Make sure the heap is at least large enough to hold `initial_arguments`
+        let min_heap_size = cmp::max(
+            ProcessHeap::DEFAULT_SIZE,
+            opts.min_heap_size
+                .map(|sz| sz.get())
+                .unwrap_or(ProcessHeap::DEFAULT_SIZE),
+        );
         let heap = if initial_arguments.is_empty() {
-            SemispaceProcessHeap::new(ProcessHeap::default(), ProcessHeap::empty())
+            SemispaceProcessHeap::new(ProcessHeap::new(min_heap_size), ProcessHeap::empty())
         } else {
             let mut lb = LayoutBuilder::new();
             for arg in initial_arguments.iter().copied() {
@@ -430,7 +453,8 @@ impl Process {
             }
             lb.build_tuple(initial_arguments.len());
             let layout = lb.finish();
-            let heap_size = ProcessHeap::next_size(layout.size());
+            let required_heap_size = ProcessHeap::next_size(layout.size());
+            let heap_size = cmp::max(required_heap_size, min_heap_size);
             SemispaceProcessHeap::new(ProcessHeap::new(heap_size), ProcessHeap::empty())
         };
 
@@ -460,7 +484,7 @@ impl Process {
                     let term = term.into();
                     args[i] = term;
                     // Store each argument in it's corresponding register on the stack
-                    stack.store((i + stack::RESERVED_REGISTERS) as u8, term);
+                    stack.store((i + stack::RESERVED_REGISTERS) as Register, term);
                 }
             }
             Some(Term::Tuple(args))
@@ -473,9 +497,13 @@ impl Process {
                 reductions: 0,
                 gc_needed: 0,
                 gc_threshold: 0.75,
+                gc_count: 0,
                 schedule_count: 0,
+                uniq: unsafe { NonZeroU64::new_unchecked(1) },
                 timer_ref: ReferenceId::zero(),
                 injector,
+                awaiting: None,
+                trap: None,
                 flags: ProcessFlags::empty(),
                 exception_info: ExceptionInfo::default(),
                 continue_exit: ContinueExitPhase::Timers,
@@ -494,12 +522,12 @@ impl Process {
             initial_call,
             initial_arguments: UnsafeCell::new(initial_arguments),
             timer: Atomic::new(Default::default()),
-            status: Atomic::new(StatusFlags::default() | StatusFlags::ACTIVE),
+            status: Atomic::new(StatusFlags::default() | StatusFlags::ACTIVE | opts.priority),
             error_handler: Atomic::new(atoms::Undefined),
-            fullsweep_after: Atomic::new(None),
-            min_heap_size: Atomic::new(None),
-            min_bin_vheap_size: Atomic::new(None),
-            max_heap_size: Atomic::new(MaxHeapSize::default()),
+            fullsweep_after: AtomicUsize::new(opts.fullsweep_after.unwrap_or(usize::MAX)),
+            min_heap_size: opts.min_heap_size,
+            min_bin_vheap_size: opts.min_bin_vheap_size,
+            max_heap_size: Atomic::new(opts.max_heap_size),
             signals: SignalQueue::default(),
         })
     }
@@ -567,8 +595,8 @@ impl Process {
     /// Sets the registered name of this process
     ///
     /// This function returns `Ok` if the process was unregistered when this function was called,
-    /// otherwise it returns `Err` with the previously registered name of this process. This function
-    /// will never replace an already registered name.
+    /// otherwise it returns `Err` with the previously registered name of this process. This
+    /// function will never replace an already registered name.
     pub fn register_name(&self, name: Atom) -> Result<(), Atom> {
         assert_ne!(
             name,
@@ -629,10 +657,11 @@ impl Process {
         self.status.fetch_or(flags, ordering)
     }
 
-    /// Performs a compare-exchange on the current flag set, setting them to `new` if the current flags match `current`.
+    /// Performs a compare-exchange on the current flag set, setting them to `new` if the current
+    /// flags match `current`.
     ///
-    /// Returns a result containing the current flags, where `Ok` indicates success, `Err` indicates that
-    /// the current flags were different than expected.
+    /// Returns a result containing the current flags, where `Ok` indicates success, `Err` indicates
+    /// that the current flags were different than expected.
     pub fn cmpxchg_status_flags(
         &self,
         current: StatusFlags,
@@ -913,8 +942,21 @@ impl<'a> ProcessLock<'a> {
     }
 
     #[inline]
+    pub fn next_unique(&mut self) -> NonZeroU64 {
+        let id = self.guard.uniq;
+        self.guard.uniq = id.checked_add(1).unwrap();
+        id
+    }
+
+    #[inline]
     pub fn initial_call(&self) -> ModuleFunctionArity {
         self.as_ref().initial_call
+    }
+
+    #[inline]
+    pub fn initial_arguments(&self) -> Option<Term> {
+        let initial_args = unsafe { &*self.as_ref().initial_arguments.get() };
+        initial_args.clone()
     }
 
     #[inline]
@@ -925,6 +967,11 @@ impl<'a> ProcessLock<'a> {
     #[inline]
     pub fn scheduler_id(&self) -> SchedulerId {
         self.as_ref().scheduler_id()
+    }
+
+    #[inline]
+    pub fn reductions_left(&self) -> usize {
+        Process::MAX_REDUCTIONS.saturating_sub(self.guard.reductions)
     }
 
     #[inline]
@@ -1018,6 +1065,59 @@ impl<'a> ProcessLock<'a> {
         }
     }
 
+    /// Performs the given type of flush on the signal queue
+    pub fn flush_signals(&mut self, ty: FlushType) {
+        use self::signals::SignalQueueFlags;
+
+        assert!(!self
+            .as_ref()
+            .signals()
+            .flags()
+            .intersects(SignalQueueFlags::FLUSHING | SignalQueueFlags::FLUSHED));
+
+        let force_flush;
+        let enqueue;
+        let fetch;
+        match &ty {
+            FlushType::Local => {
+                force_flush = true;
+                enqueue = false;
+                fetch = true;
+            }
+            FlushType::Id(_) => {
+                force_flush = false;
+                enqueue = false;
+                fetch = true;
+            }
+            FlushType::InTransit => {
+                force_flush = false;
+                enqueue = true;
+                fetch = false;
+            }
+        }
+
+        self.strong()
+            .do_send_signal(Signal::flush(ty), force_flush)
+            .expect("failed to send signal to ourselves");
+
+        self.guard.flags |= ProcessFlags::DISABLE_GC;
+
+        if fetch {
+            let mut sigq = self.signals().lock();
+            sigq.flush_buffers();
+        }
+
+        let sigq = self.signals();
+        sigq.set_flags(SignalQueueFlags::FLUSHING);
+
+        if enqueue {
+            let sigq = sigq.lock();
+            if !sigq.has_pending_signals() {
+                sigq.set_flags(SignalQueueFlags::FLUSHED);
+            }
+        }
+    }
+
     fn do_send_message(&mut self, entry: Box<SignalEntry>, force_flush: bool) -> Result<(), ()> {
         let mut status = self.status(Ordering::Relaxed);
         if status.contains(StatusFlags::EXITING) {
@@ -1102,7 +1202,8 @@ impl<'a> ProcessLock<'a> {
 
     /// Sets the process timer to `timer`, if no timer is currently set
     ///
-    /// The given timer must be `Active`, use `cancel_timer` or `set_timeout` for other timer values.
+    /// The given timer must be `Active`, use `cancel_timer` or `set_timeout` for other timer
+    /// values.
     ///
     /// This has the effect of also setting the `IN_TIMER_QUEUE` process flag.
     #[inline]
@@ -1144,7 +1245,8 @@ impl<'a> ProcessLock<'a> {
         (prev, timer_ref)
     }
 
-    /// If the current process timer state is `Timeout`, then clear the state to `None` and return `true`
+    /// If the current process timer state is `Timeout`, then clear the state to `None` and return
+    /// `true`
     ///
     /// Otherwise returns `false`
     pub fn clear_timer_on_timeout(&self) -> bool {
@@ -1196,6 +1298,12 @@ impl<'a> ProcessLock<'a> {
             roots += (tuple as *const Term).cast_mut();
         }
 
+        let gc_count = self.guard.gc_count;
+        let fullsweep_after = self.as_ref().fullsweep_after.load(Ordering::Relaxed);
+        if gc_count >= fullsweep_after {
+            self.guard.flags |= ProcessFlags::NEED_FULLSWEEP;
+        }
+
         if self.guard.flags.contains(ProcessFlags::NEED_FULLSWEEP) {
             self.gc_full(needed, roots)
         } else {
@@ -1210,10 +1318,11 @@ impl<'a> ProcessLock<'a> {
         log::trace!(target: "gc", "performing major garbage collection");
 
         // Determine the estimated size for the new heap
+        let min_heap_size = self.as_ref().min_heap_size.map(|sz| sz.get()).unwrap_or(0);
         let mature_heap_size = self.heap.mature().heap_used();
         let size_before = self.heap.immature().heap_used() + mature_heap_size;
         log::trace!(target: "gc", "source heap size is {} bytes", size_before);
-        let estimated_size = size_before + needed;
+        let estimated_size = cmp::max(min_heap_size, size_before + needed);
         let baseline_size = ProcessHeap::next_size(estimated_size);
         log::trace!(target: "gc", "target baseline heap size is {} bytes", baseline_size);
 
@@ -1252,7 +1361,7 @@ impl<'a> ProcessLock<'a> {
         // Calculate reclamation for tracing
         let size_after = self.guard.heap.immature().heap_used();
         let total_size = self.guard.heap.immature().heap_size();
-        let needed_after = size_after + needed;
+        let needed_after = cmp::max(min_heap_size, size_after + needed);
         if size_before >= size_after {
             log::trace!(target: "gc", "garbage collection reclaimed {} bytes", size_before - size_after);
         } else {
@@ -1287,6 +1396,8 @@ impl<'a> ProcessLock<'a> {
             }
         }
 
+        self.guard.gc_count = 0;
+
         Ok(estimate_cost(moved, 0))
     }
 
@@ -1297,6 +1408,7 @@ impl<'a> ProcessLock<'a> {
         log::trace!(target: "gc", "performing minor garbage collection");
 
         // Determine the estimated size for the new heap
+        let min_heap_size = self.as_ref().min_heap_size.map(|sz| sz.get()).unwrap_or(0);
         let size_before = self.guard.heap.immature().heap_used();
         log::trace!(target: "gc", "source heap usage is {} bytes", size_before);
         let mature_range = self.guard.heap.immature().mature_range();
@@ -1346,7 +1458,7 @@ impl<'a> ProcessLock<'a> {
         }
 
         let prev_old_top = self.guard.heap.mature().heap_top();
-        let baseline_size = size_before + needed;
+        let baseline_size = cmp::max(min_heap_size, size_before + needed);
         // While we expect that we will free memory during collection,
         // we want to avoid the case where we collect and then find that
         // the new heap is too small to meet the need that triggered the
@@ -1366,7 +1478,7 @@ impl<'a> ProcessLock<'a> {
         let new_mature_size = unsafe { self.guard.heap.mature().heap_top().sub_ptr(prev_old_top) };
         let heap_used = self.guard.heap.immature().heap_used();
         //let size_after = new_mature_size + heap_used;
-        let needed_after = heap_used + needed;
+        let needed_after = cmp::max(min_heap_size, heap_used + needed);
         let heap_size = self.guard.heap.immature().heap_size();
         let mature_heap_size = self.guard.heap.mature().heap_size();
         let is_oversized = heap_size > needed_after * 4;
@@ -1411,6 +1523,9 @@ impl<'a> ProcessLock<'a> {
                 // return Ok(estimate_cost(moved, heap_used));
             }
         }
+
+        self.guard.gc_count += 1;
+
         Ok(estimate_cost(moved, 0))
     }
 }

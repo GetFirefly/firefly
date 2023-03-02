@@ -13,6 +13,8 @@
 #![feature(const_trait_impl)]
 #![feature(const_default_impls)]
 #![feature(slice_as_chunks)]
+#![feature(local_key_cell_methods)]
+#![feature(box_into_inner)]
 
 extern crate firefly_crt;
 
@@ -50,7 +52,7 @@ macro_rules! badarg {
             $process.exception_info.value = $term;
             $process.exception_info.args = Some($term);
             $process.exception_info.trace = None;
-            firefly_rt::function::ErlangResult::Err(())
+            firefly_rt::function::ErlangResult::Err
         }
     };
 }

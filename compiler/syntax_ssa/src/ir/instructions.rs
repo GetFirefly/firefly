@@ -293,6 +293,7 @@ pub enum Opcode {
     Switch,
     Ret,
     IsType,
+    IsFunctionWithArity,
     IsTupleFetchArity,
     IsTaggedTuple,
     // List Operations
@@ -422,6 +423,7 @@ impl Opcode {
             | Self::Bnot
             | Self::IsType
             | Self::IsTupleFetchArity
+            | Self::IsFunctionWithArity
             | Self::Head
             | Self::Tail
             | Self::Split => 1,
@@ -431,9 +433,11 @@ impl Opcode {
             Self::Tuple => 1,
             // Getting a tuple element takes the tuple and the index of the element
             Self::GetElement => 2,
-            // Setting a tuple element takes two value arguments, the tuple, and the element, the index is immediate
+            // Setting a tuple element takes two value arguments, the tuple, and the element, the
+            // index is immediate
             Self::SetElement | Self::SetElementMut => 2,
-            // Cons constructors/concat/subtract take two arguments, the head and tail elements/lists
+            // Cons constructors/concat/subtract take two arguments, the head and tail
+            // elements/lists
             Self::Cons | Self::ListConcat | Self::ListSubtract => 2,
             // Map constructor has no arguments
             Self::Map => 0,
@@ -443,7 +447,8 @@ impl Opcode {
             Self::MapTryGet => 2,
             // Map modifiers always have 3 arguments
             Self::MapPut | Self::MapUpdate | Self::MapPutMut | Self::MapUpdateMut => 3,
-            // Creating a fun requires the current process and the callee; the environment is variable-sized
+            // Creating a fun requires the current process and the callee; the environment is
+            // variable-sized
             Self::MakeFun => 1,
             // Unpacking a closure environment requires the closure value
             Self::UnpackEnv => 1,
@@ -461,7 +466,8 @@ impl Opcode {
             Self::RecvWaitTimeout => 1,
             // These receive intrinsics manipulate "global" state, they don't take any arguments
             Self::RecvNext | Self::RecvPeek | Self::RecvPop => 0,
-            // These primops expect either no arguments, an immediate or a value, so the number is not fixed
+            // These primops expect either no arguments, an immediate or a value, so the number is
+            // not fixed
             Self::Halt | Self::BitsInit | Self::BitsMatchStart | Self::NifStart => 0,
             // Except with these primitives which only require a value
             Self::Throw | Self::Error => 1,
@@ -540,6 +546,7 @@ impl fmt::Display for Opcode {
             Self::Bnot => f.write_str("bnot"),
             Self::IsType => f.write_str("is_type"),
             Self::IsTupleFetchArity => f.write_str("is_tuple_fetch_arity"),
+            Self::IsFunctionWithArity => f.write_str("is_function"),
             Self::Cons => f.write_str("cons"),
             Self::Head => f.write_str("list.hd"),
             Self::Tail => f.write_str("list.tl"),

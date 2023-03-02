@@ -1,6 +1,7 @@
 mod scheduler;
 
-use std::cell::{RefCell, UnsafeCell};
+use std::cell::{Cell, RefCell, UnsafeCell};
+use std::ptr;
 use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 
@@ -18,6 +19,8 @@ use tokio::runtime::Handle;
 
 use crate::queue::{LocalProcessQueue, RunQueue};
 
+pub(crate) use self::scheduler::Action;
+
 /// Represents a failure in the emulator during execution
 #[derive(Debug, Copy, Clone)]
 #[repr(u8)]
@@ -25,6 +28,15 @@ pub enum EmulatorError {
     InvalidInit,
     SystemLimit,
     Halt(u32),
+}
+
+thread_local! {
+    static CURRENT_SCHEDULER: Cell<*mut Emulator> = Cell::new(ptr::null_mut());
+}
+
+/// Returns a reference to the current scheduler on this thread
+pub fn current_scheduler<'a>() -> &'a Emulator {
+    unsafe { &*CURRENT_SCHEDULER.get() }
 }
 
 /// An instance of the virtual machine emulator
@@ -51,23 +63,28 @@ pub struct Emulator {
     /// This should be used for scheduling tasks which aren't backed by a process
     #[allow(unused)]
     handle: Handle,
-    /// This is internal state to the scheduler, containing the value of the next unique reference id for this scheduler.
+    /// This is internal state to the scheduler, containing the value of the next unique reference
+    /// id for this scheduler.
     reference_id: UnsafeCell<u64>,
-    /// This is internal state to the scheduler, containing the value of the next unique integer for this scheduler.
+    /// This is internal state to the scheduler, containing the value of the next unique integer
+    /// for this scheduler.
     unique_id: UnsafeCell<u64>,
     /// This generally corresponds to the scheduler id, but is useful for checking whether an
-    /// caller might be coming from the same thread or not. This value is set once when the scheduler starts
-    /// and never changes after that (schedulers are not permitted to migrate threads).
+    /// caller might be coming from the same thread or not. This value is set once when the
+    /// scheduler starts and never changes after that (schedulers are not permitted to migrate
+    /// threads).
     thread_id: std::thread::ThreadId,
     /// The total reduction count executed by this scheduler
     reductions: AtomicU64,
-    /// This is internal state to the scheduler, providing the timer service for processes scheduled on this scheduler
+    /// This is internal state to the scheduler, providing the timer service for processes
+    /// scheduled on this scheduler
     ///
-    /// Processes which are suspended on a timer are not in any task queue, but in other cases where a
-    /// process is linked to a timer and it gets migrated to another scheduler, the scheduler which owns
-    /// the timer will relay the event to the owning scheduler. Likewise, if a scheduler takes possession
-    /// of a process and a request to cancel a timer is received, it will look up the scheduler id in the
-    /// timer reference and relay the cancellation to the scheduler on which the timer was registered.
+    /// Processes which are suspended on a timer are not in any task queue, but in other cases
+    /// where a process is linked to a timer and it gets migrated to another scheduler, the
+    /// scheduler which owns the timer will relay the event to the owning scheduler. Likewise,
+    /// if a scheduler takes possession of a process and a request to cancel a timer is
+    /// received, it will look up the scheduler id in the timer reference and relay the
+    /// cancellation to the scheduler on which the timer was registered.
     timers: RefCell<timers::PerSchedulerTimerService>,
 }
 unsafe impl Send for Emulator {}
@@ -98,6 +115,13 @@ impl Emulator {
     /// This function starts the scheduler loop of this emulator, returning a join handle
     /// which can be used to await the exit status of the emulator from the calling thread.
     pub fn start(self: Arc<Self>, spawn_init: bool) -> Result<(), EmulatorError> {
+        let ptr = Arc::as_ptr(&self);
+        assert_eq!(
+            CURRENT_SCHEDULER.replace(ptr.cast_mut()),
+            ptr::null_mut(),
+            "cannot run two schedulers on the same thread!"
+        );
+
         // Spawn the init process before first run
         if spawn_init {
             unsafe {
@@ -143,6 +167,7 @@ impl Emulator {
             init,
             &[initial_args.into()],
             self.injector.clone(),
+            Default::default(),
         );
         {
             let proc = Arc::get_mut(&mut init_p).unwrap();

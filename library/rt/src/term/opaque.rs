@@ -1,45 +1,51 @@
-///! The way we represent Erlang terms is somewhat similar to ERTS, but different in a number of material
-///! aspects:
+///! The way we represent Erlang terms is somewhat similar to ERTS, but different in a number
+///! of material aspects:
 ///!
-///! * We choose a smaller number of terms to represent as immediates, and modify which terms are immediates
-///! and what their ranges/representation are:
+///! * We choose a smaller number of terms to represent as immediates, and modify which terms
+///! are immediates and what their ranges/representation are:
 ///!    - Floats are immediate
 ///!    - Pid/Port are never immediate
 ///!    - SmallInteger is 52-bits wide
 ///!    - Pointers to Tuple/Cons can be type checked without dereferencing the pointer
-///! * Like ERTS, we special case cons cells for more efficient use of memory, but we use a more flexible scheme
-///! for boxed terms in general, allowing us to store any Rust type on a process heap. This scheme comes at a
-///! slight increase in memory usage for some terms, but lets us have an open set of types, as we don't have to
-///! define an encoding scheme for each type individually.
+///! * Like ERTS, we special case cons cells for more efficient use of memory, but we use a
+///! more flexible scheme for boxed terms in general, allowing us to store any Rust type on a
+///! process heap. This scheme comes at a slight increase in memory usage for some terms, but
+///! lets us have an open set of types, as we don't have to define an encoding scheme for each
+///! type individually.
 ///!
-///! In order to properly represent the breadth of Rust types using thin pointers, we use a special smart pointer
-///! type called `Gc<T>` which makes use of the `ptr_metadata` feature to obtain the pointer metadata for a type
-///! and store it alongside the allocated data itself. This allows us to use thin pointers everywhere, but still use
-///! dynamically-sized types.
+///! In order to properly represent the breadth of Rust types using thin pointers, we use a
+///! special smart pointer type called `Gc<T>` which makes use of the `ptr_metadata` feature
+///! to obtain the pointer metadata for a type and store it alongside the allocated data
+///! itself. This allows us to use thin pointers everywhere, but still use dynamically-sized
+///! types.
 ///!
 ///! # Encoding Scheme
 ///!
-///! We've chosen to use a NaN-boxing encoding scheme for immediates. In short, we can hide useful data in the shadow
-///! of floating-point NaNs. As a review, IEEE-764 double-precision floating-point values have the following representation
-///! in memory:
+///! We've chosen to use a NaN-boxing encoding scheme for immediates. In short, we can hide
+///! useful data in the shadow of floating-point NaNs. As a review, IEEE-764 double-precision
+///! floating-point values have the following representation in memory:
 ///!
 ///! `SEEEEEEEEEEEQMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM`
 ///!
 ///! * `S` is the sign bit
 ///! * `E` are the exponent bits (11 bits)
 ///! * `Q+M` are the mantissa bits (52 bits)
-///! * `Q` is used in conjunction with a NaN bit pattern to indicate whether the NaN is quiet or signaling (i.e. raises an exception)
+///! * `Q` is used in conjunction with a NaN bit pattern to indicate whether the NaN is quiet
+///! or signaling (i.e. raises an exception)
 ///!
 ///! In Rust, the following are some special-case bit patterns which are relevant:
 ///!
-///! * `0111111111111000000000000000000000000000000000000000000000000000` = NaN (canonical, sets the quiet bit)
+///! * `0111111111111000000000000000000000000000000000000000000000000000` = NaN
+///!   - Canonical
+///!   - Sets the quiet bit
 ///! * `0111111111110000000000000000000000000000000000000000000000000000` = Infinity
 ///! * `1111111111110000000000000000000000000000000000000000000000000000` = -Infinity
 ///!
-///! Additionally, for NaN, it is only required that the canonical bits are set, the mantissa bits are ignored, which means they
-///! can be used.
+///! Additionally, for NaN, it is only required that the canonical bits are set, the mantissa
+///! bits are ignored, which means they can be used.
 ///!
-///! Furthermore, Erlang does not support NaN or the infinities, so those bit patterns can be used as well. This gives us:
+///! Furthermore, Erlang does not support NaN or the infinities, so those bit patterns can be
+///! used as well. This gives us:
 ///!
 ///! * Infinity + 51 contiguous bits for value + unique tag
 ///! * -Infinity + 52 contiguous bits for a primitive i52 integer type
@@ -52,36 +58,83 @@
 ///!
 ///! # Term Types
 ///!
-///! * None, a singleton invalid value, used for various purposes but not constructible from user code
+///! * None, a singleton invalid value, used for various purposes but not constructible from
+///! user code
 ///! * Nil, a singleton value representing the empty list
 ///! * Boolean, composed of two singleton values for false and true, also valid atoms
-///! * Atom, a pointer to an AtomData struct, unique for each atom; the pointer value is used for cheap equality comparison
+///! * Atom, a pointer to an AtomData struct, unique for each atom; the pointer value is used
+///! for cheap equality comparison
 ///! * Integer, an i52 equivalent immediate integer value
 ///! * Float, a f64 value, but without support for NaN, or the infinities
-///! * Gc/Arc/*const, a pointer to a heap allocated or constant value, depending on pointer type
-///! * Catch, a pointer or offset to the instruction to which control will be transferred for a raised exception
-///! * Code, a pointer or offset to the instruction to which control will be transferred when returning from a function
+///! * Gc/Arc/*const, a pointer to a heap allocated or constant value, depending on pointer
+///! type
+///! * Catch, a pointer or offset to the instruction to which control will be transferred
+///! for a raised exception
+///! * Code, a pointer or offset to the instruction to which control will be transferred when
+///! returning from a function
 ///!
 ///! # Term Encodings
 ///!
 ///! * All bit patterns which are non-NaN, non-infinite float values      = Float
-///! * `111111111111xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx` = Integer (-Infinity + i52 value)
-///! * `0111111111111000000000000000000000000000000000000000000000000000` = NONE (canonical NaN)
-///! * `0111111111111xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx1000` = HOLE (canonical NaN + 0x08, used to indicate a region of unused memory immediately following the word)
-///! * `0111111111111xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx001` = Catch (canonical NaN + 0x01 + non-null pointer value required)
-///! * `0111111111111xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx010` = Code (canonical NaN + 0x02 + non-null pointer value required)
-///! * `0111111111111xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxTTTT11` = Header (canonical NaN + 0x03 + 4-bit tag + 45-bit arity val)
-///! * `0111111111110000000000000000000000000000000000000000000000000000` = NIL (Infinity)
-///! * `0111111111110000000000000000000000000000000000000000000000000010` = FALSE (Infinity + 0x02)
-///! * `0111111111110000000000000000000000000000000000000000000000000011` = TRUE (Infinity + 0x03)
-///! * `0111111111110xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx000` = Gc<T> (Infinity + 0x00 + non-null pointer value required)
-///! * `0111111111110xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx001` = *const T (Infinity + 0x01 + non-null pointer value required)
-///! * `0111111111110xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx010` = Atom (Infinity + 0x02 + non-null *const AtomData value)
-///! * `0111111111110xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx011` = Arc<T> (Infinity + 0x03 + non-null pointer value required)
-///! * `0111111111110xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx100` = Gc<Cons> (Infinity + 0x04 + non-null pointer value required)
-///! * `0111111111110xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx101` =   (add 0x01 tag if literal)
-///! * `0111111111110xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx110` = Gc<Tuple> (Infinity + 0x06 + non-null pointer value required)
-///! * `0111111111110xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx111` =   (add 0x01 tag if literal)
+///!
+///! ## -Infinity
+///!
+///! The following are the term types which use -Infinity as their tag
+///!
+///! * `111111111111xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx` = Integer (-Inf)
+///!   - Equivalent to an i52 integer
+///!
+///! ## Infinity
+///!
+///! The following are the term types which use Infinity as their tag in the high bits,
+///! and use a unique tag in their lowest 3 bits.
+///!
+///! * `0111111111110000000000000000000000000000000000000000000000000000` = NIL
+///! * `0111111111110000000000000000000000000000000000000000000000000010` = FALSE
+///! * `0111111111110000000000000000000000000000000000000000000000000011` = TRUE
+///! * `0111111111110xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx000` = Gc<T>
+///!   - A non-null pointer value is required
+///! * `0111111111110xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx001` = &'static T
+///!   - A non-null pointer value is required
+///! * `0111111111110xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx010` = Atom
+///!   - A non-null pointer to AtomData is required
+///! * `0111111111110xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx011` = Arc<T>
+///!   - A non-null pointer value is required
+///! * `0111111111110xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx100` = Gc<Cons>
+///! * `0111111111110xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx101` = &'static Cons
+///!   - A non-null pointer value is required
+///!   - The lowest bit (0x01) is set if the value is a literal
+///! * `0111111111110xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx110` = Gc<Tuple>
+///! * `0111111111110xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx111` = &'static Tuple
+///!   - A non-null pointer value is required
+///!   - The lowest bit (0x01) is set if the value is a literal
+///!
+///! ## NaN
+///!
+///! The following are the term types which use canonical NaN to tag their high bits.
+///! These term types are not valid Erlang terms themselves, but are used as markers, or
+///! represent various runtime-internal values.
+///!
+///! In general, the lowest 3 bits are used as a unique tag, but in a couple of cases,
+///! additional bits are used to differentiate between overlapping tag bits.
+///!
+///! * `0111111111111000000000000000000000000000000000000000000000000000` = NONE
+///!   - Represents void/()/!
+///! * `0111111111111xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx001` = Catch
+///!   - Encodes an instruction pointer for a catch handler
+///!   - Must be non-null
+///! * `0111111111111xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx010` = Code
+///!   - Encodes an instruction pointer for continuations
+///!   - May also be used to masquerade a runtime-internal type on the process stack
+///!   - Must be non-null
+///! * `0111111111111xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxTTTT11` = Header
+///!   - Represents the start of a heap-allocated term's data
+///!   - Has a 4-bit tag for the term type
+///!   - Has a 45-bit arity value (typically used for dynamically-sized types)
+///! * `0111111111111xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx1000` = HOLE
+///!   - Represents a region of reclaimed memory immediately following the marker
+///!   - Technically overlaps with the tag for NONE, but the value is guaranteed
+///!   to be unique due to the use of bit #4 as an additional tag bit.
 ///!
 use alloc::sync::Arc;
 use core::fmt;
@@ -92,12 +145,12 @@ use super::{atoms, Atom, Closure, Cons, Float, Term, Tuple};
 use super::{BigInt, BinaryData, BitSlice, Map, MatchContext, Pid, Port, Reference};
 use super::{Boxable, Header, Tag};
 
-use crate::function::ErlangResult;
 use crate::gc::Gc;
 
 // Canonical NaN
 const NAN: u64 = unsafe { mem::transmute::<f64, u64>(f64::NAN) };
-// This value has only set the bit which is used to indicate quiet vs signaling NaN (or NaN vs Infinity in the case of Rust)
+// This value has only set the bit which is used to indicate quiet vs signaling NaN (or NaN vs
+// Infinity in the case of Rust)
 const QUIET_BIT: u64 = 1 << 51;
 // This value has the bit pattern used for the None term, which reuses the bit pattern for NaN
 const NONE: u64 = NAN;
@@ -107,26 +160,29 @@ const NEG_INFINITY: u64 = unsafe { mem::transmute::<f64, u64>(f64::NEG_INFINITY)
 const NIL: u64 = INFINITY;
 // This is an alias for the quiet bit, which is used as the sign bit for integer values
 const SIGN_BIT: u64 = QUIET_BIT;
-// This value has all of the bits set which indicate an integer value. To get the actual integer value, you must mask out
-// the other bits and then sign-extend the result based on QUIET_BIT, which is the highest bit an integer value can set
+// This value has all of the bits set which indicate an integer value. To get the actual integer
+// value, you must mask out the other bits and then sign-extend the result based on QUIET_BIT, which
+// is the highest bit an integer value can set
 const INTEGER_TAG: u64 = NEG_INFINITY;
 
-// This tag when used with pointers, indicates that the pointee is constant, i.e. not garbage-collected
+// This tag when used with pointers, indicates that the pointee is constant, i.e. not
+// garbage-collected
 const LITERAL_TAG: u64 = 0x01;
 const CATCH_TAG: u64 = 0x01;
-// This tag is only ever set when the value is an atom, but is insufficient on its own to determine which type of atom
+// This tag is only ever set when the value is an atom, but is insufficient on its own to determine
+// which type of atom
 const ATOM_TAG: u64 = 0x02;
 const CODE_TAG: u64 = 0x02;
 // This constant is used to represent the boolean false value without any pointer to AtomData
 const FALSE: u64 = INFINITY | ATOM_TAG;
 // This constant is used to represent the boolean true value without any pointer to AtomData
 const TRUE: u64 = FALSE | 0x01;
-// This tag represents a unique combination of the lowest 4 bits indicating the value is a cons pointer
-// This tag can be combined with LITERAL_TAG to indicate the pointer is constant
+// This tag represents a unique combination of the lowest 4 bits indicating the value is a cons
+// pointer This tag can be combined with LITERAL_TAG to indicate the pointer is constant
 const CONS_TAG: u64 = 0x04;
 const CONS_LITERAL_TAG: u64 = CONS_TAG | LITERAL_TAG;
-// This tag represents a unique combination of the lowest 4 bits indicating the value is a tuple pointer
-// This tag can be combined with LITERAL_TAG to indicate the pointer is constant
+// This tag represents a unique combination of the lowest 4 bits indicating the value is a tuple
+// pointer This tag can be combined with LITERAL_TAG to indicate the pointer is constant
 const TUPLE_TAG: u64 = 0x06;
 const TUPLE_LITERAL_TAG: u64 = TUPLE_TAG | LITERAL_TAG;
 // This tag is used to mark a pointer allocated via Arc<T>
@@ -139,12 +195,14 @@ const HOLE_TAG: u64 = 0x08;
 const GROUP_MASK: u64 = NEG_INFINITY;
 // This mask when applied to a u64 distinguishes between NAN, Infinity and -Infinity
 const SUBGROUP_MASK: u64 = NEG_INFINITY | QUIET_BIT;
-// This mask when applied to a u64 will produce a value that can be compared with the tags above for equality
+// This mask when applied to a u64 will produce a value that can be compared with the tags above for
+// equality
 const TAG_MASK: u64 = 0x07;
 // This mask when applied to a u64 will return only the bits which are part of the integer value
 // NOTE: The value that is produced requires sign-extension based on whether SIGN_BIT is set
 const INT_MASK: u64 = !INTEGER_TAG;
-// This mask when applied to a u64 will return a value which can be cast to pointer type and dereferenced
+// This mask when applied to a u64 will return a value which can be cast to pointer type and
+// dereferenced
 const PTR_MASK: u64 = !(NEG_INFINITY | SIGN_BIT | TAG_MASK);
 // This extends SUBGROUP_MASK to allow pairing it with special tag bits
 const SPECIAL_TAG_MASK: u64 = SUBGROUP_MASK | HEADER_TAG;
@@ -285,12 +343,14 @@ impl Ord for TermType {
 /// Terms can be encoded as either immediate (i.e. the entire value is represented in the opaque
 /// term itself), or boxed (i.e. the value of the opaque term is a pointer to a value on the heap).
 ///
-/// Pointer values encoded in a term must always have at least 8-byte alignment on all supported platforms.
-/// This should be ensured by specifying the required minimum alignment on all concrete term types we define,
-/// but we also add some debug checks to protect against accidentally attempting to encode invalid pointers.
+/// Pointer values encoded in a term must always have at least 8-byte alignment on all supported
+/// platforms. This should be ensured by specifying the required minimum alignment on all concrete
+/// term types we define, but we also add some debug checks to protect against accidentally
+/// attempting to encode invalid pointers.
 ///
-/// The set of types given explicit type tags were selected such that the most commonly used types are the
-/// cheapest to type check and decode. In general, we believe the most used to be numbers, atoms, lists, and tuples.
+/// The set of types given explicit type tags were selected such that the most commonly used types
+/// are the cheapest to type check and decode. In general, we believe the most used to be numbers,
+/// atoms, lists, and tuples.
 #[derive(Copy, Clone, PartialEq, Eq)]
 #[repr(transparent)]
 pub struct OpaqueTerm(u64);
@@ -402,9 +462,11 @@ impl OpaqueTerm {
                         }
                         RC_TAG => {
                             let ptr = value.as_ptr();
-                            // When we decode a reference-counted term, we clone a new strong reference.
-                            // This means that reference-counted terms won't be deallocated while an OpaqueTerm
-                            // containing the reference is held on the process heap or stack, until a GC occurs
+                            // When we decode a reference-counted term, we clone a new strong
+                            // reference. This means that
+                            // reference-counted terms won't be deallocated while an OpaqueTerm
+                            // containing the reference is held on the process heap or stack, until
+                            // a GC occurs
                             let header = *ptr.cast::<Header>();
                             match header.tag() {
                                 Tag::Port => {
@@ -422,13 +484,15 @@ impl OpaqueTerm {
                             }
                         }
                         LITERAL_TAG => {
-                            // Currently, the only possible type which can be flagged as literal without
-                            // any other identifying information is constant BinaryData.
+                            // Currently, the only possible type which can be flagged as literal
+                            // without any other identifying information
+                            // is constant BinaryData.
                             let ptr = value.as_ptr();
                             let ptr = unsafe {
                                 <BinaryData as Boxable>::from_raw_parts(ptr, *ptr.cast::<Header>())
                             };
-                            // Constant binaries are allocated with a leading usize containing the pointer metadata
+                            // Constant binaries are allocated with a leading usize containing the
+                            // pointer metadata
                             term.write(Term::ConstantBinary(&*ptr));
                         }
                         0 => {
@@ -464,7 +528,8 @@ impl OpaqueTerm {
                                         }
                                         Tag::Port => {
                                             // TODO:
-                                            // term.write(Term::Port(Gc::from_raw_parts(ptr, header.arity())));
+                                            // term.write(Term::Port(Gc::from_raw_parts(ptr,
+                                            // header.arity())));
                                             todo!()
                                         }
                                         Tag::Reference => {
@@ -538,8 +603,9 @@ impl OpaqueTerm {
                                 }
                             }
                             LITERAL_TAG => {
-                                // Currently, the only possible type which can be flagged as literal without
-                                // any other identifying information is constant BinaryData.
+                                // Currently, the only possible type which can be flagged as literal
+                                // without any other identifying
+                                // information is constant BinaryData.
                                 TermType::Binary
                             }
                             0 => {
@@ -647,7 +713,8 @@ impl OpaqueTerm {
     pub fn move_marker(self) -> Option<NonNull<()>> {
         if self.is_nonempty_list() {
             let ptr = unsafe { self.as_ptr() };
-            // Move marker for cons cells rewrites the cell head as NONE and cell tail as a cons pointer
+            // Move marker for cons cells rewrites the cell head as NONE and cell tail as a cons
+            // pointer
             let cons = unsafe { &*ptr.cast::<Cons>() };
             if cons.is_move_marker() {
                 Some(unsafe { cons.forwarded_to().as_non_null_ptr().cast() })
@@ -902,9 +969,8 @@ impl OpaqueTerm {
     #[inline]
     pub fn is_tuple_with_arity(self, arity: u32) -> bool {
         match self.tuple_size() {
-            ErlangResult::Ok(n) => arity == n,
-            ErlangResult::Err(_) => false,
-            _ => unreachable!(),
+            Ok(n) => arity == n,
+            Err(_) => false,
         }
     }
 
@@ -918,20 +984,21 @@ impl OpaqueTerm {
 
     /// A combined tuple type test with fetching the arity, optimized for a specific pattern
     /// produced by the compiler
-    pub fn tuple_size(self) -> ErlangResult<u32, ()> {
+    pub fn tuple_size(self) -> Result<u32, ()> {
         const IS_TUPLE: u64 = INFINITY | TUPLE_TAG;
         const IS_TUPLE_LITERAL: u64 = INFINITY | TUPLE_LITERAL_TAG;
 
         match self.0 & (SUBGROUP_MASK | TAG_MASK) {
             IS_TUPLE | IS_TUPLE_LITERAL => {
                 let header = unsafe { *self.as_ptr().cast::<Header>() };
-                ErlangResult::Ok(header.arity() as u32)
+                Ok(header.arity() as u32)
             }
-            _ => ErlangResult::Err(()),
+            _ => Err(()),
         }
     }
 
-    /// Like `erlang:size/1`, but returns the dynamic size of the given term, or 0 if it is not an unsized type
+    /// Like `erlang:size/1`, but returns the dynamic size of the given term, or 0 if it is not an
+    /// unsized type
     ///
     /// For tuples, this is the number of elements in the tuple.
     /// For closures, it is the number of elements in the closure environment.
@@ -1004,8 +1071,8 @@ impl OpaqueTerm {
 
     /// Extracts the integer value contained in this term.
     ///
-    /// This function is always memory safe, but if improperly used will cause weird results, so it is important
-    /// that you guard usages of this function with proper type checks.
+    /// This function is always memory safe, but if improperly used will cause weird results, so it
+    /// is important that you guard usages of this function with proper type checks.
     pub unsafe fn as_integer(self) -> i64 {
         debug_assert!(self.is_integer());
         // Extract the raw 51-bit signed integer
@@ -1360,6 +1427,7 @@ mod tests {
     use firefly_binary::{BinaryFlags, Bitstring, Encoding, Selection};
 
     use crate::drivers::{self, Driver, DriverError, DriverFlags, LoadableDriver};
+    use crate::function::ErlangResult;
     use crate::gc::Gc;
     use crate::process::ProcessId;
     use crate::scheduler::SchedulerId;
@@ -1803,7 +1871,7 @@ mod tests {
         assert!(!OpaqueTerm::NONE.is_nonempty_list());
         assert!(!OpaqueTerm::NONE.is_list());
         assert!(!OpaqueTerm::NONE.is_tuple());
-        assert_eq!(OpaqueTerm::NONE.tuple_size(), ErlangResult::Err(()));
+        assert_eq!(OpaqueTerm::NONE.tuple_size(), Err(()));
     }
 
     #[test]
@@ -1832,7 +1900,7 @@ mod tests {
             assert!(!float.is_nonempty_list());
             assert!(!float.is_list());
             assert!(!float.is_tuple());
-            assert_eq!(float.tuple_size(), ErlangResult::Err(()));
+            assert_eq!(float.tuple_size(), Err(()));
         }
     }
 
@@ -1863,7 +1931,7 @@ mod tests {
             assert!(!int.is_nonempty_list());
             assert!(!int.is_list());
             assert!(!int.is_tuple());
-            assert_eq!(int.tuple_size(), ErlangResult::Err(()));
+            assert_eq!(int.tuple_size(), Err(()));
         }
     }
 
@@ -1903,7 +1971,7 @@ mod tests {
             assert!(!atom.is_nonempty_list());
             assert!(!atom.is_list());
             assert!(!atom.is_tuple());
-            assert_eq!(atom.tuple_size(), ErlangResult::Err(()));
+            assert_eq!(atom.tuple_size(), Err(()));
         }
     }
 
@@ -1928,7 +1996,7 @@ mod tests {
         assert!(!term.is_nonempty_list());
         assert!(!term.is_list());
         assert!(!term.is_tuple());
-        assert_eq!(term.tuple_size(), ErlangResult::Err(()));
+        assert_eq!(term.tuple_size(), Err(()));
     }
 
     #[test]
@@ -1948,7 +2016,7 @@ mod tests {
         assert!(!OpaqueTerm::NIL.is_nonempty_list());
         assert!(OpaqueTerm::NIL.is_list());
         assert!(!OpaqueTerm::NIL.is_tuple());
-        assert_eq!(OpaqueTerm::NIL.tuple_size(), ErlangResult::Err(()));
+        assert_eq!(OpaqueTerm::NIL.tuple_size(), Err(()));
     }
 
     #[test]
@@ -1979,7 +2047,7 @@ mod tests {
         assert!(cons.is_nonempty_list());
         assert!(cons.is_list());
         assert!(!cons.is_tuple());
-        assert_eq!(cons.tuple_size(), ErlangResult::Err(()));
+        assert_eq!(cons.tuple_size(), Err(()));
     }
 
     #[test]
@@ -2010,7 +2078,7 @@ mod tests {
         assert!(!opaque.is_number());
         assert!(!opaque.is_nonempty_list());
         assert!(!opaque.is_list());
-        assert_eq!(opaque.tuple_size(), ErlangResult::Ok(3));
+        assert_eq!(opaque.tuple_size(), Ok(3));
         assert!(opaque.is_tuple());
         assert!(opaque.is_tuple_with_arity(3));
         assert!(!opaque.is_tuple_with_arity(2));
@@ -2045,7 +2113,7 @@ mod tests {
         assert!(!map.is_nonempty_list());
         assert!(!map.is_list());
         assert!(!map.is_tuple());
-        assert_eq!(map.tuple_size(), ErlangResult::Err(()));
+        assert_eq!(map.tuple_size(), Err(()));
     }
 
     #[test]
@@ -2074,7 +2142,7 @@ mod tests {
             assert!(!bin.is_nonempty_list());
             assert!(!bin.is_list());
             assert!(!bin.is_tuple());
-            assert_eq!(bin.tuple_size(), ErlangResult::Err(()));
+            assert_eq!(bin.tuple_size(), Err(()));
         }
 
         let _ = unsafe { Arc::from_raw(rc_ptr) };

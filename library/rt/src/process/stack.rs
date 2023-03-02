@@ -10,15 +10,24 @@ const MIN_STACK_SIZE: usize = 256;
 ///
 /// The two registers are used for the return value, and the continuation pointer/return address
 pub(super) const RESERVED_REGISTERS: usize = 2;
-/// The reserved register which stores the continuation pointer/return address for a call frame on the stack
-const CP_REG: Register = 1;
+
+/// The reserved register which stores the return value for the current function
+pub const RETURN_REG: Register = 0;
+/// The reserved register which stores the continuation pointer/return address for a call frame on
+/// the stack
+pub const CP_REG: Register = 1;
+/// The register holding the first argument value for the current function, only valid to use
+/// when the current function has arguments. All additional function arguments follow after this
+/// register consecutively
+pub const ARG0_REG: Register = 2;
 
 /// Represents a single call frame in the call stack
 #[derive(Copy, Clone)]
 pub struct StackFrame {
     /// The offset or pointer of the instruction to return control to on exit
     pub ret: usize,
-    /// The frame pointer for this frame, i.e. points to the bottom of the stack space reserved for this frame
+    /// The frame pointer for this frame, i.e. points to the bottom of the stack space reserved for
+    /// this frame
     pub fp: usize,
     /// The current stack pointer value in this frame
     pub sp: usize,
@@ -26,7 +35,8 @@ pub struct StackFrame {
 
 /// A register is a frame-relative offset to a stack slot in the current frame
 ///
-/// Relative addressing of the stack uses registers, rather than absolute addresses, due to how code is generated.
+/// Relative addressing of the stack uses registers, rather than absolute addresses, due to how code
+/// is generated.
 pub type Register = firefly_bytecode::Register;
 
 /// A mark captures the stack of the stack and frame pointers at a specific point in time,
@@ -50,7 +60,7 @@ pub enum Mark {
     /// For a call, we simply mark the frame pointer and offset of the stack pointer
     Call { fp: usize, sp: u16 },
     /// For a catch, we also record the offset of the stack slot where the catch pointer is stored
-    Catch { fp: usize, sp: u16, cp: Register },
+    Catch { fp: usize, sp: u16, cp: usize },
 }
 impl Mark {
     #[inline]
@@ -60,7 +70,7 @@ impl Mark {
     }
 
     #[inline]
-    pub fn catch(fp: usize, sp: usize, cp: Register) -> Self {
+    pub fn catch(fp: usize, sp: usize, cp: usize) -> Self {
         let sp = (sp - fp).try_into().unwrap();
         Self::Catch { fp, sp, cp }
     }
@@ -91,28 +101,31 @@ pub struct StackOverflowError;
 /// Represents the stack memory of a [`Process`].
 ///
 /// When a process is initialized, a default stack of [`MIN_STACK_SIZE`] words is allocated, and
-/// this grows dynamically as needed behind the scenes. Reallocations due to stack growth are performed
-/// in such a way that many small pushes near the end of the stack will not result in repeated reallocation.
-/// Instead, the stack grows in size rapidly to keep reallocations to a minimum, at the expense of some wasted
-/// memory.
+/// this grows dynamically as needed behind the scenes. Reallocations due to stack growth are
+/// performed in such a way that many small pushes near the end of the stack will not result in
+/// repeated reallocation. Instead, the stack grows in size rapidly to keep reallocations to a
+/// minimum, at the expense of some wasted memory.
 ///
-/// The stack pointer starts at 0, and grows upwards - unlike traditional stack memory whose addresses normally
-/// grow downwards. The stack pointer points to the next free slot on the stack, _not_ the most recently pushed
-/// element.
+/// The stack pointer starts at 0, and grows upwards - unlike traditional stack memory whose
+/// addresses normally grow downwards. The stack pointer points to the next free slot on the stack,
+/// _not_ the most recently pushed element.
 ///
 /// # Features
 ///
-/// * The stack can be manipulated granularly using [`push`]/[`pop`] or in bulk using [`alloca`]/[`dealloc`]
-/// * The stack can be marked to indicate a point in the stack to which it should be reset when the mark is consumed
+/// * The stack can be manipulated granularly using [`push`]/[`pop`] or in bulk using
+///   [`alloca`]/[`dealloc`]
+/// * The stack can be marked to indicate a point in the stack to which it should be reset when the
+///   mark is consumed
 ///
 /// # Safety
 ///
-/// The stack may only contain immediates and pointers to heap memory, it is not permitted to allocate on the stack
-/// as if it was the heap.
+/// The stack may only contain immediates and pointers to heap memory, it is not permitted to
+/// allocate on the stack as if it was the heap.
 ///
 /// # Layout
 ///
-/// Call frames are laid out as follows, where the address on the left is relative to the frame pointer (fp):
+/// Call frames are laid out as follows, where the address on the left is relative to the frame
+/// pointer (fp):
 ///
 /// ```text,ignore
 ///     N+1 | NONE           <- sp
@@ -123,25 +136,30 @@ pub struct StackOverflowError;
 ///     0   | RETURN_VALUE   <- fp
 /// ```
 ///
-/// The first call frame in the call stack has a null return address, which is what signals that control
-/// has reached the bottom of the call stack, and that the currently executing process should exit normally.
+/// The first call frame in the call stack has a null return address, which is what signals that
+/// control has reached the bottom of the call stack, and that the currently executing process
+/// should exit normally.
 ///
-/// When a non-tail call is being made, the caller will have allocated a stack slot for the return value in its
-/// call frame. The caller will ensure that immediately following that slot is room for the return address and all
-/// of the callee arguments, and will set the frame pointer to the slot containing the return value, and the stack
-/// pointer to the first slot following the last argument. At this point control will be transferred to the callee.
+/// When a non-tail call is being made, the caller will have allocated a stack slot for the return
+/// value in its call frame. The caller will ensure that immediately following that slot is room for
+/// the return address and all of the callee arguments, and will set the frame pointer to the slot
+/// containing the return value, and the stack pointer to the first slot following the last
+/// argument. At this point control will be transferred to the callee.
 ///
-/// The callee, when returning to the caller, will move its return value into the first slot at the base of the frame,
-/// get the return address from the second slot of the frame, and then restore the stack mark that was created by the caller,
-/// restoring the stack and frame pointers to their prior positions.
+/// The callee, when returning to the caller, will move its return value into the first slot at the
+/// base of the frame, get the return address from the second slot of the frame, and then restore
+/// the stack mark that was created by the caller, restoring the stack and frame pointers to their
+/// prior positions.
 ///
-/// Tail calls reuse the caller's frame, so arguments to the callee must be moved to their appropriate position on the
-/// stack so that they are in the expected slots when control is transferred to the callee. This may require additional
-/// stack slots in order to non-destructively shuffle values around.
+/// Tail calls reuse the caller's frame, so arguments to the callee must be moved to their
+/// appropriate position on the stack so that they are in the expected slots when control is
+/// transferred to the callee. This may require additional stack slots in order to non-destructively
+/// shuffle values around.
 ///
-/// Exception handlers also use stack marks to record the state of the stack which should be restored before transfering
-/// control to the handler. The stack slot containing the continuation pointer for the handler is stored as part of the
-/// mark, and is used to recover the pointer quickly when unwinding in the presence of an exception.
+/// Exception handlers also use stack marks to record the state of the stack which should be
+/// restored before transfering control to the handler. The stack slot containing the continuation
+/// pointer for the handler is stored as part of the mark, and is used to recover the pointer
+/// quickly when unwinding in the presence of an exception.
 pub struct ProcessStack {
     /// The actual stack memory
     ///
@@ -150,12 +168,13 @@ pub struct ProcessStack {
     pub(super) stack: Vec<OpaqueTerm>,
     /// A stack of stack marks (see [`Mark`]).
     ///
-    /// When used as a call frame mark, conceptually each mark represents the beginning of a new call frame, but the
-    /// actual state captured in the mark is actually the state of the caller's call frame. Thus, restoring the mark
-    /// restores the caller's frame.
+    /// When used as a call frame mark, conceptually each mark represents the beginning of a new
+    /// call frame, but the actual state captured in the mark is actually the state of the
+    /// caller's call frame. Thus, restoring the mark restores the caller's frame.
     ///
-    /// When used as a catch handler mark, each mark represents the state of the stack which must be restored for
-    /// the handler, as well as the location of the continuation pointer on the stack.
+    /// When used as a catch handler mark, each mark represents the state of the stack which must
+    /// be restored for the handler, as well as the location of the continuation pointer on the
+    /// stack.
     marks: Vec<Mark>,
     /// The current stack pointer
     pub(super) sp: usize,
@@ -231,7 +250,6 @@ impl ProcessStack {
     /// # SAFETY
     ///
     /// It is expected that callees will allocate space necessary for its frame upon entry
-    ///
     pub fn push_frame(&mut self, ret: Register) {
         // Calculate the absolute offset of `ret` from the bottom of the stack
         let ret = self.fp + ret as usize;
@@ -271,8 +289,8 @@ impl ProcessStack {
     /// Returns the continuation pointer/return address, if one is present.
     ///
     /// After this function returns, the stack and frame pointers will be in their previous
-    /// locations, and the return value will be available in the slot originally requested by `push_frame`.
-    ///
+    /// locations, and the return value will be available in the slot originally requested by
+    /// `push_frame`.
     pub fn pop_frame(&mut self) -> Option<usize> {
         // We may have catch marks on the stack, so skip over them to the nearest call frame
         while let Some(mark) = self.marks.pop() {
@@ -302,10 +320,9 @@ impl ProcessStack {
 
     /// Pushes a new mark which will be restored if an exception is raised
     ///
-    /// The given `cp` register should contain the location of the instruction pointer where
-    /// control should be transferred when an exception unwinds through this handler.
+    /// The given instruction pointer is where control will be transferred on an exception.
     #[inline]
-    pub fn enter_catch(&mut self, cp: Register) {
+    pub fn enter_catch(&mut self, cp: usize) {
         self.marks.push(Mark::catch(self.fp, self.sp, cp));
     }
 
@@ -313,9 +330,9 @@ impl ProcessStack {
     ///
     /// This is intended to be called during non-exceptional control flow.
     ///
-    /// When an exception is raised, the stack is automatically unwound to the nearest catch handler,
-    /// restoring the mark for that handler in the process. Calling `exit_catch` is only necessary when
-    /// explicitly exiting the protected region of the catch handler.
+    /// When an exception is raised, the stack is automatically unwound to the nearest catch
+    /// handler, restoring the mark for that handler in the process. Calling `exit_catch` is
+    /// only necessary when explicitly exiting the protected region of the catch handler.
     #[inline]
     pub fn exit_catch(&mut self) {
         assert_matches!(self.marks.pop(), Some(Mark::Catch { .. }));
@@ -378,7 +395,8 @@ impl ProcessStack {
         self.sp += size;
     }
 
-    /// Dynamically allocate stack space in the current frame, initializing all the new slots as `OpaqueTerm::NONE`
+    /// Dynamically allocate stack space in the current frame, initializing all the new slots as
+    /// `OpaqueTerm::NONE`
     pub fn alloca_zeroed(&mut self, size: usize) {
         // Save the stack pointer prior to extension
         let start = self.sp;
@@ -426,7 +444,7 @@ impl ProcessStack {
                     let sp = *sp;
                     self.fp = fp;
                     self.sp = fp + (sp as usize);
-                    return Some(unsafe { self.load(*cp).as_catch() });
+                    return Some(*cp);
                 }
                 _ => {
                     self.marks.pop();
@@ -444,7 +462,8 @@ impl ProcessStack {
     /// If `max_frames` is `None`, the trace will be as deep as the call stack.
     /// If `max_frames` is set to `Some`, then only `max_frames` frames will be emitted.
     ///
-    /// The frames are emitted in stack order, meaning the most recently called function appears first
+    /// The frames are emitted in stack order, meaning the most recently called function appears
+    /// first
     pub fn trace<'a, 'b: 'a>(
         &'b self,
         max_frames: Option<usize>,
@@ -453,7 +472,8 @@ impl ProcessStack {
     }
 }
 
-/// An iterator over call frames on the process stack, call stack order (i.e. the most recent call is emitted first)
+/// An iterator over call frames on the process stack, call stack order (i.e. the most recent call
+/// is emitted first)
 struct Tracer<'a> {
     stack: &'a [OpaqueTerm],
     marks: &'a [Mark],

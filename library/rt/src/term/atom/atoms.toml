@@ -35,6 +35,7 @@ bad_generator = {}
 bad_value = {}
 bad_size = {}
 case_clause = {}
+cause = {}
 DOWN = {}
 error = {}
 exit = {}
@@ -45,6 +46,7 @@ killed = {}
 nif_error = {}
 nocatch = {}
 noproc = {}
+notsup = {}
 system_limit = {}
 throw = {}
 timeout = {}
@@ -58,6 +60,7 @@ column = {}
 emulator = {}
 erlang = {}
 error_logger = {}
+function = {}
 gl = {}
 latin1 = {}
 little = {}
@@ -72,6 +75,7 @@ pid = {}
 port = {}
 process = {}
 raw = {}
+size = {}
 system = {}
 tag = {}
 time = {}
@@ -83,7 +87,6 @@ utf16 = {}
 utf32 = {}
 warning = {}
 warning_msg = {}
-
 
 [time]
 infinity = {}
@@ -103,6 +106,28 @@ no_node_at_no_host = { value = "nonode@nohost" }
 nocookie = {}
 noconnection = {}
 
+[spawn_opts]
+priority = {}
+fullsweep_after = {}
+min_heap_size = {}
+min_bin_vheap_size = {}
+max_heap_size = {}
+message_queue_data = {}
+alias = {}
+explicit_unalias = {}
+reply = {}
+off_heap = {}
+on_heap = {}
+spawn_reply = {}
+link = {}
+monitor = {}
+low = {}
+high = {}
+max = {}
+explicit = {}
+demonitor = {}
+reply_demonitor = {}
+
 [signals]
 erl_signal_server = {}
 notify = {}
@@ -116,3 +141,9 @@ sigterm = {}
 sighup = {}
 sigabrt = {}
 sigalrm = {}
+
+[bifs]
+apply = {}
+erts_internal = {}
+is_process_alive = {}
+handle_signals = {}

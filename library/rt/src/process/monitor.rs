@@ -14,10 +14,11 @@ use crate::term::{atoms, Atom, OpaqueTerm, Pid, Reference, ReferenceId, Term, Te
 
 use super::ProcessId;
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Default, Debug, Copy, Clone, PartialEq, Eq)]
 #[repr(u8)]
 pub enum UnaliasMode {
     /// Only an explicit call to `unalias/1` will deactivate alias
+    #[default]
     Explicit = 1,
     /// The alias will be automatically deactivated when the monitor is removed;
     /// either by a call to `demonitor/1`, or when a monitor down signal is delivered.
@@ -33,6 +34,18 @@ pub enum UnaliasMode {
     /// It is still permitted to call `unalias/1` explicitly. Note however that when doing so,
     /// the monitor will still be left active.
     ReplyDemonitor,
+}
+impl TryFrom<Atom> for UnaliasMode {
+    type Error = ();
+
+    fn try_from(value: Atom) -> Result<Self, Self::Error> {
+        match value {
+            v if v == atoms::Explicit => Ok(Self::Explicit),
+            v if v == atoms::Demonitor => Ok(Self::Demonitor),
+            v if v == atoms::ReplyDemonitor => Ok(Self::Explicit),
+            _ => Err(()),
+        }
+    }
 }
 
 bitflags::bitflags! {
@@ -68,6 +81,9 @@ bitflags::bitflags! {
 
         /// The default alias options, when aliasing is enabled
         const ALIAS_DEFAULT = Self::ALIAS.bits | Self::UNALIAS_EXPLICIT.bits;
+
+        /// Mask for alias-related flags
+        const ALIAS_MASK = Self::ALIAS.bits | Self::UNALIAS_EXPLICIT.bits | Self::UNALIAS_REPLY.bits;
 
         /// Mask for spawn-related flags
         const SPAWN_MASK = Self::SPAWN_PENDING.bits
@@ -109,11 +125,29 @@ impl MonitorFlags {
         }
     }
 }
+impl core::ops::BitOr<UnaliasMode> for MonitorFlags {
+    type Output = MonitorFlags;
+
+    fn bitor(mut self, rhs: UnaliasMode) -> Self::Output {
+        self |= rhs;
+        self
+    }
+}
+impl core::ops::BitOrAssign<UnaliasMode> for MonitorFlags {
+    fn bitor_assign(&mut self, rhs: UnaliasMode) {
+        self.remove(Self::ALIAS_MASK);
+        *self |= match rhs {
+            UnaliasMode::Explicit => Self::ALIAS | Self::UNALIAS_EXPLICIT,
+            UnaliasMode::Demonitor => Self::ALIAS,
+            UnaliasMode::ReplyDemonitor => Self::ALIAS | Self::UNALIAS_REPLY,
+        };
+    }
+}
 
 intrusive_adapter!(pub MonitorListAdapter = Arc<MonitorEntry>: MonitorEntry { target: LinkedListAtomicLink });
 intrusive_adapter!(pub MonitorTreeAdapter = Arc<MonitorEntry>: MonitorEntry { origin: RBTreeAtomicLink });
 impl<'a> KeyAdapter<'a> for MonitorTreeAdapter {
-    type Key = Reference;
+    type Key = ReferenceId;
 
     #[inline]
     fn get_key(&self, entry: &'a MonitorEntry) -> Self::Key {
@@ -123,7 +157,8 @@ impl<'a> KeyAdapter<'a> for MonitorTreeAdapter {
 
 /// A type alias for an intrusive linked list of [`MonitorEntry`] stored on a target process/port
 pub type MonitorList = LinkedList<MonitorListAdapter>;
-/// A type alias for an intrusive red-black tree of [`MonitorEntry`] stored on the origin process/port
+/// A type alias for an intrusive red-black tree of [`MonitorEntry`] stored on the origin
+/// process/port
 pub type MonitorTree = RBTree<MonitorTreeAdapter>;
 /// A type alias for entries in a [`MonitorTree`]
 pub type MonitorTreeEntry<'a> = intrusive_collections::rbtree::Entry<'a, MonitorTreeAdapter>;
@@ -189,7 +224,8 @@ impl MonitorEntry {
             | Monitor::ToExternalProcess { ref origin, .. }
             | Monitor::Node { ref origin, .. }
             | Monitor::Nodes { ref origin, .. }
-            | Monitor::Suspend { ref origin, .. } => Some((*origin).into()),
+            | Monitor::Suspend { ref origin, .. }
+            | Monitor::Alias { ref origin, .. } => Some((*origin).into()),
             Monitor::LocalPort { ref origin, .. } => Some(origin.clone()),
             Monitor::FromExternalProcess { ref origin, .. } => Some(origin.clone().into()),
             Monitor::Resource { .. } => None,
@@ -203,7 +239,10 @@ impl MonitorEntry {
             | Monitor::FromExternalProcess { ref target, .. }
             | Monitor::Resource { ref target, .. }
             | Monitor::Suspend { ref target, .. } => Some((*target).into()),
-            Monitor::Nodes { .. } | Monitor::Node { .. } | Monitor::TimeOffset { .. } => None,
+            Monitor::Alias { .. }
+            | Monitor::Nodes { .. }
+            | Monitor::Node { .. }
+            | Monitor::TimeOffset { .. } => None,
             Monitor::LocalPort { ref target, .. } => Some(target.clone()),
             Monitor::ToExternalProcess { ref target, .. } => Some(target.clone().into()),
         }
@@ -233,7 +272,8 @@ impl MonitorEntry {
                     Term::Atom(name) => Some(name),
                     _ => unreachable!(),
                 },
-                Monitor::Resource { .. }
+                Monitor::Alias { .. }
+                | Monitor::Resource { .. }
                 | Monitor::Node { .. }
                 | Monitor::Nodes { .. }
                 | Monitor::Suspend { .. } => None,
@@ -243,7 +283,9 @@ impl MonitorEntry {
 
     pub fn node_name(&self) -> Atom {
         match &self.monitor {
-            Monitor::LocalProcess { .. } | Monitor::LocalPort { .. } => atoms::NoNodeAtNoHost,
+            Monitor::Alias { .. } | Monitor::LocalProcess { .. } | Monitor::LocalPort { .. } => {
+                atoms::NoNodeAtNoHost
+            }
             Monitor::ToExternalProcess { ref info, .. } => match info.dist.upgrade() {
                 None => atoms::NoNodeAtNoHost,
                 Some(dist) => dist.name,
@@ -272,6 +314,7 @@ impl MonitorEntry {
             Monitor::Resource { .. } => return None,
             Monitor::Node { ref info, .. } | Monitor::Nodes { ref info, .. } => info.tag.term,
             Monitor::Suspend { ref info, .. } => info.tag.term,
+            Monitor::Alias { .. } => OpaqueTerm::NONE,
         };
 
         if term.is_none() {
@@ -282,18 +325,17 @@ impl MonitorEntry {
     }
 
     #[doc(hidden)]
-    pub fn key(&self) -> Reference {
+    pub fn key(&self) -> ReferenceId {
         match &self.monitor {
             Monitor::LocalProcess { ref info, .. }
             | Monitor::LocalPort { ref info, .. }
-            | Monitor::TimeOffset { ref info, .. } => Reference::new(info.reference),
-            Monitor::ToExternalProcess { ref info, .. } => Reference::new(info.reference),
-            Monitor::FromExternalProcess { ref info, .. } => info.reference.clone(),
-            Monitor::Resource { info, .. } => Reference::new(*info),
-            Monitor::Node { ref info, .. } | Monitor::Nodes { ref info, .. } => {
-                Reference::new(info.reference)
-            }
-            Monitor::Suspend { ref info, .. } => Reference::new(info.reference),
+            | Monitor::TimeOffset { ref info, .. } => info.reference,
+            Monitor::ToExternalProcess { ref info, .. } => info.reference,
+            Monitor::FromExternalProcess { ref info, .. } => info.reference.id(),
+            Monitor::Resource { ref info, .. } => *info,
+            Monitor::Node { ref info, .. } | Monitor::Nodes { ref info, .. } => info.reference,
+            Monitor::Suspend { ref info, .. } => info.reference,
+            Monitor::Alias { ref reference, .. } => reference.id(),
         }
     }
 }
@@ -364,7 +406,8 @@ pub enum Monitor {
         target: ProcessId,
         info: ReferenceId,
     },
-    /// A local process (origin) monitors a distribution connection (target) via `erlang:monitor_node/0`
+    /// A local process (origin) monitors a distribution connection (target) via
+    /// `erlang:monitor_node/0`
     ///
     /// Origin part of the monitor is stored in the monitor tree of origin process, and target part
     /// of the monitor is stored in `monitors` list of the dist structure.
@@ -375,8 +418,8 @@ pub enum Monitor {
     },
     /// A local process (origin) monitors all connections (target) via `net_kernel:monitor_nodes/0`
     ///
-    /// Origin part of the monitor is stored in the monitor tree of the origin process, and target part
-    /// is stored in the global `nodes_monitors` list.
+    /// Origin part of the monitor is stored in the monitor tree of the origin process, and target
+    /// part is stored in the global `nodes_monitors` list.
     Nodes {
         origin: ProcessId,
         mask: usize,
@@ -390,6 +433,11 @@ pub enum Monitor {
         origin: ProcessId,
         target: ProcessId,
         info: SuspendMonitorInfo,
+    },
+    /// A monitor for an alias
+    Alias {
+        origin: ProcessId,
+        reference: Reference,
     },
 }
 

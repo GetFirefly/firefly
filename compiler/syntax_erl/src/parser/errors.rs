@@ -101,13 +101,19 @@ impl ToDiagnostic for ParserError {
                 ref expected,
             } => {
                 let index = location;
-                Diagnostic::error()
-                    .with_message("unexpected end of file")
-                    .with_labels(vec![Label::primary(
-                        index.source_id(),
-                        SourceSpan::new(index, index),
-                    )
-                    .with_message(format!("expected: {}", expected.join(", ")))])
+                if index == SourceIndex::UNKNOWN {
+                    Diagnostic::error()
+                        .with_message("unexpected end of file")
+                        .with_notes(vec![format!("expected: {}", expected.join(", "))])
+                } else {
+                    Diagnostic::error()
+                        .with_message("unexpected end of file")
+                        .with_labels(vec![Label::primary(
+                            index.source_id(),
+                            SourceSpan::new(index, index),
+                        )
+                        .with_message(format!("expected: {}", expected.join(", ")))])
+                }
             }
             Self::ExtraToken { span } => Diagnostic::error()
                 .with_message("unexpected token")

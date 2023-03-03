@@ -1456,6 +1456,7 @@ impl<'m> LowerFunctionToSsa<'m> {
         self.lower(builder, *expr.body)?;
 
         builder.switch_to_block(handler_block);
+        builder.ins().end_catch(span);
         self.lower(builder, *expr.handler)?;
         self.brk.pop();
 
@@ -1506,6 +1507,7 @@ impl<'m> LowerFunctionToSsa<'m> {
         self.lower(builder, *expr.body)?;
 
         builder.switch_to_block(handler_block);
+        builder.ins().end_catch(span);
         self.lower(builder, *expr.handler)?;
         self.landing_pads.pop();
 

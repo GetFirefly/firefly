@@ -4320,11 +4320,6 @@ impl Inst for ops::EndCatch {
 impl Inst for ops::LandingPad {
     #[inline(always)]
     fn dispatch(&self, _emulator: &Emulator, process: &mut ProcessLock) -> Action {
-        // When we enter a landing pad, we must pop the catch mark
-        // from the stack, as it is left in place until the exception
-        // is caught. There is no EndCatch on the exceptional path.
-        process.stack.exit_catch();
-
         let class = process
             .exception_info
             .class()

@@ -1,3 +1,4 @@
+use std::cmp;
 use std::io::Write;
 use std::mem;
 use std::ops::Deref;
@@ -1005,4 +1006,30 @@ pub extern "C-unwind" fn yield0(process: &mut ProcessLock) -> ErlangResult {
     // behavior.
     process.reductions = Process::MAX_REDUCTIONS;
     ErlangResult::Ok(true.into())
+}
+
+#[export_name = "erlang:bump_reductions/1"]
+pub extern "C-unwind" fn bump_reductions(
+    process: &mut ProcessLock,
+    reds: OpaqueTerm,
+) -> ErlangResult {
+    match reds.into() {
+        Term::Int(i) if i >= 1 => {
+            if let Ok(i) = usize::try_from(i) {
+                // Clamp large values to the maximum number of reductions
+                process.reductions = cmp::min(
+                    Process::MAX_REDUCTIONS,
+                    process.reductions.saturating_add(i),
+                );
+                return ErlangResult::Ok(true.into());
+            }
+        }
+        _ => (),
+    }
+
+    process.exception_info.flags = ExceptionFlags::ERROR;
+    process.exception_info.reason = atoms::Badarg.into();
+    process.exception_info.value = reds;
+    process.exception_info.trace = None;
+    ErlangResult::Err
 }

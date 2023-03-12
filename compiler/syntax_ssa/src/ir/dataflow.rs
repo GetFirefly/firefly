@@ -390,6 +390,10 @@ impl DataFlowGraph {
                     self.append_result(inst, Type::Term(TermType::Atom));
                     1
                 }
+                Opcode::Yield => {
+                    self.append_result(inst, ty);
+                    1
+                }
                 _ => 0,
             }
         }

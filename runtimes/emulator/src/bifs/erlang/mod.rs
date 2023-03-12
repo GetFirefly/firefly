@@ -10,7 +10,7 @@ use firefly_rt::function::{ErlangResult, ModuleFunctionArity};
 use firefly_rt::gc::{garbage_collect, Gc, RootSet};
 use firefly_rt::process::monitor::{Monitor, MonitorEntry, MonitorFlags, UnaliasMode};
 use firefly_rt::process::signals::Signal;
-use firefly_rt::process::{ProcessFlags, ProcessLock, StatusFlags, ARG0_REG};
+use firefly_rt::process::{Process, ProcessFlags, ProcessLock, StatusFlags, ARG0_REG};
 use firefly_rt::scheduler::Scheduler;
 use firefly_rt::services::registry::{self, WeakAddress};
 use firefly_rt::term::*;
@@ -994,4 +994,15 @@ pub extern "C-unwind" fn handle_signals2(
         Action::Error(e) => panic!("unexpected error occurred: {:?}", e),
         Action::Suspend | Action::Killed => unreachable!(),
     }
+}
+
+#[export_name = "erlang:yield/0"]
+pub extern "C-unwind" fn yield0(process: &mut ProcessLock) -> ErlangResult {
+    // Force a yield when this function returns
+    //
+    // This is slightly different than the behavior of the Yield instruction, which
+    // yields before it conceptually returns, but there is no practical difference in
+    // behavior.
+    process.reductions = Process::MAX_REDUCTIONS;
+    ErlangResult::Ok(true.into())
 }

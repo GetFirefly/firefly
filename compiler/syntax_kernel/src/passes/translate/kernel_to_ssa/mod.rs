@@ -1390,6 +1390,14 @@ impl<'m> LowerFunctionToSsa<'m> {
                 }
             }
             (op, _) if bif.op.is_exception_op() => unimplemented!("{:?}", op),
+            (symbols::Yield, _) => {
+                assert_eq!(bif.args.len(), 0);
+                assert!(bif.ret.len() <= 1);
+                let yielded = builder.ins().r#yield(span);
+                if !bif.ret.is_empty() {
+                    builder.define_var(bif.ret[0].as_var().map(|v| v.name()).unwrap(), yielded);
+                }
+            }
             _ => {
                 let callee = self.module.get_or_register_builtin(bif.op);
                 // All other primops behave like regular function calls

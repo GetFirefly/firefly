@@ -169,6 +169,7 @@ tl = {}
 trunc = {}
 tuple_size = {}
 unpack_env = {}
+yield = {}
 
 [annotations]
 compiler_generated = {}

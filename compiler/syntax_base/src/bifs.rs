@@ -7,8 +7,8 @@
 ///! NOTE: The types are not perfectly accurate, as currently we don't try to fully represent
 ///! type specs, however we do make an attempt to be as precise as possible with the accuracy
 ///! we do have. In the future we'll hopefully be able to make the type information not only
-///! richer, but context-sensitive for those situations in which the polymorphism of a given BIF
-///! is dependent on constant inputs which we can reason about relatively easily
+///! richer, but context-sensitive for those situations in which the polymorphism of a given
+///! BIF is dependent on constant inputs which we can reason about relatively easily
 use std::collections::BTreeMap;
 
 use firefly_compiler_macros::bif;
@@ -231,6 +231,7 @@ lazy_static! {
             bif!(pub erlang:recv_next/0()),
             bif!(pub erlang:recv_peek_message/0() -> bool, any),
             bif!(pub erlang:recv_wait_timeout/1(timeout) -> bool),
+            bif!(pub erlang:yield/0() -> bool),
         ]
     };
 }

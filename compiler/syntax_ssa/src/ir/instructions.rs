@@ -335,6 +335,7 @@ pub enum Opcode {
     RecvPop,
     RecvWaitTimeout,
     NifStart,
+    Yield,
     // Errors
     StartCatch,
     EndCatch,
@@ -468,7 +469,7 @@ impl Opcode {
             Self::RecvNext | Self::RecvPeek | Self::RecvPop => 0,
             // These primops expect either no arguments, an immediate or a value, so the number is
             // not fixed
-            Self::Halt | Self::BitsInit | Self::BitsMatchStart | Self::NifStart => 0,
+            Self::Halt | Self::BitsInit | Self::BitsMatchStart | Self::NifStart | Self::Yield => 0,
             // Except with these primitives which only require a value
             Self::Throw | Self::Error => 1,
             // Exit always has at least one argument, but may have two
@@ -590,6 +591,7 @@ impl fmt::Display for Opcode {
             Self::Exit2 => f.write_str("exit2"),
             Self::Raise => f.write_str("raise"),
             Self::NifStart => f.write_str("nif.start"),
+            Self::Yield => f.write_str("yield"),
         }
     }
 }

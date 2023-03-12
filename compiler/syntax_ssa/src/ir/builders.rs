@@ -1162,6 +1162,12 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
         self.PrimOp(Opcode::Halt, Type::Unit, vlist, span).0
     }
 
+    fn r#yield(self, span: SourceSpan) -> Value {
+        let vlist = ValueList::default();
+        let (inst, dfg) = self.PrimOp(Opcode::Yield, Type::Term(TermType::Bool), vlist, span);
+        dfg.first_result(inst)
+    }
+
     fn stacktrace(mut self, raw: Value, span: SourceSpan) -> Value {
         let mut vlist = ValueList::default();
         {

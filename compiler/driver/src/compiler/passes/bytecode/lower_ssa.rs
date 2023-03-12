@@ -694,6 +694,14 @@ impl<'a> BytecodeBuilder<'a> {
                         }
                         _ => unreachable!(),
                     },
+                    (symbols::Yield, 0) => {
+                        let results = dfg.inst_results(inst);
+                        assert_eq!(results.len(), 1);
+                        builder.build_yield(loc);
+                        let yielded = builder.build_bool(true, loc);
+                        self.values.insert(results[0], yielded);
+                        return Ok(());
+                    }
                     _ => {
                         let name = sig.mfa();
                         let mfa = ModuleFunctionArity {
@@ -1212,6 +1220,12 @@ impl<'a> BytecodeBuilder<'a> {
                 let trace = builder.build_stacktrace(loc);
                 let result = dfg.first_result(inst);
                 self.values.insert(result, trace);
+            }
+            Opcode::Yield => {
+                builder.build_yield(loc);
+                let result = dfg.first_result(inst);
+                let yielded = builder.build_bool(true, loc);
+                self.values.insert(result, yielded);
             }
             other => unimplemented!("unrecognized primop: {}", other),
         }

@@ -381,13 +381,11 @@ pub struct Process {
     /// There are a few fields following this one which contain other process flags not tracked
     /// in this bitset, which are read-only by anyone, but may only be modified by the process.
     pub status: Atomic<StatusFlags>,
-    #[allow(unused)]
-    error_handler: Atomic<Atom>,
-    fullsweep_after: AtomicUsize,
-    min_heap_size: Option<NonZeroUsize>,
-    #[allow(unused)]
-    min_bin_vheap_size: Option<NonZeroUsize>,
-    max_heap_size: Atomic<MaxHeapSize>,
+    pub error_handler: Atomic<Atom>,
+    pub fullsweep_after: AtomicUsize,
+    pub min_heap_size: Option<NonZeroUsize>,
+    pub min_bin_vheap_size: Option<NonZeroUsize>,
+    pub max_heap_size: Atomic<MaxHeapSize>,
     /// The mailbox/signal queue for this process
     ///
     /// The signal queue is a thread-safe structure which internally maintains multiple queues for

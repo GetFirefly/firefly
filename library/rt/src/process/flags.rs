@@ -13,6 +13,16 @@ pub enum Priority {
     High = 1 << 1,
     Max = 1 << 2,
 }
+impl Into<OpaqueTerm> for Priority {
+    fn into(self) -> OpaqueTerm {
+        match self {
+            Self::Low => atoms::Low.into(),
+            Self::Normal => atoms::Normal.into(),
+            Self::High => atoms::High.into(),
+            Self::Max => atoms::Max.into(),
+        }
+    }
+}
 impl TryFrom<Term> for Priority {
     type Error = ();
 

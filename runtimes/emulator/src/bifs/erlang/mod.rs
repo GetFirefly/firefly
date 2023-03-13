@@ -391,6 +391,210 @@ pub extern "C-unwind" fn spawn_opt5(
     ErlangResult::Err
 }
 
+#[export_name = "erlang:process_flag/2"]
+pub extern "C-unwind" fn process_flag2(
+    process: &mut ProcessLock,
+    flag: OpaqueTerm,
+    value: OpaqueTerm,
+) -> ErlangResult {
+    use firefly_rt::process::MaxHeapSize;
+
+    if !flag.is_atom() {
+        badarg!(process, flag);
+    }
+    let flag_atom = flag.as_atom();
+    match flag_atom.as_str() {
+        "trap_exit" => {
+            let prev_value = process.flags.contains(ProcessFlags::TRAP_EXIT);
+            match value {
+                OpaqueTerm::TRUE => {
+                    process.flags |= ProcessFlags::TRAP_EXIT;
+                    ErlangResult::Ok(prev_value.into())
+                }
+                OpaqueTerm::FALSE => {
+                    process.flags.remove(ProcessFlags::TRAP_EXIT);
+                    ErlangResult::Ok(prev_value.into())
+                }
+                _ => badarg!(process, value),
+            }
+        }
+        "error_handler" => match value.into() {
+            Term::Atom(handler) => {
+                let prev = process
+                    .as_ref()
+                    .error_handler
+                    .swap(handler, Ordering::Relaxed);
+                ErlangResult::Ok(prev.into())
+            }
+            _ => badarg!(process, value),
+        },
+        "fullsweep_after" => match value.into() {
+            Term::Int(i) if i >= 0 => match usize::try_from(i) {
+                Ok(fullsweep_after) => {
+                    let prev = process
+                        .as_ref()
+                        .fullsweep_after
+                        .swap(fullsweep_after, Ordering::Relaxed);
+                    ErlangResult::Ok(Term::Int(prev.try_into().unwrap()).into())
+                }
+                Err(_) => badarg!(process, value),
+            },
+            _ => badarg!(process, value),
+        },
+        "max_heap_size" => {
+            let max_heap_size: Term = value.into();
+            match MaxHeapSize::try_from(max_heap_size) {
+                Ok(max_heap_size) => {
+                    let prev = process
+                        .as_ref()
+                        .max_heap_size
+                        .swap(max_heap_size, Ordering::Relaxed);
+                    // If no limit is set, use the integer representation
+                    if prev.size.is_none() {
+                        return ErlangResult::Ok(Term::Int(0).into());
+                    }
+                    let prev_size: Term = prev.size.map(|sz| sz.get()).unwrap().try_into().unwrap();
+                    // If the system defaults are being used, use the integer representation
+                    if prev.kill && prev.error_logger {
+                        return ErlangResult::Ok(prev_size.into());
+                    }
+                    // Otherwise allocate a map
+                    let mut map = match Map::with_capacity_in(3, process) {
+                        Ok(map) => map,
+                        Err(_) => {
+                            assert!(garbage_collect(process, Default::default()).is_ok());
+                            Map::with_capacity_in(3, process).unwrap()
+                        }
+                    };
+                    map.put_mut(atoms::ErrorLogger, prev.error_logger);
+                    map.put_mut(atoms::Kill, prev.kill);
+                    map.put_mut(atoms::Size, prev_size);
+                    ErlangResult::Ok(map.into())
+                }
+                Err(_) => badarg!(process, value),
+            }
+        }
+        "message_queue_data" => {
+            // This flag has no effect in our implementation, we simply return the current value
+            if !value.is_atom() {
+                badarg!(process, value);
+            }
+            ErlangResult::Ok(atoms::OffHeap.into())
+        }
+        "priority" => {
+            let prio: Term = value.into();
+            match Priority::try_from(prio) {
+                Ok(prio) => {
+                    let mut status = process.status(Ordering::Acquire);
+                    let prev = status.priority();
+                    loop {
+                        let new_status = status | prio;
+                        match process.cmpxchg_status_flags(status, new_status) {
+                            Ok(_) => break,
+                            Err(current) => {
+                                status = current;
+                            }
+                        }
+                    }
+                    ErlangResult::Ok(prev.into())
+                }
+                Err(_) => badarg!(process, value),
+            }
+        }
+        "min_heap_size" => {
+            // This flag cannot be set after spawn currently, return the current value
+            if let Term::Int(_) = value.into() {
+                let prev = process
+                    .as_ref()
+                    .min_heap_size
+                    .map(|sz| sz.get())
+                    .unwrap_or(0);
+                let prev: Term = prev.try_into().unwrap();
+                ErlangResult::Ok(prev.into())
+            } else {
+                badarg!(process, value)
+            }
+        }
+        "min_bin_vheap_size" => {
+            // This flag cannot be set after spawn currently, return the current value
+            if let Term::Int(_) = value.into() {
+                let prev = process
+                    .as_ref()
+                    .min_bin_vheap_size
+                    .map(|sz| sz.get())
+                    .unwrap_or(0);
+                let prev: Term = prev.try_into().unwrap();
+                ErlangResult::Ok(prev.into())
+            } else {
+                badarg!(process, value)
+            }
+        }
+        "save_calls" => {
+            // This flag has no effect currently, always return 0
+            if let Term::Int(_) = value.into() {
+                ErlangResult::Ok(Term::Int(0).into())
+            } else {
+                badarg!(process, value)
+            }
+        }
+        "sensitive" => {
+            let is_sensitive = match value {
+                OpaqueTerm::TRUE => true,
+                OpaqueTerm::FALSE => false,
+                _ => badarg!(process, value),
+            };
+            let mut status = process.status(Ordering::Acquire);
+            let prev = status.contains(StatusFlags::SENSITIVE);
+            if prev == is_sensitive {
+                return ErlangResult::Ok(prev.into());
+            }
+            loop {
+                let new_status = if is_sensitive {
+                    status | StatusFlags::SENSITIVE
+                } else {
+                    status & !StatusFlags::SENSITIVE
+                };
+                match process.cmpxchg_status_flags(status, new_status) {
+                    Ok(_) => break,
+                    Err(current) => {
+                        status = current;
+                    }
+                }
+            }
+            ErlangResult::Ok(prev.into())
+        }
+        _ => badarg!(process, flag),
+    }
+}
+
+#[export_name = "erlang:process_flag/3"]
+pub extern "C-unwind" fn process_flag3(
+    process: &mut ProcessLock,
+    pid: OpaqueTerm,
+    flag: OpaqueTerm,
+    value: OpaqueTerm,
+) -> ErlangResult {
+    if let Term::Pid(_) = pid.into() {
+        if !flag.is_atom() {
+            badarg!(process, flag);
+        }
+        let flag_atom = flag.as_atom();
+        match flag_atom.as_str() {
+            "save_calls" => {
+                // This flag has no effect currently, always return 0
+                if let Term::Int(_) = value.into() {
+                    ErlangResult::Ok(Term::Int(0).into())
+                } else {
+                    badarg!(process, value)
+                }
+            }
+            _ => badarg!(process, value),
+        }
+    } else {
+        badarg!(process, pid)
+    }
+}
+
 #[export_name = "erlang:yield/0"]
 pub extern "C-unwind" fn yield0(process: &mut ProcessLock) -> ErlangResult {
     // Force a yield when this function returns

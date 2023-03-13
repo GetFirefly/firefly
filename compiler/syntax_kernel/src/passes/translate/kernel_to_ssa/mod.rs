@@ -1127,6 +1127,14 @@ impl<'m> LowerFunctionToSsa<'m> {
     ) -> anyhow::Result<()> {
         let span = bif.span();
         match (bif.op.function, bif.args.as_slice()) {
+            (symbols::GarbageCollect, _) => {
+                assert_eq!(bif.args.len(), 0);
+                assert!(bif.ret.len() <= 1);
+                let success = builder.ins().garbage_collect(span);
+                if !bif.ret.is_empty() {
+                    builder.define_var(bif.ret[0].as_var().map(|v| v.name()).unwrap(), success);
+                }
+            }
             (symbols::MakeFun, [KExpr::Local(local), ..]) => {
                 // make_fun/2 requires special handling to convert to its corresponding core
                 // instruction

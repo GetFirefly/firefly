@@ -7,6 +7,7 @@ pub mod monitor;
 pub mod signals;
 mod spawn;
 mod stack;
+mod system_tasks;
 
 use alloc::alloc::{AllocError, Allocator, Layout};
 use alloc::boxed::Box;
@@ -48,10 +49,12 @@ pub use self::heap::ProcessHeap;
 pub use self::id::{ProcessId, ProcessIdError};
 pub use self::spawn::*;
 pub use self::stack::{ProcessStack, Register, StackFrame, ARG0_REG, CP_REG, RETURN_REG};
+pub use self::system_tasks::{SystemTask, SystemTaskType};
 
 use self::link::LinkTree;
 use self::monitor::{MonitorList, MonitorTree};
 use self::signals::{FlushType, Message, SendResult, Signal, SignalEntry, SignalQueue};
+use self::system_tasks::SystemTaskList;
 
 /// A convenient type alias for the intrusive linked list type which is used by schedulers
 pub type ProcessList = LinkedList<ProcessAdapter>;
@@ -190,6 +193,8 @@ pub struct SchedulerData {
     group_leader: Option<Pid>,
     /// The heap fragment list for this process
     pub heap_fragments: HeapFragmentList,
+    /// The system task queues, one for each priority: low, normal, high, max
+    pub system_tasks: [SystemTaskList; 4],
 }
 impl SchedulerData {
     pub fn set_exception_info(&mut self, exception: Box<ErlangException>) {
@@ -514,6 +519,12 @@ impl Process {
                 links: Default::default(),
                 group_leader,
                 heap_fragments: HeapFragmentList::default(),
+                system_tasks: [
+                    SystemTaskList::default(),
+                    SystemTaskList::default(),
+                    SystemTaskList::default(),
+                    SystemTaskList::default(),
+                ],
             }),
             scheduler_id: Atomic::new(scheduler_id),
             parent,
@@ -900,7 +911,7 @@ impl Process {
     fn active_sys_enqueue(self: Arc<Self>, mut status: StatusFlags) {
         loop {
             if status.contains(StatusFlags::FREE) {
-                return;
+                break;
             }
             match self.status.compare_exchange(
                 status,

@@ -195,6 +195,72 @@ spawn_opt(_Module, _Function, _Args, _Options) ->
    erlang:nif_error(undefined).
 
 
+%% garbage_collect/1
+-spec garbage_collect(Pid) -> GCResult when
+      Pid :: pid(),
+      GCResult :: boolean().
+garbage_collect(Pid) ->
+    try
+        erlang:garbage_collect(Pid, [])
+    catch
+        error:Error -> error_with_info(Error, [Pid])
+    end.
+
+-record(gcopt, {
+    async = sync :: sync | {async, _},
+    type = major % default major, can also be minor
+    }).
+
+%% garbage_collect/2
+-spec garbage_collect(Pid, OptionList) -> GCResult | async when
+      Pid :: pid(),
+      RequestId :: term(),
+      Option :: {async, RequestId} | {type, 'major' | 'minor'},
+      OptionList :: [Option],
+      GCResult :: boolean().
+garbage_collect(Pid, OptionList)  ->
+    try
+        GcOpts = get_gc_opts(OptionList, #gcopt{}),
+        case GcOpts#gcopt.async of
+            {async, ReqId} ->
+                erts_internal:request_system_task(
+                        Pid, inherit, {garbage_collect, ReqId, GcOpts#gcopt.type}),
+                async;
+            sync ->
+                case Pid == erlang:self() of
+                    true ->
+                        erts_internal:garbage_collect(GcOpts#gcopt.type);
+                    false ->
+                        ReqId = erlang:make_ref(),
+                        erts_internal:request_system_task(
+                                    Pid, inherit,
+                                    {garbage_collect, ReqId, GcOpts#gcopt.type}),
+                        receive
+                            {garbage_collect, ReqId, GCResult} ->
+                                GCResult
+                        end
+                end
+        end
+        catch
+            throw:bad_option -> badarg_with_cause([Pid, OptionList], bad_option);
+            error:_ -> badarg_with_info([Pid, OptionList])
+    end.
+
+%% gets async opt and verify valid option list
+get_gc_opts([{async, _ReqId} = AsyncTuple | Options], GcOpt = #gcopt{}) ->
+    get_gc_opts(Options, GcOpt#gcopt{ async = AsyncTuple });
+get_gc_opts([{type, T} | Options], GcOpt = #gcopt{}) ->
+    get_gc_opts(Options, GcOpt#gcopt{ type = T });
+get_gc_opts([], GcOpt) ->
+    GcOpt;
+get_gc_opts(_, _) ->
+    erlang:throw(bad_option).
+
+
 badarg_with_info(Args) ->
     erlang:error(badarg, Args, [{error_info, #{module => erl_erts_errors}}]).
+
+badarg_with_cause(Args, Cause) ->
+    erlang:error(badarg, Args, [{error_info, #{module => erl_erts_errors,
+                                              cause => Cause}}]).
 

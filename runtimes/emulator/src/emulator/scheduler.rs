@@ -1,4 +1,4 @@
-use std::alloc::AllocError;
+use std::alloc::{AllocError, Layout};
 use std::intrinsics::{likely, unlikely};
 use std::mem;
 use std::num::NonZeroU64;
@@ -1015,6 +1015,9 @@ impl Emulator {
                     let is_alive = !status.contains(StatusFlags::EXITING);
                     self.handle_process_info_signal(process, sig, is_alive);
                 }
+                Signal::Rpc(sig) => {
+                    count += self.handle_rpc(process, sig);
+                }
                 Signal::Message(_) | Signal::Flush(_) => unreachable!(),
             }
         }
@@ -1307,6 +1310,38 @@ impl Emulator {
         todo!()
     }
 
+    fn handle_rpc(&self, process: &mut ProcessLock, sig: signals::Rpc) -> usize {
+        let in_reds = process.reductions;
+        let result = (sig.callback)(process, sig.arg);
+        let cost = process.reductions.saturating_sub(in_reds);
+        process.reductions = in_reds;
+        if let Some(reply_ref) = sig.reference {
+            // Reply requested
+            let requestor = registry::get_by_pid(&sig.sender);
+            if let Some(requestor) = requestor {
+                let mut layout = LayoutBuilder::new();
+                layout += Layout::new::<Reference>();
+                let result_term: Term = result.term.into();
+                layout += result_term.layout();
+                let fragment_ptr = HeapFragment::new(layout.finish(), None).unwrap();
+                let fragment = unsafe { fragment_ptr.as_ref() };
+                let reply_ref = Gc::new_in(reply_ref, fragment).unwrap();
+                let result = unsafe { result_term.unsafe_clone_to_heap(fragment) };
+                let msg = Tuple::from_slice(&[reply_ref.into(), result.into()], fragment).unwrap();
+                requestor
+                    .send_fragment(
+                        process.pid().into(),
+                        TermFragment {
+                            term: msg.into(),
+                            fragment: Some(fragment_ptr),
+                        },
+                    )
+                    .ok();
+            }
+        }
+        cost * ERTS_SIGNAL_REDUCTIONS_COUNT_FACTOR
+    }
+
     fn send_group_leader_reply(&self, to: Arc<Process>, reference: Reference, success: bool) {
         let mut layout = LayoutBuilder::new();
         layout.build_reference().build_tuple(2);
@@ -1350,16 +1385,98 @@ impl Emulator {
         .ok();
     }
 
-    fn execute_sys_tasks(&self, _process: &mut ProcessLock, status: &mut StatusFlags) -> usize {
+    fn execute_sys_tasks(&self, process: &mut ProcessLock, statusp: &mut StatusFlags) -> usize {
+        use firefly_rt::process::{Priority, SystemTaskType};
+
         trace!(target: "process", "executing system tasks");
-        if status.contains(StatusFlags::EXITING) {
-            return 0;
+
+        let mut priority = Priority::Max as usize;
+        let mut gc_major = false;
+        let mut gc_minor = false;
+        let mut reds = process.reductions;
+        let mut status = *statusp;
+        loop {
+            if status.contains(StatusFlags::EXITING) {
+                break;
+            }
+
+            if reds == 0 {
+                break;
+            }
+
+            let next = process.system_tasks[priority].pop_front();
+            if next.is_none() {
+                if priority == 0 {
+                    break;
+                }
+                priority -= 1;
+                continue;
+            }
+
+            let task = next.unwrap();
+            let task_result: OpaqueTerm = match task.ty {
+                ty @ (SystemTaskType::GcMajor | SystemTaskType::GcMinor) => {
+                    if process.flags.contains(ProcessFlags::DISABLE_GC) {
+                        // reds -= 1;
+                        todo!("save_gc_task");
+                    }
+                    let is_major = ty == SystemTaskType::GcMajor;
+                    if (!gc_minor || (!gc_major && is_major))
+                        && !process.flags.contains(ProcessFlags::HIBERNATED)
+                    {
+                        if is_major {
+                            process.flags |= ProcessFlags::NEED_FULLSWEEP;
+                        }
+                        let cost = process.garbage_collect(Default::default()).unwrap();
+                        reds = reds.saturating_sub(cost);
+                        gc_minor = true;
+                        gc_major = gc_major || is_major;
+                    }
+                    true.into()
+                }
+                SystemTaskType::Test => true.into(),
+            };
+
+            crate::bifs::erlang::notify_sys_task_executed(process, task, task_result);
+            reds = reds.saturating_sub(1);
+
+            status = process.status(Ordering::Acquire);
         }
-        todo!()
+
+        *statusp = status;
+
+        process.reductions.saturating_sub(reds)
     }
 
-    fn cleanup_sys_tasks(&self, _process: &mut ProcessLock) {
-        todo!()
+    fn cleanup_sys_tasks(&self, process: &mut ProcessLock) {
+        use firefly_rt::process::{Priority, SystemTaskType};
+
+        let mut priority = Priority::Max as usize;
+        let mut reds = process.reductions;
+        loop {
+            if reds == 0 {
+                break;
+            }
+
+            let next = process.system_tasks[priority].pop_front();
+            if next.is_none() {
+                if priority == 0 {
+                    break;
+                }
+                priority -= 1;
+                continue;
+            }
+
+            let task = next.unwrap();
+            let task_result: OpaqueTerm = match task.ty {
+                SystemTaskType::GcMajor | SystemTaskType::GcMinor | SystemTaskType::Test => {
+                    false.into()
+                }
+            };
+
+            crate::bifs::erlang::notify_sys_task_executed(process, task, task_result);
+            reds = reds.saturating_sub(1);
+        }
     }
 
     /// Register a timeout for the given process
@@ -4908,6 +5025,9 @@ impl Inst for ops::ContinueExit {
                             Signal::Flush(_sig) => {
                                 assert!(sigq.flags().contains(SignalQueueFlags::FLUSHING));
                                 sigq.set_flags(SignalQueueFlags::FLUSHED);
+                            }
+                            Signal::Rpc(sig) => {
+                                count += emulator.handle_rpc(process, sig);
                             }
                         }
                     }

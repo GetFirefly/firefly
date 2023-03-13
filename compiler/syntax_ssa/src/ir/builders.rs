@@ -1168,6 +1168,17 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
         dfg.first_result(inst)
     }
 
+    fn garbage_collect(self, span: SourceSpan) -> Value {
+        let vlist = ValueList::default();
+        let (inst, dfg) = self.PrimOp(
+            Opcode::GarbageCollect,
+            Type::Term(TermType::Bool),
+            vlist,
+            span,
+        );
+        dfg.first_result(inst)
+    }
+
     fn stacktrace(mut self, raw: Value, span: SourceSpan) -> Value {
         let mut vlist = ValueList::default();
         {

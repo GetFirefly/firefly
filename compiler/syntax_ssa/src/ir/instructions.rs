@@ -329,6 +329,7 @@ pub enum Opcode {
     MakeFun,
     UnpackEnv,
     // Primops
+    GarbageCollect,
     Send,
     RecvNext,
     RecvPeek,
@@ -469,7 +470,12 @@ impl Opcode {
             Self::RecvNext | Self::RecvPeek | Self::RecvPop => 0,
             // These primops expect either no arguments, an immediate or a value, so the number is
             // not fixed
-            Self::Halt | Self::BitsInit | Self::BitsMatchStart | Self::NifStart | Self::Yield => 0,
+            Self::GarbageCollect
+            | Self::Halt
+            | Self::BitsInit
+            | Self::BitsMatchStart
+            | Self::NifStart
+            | Self::Yield => 0,
             // Except with these primitives which only require a value
             Self::Throw | Self::Error => 1,
             // Exit always has at least one argument, but may have two
@@ -592,6 +598,7 @@ impl fmt::Display for Opcode {
             Self::Raise => f.write_str("raise"),
             Self::NifStart => f.write_str("nif.start"),
             Self::Yield => f.write_str("yield"),
+            Self::GarbageCollect => f.write_str("garbage_collect"),
         }
     }
 }

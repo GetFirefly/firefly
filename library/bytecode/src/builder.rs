@@ -1786,6 +1786,13 @@ where
         self.push(Opcode::Yield(Yield), loc);
     }
 
+    pub fn build_garbage_collect(&mut self, loc: Option<LocationId>) {
+        self.push(
+            Opcode::GarbageCollect(GarbageCollect { fullsweep: true }),
+            loc,
+        );
+    }
+
     pub fn build_raise(
         &mut self,
         kind: Register,

@@ -162,6 +162,7 @@ impl FunctionName {
             | symbols::RecvPeekMessage
             | symbols::RecvWaitTimeout
             | symbols::Yield => true,
+            symbols::GarbageCollect if self.arity == 0 => true,
             _ => false,
         }
     }

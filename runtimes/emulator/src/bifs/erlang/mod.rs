@@ -3,6 +3,7 @@ use std::io::Write;
 use std::mem;
 use std::ops::Deref;
 use std::sync::atomic::Ordering;
+use std::sync::Arc;
 
 use firefly_alloc::heap::Heap;
 use firefly_number::Int;
@@ -11,9 +12,9 @@ use firefly_rt::function::{ErlangResult, ModuleFunctionArity};
 use firefly_rt::gc::{garbage_collect, Gc, RootSet};
 use firefly_rt::process::monitor::{Monitor, MonitorEntry, MonitorFlags, UnaliasMode};
 use firefly_rt::process::signals::Signal;
-use firefly_rt::process::{Process, ProcessFlags, ProcessLock, StatusFlags, ARG0_REG};
+use firefly_rt::process::{Process, ProcessFlags, ProcessLock, StatusFlags, SystemTask, ARG0_REG};
 use firefly_rt::scheduler::Scheduler;
-use firefly_rt::services::registry::{self, WeakAddress};
+use firefly_rt::services::registry::{self, Registrant, WeakAddress};
 use firefly_rt::term::*;
 
 use log::warn;
@@ -1027,9 +1028,248 @@ pub extern "C-unwind" fn bump_reductions(
         _ => (),
     }
 
-    process.exception_info.flags = ExceptionFlags::ERROR;
-    process.exception_info.reason = atoms::Badarg.into();
-    process.exception_info.value = reds;
-    process.exception_info.trace = None;
-    ErlangResult::Err
+    badarg!(process, reds);
+}
+
+#[export_name = "erts_internal:request_system_task/3"]
+pub extern "C-unwind" fn garbage_collect1(
+    process: &mut ProcessLock,
+    pid_term: OpaqueTerm,
+    priority_term: OpaqueTerm,
+    request_term: OpaqueTerm,
+) -> ErlangResult {
+    use firefly_rt::process::{Priority, SystemTaskType};
+
+    let Term::Pid(pid) = pid_term.into() else { badarg!(process, pid_term); };
+
+    let status = process.status(Ordering::Relaxed);
+    let priority = if priority_term == atoms::Inherit {
+        status.priority()
+    } else {
+        let prio: Term = priority_term.into();
+        match Priority::try_from(prio) {
+            Ok(prio) => prio,
+            Err(_) => badarg!(process, priority_term),
+        }
+    };
+
+    let target = registry::get_by_pid(&pid);
+
+    // The request must be a tuple of 2 or 3 elements
+    match request_term.tuple_size() {
+        Ok(arity) => {
+            if arity < 2 || arity > 4 {
+                badarg!(process, request_term)
+            }
+        }
+        // Not a tuple
+        _ => badarg!(process, request_term),
+    }
+
+    let Term::Tuple(request) = request_term.into() else { unreachable!() };
+
+    let requestor = process.pid();
+    let request_type = request[0];
+    let request_id: Term = request[1].into();
+    let signal = pid == requestor;
+
+    let mut system_task: Box<SystemTask>;
+    match request_type.into() {
+        Term::Atom(a) if a == atoms::GarbageCollect => {
+            if request.len() < 3 {
+                badarg!(process, request_term);
+            }
+            let ty_arg = request[2];
+            let ty = match ty_arg.into() {
+                Term::Atom(arg) if arg == atoms::Major => SystemTaskType::GcMajor,
+                Term::Atom(arg) if arg == atoms::Minor => SystemTaskType::GcMinor,
+                _ => badarg!(process, request_term),
+            };
+            system_task = SystemTask::new(ty, request_id.layout()).unwrap();
+            system_task.requestor = requestor.into();
+            system_task.priority = priority;
+            system_task.reply_tag = request_type;
+            let request_id = unsafe { request_id.unsafe_clone_to_heap(system_task.fragment()) };
+            system_task.request_id = request_id.into();
+            system_task.args[0] = ty_arg;
+            if target.is_none() {
+                notify_sys_task_executed(process, system_task, false.into());
+                return ErlangResult::Ok(atoms::Ok.into());
+            }
+        }
+        // We implement this so that tests for system tasks borrowed from ERTS can be run
+        Term::Atom(a) if a == "system_task_test" => {
+            if request.len() > 4 {
+                badarg!(process, request_term);
+            }
+            let mut layout = LayoutBuilder::new();
+            layout += request_id.layout();
+            let mut args = [Term::None, Term::None];
+            for arg in &request[2..] {
+                args[0] = (*arg).into();
+                layout += args[0].layout();
+            }
+            let layout = layout.finish();
+            system_task = SystemTask::new(SystemTaskType::Test, layout).unwrap();
+            system_task.requestor = requestor.into();
+            system_task.priority = priority;
+            system_task.reply_tag = request_type;
+            let request_id = unsafe { request_id.unsafe_clone_to_heap(system_task.fragment()) };
+            system_task.request_id = request_id.into();
+            for (i, arg) in args.iter().enumerate() {
+                let arg = unsafe { arg.unsafe_clone_to_heap(system_task.fragment()) };
+                system_task.args[i] = arg.into();
+            }
+            if target.is_none() {
+                notify_sys_task_executed(process, system_task, false.into());
+                return ErlangResult::Ok(atoms::Ok.into());
+            }
+        }
+        _ => badarg!(process, request_type),
+    }
+
+    let target = target.unwrap();
+
+    if signal {
+        let status = target.status(Ordering::Acquire);
+        if status.contains(StatusFlags::EXITING) {
+            notify_sys_task_executed(process, system_task, false.into());
+            return ErlangResult::Ok(atoms::Ok.into());
+        }
+        if status.intersects(StatusFlags::HAS_PENDING_SIGNALS | StatusFlags::HAS_IN_TRANSIT_SIGNALS)
+        {
+            // Send rpc request signal without reply, and reply from the system task...
+            let st = Box::into_raw(system_task);
+            if target
+                .send_signal(Signal::rpc_noreply(
+                    process.pid(),
+                    schedule_sig_sys_task,
+                    st.cast(),
+                    priority,
+                ))
+                .is_err()
+            {
+                notify_sys_task_executed(process, unsafe { Box::from_raw(st) }, false.into());
+            }
+            // Signal sent
+            return ErlangResult::Ok(atoms::Ok.into());
+        }
+    }
+
+    if let Err(system_task) = schedule_sys_task(process, target, system_task) {
+        notify_sys_task_executed(process, system_task, false.into());
+    }
+
+    return ErlangResult::Ok(atoms::Ok.into());
+}
+
+fn schedule_sig_sys_task(process: &mut ProcessLock, st: *mut ()) -> TermFragment {
+    let system_task: Box<SystemTask> = unsafe { Box::from_raw(st.cast()) };
+
+    if let Err(system_task) = schedule_sys_task(process, process.strong(), system_task) {
+        notify_sys_task_executed(process, system_task, false.into());
+    }
+    TermFragment {
+        term: OpaqueTerm::NONE,
+        fragment: None,
+    }
+}
+
+fn schedule_sys_task(
+    process: &mut ProcessLock,
+    target: Arc<Process>,
+    system_task: Box<SystemTask>,
+) -> Result<(), Box<SystemTask>> {
+    // If we're sending to ourselves, we do things a bit different
+    if core::ptr::eq(process.as_ref(), target.as_ref()) {
+        let status = process.status(Ordering::Acquire);
+        // Not sure this is even possible, but we account for it anyway
+        if status.intersects(StatusFlags::EXITING | StatusFlags::FREE) {
+            return Err(system_task);
+        }
+        // We can push the task directly into the system task queue
+        process.system_tasks[system_task.priority as usize].push_back(system_task);
+        // We now have system tasks to execute, make sure our status reflects that
+        process.set_status_flags(
+            StatusFlags::ACTIVE_SYS | StatusFlags::SYS_TASKS,
+            Ordering::Release,
+        );
+    } else {
+        let mut status = target.status(Ordering::Acquire);
+        loop {
+            if status.contains(StatusFlags::EXITING | StatusFlags::FREE) {
+                return Err(system_task);
+            }
+            match target.status.compare_exchange(
+                status,
+                status | StatusFlags::ACTIVE_SYS | StatusFlags::SYS_TASKS,
+                Ordering::Release,
+                Ordering::Acquire,
+            ) {
+                Ok(prev) => {
+                    // The process is currently suspended, we need to reschedule it
+                    let tgt = target.clone();
+                    let mut guard = target.lock();
+                    guard.system_tasks[system_task.priority as usize].push_back(system_task);
+                    // If currently suspended, wake up the process to handle the task
+                    if prev.contains(StatusFlags::SUSPENDED) {
+                        guard.injector.push(tgt);
+                    }
+                    break;
+                }
+                Err(current) => {
+                    status = current;
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
+pub(crate) fn notify_sys_task_executed(
+    process: &mut ProcessLock,
+    task: Box<SystemTask>,
+    result: OpaqueTerm,
+) {
+    if let Some(Registrant::Process(requestor)) = task.requestor.try_resolve() {
+        send_sys_task_executed_reply(
+            process.pid(),
+            requestor,
+            task.reply_tag.into(),
+            task.request_id.into(),
+            result.into(),
+        );
+    }
+}
+
+fn send_sys_task_executed_reply(
+    from: Pid,
+    to: Arc<Process>,
+    tag: Term,
+    request_id: Term,
+    result: Term,
+) {
+    let mut layout = LayoutBuilder::new();
+    layout += tag.layout();
+    layout += request_id.layout();
+    layout += result.layout();
+    layout.build_tuple(3);
+    let fragment_ptr = layout.into_fragment().unwrap();
+    let fragment = unsafe { fragment_ptr.as_ref() };
+
+    let tag = unsafe { tag.unsafe_clone_to_heap(fragment) };
+    let request_id = unsafe { tag.unsafe_clone_to_heap(fragment) };
+    let result = unsafe { tag.unsafe_clone_to_heap(fragment) };
+    let tuple =
+        Tuple::from_slice(&[tag.into(), request_id.into(), result.into()], fragment).unwrap();
+
+    to.send_fragment(
+        from.into(),
+        TermFragment {
+            term: tuple.into(),
+            fragment: Some(fragment_ptr),
+        },
+    )
+    .ok();
 }

@@ -27,6 +27,7 @@ use core::ptr::{self, NonNull, Pointee};
 use log::trace;
 
 use crate::error::ExceptionFlags;
+use crate::function::ErlangResult;
 use crate::process::{ProcessHeap, ProcessLock, StatusFlags};
 use crate::term::*;
 
@@ -220,6 +221,42 @@ pub fn garbage_collect(process: &mut ProcessLock, roots: RootSet) -> Result<(), 
             }
         }
         Err(GcError::FullsweepRequired) => unreachable!(),
+    }
+}
+
+#[export_name = "erlang:garbage_collect/0"]
+pub extern "C-unwind" fn garbage_collect0(process: &mut ProcessLock) -> ErlangResult {
+    use crate::process::ProcessFlags;
+
+    process.flags |= ProcessFlags::NEED_FULLSWEEP;
+    assert!(garbage_collect(process, Default::default()).is_ok());
+    ErlangResult::Ok(true.into())
+}
+
+#[export_name = "erts_internal:garbage_collect/1"]
+pub extern "C-unwind" fn garbage_collect1(
+    process: &mut ProcessLock,
+    mode_term: OpaqueTerm,
+) -> ErlangResult {
+    use crate::process::ProcessFlags;
+
+    match mode_term.into() {
+        Term::Atom(mode) if mode == atoms::Major => {
+            process.flags |= ProcessFlags::NEED_FULLSWEEP;
+            assert!(garbage_collect(process, Default::default()).is_ok());
+            ErlangResult::Ok(true.into())
+        }
+        Term::Atom(mode) if mode == atoms::Minor => {
+            assert!(garbage_collect(process, Default::default()).is_ok());
+            ErlangResult::Ok(true.into())
+        }
+        _ => {
+            process.exception_info.flags = ExceptionFlags::ERROR;
+            process.exception_info.reason = atoms::Badarg.into();
+            process.exception_info.value = mode_term;
+            process.exception_info.trace = None;
+            ErlangResult::Err
+        }
     }
 }
 

@@ -128,6 +128,7 @@ date = {}
 element = {}
 float = {}
 floor = {}
+garbage_collect = {}
 get = {}
 get_cookie = {}
 get_keys = {}

@@ -23,7 +23,9 @@ use crate::term::{Atom, Pid, Reference, TermFragment};
 
 use super::link::LinkEntry;
 use super::monitor::MonitorEntry;
-use super::Process;
+use super::{Priority, Process, ProcessLock};
+
+pub type RpcCallback = fn(process: &mut ProcessLock, state: *mut ()) -> TermFragment;
 
 /// A trait for signals which are produced by the runtime system
 ///
@@ -79,6 +81,14 @@ pub enum Signal {
     ProcessInfo(ProcessInfo),
     /// Initiates a flush of the signal queue when received
     Flush(Flush),
+    /// Executes a function in the context of the receiving process.
+    ///
+    /// Sends a reply of `{Ref, Result}` with the value returned from the function.
+    ///
+    /// Because the receiver may execute its function while exiting, senders of this message
+    /// type must unconditionally enter a receive that matches on `Ref` in all clauses, or bad
+    /// things will happen.
+    Rpc(Rpc),
 }
 impl fmt::Debug for Signal {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -96,6 +106,7 @@ impl fmt::Debug for Signal {
             Self::IsAlive(_) => f.debug_struct("IsAlive").finish(),
             Self::ProcessInfo(_) => f.debug_struct("ProcessInfo").finish(),
             Self::Flush(_) => f.debug_struct("Flush").finish(),
+            Self::Rpc(_) => f.debug_struct("Rpc").finish(),
         }
     }
 }
@@ -105,6 +116,11 @@ impl Signal {
             Self::ProcessInfo(_) => true,
             _ => false,
         }
+    }
+
+    #[inline]
+    pub fn message(sender: WeakAddress, message: TermFragment) -> Box<SignalEntry> {
+        SignalEntry::new(Self::Message(Message { sender, message }))
     }
 
     #[inline]
@@ -122,8 +138,25 @@ impl Signal {
         SignalEntry::new(Self::IsAlive(IsAlive { sender, reference }))
     }
 
+    #[inline]
     pub fn flush(ty: FlushType) -> Box<SignalEntry> {
         SignalEntry::new(Self::Flush(Flush { sender: None, ty }))
+    }
+
+    #[inline]
+    pub fn rpc_noreply(
+        sender: Pid,
+        callback: RpcCallback,
+        arg: *mut (),
+        priority: Priority,
+    ) -> Box<SignalEntry> {
+        SignalEntry::new(Self::Rpc(Rpc {
+            sender,
+            reference: None,
+            callback,
+            arg,
+            priority,
+        }))
     }
 }
 impl DynSignal for Signal {
@@ -142,6 +175,7 @@ impl DynSignal for Signal {
             Self::IsAlive(sig) => sig.sender(),
             Self::ProcessInfo(sig) => sig.sender(),
             Self::Flush(sig) => sig.sender(),
+            Self::Rpc(sig) => sig.sender(),
         }
     }
 }
@@ -349,6 +383,32 @@ pub struct ProcessInfo {
 impl DynSignal for ProcessInfo {
     fn sender(&self) -> Option<WeakAddress> {
         self.sender.as_ref().map(|p| p.pid().into())
+    }
+}
+
+/// Represents a request to execute a function in the context of the receiver.
+///
+/// If a reference is given, the receiver will send a reply message of the form
+/// `{Ref, Result}`, where `Ref` is the given reference, and `Result` is the result
+/// produced by the rpc callback.
+pub struct Rpc {
+    pub sender: Pid,
+    /// The reference to use in the rpc reply message
+    ///
+    /// If `None`, no reply is wanted and none will be sent.
+    pub reference: Option<Reference>,
+    /// A pointer to the function to call in the context of the receiver
+    pub callback: RpcCallback,
+    /// An opaque pointer for use by the callback to pass arguments/state/context
+    pub arg: *mut (),
+    /// The priority at which the rpc signal will be executed under
+    pub priority: Priority,
+}
+unsafe impl Send for Rpc {}
+unsafe impl Sync for Rpc {}
+impl DynSignal for Rpc {
+    fn sender(&self) -> Option<WeakAddress> {
+        Some(WeakAddress::Process(self.sender.clone()))
     }
 }
 

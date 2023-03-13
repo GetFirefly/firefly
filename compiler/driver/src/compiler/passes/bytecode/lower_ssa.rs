@@ -1227,6 +1227,12 @@ impl<'a> BytecodeBuilder<'a> {
                 let yielded = builder.build_bool(true, loc);
                 self.values.insert(result, yielded);
             }
+            Opcode::GarbageCollect => {
+                builder.build_garbage_collect(loc);
+                let result = dfg.first_result(inst);
+                let success = builder.build_bool(true, loc);
+                self.values.insert(result, success);
+            }
             other => unimplemented!("unrecognized primop: {}", other),
         }
 

@@ -323,6 +323,12 @@ impl PartialEq<str> for Atom {
         self.as_str() == other
     }
 }
+impl PartialEq<&str> for Atom {
+    #[inline(always)]
+    fn eq(&self, other: &&str) -> bool {
+        self.as_str().eq(*other)
+    }
+}
 impl crate::cmp::ExactEq for Atom {}
 impl Ord for Atom {
     fn cmp(&self, other: &Self) -> core::cmp::Ordering {

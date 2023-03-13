@@ -8,7 +8,7 @@ use std::sync::Arc;
 use firefly_alloc::heap::Heap;
 use firefly_number::Int;
 use firefly_rt::error::ExceptionFlags;
-use firefly_rt::function::{ErlangResult, ModuleFunctionArity};
+use firefly_rt::function::{self, ErlangResult, ModuleFunctionArity};
 use firefly_rt::gc::{garbage_collect, Gc, RootSet};
 use firefly_rt::process::monitor::{Monitor, MonitorEntry, MonitorFlags, UnaliasMode};
 use firefly_rt::process::signals::Signal;
@@ -64,6 +64,34 @@ macro_rules! handle_safe_integer_arith_result {
             }
         }
     };
+}
+
+#[export_name = "erlang:is_builtin/3"]
+pub extern "C-unwind" fn is_builtin3(
+    process: &mut ProcessLock,
+    m: OpaqueTerm,
+    f: OpaqueTerm,
+    a: OpaqueTerm,
+) -> ErlangResult {
+    if !m.is_atom() {
+        badarg!(process, m);
+    }
+    if !f.is_atom() {
+        badarg!(process, f);
+    }
+
+    match a.into() {
+        Term::Int(i) if i >= 0 && i < 256 => {
+            // If a native function symbol is defined for this MFA, it is a builtin
+            let mfa = ModuleFunctionArity {
+                module: m.as_atom(),
+                function: f.as_atom(),
+                arity: i as u8,
+            };
+            ErlangResult::Ok(function::find_symbol(&mfa).is_some().into())
+        }
+        _ => badarg!(process, a),
+    }
 }
 
 #[export_name = "erlang:+/2"]

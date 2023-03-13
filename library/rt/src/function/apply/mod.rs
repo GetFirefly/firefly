@@ -226,6 +226,7 @@ const BIFS: &'static [&'static str] = &[
     "erlang:unlink/1",
     "erlang:unregister/1",
     "erlang:whereis/1",
+    "erlang:yield/0",
 ];
 
 /// The symbol table used by the runtime system

@@ -1,23 +1,24 @@
 use core::cmp;
+use core::fmt;
 use core::ops;
 use core::slice;
 
-use anyhow::anyhow;
-
-use firefly_number::ToPrimitive;
-
-use super::{BigInt, OpaqueTerm, Term, Tuple};
+use super::{OpaqueTerm, Term, Tuple};
 
 /// A marker trait for index types
 pub trait TupleIndex: Into<usize> {}
 /// A marker trait for internal index types to help in specialization
 pub trait NonPrimitiveIndex: Sized {}
 
-macro_rules! bad_index {
-    () => {
-        anyhow!("invalid index: bad argument")
-    };
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub struct InvalidTupleIndex;
+impl fmt::Display for InvalidTupleIndex {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_str("invalid tuple index")
+    }
 }
+#[cfg(feature = "std")]
+impl std::error::Error for InvalidTupleIndex {}
 
 /// Represents indices which start at 1 and progress upwards
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -25,11 +26,11 @@ macro_rules! bad_index {
 pub struct OneBasedIndex(usize);
 impl OneBasedIndex {
     #[inline]
-    pub fn new(i: usize) -> anyhow::Result<Self> {
+    pub fn new(i: usize) -> Result<Self, InvalidTupleIndex> {
         if i > 0 {
             Ok(Self(i))
         } else {
-            Err(bad_index!())
+            Err(InvalidTupleIndex)
         }
     }
 }
@@ -40,41 +41,43 @@ impl Default for OneBasedIndex {
         Self(1)
     }
 }
-impl TryFrom<&BigInt> for OneBasedIndex {
-    type Error = anyhow::Error;
+impl TryFrom<u32> for OneBasedIndex {
+    type Error = InvalidTupleIndex;
 
-    fn try_from(n: &BigInt) -> Result<Self, Self::Error> {
-        Self::new(n.try_into().map_err(|_| bad_index!())?)
+    #[inline]
+    fn try_from(n: u32) -> Result<Self, Self::Error> {
+        Self::new(n as usize)
     }
 }
 impl TryFrom<i64> for OneBasedIndex {
-    type Error = anyhow::Error;
+    type Error = InvalidTupleIndex;
 
     fn try_from(n: i64) -> Result<Self, Self::Error> {
-        Self::new(n.try_into().map_err(|_| bad_index!())?)
+        Self::new(n.try_into().map_err(|_| InvalidTupleIndex)?)
     }
 }
 impl TryFrom<OpaqueTerm> for OneBasedIndex {
-    type Error = anyhow::Error;
+    type Error = InvalidTupleIndex;
 
     fn try_from(term: OpaqueTerm) -> Result<Self, Self::Error> {
-        let term: Term = term.into();
-        term.try_into()
+        if !term.is_integer() {
+            return Err(InvalidTupleIndex);
+        }
+        unsafe { term.as_integer().try_into() }
     }
 }
 impl TryFrom<Term> for OneBasedIndex {
-    type Error = anyhow::Error;
+    type Error = InvalidTupleIndex;
 
     fn try_from(term: Term) -> Result<Self, Self::Error> {
         match term {
-            Term::Int(i) => i.try_into(),
-            Term::BigInt(i) => i.as_ref().try_into(),
-            _ => Err(bad_index!()),
+            Term::Int(i) if i > 0 => Ok(Self(i.try_into().map_err(|_| InvalidTupleIndex)?)),
+            _ => Err(InvalidTupleIndex),
         }
     }
 }
 impl Into<usize> for OneBasedIndex {
-    #[inline]
+    #[inline(always)]
     fn into(self) -> usize {
         self.0 - 1
     }
@@ -139,29 +142,36 @@ impl Default for ZeroBasedIndex {
         Self(0)
     }
 }
+impl From<u32> for ZeroBasedIndex {
+    #[inline(always)]
+    fn from(n: u32) -> Self {
+        Self(n as usize)
+    }
+}
 impl TryFrom<i64> for ZeroBasedIndex {
-    type Error = anyhow::Error;
+    type Error = InvalidTupleIndex;
 
     fn try_from(n: i64) -> Result<Self, Self::Error> {
-        Ok(Self::new(n.try_into().map_err(|_| bad_index!())?))
+        Ok(Self(n.try_into().map_err(|_| InvalidTupleIndex)?))
     }
 }
 impl TryFrom<OpaqueTerm> for ZeroBasedIndex {
-    type Error = anyhow::Error;
+    type Error = InvalidTupleIndex;
 
     fn try_from(term: OpaqueTerm) -> Result<Self, Self::Error> {
-        let term: Term = term.into();
-        term.try_into()
+        if !term.is_integer() {
+            return Err(InvalidTupleIndex);
+        }
+        unsafe { term.as_integer().try_into() }
     }
 }
 impl TryFrom<Term> for ZeroBasedIndex {
-    type Error = anyhow::Error;
+    type Error = InvalidTupleIndex;
 
     fn try_from(term: Term) -> Result<Self, Self::Error> {
         match term {
-            Term::Int(i) => i.try_into().map_err(|_| bad_index!()),
-            Term::BigInt(i) => i.to_i64().ok_or_else(|| bad_index!())?.try_into(),
-            _ => Err(bad_index!()),
+            Term::Int(i) => i.try_into().map_err(|_| InvalidTupleIndex),
+            _ => Err(InvalidTupleIndex),
         }
     }
 }
@@ -172,13 +182,13 @@ impl From<OneBasedIndex> for ZeroBasedIndex {
     }
 }
 impl From<usize> for ZeroBasedIndex {
-    #[inline]
+    #[inline(always)]
     fn from(n: usize) -> Self {
-        Self::new(n)
+        Self(n)
     }
 }
 impl Into<usize> for ZeroBasedIndex {
-    #[inline]
+    #[inline(always)]
     fn into(self) -> usize {
         self.0
     }

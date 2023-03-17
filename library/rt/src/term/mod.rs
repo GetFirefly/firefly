@@ -137,24 +137,6 @@ impl Term {
         }
     }
 
-    /*
-       pub(in crate::gc) unsafe fn as_ptr(&self) -> *mut () {
-           match self {
-               Self::BigInt(boxed) => Gc::as_ptr(boxed),
-               Self::Map(boxed) => Gc::as_ptr(boxed),
-               Self::Closure(boxed) => Gc::as_ptr(boxed),
-               Self::Pid(boxed) => Gc::as_ptr(boxed),
-               Self::Reference(boxed) => Gc::as_ptr(boxed),
-               Self::HeapBinary(boxed) => Gc::as_ptr(boxed),
-               Self::RefBinary(boxed) => Gc::as_ptr(boxed),
-               Self::Cons(boxed) => Gc::as_ptr(boxed),
-               Self::Tuple(boxed) => Gc::as_ptr(boxed),
-               Self::Port(ptr) => Arc::as_ptr(ptr).cast(),
-               Self::RcBinary(ptr) => Arc::as_ptr(ptr).cast(),
-               _ => unreachable!(),
-           }
-       }
-    */
     pub fn is_none(&self) -> bool {
         match self {
             Self::None => true,
@@ -222,7 +204,17 @@ impl Term {
             Self::HeapBinary(boxed) => Some(boxed),
             Self::RcBinary(boxed) => Some(boxed),
             Self::RefBinary(boxed) => Some(boxed),
-            Self::ConstantBinary(bytes) => Some(bytes),
+            Self::ConstantBinary(lit) => Some(lit),
+            _ => None,
+        }
+    }
+
+    pub fn as_binary(&self) -> Option<&dyn Bitstring> {
+        match self {
+            Self::HeapBinary(boxed) if boxed.is_binary() => Some(boxed),
+            Self::RcBinary(boxed) if boxed.is_binary() => Some(boxed),
+            Self::RefBinary(boxed) if boxed.is_binary() => Some(boxed),
+            Self::ConstantBinary(lit) if lit.is_binary() => Some(lit),
             _ => None,
         }
     }
@@ -906,9 +898,10 @@ impl Ord for Term {
                 Self::Code(y) => x.cmp(y),
                 _ => Ordering::Greater,
             },
-            // Numbers are smaller than all other terms, using whichever type has the highest precision.
-            // We need comparison order to preserve the ExactEq semantics, so equality between integers/floats
-            // is broken by sorting floats first due to their greater precision in most cases
+            // Numbers are smaller than all other terms, using whichever type has the highest
+            // precision. We need comparison order to preserve the ExactEq semantics, so
+            // equality between integers/floats is broken by sorting floats first due to
+            // their greater precision in most cases
             Self::Int(x) => match other {
                 Self::None | Self::Catch(_) | Self::Code(_) => Ordering::Greater,
                 Self::Int(y) => x.cmp(y),

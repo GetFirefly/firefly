@@ -23,6 +23,10 @@ use crate::gc::Gc;
 
 use super::{Boxable, Header, Metadata, Tag};
 
+/// Empty binary values are used in various places, so for convenience we expose one here
+pub const EMPTY_BIN: &'static BinaryData =
+    BinaryData::make_constant(BinaryFlags::new(0, Encoding::Raw), &[]);
+
 /// This struct is used to represent both binary _and_ bitstring data.
 ///
 /// Data is always stored aligned, but with a possibly non-zero number of trailing bits.
@@ -70,8 +74,9 @@ impl BinaryData {
 
     /// Creates a constant `BinaryData` value
     ///
-    /// This is intended for use at compile-time only, in order to more efficiently construct strings
-    /// in the runtime which are used in Erlang code without requiring runtime allocations
+    /// This is intended for use at compile-time only, in order to more efficiently construct
+    /// strings in the runtime which are used in Erlang code without requiring runtime
+    /// allocations
     pub const fn make_constant(flags: BinaryFlags, bytes: &'static [u8]) -> &'static Self {
         use core::intrinsics::const_allocate;
 
@@ -116,7 +121,8 @@ impl BinaryData {
 
     /// Copies the bytes from the given selection into `self`
     ///
-    /// NOTE: The length of the selection must match the capacity of `self`, or the function will panic
+    /// NOTE: The length of the selection must match the capacity of `self`, or the function will
+    /// panic
     pub fn copy_from_selection(&mut self, selection: Selection<'_>) {
         assert_eq!(self.len(), selection.byte_size());
         let trailing_bits = selection.write_bytes_to_buffer(&mut self.data);
@@ -318,7 +324,8 @@ impl PartialOrd for BinaryData {
 impl<T: Bitstring> PartialOrd<T> for BinaryData {
     // We order bitstrings lexicographically
     fn partial_cmp(&self, other: &T) -> Option<core::cmp::Ordering> {
-        // Aligned binaries can be compared using the optimal built-in slice comparisons in the standard lib
+        // Aligned binaries can be compared using the optimal built-in slice comparisons in the
+        // standard lib
         if other.is_aligned() && other.is_binary() {
             return Some(self.data.cmp(unsafe { other.as_bytes_unchecked() }));
         }

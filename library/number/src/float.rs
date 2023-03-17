@@ -4,6 +4,7 @@ use core::hash::{Hash, Hasher};
 use core::mem;
 use core::num::FpCategory;
 use core::ops::{Add, Div, Mul, Neg, Rem, Sub};
+use core::str::FromStr;
 
 pub use half::f16;
 use num_bigint::{BigInt, Sign};
@@ -35,7 +36,22 @@ impl fmt::Display for FloatError {
     }
 }
 
-/// This is a wrapper around an f64 value that ensures the value is a valid Erlang float, i.e. it cannot be +/- infinity.
+#[derive(Debug, Copy, Clone)]
+pub enum ParseFloatError {
+    ParseFailed,
+    Invalid(FloatError),
+}
+impl fmt::Display for ParseFloatError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::ParseFailed => write!(f, "could not parse string as float"),
+            Self::Invalid(err) => write!(f, "invalid float: {}", &err),
+        }
+    }
+}
+
+/// This is a wrapper around an f64 value that ensures the value is a valid Erlang float, i.e. it
+/// cannot be +/- infinity.
 #[derive(Copy, Clone)]
 #[repr(transparent)]
 pub struct Float(f64);
@@ -91,6 +107,16 @@ impl Float {
     #[inline]
     pub fn is_finite(&self) -> bool {
         self.0.is_finite()
+    }
+}
+impl FromStr for Float {
+    type Err = ParseFloatError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.parse::<f64>() {
+            Ok(f) => Self::new(f).map_err(ParseFloatError::Invalid),
+            Err(_) => Err(ParseFloatError::ParseFailed),
+        }
     }
 }
 impl fmt::Debug for Float {

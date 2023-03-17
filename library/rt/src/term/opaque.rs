@@ -1017,6 +1017,24 @@ impl OpaqueTerm {
         }
     }
 
+    /// Returns the `BinaryFlags` for this term if it is a binary/bitstring
+    pub fn binary_flags(self) -> Option<firefly_binary::BinaryFlags> {
+        use firefly_binary::{Binary, BinaryFlags, Bitstring, Encoding};
+        match self.into() {
+            Term::HeapBinary(bin) => Some(bin.flags()),
+            Term::RcBinary(bin) => Some(bin.flags()),
+            Term::RefBinary(bin) => {
+                let size = bin.byte_size();
+                Some(
+                    BinaryFlags::new(size, Encoding::Raw)
+                        .with_trailing_bits(bin.trailing_bits() as usize),
+                )
+            }
+            Term::ConstantBinary(bin) => Some(bin.flags()),
+            _ => None,
+        }
+    }
+
     /// Extracts the raw pointer to the metadata associated with this term
     ///
     /// # Safety
@@ -1090,7 +1108,7 @@ impl OpaqueTerm {
     }
 
     /// Returns true if the given i64 value is in the range allowed for immediates
-    pub(super) fn is_small_integer(value: i64) -> bool {
+    pub fn is_small_integer(value: i64) -> bool {
         let value = value as u64;
         match value & INTEGER_TAG {
             0 | INTEGER_TAG => true,

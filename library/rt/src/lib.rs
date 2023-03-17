@@ -77,6 +77,7 @@ extern crate std;
 extern crate test;
 
 pub mod backtrace;
+pub mod bifs;
 pub mod cmp;
 pub mod drivers;
 pub mod error;

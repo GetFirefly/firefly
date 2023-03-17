@@ -80,7 +80,7 @@ impl Shl<usize> for MaybePartialByte {
 
     fn shl(self, other: usize) -> Self::Output {
         assert!(other <= 8);
-        let size = self.size.checked_sub(other as u8).unwrap_or(0);
+        let size = self.size.saturating_sub(other as u8);
         let byte = self.byte().checked_shl(other as u32).unwrap_or(0);
         Self::new(byte, size)
     }
@@ -89,7 +89,7 @@ impl Shl<u8> for MaybePartialByte {
     type Output = Self;
 
     fn shl(self, other: u8) -> Self::Output {
-        let size = self.size.checked_sub(other).unwrap_or(0);
+        let size = self.size.saturating_sub(other);
         let byte = self.byte().checked_shl(other as u32).unwrap_or(0);
         Self::new(byte, size)
     }
@@ -164,7 +164,6 @@ pub enum Selection<'a> {
     /// require both a leading and trailing partial byte:
     ///
     ///     Selection::Bitstring(0b00001111, &[0b11111111], Some(0b10000000))
-    ///
     Bitstring(MaybePartialByte, &'a [u8], Option<MaybePartialByte>),
 }
 impl<'a> Selection<'a> {
@@ -194,15 +193,17 @@ impl<'a> Selection<'a> {
     /// The result of this function (whether successful or not) is the `Selection` enum, see its
     /// documentation for details on its variants.
     ///
-    /// When `Err(selection)` is returned, there were insufficient bits in the buffer to fulfill the request,
-    /// or the request was out of bounds. The selection contained within will hold what was able to be selected
-    /// from the available bits. This can be used to implement APIs that select as many bits as are available
-    /// without having to calculate in advance the exact number of bits to ask for.
+    /// When `Err(selection)` is returned, there were insufficient bits in the buffer to fulfill the
+    /// request, or the request was out of bounds. The selection contained within will hold what
+    /// was able to be selected from the available bits. This can be used to implement APIs that
+    /// select as many bits as are available without having to calculate in advance the exact
+    /// number of bits to ask for.
     ///
-    /// NOTE: While you can use this function to perform the equivalent of a simple slicing operation (e.g. `&data[offset..len]`),
-    /// it is recommended that you use slicing directly when you know the bounds and are working with aligned, binary data. This
-    /// function does a lot of work to validate the selection and handle various combinations of offsets and non-binary sizes, so
-    /// it is more efficient to slice directly when possible.
+    /// NOTE: While you can use this function to perform the equivalent of a simple slicing
+    /// operation (e.g. `&data[offset..len]`), it is recommended that you use slicing directly
+    /// when you know the bounds and are working with aligned, binary data. This function does a
+    /// lot of work to validate the selection and handle various combinations of offsets and
+    /// non-binary sizes, so it is more efficient to slice directly when possible.
     pub fn new(
         data: &'a [u8],
         byte_offset: usize,
@@ -222,9 +223,7 @@ impl<'a> Selection<'a> {
         let len = data.len();
         let buffer_bitsize = len * 8;
         let bitsize = cmp::min(bitsize.unwrap_or(buffer_bitsize), buffer_bitsize);
-        let selectable = bitsize
-            .checked_sub((byte_offset * 8) + bit_offset as usize)
-            .unwrap_or(0);
+        let selectable = bitsize.saturating_sub((byte_offset * 8) + bit_offset as usize);
 
         // Empty buffers are an edge case, but can be handled without any other processing
         if selectable == 0 {
@@ -245,8 +244,7 @@ impl<'a> Selection<'a> {
         // The buffer is binary if the addressable range is evenly divisible into bytes or if the
         // range the requested size falls within is evenly divisible into bytes
         let is_buffer_binary = if is_aligned {
-            selectable_trailing_bits == 0
-                || selectable.checked_sub(bit_offset as usize).unwrap_or(0) >= n
+            selectable_trailing_bits == 0 || selectable.saturating_sub(bit_offset as usize) >= n
         } else {
             bit_offset == selectable_trailing_bits
         };
@@ -290,7 +288,8 @@ impl<'a> Selection<'a> {
                 if is_binary {
                     return Err(Self::AlignedBinary(&data[byte_offset..]));
                 } else if selectable > 8 {
-                    // The selectable region forms an aligned bitstring, so we have a trailing partial byte
+                    // The selectable region forms an aligned bitstring, so we have a trailing
+                    // partial byte
                     let last_index = (selectable / 8) + byte_offset;
                     let byte = unsafe { *data.get_unchecked(last_index + 1) };
                     let mask = bitmask_be(selectable_trailing_bits);
@@ -307,7 +306,8 @@ impl<'a> Selection<'a> {
                     )));
                 }
             } else if is_binary {
-                // The selectable region forms an unaligned binary, so we have both leading and trailing partial bytes
+                // The selectable region forms an unaligned binary, so we have both leading and
+                // trailing partial bytes
 
                 // Handle the case where the selected bits can be packed into a single byte
                 let leading_bits = 8 - bit_offset;
@@ -334,7 +334,8 @@ impl<'a> Selection<'a> {
                     MaybePartialByte::new(last & last_mask, trailing_bits),
                 ));
             } else {
-                // The selectable region forms an unaligned bitstring, so we have a leading partial byte, and potentially a trailing partial byte
+                // The selectable region forms an unaligned bitstring, so we have a leading partial
+                // byte, and potentially a trailing partial byte
 
                 // Handle the case where the selected bits can be packed into a single byte
                 let leading_bits = 8 - bit_offset;
@@ -358,7 +359,8 @@ impl<'a> Selection<'a> {
                     return Err(Self::Byte(MaybePartialByte::new(byte, selectable as u8)));
                 }
 
-                // If the remaining selectable bits ends on a byte boundary, then we don't have a trailing partial byte
+                // If the remaining selectable bits ends on a byte boundary, then we don't have a
+                // trailing partial byte
                 let first_mask = bitmask_le(leading_bits);
                 let first = (first & first_mask) << bit_offset;
                 if selectable_trailing_bits == 0 {
@@ -380,23 +382,26 @@ impl<'a> Selection<'a> {
             }
         }
 
-        // At this point we've classified the request and the underlying buffer, and we know that the request
-        // is non-empty and definitely fits, all we need to do is handle the various flavors of selection just
-        // like we did above, except with more accuracy as we can calculate precise ranges
+        // At this point we've classified the request and the underlying buffer, and we know that
+        // the request is non-empty and definitely fits, all we need to do is handle the
+        // various flavors of selection just like we did above, except with more accuracy as
+        // we can calculate precise ranges
         if is_aligned {
-            // We've already handled the case where the selection is aligned and binary, so we have the following cases to handle:
+            // We've already handled the case where the selection is aligned and binary, so we have
+            // the following cases to handle:
             //
             // * aligned, non-binary size, binary buffer size
             // * aligned, non-binary size, non-binary buffer size
             assert!(!is_binary);
             // At this point, if the buffer is non-binary, the request requires bits from the last
-            // addressable byte which is a partial byte. If this were not the case, `is_buffer_binary`
-            // would be true.
+            // addressable byte which is a partial byte. If this were not the case,
+            // `is_buffer_binary` would be true.
             //
-            // As a result, it must be the case that the number of trailing bits is less than or equal
-            // to the number of addressable bits in the last byte.
+            // As a result, it must be the case that the number of trailing bits is less than or
+            // equal to the number of addressable bits in the last byte.
             assert!(is_buffer_binary || trailing_bits <= selectable_trailing_bits);
-            // The last byte is partial, but we must also handle the case where the request fits in a single byte
+            // The last byte is partial, but we must also handle the case where the request fits in
+            // a single byte
             let mask = bitmask_be(trailing_bits);
             if n < 8 {
                 let byte = unsafe { *data.get_unchecked(byte_offset) };
@@ -552,10 +557,7 @@ impl<'a> Selection<'a> {
             Self::AlignedBitstring(b, r) => {
                 let cap = b.len() + 1;
                 let mut vec = Vec::with_capacity(cap);
-                unsafe {
-                    vec.set_len(cap - 1);
-                }
-                vec.copy_from_slice(b);
+                vec.extend_from_slice(b);
                 vec.push(r.byte());
                 Cow::Owned(vec)
             }
@@ -566,6 +568,26 @@ impl<'a> Selection<'a> {
                     vec.push(byte);
                 }
                 Cow::Owned(vec)
+            }
+        }
+    }
+
+    /// Much like `to_bytes`, except this function sets aside the final partial byte,
+    /// if the final byte is partial. This is only useful in a few rare situations.
+    pub fn to_maybe_partial_bytes(&self) -> (Cow<'_, [u8]>, Option<MaybePartialByte>) {
+        match self {
+            Self::Empty => (Cow::Borrowed(&[]), None),
+            Self::Byte(b) if b.is_partial() => (Cow::Borrowed(&[]), Some(*b)),
+            Self::Byte(b) => (Cow::Borrowed(b.byte.as_slice()), None),
+            Self::AlignedBinary(b) => (Cow::Borrowed(b), None),
+            Self::AlignedBitstring(b, r) => (Cow::Borrowed(b), Some(*r)),
+            _ => {
+                let mut iter = self.bits();
+                let mut buf = Vec::with_capacity(iter.len());
+                for byte in iter.by_ref() {
+                    buf.push(byte);
+                }
+                (Cow::Owned(buf), iter.consume())
             }
         }
     }
@@ -808,7 +830,8 @@ impl<'a> Selection<'a> {
                             )
                         }
                     } else {
-                        // The new offset starts in the trailing byte, and there must be a trailing byte here
+                        // The new offset starts in the trailing byte, and there must be a trailing
+                        // byte here
                         let r = maybe_r.unwrap();
                         let leading_byte_len = bytes.len();
                         let leading_bit_len = leading_byte_len * 8;
@@ -823,10 +846,11 @@ impl<'a> Selection<'a> {
         }
     }
 
-    /// Produces a new selection that represents selecting the first `n` bits of the current selection
+    /// Produces a new selection that represents selecting the first `n` bits of the current
+    /// selection
     ///
-    /// This returns `Result<Selection, Selection>`, where `Err` indicates that `n` bits were not available,
-    /// but provides the best selection available from the remaining data.
+    /// This returns `Result<Selection, Selection>`, where `Err` indicates that `n` bits were not
+    /// available, but provides the best selection available from the remaining data.
     pub fn take(&self, n: usize) -> Result<Self, Self> {
         if n == 0 {
             return Ok(Self::Empty);
@@ -856,7 +880,8 @@ impl<'a> Selection<'a> {
                     let last_index = n / 8;
                     Ok(Self::AlignedBinary(&bytes[..last_index]))
                 } else if n > 8 {
-                    // We're going to produce an aligned bitstring, so we will have a trailing partial byte
+                    // We're going to produce an aligned bitstring, so we will have a trailing
+                    // partial byte
                     let last_index = n / 8;
                     let mask = bitmask_be(trailing_bits);
                     let last = unsafe { *bytes.get_unchecked(last_index) } & mask;
@@ -946,7 +971,8 @@ impl<'a> Selection<'a> {
                         ))
                     }
                 } else {
-                    // We're going to produce a single byte, containing some or all of the bits from `r`
+                    // We're going to produce a single byte, containing some or all of the bits from
+                    // `r`
                     let consumed_trailing_bits = (n - bytes_bit_len) as u8;
                     let mask = bitmask_be(consumed_trailing_bits);
                     let byte = r.byte() & mask;
@@ -1074,7 +1100,8 @@ impl<'a> Bitstring for Selection<'a> {
         BitsIter::new(*self)
     }
 
-    /// Returns the selected bytes as a string reference, if the data is binary, aligned, and valid UTF-8.
+    /// Returns the selected bytes as a string reference, if the data is binary, aligned, and valid
+    /// UTF-8.
     ///
     /// For unaligned binaries or bitstrings, returns `None`. See `to_str` for an alternative
     /// available to unaligned binaries.
@@ -1125,7 +1152,8 @@ impl<'a> Ord for Selection<'a> {
 impl<'a, T: Bitstring> PartialOrd<T> for Selection<'a> {
     // We order bitstrings lexicographically
     fn partial_cmp(&self, other: &T) -> Option<core::cmp::Ordering> {
-        // Aligned binaries can be compared using the optimal built-in slice comparisons in the standard lib
+        // Aligned binaries can be compared using the optimal built-in slice comparisons in the
+        // standard lib
         if self.is_aligned() && other.is_aligned() && self.is_binary() && other.is_binary() {
             let bytes = unsafe { self.as_bytes_unchecked() };
             return Some(bytes.cmp(unsafe { other.as_bytes_unchecked() }));
@@ -1292,9 +1320,9 @@ mod tests {
 
     #[test]
     fn selection_test_byte() {
-        // This selection is artifically constrained to 8 bits, so the request should produce a single byte
-        // Since the offset is 1, the result is that the value 1 in the second byte is shifted left and becomes
-        // the value 2
+        // This selection is artifically constrained to 8 bits, so the request should produce a
+        // single byte Since the offset is 1, the result is that the value 1 in the second
+        // byte is shifted left and becomes the value 2
         let selection = Selection::new(TEN, 0, 1, Some(9), 8);
         assert_selection!(selection, Ok(Selection::Byte(2u8.into())));
 
@@ -1303,8 +1331,8 @@ mod tests {
         let selection = Selection::new(buf, 0, 4, None, 8);
         assert_selection!(selection, Ok(Selection::Byte(u8::MAX.into())));
 
-        // This selection is for 8 bits with 4 bytes of underlying available, so cannot possibly succeed,
-        // but the fallback selection is 4 bits from the end
+        // This selection is for 8 bits with 4 bytes of underlying available, so cannot possibly
+        // succeed, but the fallback selection is 4 bits from the end
         let buf = &[u8::MAX, u8::MAX, u8::MAX];
         let selection = Selection::new(buf, 2, 4, None, 8);
         assert_selection!(
@@ -1318,7 +1346,8 @@ mod tests {
             Ok(Selection::Byte(MaybePartialByte::new(0b11111100, 6)))
         );
 
-        // Selecting beyond the selectable range, when the available range spans across two bytes produces a byte
+        // Selecting beyond the selectable range, when the available range spans across two bytes
+        // produces a byte
         let selection = Selection::new(buf, 1, 7, Some(21), 24);
         assert_selection!(
             selection,
@@ -1328,7 +1357,8 @@ mod tests {
 
     #[test]
     fn selection_test_aligned_binary() {
-        // Selecting all of a byte slice is equivalent to that slice (aligned, binary by construction)
+        // Selecting all of a byte slice is equivalent to that slice (aligned, binary by
+        // construction)
         let selection = ExactSelection(Selection::all(TEN));
         assert_eq!(selection, Selection::AlignedBinary(TEN));
 
@@ -1348,7 +1378,8 @@ mod tests {
 
     #[test]
     fn selection_test_aligned_bitstring() {
-        // Selecting a subset of bits containing at least one partial byte, from an aligned binary, produces an aligned bitstring
+        // Selecting a subset of bits containing at least one partial byte, from an aligned binary,
+        // produces an aligned bitstring
         let buf = &[u8::MAX, u8::MAX, u8::MAX];
         let selection = Selection::new(buf, 0, 0, None, 14);
         assert_selection!(
@@ -1364,7 +1395,8 @@ mod tests {
             Ok(Selection::Byte(MaybePartialByte::new(0b11111110, 7)))
         );
 
-        // Selecting beyond the selectable range, when the selectable range constitutes an aligned bitstring, produces an aligned bitstring
+        // Selecting beyond the selectable range, when the selectable range constitutes an aligned
+        // bitstring, produces an aligned bitstring
         let selection = Selection::new(buf, 1, 0, Some(23), 24);
         assert_selection!(
             selection,
@@ -1377,7 +1409,8 @@ mod tests {
 
     #[test]
     fn selection_test_binary() {
-        // Selecting a byte-divisible number of bits from any non-byte aligned offset produces a binary selection
+        // Selecting a byte-divisible number of bits from any non-byte aligned offset produces a
+        // binary selection
         let selection = Selection::new(TEN, 0, 1, None, 2 * 8);
         assert_selection!(
             selection,
@@ -1398,8 +1431,8 @@ mod tests {
             ))
         );
 
-        // Selecting beyond the selectable range when the selectable range constitutes an unaligned binary, produces
-        // an unaligned binary selection
+        // Selecting beyond the selectable range when the selectable range constitutes an unaligned
+        // binary, produces an unaligned binary selection
         let selection = Selection::new(TEN, 0, 1, Some(17), 24);
         assert_selection!(
             selection,
@@ -1413,7 +1446,8 @@ mod tests {
 
     #[test]
     fn selection_test_bitstring() {
-        // Selecting any number of bits (> 8, non-byte-divisible) when unaligned, produces an unaligned bitstring
+        // Selecting any number of bits (> 8, non-byte-divisible) when unaligned, produces an
+        // unaligned bitstring
         let buf = &[u8::MAX, u8::MAX, u8::MAX];
         let selection = Selection::new(buf, 0, 3, None, 17);
         assert_selection!(
@@ -1425,7 +1459,8 @@ mod tests {
             ))
         );
 
-        // Selecting beyond the selectable range when the selectable range constitutes an unaligned bitstring, produces an unaligned bitstring
+        // Selecting beyond the selectable range when the selectable range constitutes an unaligned
+        // bitstring, produces an unaligned bitstring
         let selection = Selection::new(buf, 0, 3, None, 27);
         assert_selection!(
             selection,
@@ -1436,7 +1471,8 @@ mod tests {
             ))
         );
 
-        // Selecting a number of bits from an unaligned bit that ends on a byte boundary produces a bitstring
+        // Selecting a number of bits from an unaligned bit that ends on a byte boundary produces a
+        // bitstring
         let selection = Selection::new(buf, 0, 7, None, 9);
         assert_selection!(
             selection,
@@ -1557,7 +1593,8 @@ mod tests {
     fn selection_test_shrink_front() {
         let selection = Selection::all(HELLO);
 
-        // Shrinking an aligned binary by a number of bits divisible into bytes produces an aligned binary
+        // Shrinking an aligned binary by a number of bits divisible into bytes produces an aligned
+        // binary
         let selection = selection.shrink_front(8);
         assert_eq!(
             ExactSelection(selection),
@@ -1575,8 +1612,8 @@ mod tests {
             ))
         );
 
-        // Shrinking an unaligned bitstring by a number of bits that ends on a byte boundary produces
-        // an aligned binary
+        // Shrinking an unaligned bitstring by a number of bits that ends on a byte boundary
+        // produces an aligned binary
         let selection2 = selection.shrink_front(7);
         assert_eq!(
             ExactSelection(selection2),
@@ -1637,7 +1674,8 @@ mod tests {
             Ok(Selection::Byte(MaybePartialByte::new(0b01101000, 7)))
         );
 
-        // Taking a non-binary number of bits from an aligned selection produces an aligned bitstring
+        // Taking a non-binary number of bits from an aligned selection produces an aligned
+        // bitstring
         let selection3 = selection.take(9);
         assert_selection!(
             selection3,

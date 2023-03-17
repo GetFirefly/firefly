@@ -36,13 +36,13 @@ impl Encoding {
 
     #[inline]
     pub fn is_latin1(s: &[u8]) -> bool {
-        s.iter().copied().all(|b| Self::is_latin1_byte(b))
+        s.iter().copied().all(Self::is_latin1_byte)
     }
 
     #[inline(always)]
     pub fn is_latin1_byte(byte: u8) -> bool {
         // The Latin-1 codepage starts at 0x20, skips 0x7F-0x9F, then continues to 0xFF
-        (byte <= 0x1F) | ((byte >= 0x7F) & (byte <= 0x9F))
+        (byte <= 0x1F) | (0x7F..=0x9F).contains(&byte)
     }
 }
 impl FromStr for Encoding {
@@ -127,9 +127,9 @@ impl BinaryFlags {
         Self(self.0 & Self::FLAG_SIZE_MASK | Self::FLAG_IS_BITSTRING | tb)
     }
 
-    /// Returns the byte size of the binary associated with these flags
+    /// Returns the number of trailing bits for the bitstring associated with these flags
     #[inline]
-    pub fn trailing_bits(&self) -> usize {
+    pub const fn trailing_bits(&self) -> usize {
         (self.0 & Self::FLAG_TRAILING_BITS_MASK) >> Self::FLAG_TRAILING_BITS_SHIFT
     }
 
@@ -153,24 +153,26 @@ impl BinaryFlags {
     /// Returns the size of the binary in bytes
     #[inline]
     pub const fn size(&self) -> usize {
-        self.0 >> Self::FLAG_SIZE_SHIFT
+        let base_size = self.0 >> Self::FLAG_SIZE_SHIFT;
+        base_size + (self.trailing_bits() > 0) as usize
     }
 
     /// Returns true if the binary associated with these flags is under the MAX_HEAP_SIZE limit
     ///
-    /// When true, the underlying binary will be heap allocated, otherwise it will be reference-counted
+    /// When true, the underlying binary will be heap allocated, otherwise it will be
+    /// reference-counted
     #[inline]
-    pub const fn is_small(&self) -> bool {
+    pub fn is_small(&self) -> bool {
         self.size() <= 64
     }
 
     /// Returns true if this binary is a raw binary
     #[inline]
     pub fn is_raw(&self) -> bool {
-        match self.0 & Self::FLAG_ENCODING_MASK {
-            Self::FLAG_IS_RAW_BIN | Self::FLAG_IS_BITSTRING => true,
-            _ => false,
-        }
+        matches!(
+            self.0 & Self::FLAG_ENCODING_MASK,
+            Self::FLAG_IS_RAW_BIN | Self::FLAG_IS_BITSTRING
+        )
     }
 
     /// Returns true if this binary is a Latin-1 binary

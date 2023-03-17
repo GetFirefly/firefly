@@ -50,14 +50,20 @@ impl<A: Allocator> From<Vec<u8, A>> for BitVec<A> {
         }
     }
 }
-impl BitVec {
-    /// Create a new, empty BitVec
-    pub fn new() -> Self {
+impl Default for BitVec {
+    fn default() -> Self {
         Self {
             data: Vec::new(),
             pos: 0,
             bit_offset: 0,
         }
+    }
+}
+impl BitVec {
+    /// Create a new, empty BitVec
+    #[inline]
+    pub fn new() -> Self {
+        Self::default()
     }
 
     /// Create a new BitVec with the given initial capacity
@@ -128,7 +134,7 @@ impl<A: Allocator> BitVec<A> {
     ///
     /// NOTE: As this takes a reference on the underlying buffer, it is not possible to
     /// obtain a slice while there are outstanding mutable references to this BitVec
-    pub fn select<'a>(&'a self) -> Selection<'a> {
+    pub fn select(&self) -> Selection<'_> {
         Selection::new(self.data.as_slice(), 0, 0, None, self.bit_size()).unwrap()
     }
 
@@ -136,7 +142,7 @@ impl<A: Allocator> BitVec<A> {
     ///
     /// NOTE: This function takes a reference on the underlying buffer, so it is not possible
     /// to start a match while there are outstanding mutable references to this BitVec
-    pub fn matcher<'a>(&'a self) -> Matcher<'a> {
+    pub fn matcher(&self) -> Matcher<'_> {
         Matcher::new(self.select())
     }
 
@@ -168,6 +174,40 @@ impl<A: Allocator> Bitstring for BitVec<A> {
 }
 
 impl<A: Allocator> BitVec<A> {
+    /// Write a `Selection` via this writer
+    pub fn push_selection(&mut self, selection: Selection<'_>) {
+        match selection {
+            Selection::Empty => (),
+            Selection::Byte(b) if b.is_partial() => {
+                unsafe { self.push_partial_byte(b.byte(), b.size) };
+            }
+            Selection::Byte(b) => {
+                self.push_byte(b.byte());
+            }
+            Selection::AlignedBinary(bytes) => {
+                self.push_bytes(bytes);
+            }
+            Selection::Binary(l, bytes, r) => {
+                unsafe { self.push_partial_byte(l.byte(), l.size) };
+                self.push_bytes(bytes);
+                unsafe { self.push_partial_byte(r.byte(), r.size) };
+            }
+            Selection::AlignedBitstring(bytes, r) => {
+                self.push_bytes(bytes);
+                unsafe { self.push_partial_byte(r.byte(), r.size) };
+            }
+            Selection::Bitstring(l, bytes, None) => {
+                unsafe { self.push_partial_byte(l.byte(), l.size) };
+                self.push_bytes(bytes);
+            }
+            Selection::Bitstring(l, bytes, Some(r)) => {
+                unsafe { self.push_partial_byte(l.byte(), l.size) };
+                self.push_bytes(bytes);
+                unsafe { self.push_partial_byte(r.byte(), r.size) };
+            }
+        }
+    }
+
     /// Write a `str` via this writer
     #[inline]
     pub fn push_str(&mut self, s: &str) {
@@ -325,7 +365,8 @@ impl<A: Allocator> BitVec<A> {
     /// Used to push a bit when the current position is NOT byte-aligned
     unsafe fn push_bit_slow(&mut self, bit: bool) {
         // First, we need to rewrite the current partial byte with bits from `byte`
-        // Then, we need to shift the remaining bits of `byte` left and write that as a new partial byte
+        // Then, we need to shift the remaining bits of `byte` left and write that as a new partial
+        // byte
         let ptr = self.data.as_mut_ptr();
         let partial_byte = ptr.add(self.pos);
 
@@ -376,7 +417,8 @@ impl<A: Allocator> BitVec<A> {
     #[cold]
     unsafe fn push_byte_slow(&mut self, byte: u8) {
         // First, we need to rewrite the current partial byte with bits from `byte`
-        // Then, we need to shift the remaining bits of `byte` left and write that as a new partial byte
+        // Then, we need to shift the remaining bits of `byte` left and write that as a new partial
+        // byte
         let ptr = self.data.as_mut_ptr();
         let partial_byte = ptr.add(self.pos);
 
@@ -393,7 +435,8 @@ impl<A: Allocator> BitVec<A> {
         // We shift our position forward one byte, the bit offset remains unchanged
         self.pos += 1;
 
-        // Mask out the remaining bits and shift them left by the bit offset to form the new partial byte
+        // Mask out the remaining bits and shift them left by the bit offset to form the new partial
+        // byte
         *ptr.add(self.pos) = byte << (8 - offset);
     }
 
@@ -505,8 +548,9 @@ impl<A: Allocator> BitVec<A> {
             self.push_bytes(bytes);
             // Calculate the number of remaining bits to write
             let remaining_bits = size - available;
-            // If after pushing the bits that were available, we are aligned on a byte boundary, it vastly
-            // simplifies writing the padding bytes and handling the trailing bits
+            // If after pushing the bits that were available, we are aligned on a byte boundary, it
+            // vastly simplifies writing the padding bytes and handling the trailing
+            // bits
             if self.bit_offset == 0 {
                 // Recalculate the number of trailing bits
                 let trailing_bits = (remaining_bits % 8) as u8;
@@ -560,12 +604,14 @@ impl<A: Allocator> BitVec<A> {
         let byte_size = size / 8;
         let trailing_bits = (size % 8) as u8;
 
-        // If the number of bits requested fits in a single byte, we can proceed directly to handling the final byte
+        // If the number of bits requested fits in a single byte, we can proceed directly to
+        // handling the final byte
         if byte_size == 0 {
             return unsafe { self.push_partial_byte(bytes[0], trailing_bits) };
         }
 
-        // If the number of bits requested is an evenly divisble number of bytes, we can delegate to push_bytes
+        // If the number of bits requested is an evenly divisble number of bytes, we can delegate to
+        // push_bytes
         if trailing_bits == 0 {
             return self.push_bytes(&bytes[0..byte_size]);
         }
@@ -612,8 +658,9 @@ impl<A: Allocator> BitVec<A> {
             self.bit_offset = size;
             return;
         }
-        // Otherwise, mask out the bits for the partial byte and shift them into position, then write the filled partial byte
-        // The inverse of this mask will extract the trailing bits
+        // Otherwise, mask out the bits for the partial byte and shift them into position, then
+        // write the filled partial byte The inverse of this mask will extract the trailing
+        // bits
         let mask = u8::MAX << offset_shift;
         let partial_byte = partial_byte & mask;
         *ptr = partial_byte | (byte >> offset);
@@ -674,7 +721,8 @@ impl<A: Allocator> Ord for BitVec<A> {
 impl<A: Allocator, T: ?Sized + Bitstring> PartialOrd<T> for BitVec<A> {
     // We order bitstrings lexicographically
     fn partial_cmp(&self, other: &T) -> Option<core::cmp::Ordering> {
-        // Aligned binaries can be compared using the optimal built-in slice comparisons in the standard lib
+        // Aligned binaries can be compared using the optimal built-in slice comparisons in the
+        // standard lib
         if self.is_binary() && other.is_aligned() && other.is_binary() {
             unsafe {
                 let x = self.as_bytes_unchecked();
@@ -1254,7 +1302,8 @@ mod test {
     fn bitvec_integration_test() {
         // We're aiming to test that we can create the following bitstring:
         //
-        //     <<0xdeadbeef::big-integer-size(4)-unit(8), 2::integer-size(1)-unit(8), 5::integer-size(4)-unit(8), "hello"::binary>>
+        //     <<0xdeadbeef::big-integer-size(4)-unit(8), 2::integer-size(1)-unit(8),
+        // 5::integer-size(4)-unit(8), "hello"::binary>>
         //
         // Which should be equivalent to the following 14 hex-encoded bytes:
         //

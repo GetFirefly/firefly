@@ -7,7 +7,7 @@ use std::sync::Arc;
 pub struct Seq<T> {
     vec: Option<Arc<Vec<T>>>,
 }
-unsafe impl<T> Send for Seq<T> {}
+unsafe impl<T: Send> Send for Seq<T> {}
 impl<T> Seq<T> {
     pub fn new() -> Self {
         Self::default()

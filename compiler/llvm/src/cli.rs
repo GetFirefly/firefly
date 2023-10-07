@@ -21,7 +21,7 @@ pub fn init(options: &Options) {
         .codegen_opts
         .llvm_args
         .iter()
-        .map(|arg| CString::new(arg.as_str().as_ptr()).unwrap())
+        .map(|arg| CString::new(arg.as_str()).as_ptr())
         .collect::<Vec<_>>();
 
     // MLIR
@@ -34,7 +34,7 @@ pub fn init(options: &Options) {
         args.push("-print-before-all\0".as_ptr() as _);
     }
     if options.debugging_opts.mlir_print_passes_after {
-        args.push("-mlir-print-ir-after-all\0".as_ptr() as _).unwrap());
+        args.push("-mlir-print-ir-after-all\0".as_ptr() as _);
         args.push("-print-after-all\0".as_ptr() as _);
     }
     if options.debugging_opts.mlir_print_passes_on_change {

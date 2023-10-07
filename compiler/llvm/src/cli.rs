@@ -21,77 +21,75 @@ pub fn init(options: &Options) {
         .codegen_opts
         .llvm_args
         .iter()
-        .map(|arg| CString::new(arg.as_str()).unwrap())
+        .map(|arg| CString::new(arg.as_str().as_ptr()).unwrap())
         .collect::<Vec<_>>();
 
     // MLIR
     if options.debugging_opts.time_mlir_passes {
-        args.push(CString::new("-mlir-timing").unwrap());
-        args.push(CString::new("-mlir-timing-display=tree").unwrap());
+        args.push("-mlir-timing\0".as_ptr() as _);
+        args.push("-mlir-timing-display=tree\0".as_ptr() as _);
     }
     if options.debugging_opts.mlir_print_passes_before {
-        args.push(CString::new("-mlir-print-ir-before-all").unwrap());
-        args.push(CString::new("-print-before-all").unwrap());
+        args.push("-mlir-print-ir-before-all\0".as_ptr() as _);
+        args.push("-print-before-all\0".as_ptr() as _);
     }
     if options.debugging_opts.mlir_print_passes_after {
-        args.push(CString::new("-mlir-print-ir-after-all").unwrap());
-        args.push(CString::new("-print-after-all").unwrap());
+        args.push("-mlir-print-ir-after-all\0".as_ptr() as _).unwrap());
+        args.push("-print-after-all\0".as_ptr() as _);
     }
     if options.debugging_opts.mlir_print_passes_on_change {
-        args.push(CString::new("-mlir-print-ir-after-change").unwrap());
-        args.push(CString::new("-print-changed").unwrap());
+        args.push("-mlir-print-ir-after-change\0".as_ptr() as _);
+        args.push("-print-changed\0".as_ptr() as _);
     }
     if options.debugging_opts.mlir_print_passes_on_failure {
-        args.push(CString::new("-mlir-print-ir-after-failure").unwrap());
+        args.push("-mlir-print-ir-after-failure\0".as_ptr() as _);
     }
     if options.debugging_opts.mlir_print_module_scope {
-        args.push(CString::new("-mlir-print-ir-module-scope").unwrap());
-        args.push(CString::new("-print-module-scope").unwrap());
+        args.push("-mlir-print-ir-module-scope\0".as_ptr() as _);
+        args.push("-print-module-scope\0".as_ptr() as _);
     }
     if options.debugging_opts.mlir_print_local_scope {
-        args.push(CString::new("-mlir-print-local-scope").unwrap());
+        args.push("-mlir-print-local-scope\0".as_ptr() as _);
     }
     if options.debugging_opts.mlir_enable_statistics {
-        args.push(CString::new("-mlir-pass-statistics").unwrap());
+        args.push("-mlir-pass-statistics\0".as_ptr() as _);
     }
     if options.debugging_opts.mlir_print_op_on_diagnostic {
-        args.push(CString::new("-mlir-print-op-on-diagnostic").unwrap());
+        args.push("-mlir-print-op-on-diagnostic\0".as_ptr() as _);
     }
     if options.debugging_opts.mlir_print_trace_on_diagnostic {
-        args.push(CString::new("-mlir-print-stacktrace-on-diagnostic").unwrap());
+        args.push("-mlir-print-stacktrace-on-diagnostic\0".as_ptr() as _);
     }
     if let Some(path) = options
         .debugging_opts
         .mlir_enable_crash_reproducer
         .as_deref()
     {
-        args.push(
-            CString::new(format!(
-                "-mlir-pass-pipeline-crash-reproducer={}",
+        args.push(format!(
+                "-mlir-pass-pipeline-crash-reproducer={}\0",
                 path.display()
-            ))
-            .unwrap(),
+            ).as_ptr() as _,
         );
     }
     match options.debugging_opts.mlir_print_debug_info {
         MlirDebugPrinting::Plain => {
-            args.push(CString::new("-mlir-print-debuginfo").unwrap());
+            args.push("-mlir-print-debuginfo\0".as_ptr() as _);
         }
         MlirDebugPrinting::Pretty => {
-            args.push(CString::new("-mlir-print-debuginfo").unwrap());
-            args.push(CString::new("-mlir-pretty-debuginfo").unwrap());
+            args.push("-mlir-print-debuginfo\0".as_ptr() as _);
+            args.push("-mlir-pretty-debuginfo\0".as_ptr() as _);
         }
         _ => (),
     }
     if options.debugging_opts.mlir_print_generic_ops {
-        args.push(CString::new("-mlir-print-op-generic").unwrap());
+        args.push("-mlir-print-op-generic\0".as_ptr() as _);
     } else {
-        args.push(CString::new("-mlir-print-assume-verified").unwrap());
+        args.push("-mlir-print-assume-verified\0".as_ptr() as _);
     }
 
     // LLVM
     if options.debugging_opts.time_llvm_passes {
-        args.push(CString::new("-time-passes").unwrap());
+        args.push("-time-passes\0".as_ptr() as _);
     }
     match options
         .codegen_opts
@@ -100,18 +98,17 @@ pub fn init(options: &Options) {
     {
         MergeFunctions::Disabled | MergeFunctions::Trampolines => {}
         MergeFunctions::Aliases => {
-            args.push(CString::new("-mergefunc-use-aliases").unwrap());
+            args.push("-mergefunc-use-aliases\0".as_ptr() as _);
         }
     }
 
     // HACK: LLVM inserts `llvm.assume` calls to preserve align attributes
     // during inlining. Unfortunately these may block other optimizations.
-    args.push(CString::new("-preserve-alignment-assumptions-during-inlining=false").unwrap());
+    args.push("-preserve-alignment-assumptions-during-inlining=false\0".as_ptr() as _);
 
-    let ptrs = args.iter().map(|cstr| cstr.as_ptr()).collect::<Vec<_>>();
     let overview = std::ptr::null();
 
     unsafe {
-        LLVMParseCommandLineOptions(ptrs.len().try_into().unwrap(), ptrs.as_ptr(), overview);
+        LLVMParseCommandLineOptions(args.len().try_into().unwrap(), args.as_ptr(), overview);
     }
 }

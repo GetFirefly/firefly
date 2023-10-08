@@ -21,7 +21,7 @@ pub fn init(options: &Options) {
         .codegen_opts
         .llvm_args
         .iter()
-        .map(|arg| CString::new(arg.as_str()).as_ptr())
+        .map(|arg| CString::new(arg.as_str()).unwrap().as_ptr())
         .collect::<Vec<_>>();
 
     // MLIR
